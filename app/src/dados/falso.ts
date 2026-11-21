@@ -40,7 +40,7 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos } from '../regras/gruposDaEquipe';
+import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
@@ -4352,8 +4352,7 @@ export const SD: Dados = {
       // Como public.cartao_sair: quem está só por um grupo do cartão recebe o motivo (o primeiro grupo, pelo nome).
       const doItem = GRUPOS_DO_ITEM[modulo](id) ?? [], meus = meusGruposNoFalso();
       const pelo = bd.gruposDaEquipe!.filter(g => doItem.includes(g.id) && meus.includes(g.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0];
-      return erro(pelo ? `Você está neste cartão pelo grupo ${pelo.nome}. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.`
-        : 'Você não está entre as pessoas deste cartão.');
+      return erro(pelo ? recusaDeSairPeloGrupo(pelo.nome) : 'Você não está entre as pessoas deste cartão.');
     }
     gravar();
   },

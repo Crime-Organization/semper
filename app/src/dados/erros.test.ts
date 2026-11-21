@@ -1,5 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
+import { recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
 
 describe('Erros do banco em português', () => {
@@ -87,6 +88,16 @@ describe('Erros do banco em português', () => {
     const erro = traduzir({ code: '23514', message: 'Invalid login credentials' });
     // Então
     expect(erro.message).toBe('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+  });
+
+  it('dado quem está num cartão só por um grupo, quando o banco recusa a saída pedindo só um administrador, então o aviso cita também outra pessoa do cartão (#274)', () => {
+    // Dado: a mensagem como public.cartao_sair a escreve
+    const doBanco = { code: 'P0001', message: 'Você está neste cartão pelo grupo Núcleo A. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.' };
+    // Quando
+    const erro = traduzir(doBanco);
+    // Então
+    expect(erro.message).toBe(recusaDeSairPeloGrupo('Núcleo A'));
+    expect(erro.message).toBe('Você está neste cartão pelo grupo Núcleo A. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.');
   });
 
   it('quando o erro é traduzido, então o original continua guardado para investigar', () => {

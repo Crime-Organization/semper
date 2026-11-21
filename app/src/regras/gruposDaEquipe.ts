@@ -174,8 +174,18 @@ export const saiComOGrupo = (q: QuemEstaNoCartao, grupoId: string) =>
 export const soPeloGrupo = (q: Pick<QuemEstaNoCartao, 'eu' | 'responsavel_id' | 'lista' | 'meus'>, grupos: readonly GrupoDaEquipe[]) =>
   q.responsavel_id === q.eu || q.lista.includes(q.eu) ? null : grupos.find(g => q.meus.includes(g.id)) ?? null;
 
+/**
+ * Como sai do cartão quem está nele só por um grupo (#274): ele não está na lista, então não se tira dela. Quem altera o item (outra
+ * pessoa do cartão) tira o grupo do cartão, e com ele saem todos do grupo; um administrador tira a pessoa do grupo.
+ */
+export const COMO_SAIR_PELO_GRUPO = 'Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.';
 /** A nota de quem está no cartão só pelo grupo: não sai sozinho (a mesma ideia da recusa de public.cartao_sair). */
-export const notaDeQuemEstaPeloGrupo = (nome: string) => `Você participa deste cartão pelo grupo ${nome}. Para sair, peça a um administrador.`;
+export const notaDeQuemEstaPeloGrupo = (nome: string) => `Você participa deste cartão pelo grupo ${nome}. ${COMO_SAIR_PELO_GRUPO}`;
+/**
+ * A recusa de sair do cartão (public.cartao_sair) a quem está nele só pelo grupo `nome`. O banco ainda manda pedir só a um
+ * administrador, e a tela troca pelo texto daqui (dados/erros.ts); o banco fictício já dá este.
+ */
+export const recusaDeSairPeloGrupo = (nome: string) => `Você está neste cartão pelo grupo ${nome}. ${COMO_SAIR_PELO_GRUPO}`;
 /**
  * A nota do grupo no topo do cartão: só para quem está no cartão só por grupos, está neste grupo e de fato não sai sozinho. Quem grava
  * fora do cartão (administradora, quem criou, a fase de adaptação) ou continua nele pelo item ligado tira o grupo pelo botão: a nota
@@ -185,9 +195,9 @@ export const notaDoGrupoNoTopo = (q: Omit<QuemEstaNoCartao, 'grupos'>, grupo: Gr
   !q.podeSair && !q.peloLigado && grupo.integrantes.includes(q.eu) && soPeloGrupo(q, doItem) ? notaDeQuemEstaPeloGrupo(grupo.nome) : null;
 /**
  * Por que a pessoa não tira o grupo que é o único caminho dela até o cartão: ela deixaria de participar (e o banco recusa, porque ela
- * deixaria de ver o item). Como sair do cartão, quem está só pelo grupo pede a um administrador.
+ * deixaria de ver o item). Como sair do cartão, quem está só pelo grupo pede a outra pessoa do cartão ou a um administrador.
  */
-export const SAIRIA_SEM_O_GRUPO = 'Sem este grupo, você deixaria de participar deste cartão. Para sair, peça a um administrador.';
+export const SAIRIA_SEM_O_GRUPO = `Sem este grupo, você deixaria de participar deste cartão. ${COMO_SAIR_PELO_GRUPO}`;
 /** O que o contrato diz a quem está nele só pelo grupo: participa sem os valores (decisão do dono, 19/11). */
 export const peloGrupoSemOsValores = (nome: string) =>
   `Você participa deste contrato pelo grupo ${nome}: vê e edita, menos os valores, o responsável, os participantes e os grupos.`;

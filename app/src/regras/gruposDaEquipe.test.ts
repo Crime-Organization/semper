@@ -165,11 +165,11 @@ describe('Grupos da equipe na tela (#378)', () => {
     expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: [], meus: ['gb'] }, [nucleoA, nucleoB])?.nome).toBe('Núcleo Bê');
     expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: ['u2'], meus: ['gb'] }, [nucleoB])).toBeNull();
     expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: [], meus: [] }, [nucleoB])).toBeNull();
-    expect(notaDeQuemEstaPeloGrupo('Núcleo A')).toBe('Você participa deste cartão pelo grupo Núcleo A. Para sair, peça a um administrador.');
+    expect(notaDeQuemEstaPeloGrupo('Núcleo A')).toBe('Você participa deste cartão pelo grupo Núcleo A. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.');
   });
 
   it.each([
-    ['só pelo grupo, sem gravar fora do cartão', {}, 'Você participa deste cartão pelo grupo Núcleo Bê. Para sair, peça a um administrador.'],
+    ['só pelo grupo, sem gravar fora do cartão', {}, 'Você participa deste cartão pelo grupo Núcleo Bê. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.'],
     ['podendo gravar fora do cartão (administradora, quem criou)', { podeSair: true }, null],
     ['também pelo item ligado', { peloLigado: true }, null],
     ['também na lista do cartão', { lista: ['u2'] }, null]

@@ -72,7 +72,7 @@ interface PropsDoCartao {
   tirar?: (g: GrupoDaEquipe) => unknown;
   /** Uma mudança ainda grava: o "Tirar" fica desligado. */
   ocupado?: boolean;
-  /** A nota de quem está no cartão só por este grupo ("Para sair, peça a um administrador"). */
+  /** A nota de quem está no cartão só por este grupo (notaDeQuemEstaPeloGrupo: como sair, por outra pessoa do cartão ou um administrador). */
   nota?: (g: GrupoDaEquipe) => string | null;
   /** Por que este grupo não sai do cartão: o motivo aparece no lugar do "Tirar". */
   impedeTirar?: (g: GrupoDaEquipe) => string | undefined;

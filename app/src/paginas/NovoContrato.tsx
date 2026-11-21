@@ -16,6 +16,7 @@ import {
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
 import { opcoesDeResponsavel } from '../regras/equipe';
+import { equipeDoContrato, recusaNoLapis } from '../regras/equipeDoContrato';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
@@ -338,7 +339,9 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
       if (alvo) {
         // Para desfazer: o contrato como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoContrato(camposDoContrato(alvo));
-        await SD.contratoAtualizar(alvo.id, dados);
+        // Quem se tirou do contrato (ou o passou adiante) e ficaria fora dele: o banco recusa, e o aviso diz o que fazer e a quem pedir,
+        // pela situação do financeiro (#274).
+        await SD.contratoAtualizar(alvo.id, dados).catch((e: unknown) => { throw recusaNoLapis(e, equipeDoContrato(alvo), dados, { ...ctx.perfil, financeiro: comFinanceiro }); });
         await gravarProcessosDoContrato(alvo.id);
         feito('Contrato atualizado.', 'atualização do contrato', async () => {
           await SD.contratoAtualizar(alvo.id, antes);

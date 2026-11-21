@@ -110,6 +110,23 @@ test.describe('Grupos da equipe', () => {
     await expect(page.getByRole('row').filter({ hasText: 'Registro de marca' })).toHaveCount(0);
   });
 
+  test('dado o Bruno numa demanda só pelo grupo, quando abre a pílula do grupo, então a nota diz que outra pessoa do cartão tira o grupo ou um administrador o tira do grupo (#274)', async ({ page }) => {
+    // Dado
+    await criarGrupoComBruno(page);
+    await porGrupoNaDemanda(page, 'Busca de anterioridade');
+    await entrarComo(page, 'u-bruno');
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).first().click();
+    // Quando
+    await cartaoAberto(page).getByRole('button', { name: `Grupo ${NUCLEO}, 1 pessoa. Ver quem está` }).click();
+    // Então
+    const lista = page.getByRole('dialog', { name: `Grupo ${NUCLEO}` });
+    await expect(lista).toContainText('Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.');
+    await expect(lista).not.toContainText(/Para sair, peça a um administrador\./);
+    await expect(lista.getByRole('button', { name: 'Tirar o grupo do cartão' })).toHaveCount(0);
+  });
+
   test('dado o grupo numa demanda, quando o filtro "Grupo da equipe" é escolhido, então a tabela e o quadro mostram só os cartões do grupo, com as mesmas colunas', async ({ page }) => {
     // Dado
     await criarGrupoComBruno(page);

@@ -12,7 +12,7 @@ import type { Contrato } from '../dados';
 import { PARTICIPANTES_MAXIMOS } from '../dados/limites';
 import { fmtPercentual, PARTICIPANTES_DEMAIS } from '../regras/contrato';
 import { candidatosAoContrato, responsaveisAoContrato } from '../regras/equipe';
-import { equipeDoContrato, IMPEDIMENTO_NO_CONTRATO, tirarDoContrato, type PedidoNoContrato, type PessoaDoUsuario } from '../regras/equipeDoContrato';
+import { equipeDoContrato, IMPEDIMENTO_NO_CONTRATO, tirarDoContrato, type PedidoNoContrato, type PessoaDoUsuario, type QuemMuda } from '../regras/equipeDoContrato';
 import { ACOES_NA_BOLINHA, acoesSem } from '../regras/menuDaBolinha';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { useCtx } from '../ui/sessao';
@@ -48,10 +48,12 @@ export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
   });
   if (!depois) return <EquipeDoCartao responsavel={responsavel} participantes={participantes} grupos={grupos} />;
 
+  // Quem muda, com o financeiro do escritório: com ele ligado, a trava da divisão muda a quem o motivo manda pedir (#274).
+  const eu: QuemMuda = { ...ctx.perfil, financeiro: !!ctx.escritorio?.modulos?.financeiro };
   // A pessoa do cadastro de cada usuário: o responsável de antes continua como participante ao tornar outro responsável (#388).
   const pessoaDe: PessoaDoUsuario = perfilId => ctx.equipe.find(m => m.id === perfilId)?.pessoa_id;
   const pedir = (pedido: PedidoNoContrato) => umaDeCadaVez(async () => {
-    await mudarAEquipeDoContrato(k.id, pedido, ctx.perfil, pessoaDe);
+    await mudarAEquipeDoContrato(k.id, pedido, eu, pessoaDe);
     depois();
   }, depois);
 
@@ -73,10 +75,10 @@ export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
     ocupado,
     impedeTirar: p => {
       const pessoa = daBolinha(p.id);
-      return pessoa && IMPEDIMENTO_NO_CONTRATO.tirar(atual, pessoa.pessoaId, ctx.perfil);
+      return pessoa && IMPEDIMENTO_NO_CONTRATO.tirar(atual, pessoa.pessoaId, eu);
     },
-    impedeTrocar: IMPEDIMENTO_NO_CONTRATO.responsavel(atual, ctx.perfil),
-    impedeTornar: p => IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, p.id, ctx.perfil, pessoaDe),
+    impedeTrocar: IMPEDIMENTO_NO_CONTRATO.responsavel(atual, eu),
+    impedeTornar: p => IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, p.id, eu, pessoaDe),
     aoPor: m => m.pessoa_id && pedir({ tipo: 'por', id: m.pessoa_id, nome: m.nome }),
     aoTirar: p => {
       const pessoa = daBolinha(p.id);
