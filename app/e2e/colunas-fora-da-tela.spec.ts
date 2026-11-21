@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Colunas fora da tela (#87): quando o quadro não cabe, a borda mostra que há mais (um degradê, à direita enquanto há o que
-// rolar e à esquerda depois de rolar). No banco fictício, o quadro de Tarefas tem "Sem etapa", quatro colunas, "Arquivados"
-// e a coluna de criar: cerca de 2.100px, que não cabem numa tela de 1.280px e cabem numa de 3.000px. Quem está logado é o
+// rolar e à esquerda depois de rolar). No banco fictício, o quadro de Tarefas tem "Sem etapa", seis colunas (#314), "Arquivados"
+// e a coluna de criar: cerca de 2.700px, que não cabem numa tela de 1.280px e cabem numa de 3.600px. Quem está logado é o
 // Mauro (administrador). O degradê é desenho (não tem papel nem texto): o teste confere os lados acesos na área em volta do
 // quadro e a opacidade do degradê que o estilo desenha a partir deles, e também a cor que a pessoa vê na borda e onde fica o
 // botão que recebe o foco pelo teclado (fora da faixa do degradê).
@@ -127,7 +127,7 @@ test.describe('Colunas fora da tela', () => {
 
   test('dado um quadro que cabe inteiro na tela, quando a página abre, então nenhum indicador aparece', async ({ page }) => {
     // Dado
-    await telaDe(page, 3000);
+    await telaDe(page, 3600);
     // Quando
     const quadro = await quadroDeTarefas(page);
     // Então
@@ -137,7 +137,7 @@ test.describe('Colunas fora da tela', () => {
 
   test('dado um quadro que cabia, quando a janela fica estreita, então a borda direita passa a mostrar que há mais', async ({ page }) => {
     // Dado
-    await telaDe(page, 3000);
+    await telaDe(page, 3600);
     const quadro = await quadroDeTarefas(page);
     await expect.poll(() => degrade(quadro, 'direita')).toBe('0');
     // Quando

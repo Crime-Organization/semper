@@ -168,8 +168,8 @@ test.describe('Tarefa nascida no cartão da demanda (#279)', () => {
 });
 
 test.describe('Quadro de tarefas', () => {
-  // Tela larga: as colunas "Fazendo" e "Concluída" ficam as duas à vista, para arrastar de uma para a outra.
-  test.use({ viewport: { width: 1920, height: 1000 } });
+  // Tela larga: as colunas "Fazendo" e "Concluída" ficam as duas à vista (com as duas esperas da #314 entre elas), para arrastar de uma para a outra.
+  test.use({ viewport: { width: 2700, height: 1000 } });
 
   test('quando a pessoa alterna entre quadro e tabela, então vê as mesmas tarefas', async ({ page }) => {
     // Dado

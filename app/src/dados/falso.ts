@@ -41,6 +41,7 @@ import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHi
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
+import { COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas } from '../regras/colunasPadrao';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
@@ -99,7 +100,9 @@ const SITUACOES_DEMANDA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concl
 /** Colunas iniciais do quadro de tarefas (supabase/migrations/20261027000020_tarefas.sql): a primeira e a última são colunas-marco. */
 const SITUACOES_TAREFA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluída'];
 const SITUACOES_COMPROMISSO = ['Agendado', 'Confirmado', 'Realizado', 'Cancelado'];
-const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA, tarefas: SITUACOES_TAREFA };
+// As sugestões das tarefas têm as colunas de espera (#314) depois de "Fazendo", como quadro_sugestoes no banco.
+const SUGESTOES_TAREFA = [...SITUACOES_TAREFA.slice(0, 2), ...COLUNAS_NOVAS_DAS_TAREFAS.colunas.map(c => c.nome), ...SITUACOES_TAREFA.slice(2)];
+const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA, tarefas: SUGESTOES_TAREFA };
 /** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
 type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
 /** Modelo de checklist como fica guardado: a árvore é nula no modelo de antes (a leitura a monta pelos itens). */
@@ -190,6 +193,8 @@ interface Banco {
   diasLancados?: DiaLancado[];
   /** Grupos de colunas dos quadros (quadro_grupos no banco). */
   gruposDeColunas?: (GrupoDeColunas & { modulo: Modulo })[];
+  /** As tarefas do quadro cujas colunas padrão novas já foram acrescentadas nesta sessão (#314, #315), como as migrações. */
+  colunasNovas?: number[];
   /** Etiquetas do escritório e as ligações com os cartões (etiquetas e pessoa_etiquetas, contrato_etiquetas... no banco). */
   etiquetas?: Etiqueta[];
   etiquetasAplicadas?: { modulo: ModuloComEtiquetas; cartao_id: string; etiqueta_id: string }[];
@@ -595,6 +600,22 @@ if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
     marco: i === 0 ? 'inicio' as const : i === SITUACOES_TAREFA.length - 1 ? 'concluido' as const : null })));
 }
 bd.historicoTarefas ??= [];
+// Colunas padrão que chegaram depois (#314, #315): acrescentadas uma vez em cada sessão, sem repetir as que já existem, como as
+// migrações fazem com o escritório que já existe (e o gatilho, com o escritório novo).
+bd.colunasNovas ??= [];
+for (const { tarefa, modulo, novas } of COLUNAS_NOVAS_POR_TAREFA) {
+  if (bd.colunasNovas.includes(tarefa)) continue;
+  bd.colunasNovas.push(tarefa);
+  const grupos = bd.gruposDeColunas!.filter(g => g.modulo === modulo);
+  const plano = planoDasColunasNovas(bd.colunas.filter(c => c.modulo === modulo), grupos, novas);
+  if (!plano) continue;
+  let grupoId = plano.grupoId;
+  if (plano.grupoNovo) {
+    grupoId = novoId();
+    bd.gruposDeColunas!.push({ id: grupoId, ...plano.grupoNovo, comeca_fechado: false, modulo });
+  }
+  bd.colunas.push(...plano.colunas.map(c => ({ id: novoId(), ...c, criado_por: null, modulo, grupo_id: grupoId, marco: null })));
+}
 // Sessões abertas antes da data de início (#357): cada demanda começa no dia em que foi criada (como a migração data_de_inicio).
 bd.demandas.forEach(d => { d.data_inicio ??= inicioDoCriadoEm(d.criado_em); });
 // Tarefas de exemplo: três da demanda "Registro de marca" (uma já concluída) e uma avulsa, da Ana, com o prazo vencido.

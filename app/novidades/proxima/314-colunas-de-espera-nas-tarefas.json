@@ -1,0 +1,5 @@
+{
+  "titulo": "Duas colunas novas no quadro de Tarefas",
+  "texto": "O quadro de Tarefas ganhou as colunas \"Aguardando: análise do solicitante\" e \"Aguardando: retorno do cliente\", logo depois de \"Fazendo\". Se o seu escritório já tinha uma coluna com esse nome, ela não se repete.",
+  "ondeAchar": "Tarefas, no Kanban."
+}

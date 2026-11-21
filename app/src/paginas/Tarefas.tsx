@@ -1,6 +1,6 @@
 // Tarefas: as partes menores do trabalho (ex.: "Emitir a GRU", numa demanda de registro de marca), com responsável,
 // participantes, prazo e, se houver, a demanda, o contrato e as pessoas a que se ligam. Tabela com ações em lote,
-// quadro (Para fazer, Fazendo, Aguardando retorno, Concluída) e o cartão de cada uma. A estrutura da página vem de
+// quadro (Para fazer, Fazendo, as duas esperas da #314, Aguardando retorno, Concluída) e o cartão de cada uma. A estrutura da página vem de
 // <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';

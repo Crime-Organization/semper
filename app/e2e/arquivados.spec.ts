@@ -7,7 +7,7 @@ import { acaoNoMenuDoCartao, acoesNoMenuDoCartao } from './ajudantes';
 
 test.describe('Arquivados no quadro', () => {
   // Tela bem larga: as colunas de "Para fazer" até "Arquivados" ficam todas à vista, para arrastar entre elas.
-  test.use({ viewport: { width: 2400, height: 1000 } });
+  test.use({ viewport: { width: 3200, height: 1000 } });
 
   test('quando a pessoa arrasta um cartão para "Arquivados", então ele é arquivado; arrastado de volta, volta para a coluna', async ({ page }) => {
     // Dado

@@ -4219,11 +4219,12 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.tarefaHistorico(id))[0].alteracoes).toEqual({ etapa: { de: null, para: 'Fazendo' } });
       });
 
-      it('quando as colunas de tarefas são listadas, então "Para fazer" e "Concluída" são as colunas-marco', async () => {
+      it('quando as colunas de tarefas são listadas, então "Para fazer" e "Concluída" são as colunas-marco, com as duas esperas (#314) depois de "Fazendo"', async () => {
         // Quando
         const colunas = await SD.colunasListar('tarefas');
         // Então
-        expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluída', 'concluido']]);
+        expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando: análise do solicitante', null],
+          ['Aguardando: retorno do cliente', null], ['Aguardando retorno', null], ['Concluída', 'concluido']]);
       });
 
       it('quando a coluna é excluída, então a tarefa vai para "sem situação"', async () => {

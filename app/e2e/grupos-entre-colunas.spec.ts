@@ -1,9 +1,13 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Grupo do quadro entre colunas sem grupo (#296), no quadro de Tarefas do banco fictício: "Para fazer", "Fazendo",
-// "Aguardando retorno" e "Concluída", sem grupos. Quem está logado é o Mauro (administrador).
+// Grupo do quadro entre colunas sem grupo (#296), no quadro de Tarefas do banco fictício: "Para fazer", "Fazendo", as duas
+// esperas (#314, ESPERAS abaixo), "Aguardando retorno" e "Concluída", sem grupos. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 
-test.use({ viewport: { width: 2000, height: 1000 } });
+test.use({ viewport: { width: 3000, height: 1000 } });
+
+/** As duas colunas de espera que o quadro de Tarefas ganhou depois de "Fazendo" (#314). */
+const ESPERAS = ['Aguardando: análise do solicitante', 'Aguardando: retorno do cliente'];
+const [ANALISE, CLIENTE] = ESPERAS;
 
 async function abrirComGrupo(page: Page) {
   await page.goto('/tarefas/');
@@ -29,28 +33,28 @@ test.describe('Grupo entre colunas sem grupo', () => {
   test('quando o administrador arrasta o grupo para antes de uma coluna sem grupo, então ele fica entre as colunas, e continua lá ao recarregar', async ({ page }) => {
     // Dado
     await abrirComGrupo(page);
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Concluída', 'Grupo Aguardado']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Concluída', 'Grupo Aguardado']);
     // Quando
     await page.getByRole('button', { name: 'Fechar o grupo Aguardado' }).dragTo(page.getByRole('list', { name: 'Concluída', exact: true }), { targetPosition: BORDA_ESQUERDA });
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Grupo Aguardado', 'Concluída']);
     await expect(page.getByText('Grupo "Aguardado" mudou de lugar.')).toBeVisible();
     // Quando
     await page.reload();
     await page.getByRole('button', { name: 'Kanban' }).click();
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Grupo Aguardado', 'Concluída']);
   });
 
   test('quando a pessoa clica em "Desfazer", então o grupo volta para o fim', async ({ page }) => {
     // Dado
     await abrirComGrupo(page);
     await page.getByRole('button', { name: 'Fechar o grupo Aguardado' }).dragTo(page.getByRole('list', { name: 'Fazendo', exact: true }), { targetPosition: BORDA_ESQUERDA });
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Grupo Aguardado', 'Fazendo', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Grupo Aguardado', 'Fazendo', ...ESPERAS, 'Concluída']);
     // Quando: o aviso mais novo é o da mudança de lugar (o anterior é o da coluna que entrou no grupo)
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Concluída', 'Grupo Aguardado']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Concluída', 'Grupo Aguardado']);
     await expect(grupo(page).getByRole('list', { name: 'Aguardando retorno' })).toBeVisible();
   });
 
@@ -58,11 +62,11 @@ test.describe('Grupo entre colunas sem grupo', () => {
     // Dado
     await abrirComGrupo(page);
     await page.getByRole('button', { name: 'Fechar o grupo Aguardado' }).dragTo(page.getByRole('list', { name: 'Fazendo', exact: true }), { targetPosition: BORDA_ESQUERDA });
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Grupo Aguardado', 'Fazendo', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Grupo Aguardado', 'Fazendo', ...ESPERAS, 'Concluída']);
     // Quando: "Para fazer" vai para antes de "Concluída", passando pelo grupo
     await page.getByRole('heading', { name: 'Para fazer' }).dragTo(page.getByRole('list', { name: 'Concluída', exact: true }), { targetPosition: BORDA_ESQUERDA });
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Grupo Aguardado', 'Fazendo', 'Para fazer', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Grupo Aguardado', 'Fazendo', ...ESPERAS, 'Para fazer', 'Concluída']);
     await expect(grupo(page).getByRole('list', { name: 'Aguardando retorno' })).toBeVisible();
   });
 
@@ -73,7 +77,7 @@ test.describe('Grupo entre colunas sem grupo', () => {
     // Quando
     await page.getByRole('button', { name: /^Abrir o grupo Aguardado/ }).dragTo(page.getByRole('list', { name: 'Concluída', exact: true }), { targetPosition: BORDA_ESQUERDA });
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Grupo Aguardado', 'Concluída']);
   });
 
   test('quando a pessoa usa só o menu, então o grupo e a coluna sem grupo andam um passo, contando colunas e grupos', async ({ page }) => {
@@ -83,12 +87,12 @@ test.describe('Grupo entre colunas sem grupo', () => {
     await page.getByRole('button', { name: 'Opções do grupo Aguardado' }).click();
     await page.getByRole('menuitem', { name: 'Mover para a esquerda' }).click();
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Grupo Aguardado', 'Concluída']);
     // Quando
-    await page.getByRole('button', { name: 'Opções da coluna Fazendo' }).click();
+    await page.getByRole('button', { name: `Opções da coluna ${CLIENTE}` }).click();
     await page.getByRole('menuitem', { name: 'Mover para a direita' }).click();
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Grupo Aguardado', 'Fazendo', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ANALISE, 'Grupo Aguardado', CLIENTE, 'Concluída']);
     // Quando: a última do topo não anda mais para a direita
     await page.getByRole('button', { name: 'Opções da coluna Concluída' }).click();
     // Então
@@ -102,7 +106,7 @@ test.describe('Grupo entre colunas sem grupo', () => {
     await page.getByLabel('Nova coluna').fill('Revisão');
     await page.getByRole('button', { name: 'Criar coluna' }).click();
     // Então
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Concluída', 'Grupo Aguardado', 'Revisão']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Concluída', 'Grupo Aguardado', 'Revisão']);
   });
 });
 
@@ -113,12 +117,12 @@ test.describe('Menu "Situação" do cartão com o grupo na frente (#302)', () =>
     await abrirComGrupo(page);
     await page.getByRole('button', { name: 'Opções do grupo Aguardado' }).click();
     await page.getByRole('menuitem', { name: 'Mover para a esquerda' }).click();
-    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', ...ESPERAS, 'Grupo Aguardado', 'Concluída']);
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
     const menu = page.getByRole('dialog').getByRole('combobox', { name: 'Situação da tarefa' });
     // Então
-    await expect(menu.getByRole('option')).toHaveText(['SEM SITUAÇÃO', 'PARA FAZER', 'FAZENDO', 'AGUARDADO: AGUARDANDO RETORNO', 'CONCLUÍDA']);
+    await expect(menu.getByRole('option')).toHaveText(['SEM SITUAÇÃO', 'PARA FAZER', 'FAZENDO', ...ESPERAS.map(e => e.toLocaleUpperCase('pt-BR')), 'AGUARDADO: AGUARDANDO RETORNO', 'CONCLUÍDA']);
     // Quando
     await menu.selectOption({ label: 'AGUARDADO: AGUARDANDO RETORNO' });
     // Então
