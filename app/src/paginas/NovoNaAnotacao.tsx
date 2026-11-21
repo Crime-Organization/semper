@@ -8,16 +8,12 @@ import { useNavigate } from 'react-router';
 import type { ItemDaAnotacao, ModuloDaAnotacao } from '../dados';
 import { cadastroNaAnotacao, modulosDoNovo, NOVO_ESPERA_A_ANOTACAO, NOVO_NA_ANOTACAO, type ModuloDoNovoNaAnotacao } from '../regras/novoNaAnotacao';
 import { estiloBotao } from '../ui/base';
-import { Icone, type NomeIcone } from '../ui/Icone';
+import { Icone, ICONE_DO_MODULO } from '../ui/Icone';
 import { MenuFlutuante } from '../ui/Menu';
 import { usePedidoDeNovo } from '../ui/Recolhivel';
 
 /** O tamanho do "+" no botão (o dos outros botões de baixo das seções) e o do ícone de cada item do menu (o dos outros menus). */
 const ICONE_DO_BOTAO = 13, ICONE_DO_MENU = 15;
-/** O ícone de cada módulo no menu: o mesmo da seção dele nos cartões. */
-const ICONE_DO_MODULO: Record<ModuloDoNovoNaAnotacao, NomeIcone> = {
-  tarefas: 'tarefas', demandas: 'demandas', compromissos: 'calendario', pessoas: 'pessoas', contratos: 'contratos'
-};
 /**
  * O texto do botão e o nome do menu. O menu dá também o nome do "+" do título de "Ligada a" (#390), que abre o mesmo menu: sozinho,
  * fora da linha de "Ligar a outro item", "Novo…" não diria ao leitor de tela o que é novo.

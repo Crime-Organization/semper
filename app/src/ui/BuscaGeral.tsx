@@ -17,16 +17,15 @@ import { avisar, falha } from './avisos';
 import { Botao } from './Botoes';
 import { Aviso, Carregando, estiloBotao, Nota, Segmentos, Tecla, Vazio } from './base';
 import { abrirBuscaGeral, alternarPedido, buscaGeralAberta, buscarEmTudo, fecharBuscaGeral, type AlternarPedido, type BuscarEmTudo, type ResultadoDaBuscaGeral } from './fontesDaBuscaGeral';
-import { Icone, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_MODULO, type NomeIcone } from './Icone';
 import { haJanelaAberta } from './janela';
 import { travarRolagem } from './rolagem';
 import { ehMac, useAtrasado } from './util';
 import './BuscaGeral.css';
 
-/** O ícone de cada grupo: o mesmo do módulo no menu. */
+/** O ícone de cada grupo: o mesmo do módulo no menu (ICONE_DO_MODULO); os processos judiciais e os administrativos, o dos processos. */
 const ICONE_DO_GRUPO: Record<GrupoDaBusca, NomeIcone> = {
-  pessoas: 'pessoas', judiciais: 'processos', administrativos: 'processos', contratos: 'contratos', demandas: 'demandas', tarefas: 'tarefas',
-  compromissos: 'calendario', anotacoes: 'documentos'
+  ...ICONE_DO_MODULO, judiciais: ICONE_DO_MODULO.processos, administrativos: ICONE_DO_MODULO.processos
 };
 
 /**

@@ -1,4 +1,6 @@
 // Ícones de traço fino, na cor do texto.
+import type { ModuloComentado } from '../dados/tipos';
+
 const ICONES = {
   inicio: '<path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',
   pessoas: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M18 14a6.5 6.5 0 013.5 6"/>',
@@ -77,6 +79,24 @@ export type NomeIcone = keyof typeof ICONES;
  * tudo" das seções também (#366).
  */
 export const ICONE_DO_TOPO = 18;
+/**
+ * Tamanho dos ícones dentro da miniatura do cartão no quadro: o das pílulas dos grupos (#378) e o das ligações (#300). Da altura
+ * da letra miúda do quadro, para os dois ficarem iguais no mesmo cartão.
+ */
+export const ICONE_NO_QUADRO = 12;
+/**
+ * O ícone de cada módulo, o mesmo do menu: num lugar só, para o "+ Novo…" da anotação, a busca geral e as ligações no quadro não
+ * mostrarem desenhos diferentes para o mesmo módulo. Módulo novo = uma entrada nova.
+ */
+export const ICONE_DO_MODULO: Record<ModuloComentado, NomeIcone> = {
+  pessoas: 'pessoas',
+  contratos: 'contratos',
+  demandas: 'demandas',
+  tarefas: 'tarefas',
+  processos: 'processos',
+  compromissos: 'calendario',
+  anotacoes: 'documentos'
+};
 
 export function Icone({ nome, tam = 17 }: { nome: NomeIcone; tam?: number }) {
   return <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
