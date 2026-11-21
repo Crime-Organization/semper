@@ -696,8 +696,11 @@ export interface TempoNaTarefaDoPeriodo {
 export interface DadosTempo {
   /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
   tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;
-  /** Grava os segundos do período (só cresce). */
-  tempoGravar(id: number, segundos: number): Promise<void>;
+  /**
+   * Grava os segundos do período (só cresce). Devolve false quando o registro não aceita mais o cronômetro: foi apagado ou corrigido
+   * (em outra aba, aparelho ou por um administrador, #400); aí quem conta abre um período novo com o que contou depois.
+   */
+  tempoGravar(id: number, segundos: number): Promise<boolean>;
   /** Ajuste à mão, para mais ou para menos, sempre com motivo (fica registrado como ajuste). */
   tempoAjustar(tarefaId: string, segundos: number, motivo: string): Promise<void>;
   /**

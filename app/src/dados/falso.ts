@@ -42,7 +42,7 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
-import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
+import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
@@ -1399,8 +1399,13 @@ function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
   });
   if (Object.keys(alt).length) bd.historicoTarefas!.unshift({ id: Date.now() + Math.random(), tarefa_id: t.id, alteracoes: alt, feito_por: eu, em: agora() });
 }
+/** A tarefa em que quem está logado apaga, corrige e devolve registros de tempo: a que vê (como as regras de leitura das tarefas). */
+const vejoATarefaDoTempo = (tarefaId: string) => {
+  const t = bd.tarefas!.find(x => x.id === tarefaId);
+  return !!t && (souAdmin() || !!bd.equipeVeTudo || vejoTarefa(t));
+};
 /** O registro de tempo em que quem está logado mexe: o próprio, ou o de qualquer um para administradores (como as regras do banco). */
-const registroQueMexo = (id: number) => bd.tempos!.find(r => r.id === id && (r.perfil_id === eu || souAdmin()));
+const registroQueMexo = (id: number) => bd.tempos!.find(r => r.id === id && (r.perfil_id === eu || souAdmin()) && vejoATarefaDoTempo(r.tarefa_id));
 /** O nome de quem é da equipe, como o histórico o escreve. */
 const nomeDoMembro = (id: string | null) => EQUIPE.find(m => m.id === id)?.nome ?? null;
 /** Como o gatilho do banco: apagar, corrigir e devolver um registro de tempo entram no histórico da tarefa, sem a duração. */
@@ -3227,11 +3232,14 @@ export const SD: Dados = {
     bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio, segundos, ajuste: false, motivo: null, corrigido_em: null, motivo_da_correcao: null }); gravar();
     return espera(id);
   },
+  // Como privado.conferir_tempo e supabase.ts: o registro apagado (ou de outra pessoa) não muda nada, e o corrigido recusa o cronômetro
+  // (PERIODO_CORRIGIDO no banco): nos dois, false.
   async tempoGravar(id, segundos) {
     const r = bd.tempos!.find(x => x.id === id && x.perfil_id === eu && !x.ajuste);
-    if (!r) return;
+    if (!r || r.corrigido_em) return espera(false);
     if (segundos < r.segundos) return erro('O tempo contado não diminui: para corrigir, faça um ajuste.');
     r.segundos = segundos; gravar();
+    return espera(true);
   },
   async tempoAjustar(tarefaId, segundos, motivo) {
     acharTarefa(tarefaId);
@@ -3245,6 +3253,8 @@ export const SD: Dados = {
     const r = registroQueMexo(id);
     if (!r) return erro(REGISTRO_DE_TEMPO_INTOCAVEL);
     if (!motivo.trim()) return erro('Diga o motivo da correção (ele fica no histórico da tarefa).');
+    // A regra tempo_corrigido do banco: o motivo vai até TAMANHO_MOTIVO caracteres.
+    if (motivo.trim().length > TAMANHO_MOTIVO) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     if (new Date(inicio).getTime() > Date.now() + DIA) return erro('O dia do registro não pode ser depois de hoje.');
     if (r.ajuste ? !segundos || Math.abs(segundos) > AJUSTE_MAXIMO : segundos < 0 || segundos > PERIODO_MAXIMO) return erro('A duração está fora do que o registro aceita.');
     const diaAntes = diaNoHistorico(r.inicio), diaDepois = diaNoHistorico(inicio);
@@ -3259,9 +3269,10 @@ export const SD: Dados = {
   },
   async tempoDevolver(tarefaId, registro) {
     if (!souAdmin() && registro.perfil_id !== eu) return erro('Só quem registrou o tempo, ou um administrador, devolve o registro.');
-    acharTarefa(tarefaId);
+    // Como public.tempo_devolver: a tarefa que quem pede vê (a mesma condição de apagar); o registro volta novo, sem a correção.
+    if (!vejoATarefaDoTempo(tarefaId)) return erro('Tarefa não encontrada.');
     const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
-    const r = { ...registro, id, tarefa_id: tarefaId, motivo: registro.ajuste ? registro.motivo : null };
+    const r = { ...registro, id, tarefa_id: tarefaId, motivo: registro.ajuste ? registro.motivo : null, corrigido_em: null, motivo_da_correcao: null };
     bd.tempos!.push(r);
     historicoDoTempo(r, NO_HISTORICO.devolvido(registroNoHistorico(nomeDoMembro(r.perfil_id), r.ajuste, r.inicio))); gravar();
     return espera(id);

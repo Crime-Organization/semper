@@ -20,6 +20,8 @@ async function abrirRegistros(cartao: Locator, nome: string) {
   await tempo.getByRole('button', { name: new RegExp('^' + nome) }).click();
   return tempo.getByRole('list', { name: nome });
 }
+/** Um dia, em milissegundos, e quantos dias antes de hoje o registro passa a ser, no teste de mudar o dia. */
+const UM_DIA = 24 * 60 * 60 * 1000, DIAS_ANTES = 3;
 const tempoTotal = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).getByRole('group', { name: 'Tempo total' });
 
 test.describe('Dado quem não é administrador', () => {
@@ -44,15 +46,19 @@ test.describe('Dado quem não é administrador', () => {
     // Quando
     await lista.getByRole('button', { name: /^Mudar o registro/ }).click();
     const janela = page.getByRole('dialog', { name: 'Mudar o registro de tempo' });
+    const diaNovo = new Date(Date.now() - DIAS_ANTES * UM_DIA).toLocaleDateString('pt-BR');
     await janela.getByLabel('Duração').fill('25min');
+    await janela.getByLabel('Dia', { exact: true }).fill(diaNovo);
     await janela.getByLabel('Motivo').fill('Contei a reunião junto');
     await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByText('Registro de tempo mudado.')).toBeVisible();
     await expect(cartao.getByRole('timer')).toHaveText('0:25:00');
     await expect(tempoTotal(cartao)).toHaveText(/1 h 45 min$/);
+    await expect(lista.getByRole('listitem')).toContainText(diaNovo);
     await expect(lista.getByRole('listitem')).toContainText(/25 min.*Mudado: Contei a reunião junto/);
     await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText(`, que passou para ${diaNovo}. Motivo: Contei a reunião junto`)).toBeVisible();
     await expect(cartao.getByText(/Corrigido o tempo contado de Bruno Exemplo Souza, de .*\. Motivo: Contei a reunião junto/)).toBeVisible();
   });
 
@@ -114,6 +120,25 @@ test.describe('Dado um administrador', () => {
 });
 
 test.describe('Dado o cronômetro contando', () => {
+  test('quando a pessoa tenta mudar o registro que está contando, então o sistema pede para pausar antes e não abre a janela', async ({ page }) => {
+    // Dado: o Mauro começa a contar em "Renovar a procuração" (sem tempo ainda) e o período já foi gravado uma vez
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+    await tempo.getByRole('button', { name: /^Iniciar/ }).click();
+    await page.clock.runFor(5_000);
+    await tempo.getByRole('button', { name: /^Pausar/ }).click();
+    await tempo.getByRole('button', { name: /^Retomar/ }).click();
+    const lista = await abrirRegistros(cartao, 'Registros de tempo');
+    const emAndamento = lista.getByRole('listitem').filter({ hasText: 'em andamento' });
+    // Quando
+    await emAndamento.getByRole('button', { name: /^Mudar o registro/ }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Pause o cronômetro antes de mudar ou apagar o registro que está contando.' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Mudar o registro de tempo' })).toHaveCount(0);
+    await expect(tempo.getByText('contando', { exact: true })).toBeVisible();
+  });
+
   test('quando a pessoa tenta apagar o registro que está contando, então o sistema pede para pausar antes, e depois de pausar deixa', async ({ page }) => {
     // Dado: o Mauro começa a contar em "Renovar a procuração" (sem tempo ainda) e o período já foi gravado uma vez
     await page.clock.install();

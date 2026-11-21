@@ -11,14 +11,16 @@
 --   (motivo_da_correcao) e manda corrigido_em (qualquer instante novo; o
 --   banco põe o de agora e quem corrigiu). Sem corrigido_em novo, a mudança
 --   é a do cronômetro, com as regras de sempre (só o dono, só cresce, só o
---   período recente, nunca o ajuste).
+--   período recente, nunca o ajuste) e uma a mais: o período já corrigido
+--   não volta a crescer (o cronômetro que ainda conta abre outro).
 --
 --   Só acrescenta: três colunas (vazias nos registros de hoje), as
 --   permissões de apagar e de mudar o dia e o motivo, duas regras (RLS),
 --   o gatilho do histórico e a função de devolver. A função que confere a
---   mudança é trocada por outra que, sem correção, faz o mesmo que antes.
---   A versão anterior do site continua funcionando: ela só grava os
---   segundos do próprio período, como sempre.
+--   mudança é trocada por outra que, sem correção, faz o mesmo que antes
+--   (menos no período já corrigido, que só a versão nova corrige). A versão
+--   anterior do site continua funcionando: ela só grava os segundos do
+--   próprio período, como sempre.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -57,6 +59,11 @@ begin
   if new.segundos is distinct from old.segundos then
     if old.ajuste or old.perfil_id is distinct from auth.uid() then
       raise exception 'Só quem contou o tempo grava o cronômetro: para mudar um registro, corrija-o com o motivo.';
+    end if;
+    -- O período corrigido (pelo dono ou por um administrador) não volta a crescer: gravar nele desfaria a correção. O cronômetro
+    -- que ainda conta (em outra aba ou aparelho) recebe esta recusa e abre um período novo (PERIODO_CORRIGIDO em registrosDeTempo.ts).
+    if old.corrigido_em is not null then
+      raise exception 'Este período foi corrigido: o cronômetro conta num período novo.';
     end if;
     if new.segundos < old.segundos then raise exception 'O tempo contado não diminui: para corrigir, faça um ajuste.'; end if;
     if old.criado_em < now() - interval '1 day' then raise exception 'Este período já foi fechado: para corrigir, faça um ajuste.'; end if;
@@ -119,8 +126,10 @@ create policy apagar on public.tarefa_tempos for delete to authenticated
 
 -- ---------------------------------------------------------------------
 -- Devolver um registro apagado (o Desfazer da tela): o mesmo registro, com
--- o dono, o dia, a duração e o motivo de antes. O dono devolve o próprio,
--- numa tarefa em que está; o administrador, o de qualquer um do escritório.
+-- o dono, o dia, a duração e o motivo de antes (sem a correção: volta como
+-- registro novo). O dono devolve o próprio numa tarefa que vê (a mesma
+-- condição de apagar: as regras de leitura das tarefas); o administrador, o
+-- de qualquer um do escritório.
 -- ---------------------------------------------------------------------
 create function public.tempo_devolver(p_tarefa uuid, p_perfil uuid, p_inicio timestamptz, p_segundos integer, p_ajuste boolean, p_motivo text)
 returns bigint
@@ -130,8 +139,13 @@ begin
   if v_escritorio is null or not (privado.sou_admin() or (p_perfil is not null and p_perfil = auth.uid())) then
     raise exception 'Só quem registrou o tempo, ou um administrador, devolve o registro.';
   end if;
-  if not exists (select 1 from public.tarefas t where t.id = p_tarefa
-                 and (privado.sou_admin() and t.escritorio_id = v_escritorio
+  -- A tarefa que quem pede vê, nas mesmas condições das regras de leitura das tarefas ("leitura", na versão de
+  -- 20261119233811_grupos_da_equipe.sql, e "equipe_ve_tudo"), que valem para apagar o registro: quem apaga também devolve.
+  if not exists (select 1 from public.tarefas t where t.id = p_tarefa and t.escritorio_id = v_escritorio
+                 and (privado.equipe_ve_tudo()
+                      or t.contrato_id = any (privado.contratos_em_que_estou()::uuid[])
+                      or t.demanda_id = any (privado.demandas_dos_meus_contratos()::uuid[])
+                      or t.demanda_id in (select unnest(privado.demandas_dos_meus_grupos()))
                       or privado.estou_na_tarefa(t.escritorio_id, t.criado_por, t.responsavel_id, t.participantes, t.demanda_id, t.grupos))) then
     raise exception 'Tarefa não encontrada.';
   end if;

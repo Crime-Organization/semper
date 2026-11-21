@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, inicioNoDia, lerDuracaoDoRegistro, NO_HISTORICO,
-  NOME_DO_TIPO, possoMexer, registroNoHistorico, registrosEmOrdem, tipoDoRegistro } from './registrosDeTempo';
+  NOME_DO_TIPO, possoMexer, registroNoHistorico, registrosEmOrdem, talvezContando, tipoDoRegistro } from './registrosDeTempo';
 
 const registro = (id: number, inicio: string, extra: Partial<{ perfil_id: string | null; segundos: number; ajuste: boolean }> = {}) =>
   ({ id, perfil_id: 'u-ana', inicio, segundos: 3600, ajuste: false, ...extra });
@@ -31,6 +31,20 @@ describe('Registros de tempo da tarefa', () => {
     expect(emAndamento(r, 7, true)).toBe(true);
     expect(emAndamento(r, 7, false)).toBe(false);
     expect(emAndamento(r, 8, true)).toBe(false);
+  });
+
+  it('dado o período de outra pessoa começado há menos de um dia, quando o administrador mexe nele, então pode estar contando em outro lugar', () => {
+    // Dado
+    const agora = Date.parse('2026-11-21T15:00:00.000Z');
+    const recente = registro(1, '2026-11-21T13:00:00.000Z', { perfil_id: 'u-bruno' });
+    const antigo = registro(2, '2026-11-19T13:00:00.000Z', { perfil_id: 'u-bruno' });
+    const ajuste = registro(3, '2026-11-21T13:00:00.000Z', { perfil_id: 'u-bruno', ajuste: true, segundos: 600 });
+    const meu = registro(4, '2026-11-21T13:00:00.000Z');
+    // Quando / Então: só o período contado recente de outra pessoa (o meu, o cronômetro deste cartão conhece; o ajuste não conta)
+    expect(talvezContando(recente, 'u-ana', agora)).toBe(true);
+    expect(talvezContando(antigo, 'u-ana', agora)).toBe(false);
+    expect(talvezContando(ajuste, 'u-ana', agora)).toBe(false);
+    expect(talvezContando(meu, 'u-ana', agora)).toBe(false);
   });
 
   it('quando a lista mostra a duração, então o período contado vem por extenso e o ajuste com o sinal', () => {

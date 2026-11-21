@@ -27,6 +27,20 @@ export const possoMexer = (r: { perfil_id: string | null }, eu: string, souAdmin
 /** O registro que o cronômetro deste cartão está contando agora: só se mexe nele depois de pausar. */
 export const emAndamento = (r: { id: number }, periodoId: number | null, contando: boolean) => contando && r.id === periodoId;
 
+/** Por quanto tempo, depois de começar, o cronômetro ainda grava num período: um dia, em milissegundos (o banco fecha o período depois). */
+const JANELA_DO_CRONOMETRO = 24 * 60 * 60 * 1000;
+/**
+ * O período contado de outra pessoa que ainda pode estar contando (em outra aba ou aparelho dela): começou há menos de um dia. Daqui
+ * não se sabe se está; se estiver, o cronômetro dela abre um período novo depois da mudança (PERIODO_CORRIGIDO), e a tela avisa.
+ */
+export const talvezContando = (r: { perfil_id: string | null; inicio: string; ajuste: boolean }, eu: string, agora: number) =>
+  !r.ajuste && r.perfil_id !== eu && agora - Date.parse(r.inicio) < JANELA_DO_CRONOMETRO;
+
+/** A recusa do banco ao cronômetro que grava num período já corrigido (privado.conferir_tempo): ele conta num período novo. */
+export const PERIODO_CORRIGIDO = 'Este período foi corrigido: o cronômetro conta num período novo.';
+/** O motivo do Desfazer de uma mudança: fixo, para caber no tamanho do motivo (TAMANHO_MOTIVO) seja qual for o da mudança. */
+export const MOTIVO_DO_DESFAZER = 'Desfeita a mudança anterior';
+
 /** A duração como a lista mostra: o período contado como "1 h 20 min"; o ajuste com o sinal ("+30 min", "−10 min"). */
 export function duracaoDoRegistro(r: { segundos: number; ajuste: boolean }) {
   if (!r.ajuste) return fmtDuracao(r.segundos);

@@ -4,7 +4,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(33);
 
 -- Dado um escritório com Ana (administradora), Bia e Caio (não administradores), e o Davi, administrador de outro escritório.
 insert into public.escritorios (id, nome, slug, modulos) values
@@ -41,7 +41,17 @@ insert into public.tarefa_tempos (id, escritorio_id, tarefa_id, perfil_id, inici
    timestamptz '2026-11-18 16:00-03', 1800, false, null, timestamptz '2026-11-18 16:00-03'),
   (4, 'e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003',
    timestamptz '2026-11-18 17:00-03', 1200, false, null, timestamptz '2026-11-18 17:00-03');
+-- E outra tarefa, só da Ana, com um período da Bia de quando ela ainda estava nela.
+insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, participantes, criado_por) values
+  ('70000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'T2', 'Tarefa da Ana', 'a0000000-0000-0000-0000-000000000001',
+   '{}', 'a0000000-0000-0000-0000-000000000001');
+insert into public.tarefa_tempos (id, escritorio_id, tarefa_id, perfil_id, inicio, segundos, ajuste, motivo, criado_em)
+  overriding system value values
+  (7, 'e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002',
+   timestamptz '2026-11-18 09:00-03', 900, false, null, timestamptz '2026-11-18 09:00-03');
 set local session_replication_role = origin;
+-- Os registros devolvidos ganham números novos, longe dos de cima.
+select setval(pg_get_serial_sequence('public.tarefa_tempos', 'id'), 1000);
 
 create function pg_temp.entrar(p_quem int) returns void language sql as $$
   select set_config('request.jwt.claims', jsonb_build_object('sub', 'a0000000-0000-0000-0000-00000000000' || p_quem, 'role', 'authenticated', 'aal', 'aal1',
@@ -119,6 +129,47 @@ select is(pg_temp.mudou($$update public.tarefa_tempos set segundos = 60, motivo_
   + pg_temp.mudou($$delete from public.tarefa_tempos where id in (1, 3)$$), 0, 'Outro escritório não corrige nem apaga');
 select throws_ok($$select public.tempo_devolver('70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', now(), 60, false, null)$$,
   'Tarefa não encontrada.', 'Outro escritório não devolve registro na tarefa');
+reset role;
+
+-- Dado um período da Bia contando agora (aberto há 1 hora) e outro dela, de três dias atrás, nunca corrigido.
+insert into public.tarefa_tempos (id, escritorio_id, tarefa_id, perfil_id, inicio, segundos, ajuste, motivo, criado_em)
+  overriding system value values
+  (5, 'e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002',
+   now() - interval '1 hour', 3600, false, null, now() - interval '1 hour'),
+  (6, 'e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002',
+   timestamptz '2026-11-18 18:00-03', 600, false, null, timestamptz '2026-11-18 18:00-03');
+-- Quando o cronômetro da Bia grava, sem corrigir, então valem as regras de antes (a versão anterior do site depende delas).
+select pg_temp.entrar(2); set local role authenticated;
+select lives_ok($$update public.tarefa_tempos set segundos = 3660 where id = 5$$, 'O cronômetro grava o próprio período recente, que cresce');
+select throws_ok($$update public.tarefa_tempos set segundos = 100 where id = 5$$,
+  'O tempo contado não diminui: para corrigir, faça um ajuste.', 'Sem corrigir, o período contado não diminui');
+select throws_ok($$update public.tarefa_tempos set segundos = 700 where id = 6$$,
+  'Este período já foi fechado: para corrigir, faça um ajuste.', 'Sem corrigir, o período de mais de um dia não cresce');
+reset role;
+-- Quando Ana corrige o período que a Bia ainda está contando, então o cronômetro da Bia não grava mais nele (abriria mão da correção).
+select pg_temp.entrar(1); set local role authenticated;
+select is(pg_temp.mudou($$update public.tarefa_tempos set segundos = 600, motivo_da_correcao = 'Revisão', corrigido_em = now() where id = 5$$), 1,
+  'A administradora corrige o período que a Bia está contando');
+reset role;
+select pg_temp.entrar(2); set local role authenticated;
+select throws_ok($$update public.tarefa_tempos set segundos = 3720 where id = 5$$,
+  'Este período foi corrigido: o cronômetro conta num período novo.', 'O cronômetro não grava no período corrigido');
+reset role;
+select is(pg_temp.segundos(5), 600, 'A correção da administradora fica');
+
+-- Dado que a Bia não está mais na tarefa da Ana, mas a equipe vê tudo no escritório.
+update public.escritorios set modulos = modulos || '{"equipe_ve_tudo": true}' where id = 'e0000000-0000-0000-0000-000000000001';
+-- Quando ela apaga o próprio registro dessa tarefa e clica em Desfazer, então os dois funcionam (a mesma condição).
+select pg_temp.entrar(2); set local role authenticated;
+select is(pg_temp.mudou($$delete from public.tarefa_tempos where id = 7$$), 1, 'Vendo a tarefa, Bia apaga o próprio registro dela');
+select ok(public.tempo_devolver('70000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', timestamptz '2026-11-18 09:00-03',
+  900, false, null) > 0, 'E devolve o registro apagado (o Desfazer)');
+reset role;
+-- Mas, sem a chave, ela não vê a tarefa e não devolve nada nela.
+update public.escritorios set modulos = modulos - 'equipe_ve_tudo' where id = 'e0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar(2); set local role authenticated;
+select throws_ok($$select public.tempo_devolver('70000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', now(), 60, false, null)$$,
+  'Tarefa não encontrada.', 'Sem ver a tarefa, Bia não devolve registro nela');
 reset role;
 
 select * from finish();

@@ -13,8 +13,8 @@ import { SD, type RegistroDeTempo, type Tarefa, type TempoDaTarefa } from '../da
 import { TAMANHO_MOTIVO } from '../dados/limites';
 import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa, totalAoVivo, totalAparece } from '../regras/cronometro';
 import { fmtData } from '../regras/pessoa';
-import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, NOME_DO_TIPO, possoMexer, registrosEmOrdem, tipoDoRegistro,
-  type CamposDaCorrecao } from '../regras/registrosDeTempo';
+import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, MOTIVO_DO_DESFAZER, NOME_DO_TIPO, possoMexer, registrosEmOrdem,
+  talvezContando, tipoDoRegistro, type CamposDaCorrecao } from '../regras/registrosDeTempo';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { Aviso, Campo, CampoData, Carregando, Contador, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota, Selo, Tecla } from '../ui/base';
@@ -159,6 +159,10 @@ interface PropsDosRegistros { t: Tarefa; tempo: TempoDaTarefa; relogio: RelogioD
 
 /** O pedido para pausar antes de mexer no registro que o cronômetro está contando. */
 const PAUSE_ANTES = 'Pause o cronômetro antes de mudar ou apagar o registro que está contando.';
+/** O aviso ao mexer no período recente de outra pessoa, que pode estar contando em outra aba ou aparelho dela (talvezContando). */
+const TALVEZ_CONTANDO = 'Este período começou há menos de um dia e pode ainda estar contando em outra aba ou aparelho de quem o registrou. Se estiver, o tempo contado depois desta mudança vai para um registro novo.';
+/** O que o aviso diz depois de apagar: o de sempre, ou com a lembrança de que o período apagado podia estar contando. */
+const APAGADO = { sempre: 'Registro de tempo apagado.', talvez: 'Registro de tempo apagado. Se ainda estava contando, o tempo seguinte vai para um registro novo.' };
 /** O tamanho da bolinha de quem registrou, na lista do administrador: a mesma da parte de cada um. */
 const TAMANHO_DO_AVATAR_NO_REGISTRO = 22;
 
@@ -186,7 +190,7 @@ function RegistrosDoTempo({ t, tempo, relogio, carregar }: PropsDosRegistros) {
     const escrito = { dia: fmtData(diaDoRegistro(r.inicio)) };
     const campos = await janela<CamposDaCorrecao>({
       titulo: 'Mudar o registro de tempo',
-      corpo: <FormularioDoRegistro r={r} aoMudarDia={dia => { escrito.dia = dia; }} />,
+      corpo: <FormularioDoRegistro r={r} talvez={talvezContando(r, ctx.perfil.id, Date.now())} aoMudarDia={dia => { escrito.dia = dia; }} />,
       acoes: [{ rotulo: 'Cancelar', valor: null },
         { rotulo: 'Salvar', tipo: 'pri', valor: f => ({ duracao: String(f.get('duracao') || ''), dia: escrito.dia, motivo: String(f.get('motivo') || '') }) }]
     });
@@ -196,7 +200,7 @@ function RegistrosDoTempo({ t, tempo, relogio, carregar }: PropsDosRegistros) {
     try {
       await SD.tempoCorrigir(r.id, correcao);
       feito('Registro de tempo mudado.', 'mudança do registro de tempo', async () => {
-        await SD.tempoCorrigir(r.id, { segundos: r.segundos, inicio: r.inicio, motivo: `Desfeito: ${correcao.motivo}` });
+        await SD.tempoCorrigir(r.id, { segundos: r.segundos, inicio: r.inicio, motivo: MOTIVO_DO_DESFAZER });
         await carregar();
       });
       await depoisDeMexer(r);
@@ -205,7 +209,7 @@ function RegistrosDoTempo({ t, tempo, relogio, carregar }: PropsDosRegistros) {
   async function apagar(r: RegistroDeTempo) {
     try {
       await SD.tempoApagar(r.id);
-      feito('Registro de tempo apagado.', 'registro de tempo apagado', async () => { await SD.tempoDevolver(t.id, r); await carregar(); });
+      feito(talvezContando(r, ctx.perfil.id, Date.now()) ? APAGADO.talvez : APAGADO.sempre, 'registro de tempo apagado', async () => { await SD.tempoDevolver(t.id, r); await carregar(); });
       await depoisDeMexer(r);
     } catch (e) { falha(e); }
   }
@@ -262,11 +266,12 @@ function LinhaDoRegistro({ r, comNome, posso, contando, aoMudar, aoApagar, aoPed
 }
 
 /** A janela de Mudar: a duração (como a pessoa escreve), o dia e o motivo, com o registro como está, para comparar. */
-function FormularioDoRegistro({ r, aoMudarDia }: { r: RegistroDeTempo; aoMudarDia: (dia: string) => void }) {
+function FormularioDoRegistro({ r, talvez, aoMudarDia }: { r: RegistroDeTempo; talvez: boolean; aoMudarDia: (dia: string) => void }) {
   const [dia, setDia] = useState(() => fmtData(diaDoRegistro(r.inicio)));
   const dicaDaDuracao = r.ajuste ? 'Ex.: 30min, 1h15. Com "-" na frente para tirar (-20min).' : 'Ex.: 45min, 1h20, 1:30 (até 12 horas).';
   return <div className="ajuste-tempo">
     <Nota>Como está: {duracaoDoRegistro(r)} em {dataCurta(r.inicio)} ({NOME_DO_TIPO[tipoDoRegistro(r)].toLowerCase()}).</Nota>
+    {talvez && <Aviso tipo="info">{TALVEZ_CONTANDO}</Aviso>}
     <Campo rotulo="Duração" para="registro-duracao" dica={dicaDaDuracao}>
       <input id="registro-duracao" name="duracao" type="text" className="campo" defaultValue={duracaoParaEscrever(r.segundos)} />
     </Campo>

@@ -10,7 +10,7 @@ import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
 import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
-import { REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
+import { PERIODO_CORRIGIDO, REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { gruposDoFiltro, meusGrupos } from '../regras/gruposDaEquipe';
@@ -1845,7 +1845,16 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, inicio, segundos, perfil_id: uid() }).select('id').single());
     return data.id;
   },
-  async tempoGravar(id, segundos) { await rodar(sb.from('tarefa_tempos').update({ segundos }).eq('id', id)); },
+  // Sem linha mudada, o registro foi apagado; com a recusa PERIODO_CORRIGIDO, ele foi corrigido: nos dois, o cronômetro abre outro período.
+  async tempoGravar(id, segundos) {
+    try {
+      const { data } = await rodar(sb.from('tarefa_tempos').update({ segundos }).eq('id', id).select('id'));
+      return data.length > 0;
+    } catch (e) {
+      if ((e as Error).message === PERIODO_CORRIGIDO) return false;
+      throw e;
+    }
+  },
   async tempoAjustar(tarefaId, segundos, motivo) {
     await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, segundos, ajuste: true, motivo: motivo.trim(), perfil_id: uid() }));
   },
