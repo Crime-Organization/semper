@@ -362,6 +362,17 @@ test.describe('Caixa', () => {
     await expect(tabela).toContainText('Segundo');
   });
 
+  test('dadas as contas criadas, quando a pessoa aperta "N" fora de um campo, então abre o Novo lançamento, como o botão do cabeçalho (#86)', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await expect(page.getByRole('button', { name: 'Novo lançamento' })).toHaveAttribute('title', 'Novo lançamento (N)');
+    await page.getByRole('heading', { name: 'Caixa' }).click();
+    // Quando
+    await page.keyboard.press('n');
+    // Então
+    await expect(page.getByRole('form', { name: 'Novo lançamento' })).toBeVisible();
+  });
+
   test('quando apaga o campo do mês e clica em "Novo lançamento", então nada quebra', async ({ page }) => {
     // Dado
     await criarContas(page);

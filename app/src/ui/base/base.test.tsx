@@ -8,7 +8,7 @@ import { useRef, useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Codigo, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, idsDoCampoDeVarios, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, TituloSecao, useFocoNoGrupo, Vazio } from '.';
+import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Codigo, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, idsDoCampoDeVarios, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, Tecla, TituloSecao, useFocoNoGrupo, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -271,7 +271,9 @@ describe('Peças de texto e de estado', () => {
     ['Código', () => <Codigo>CA222B4B</Codigo>, 'codigo'],
     ['Vazio', () => <Vazio>Conteúdo</Vazio>, 'vazio'],
     ['Contador', () => <Contador>12</Contador>, 'recolher-contador num'],
-    ['Contador apagado (zero)', () => <Contador apagado>0</Contador>, 'recolher-contador num vazio']
+    ['Contador apagado (zero)', () => <Contador apagado>0</Contador>, 'recolher-contador num vazio'],
+    ['Tecla', () => <Tecla>Esc</Tecla>, 'tecla'],
+    ['Tecla com classe da tela', () => <Tecla className="busca-geral-tecla">K</Tecla>, 'tecla busca-geral-tecla']
   ])('quando a peça é %s, então gera as classes "%s"', (_peca, criar, classes) => {
     // Quando
     const { container } = render(criar());

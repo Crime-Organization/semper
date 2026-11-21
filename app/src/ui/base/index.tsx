@@ -204,6 +204,11 @@ export function Dica({ className, ...resto }: ComponentProps<'p'>) {
   return <p className={className ? 'dica ' + className : 'dica'} {...resto} />;
 }
 
+/** Uma tecla do teclado, como na dica de um atalho (Ctrl, K, Esc, N): o mesmo desenho na busca geral e na lista de atalhos. */
+export function Tecla({ className, ...resto }: ComponentProps<'kbd'>) {
+  return <kbd className={className ? 'tecla ' + className : 'tecla'} {...resto} />;
+}
+
 /** Enquanto os dados não chegam. */
 export function Carregando({ children = 'Carregando…' }: { children?: ReactNode }) {
   return <p className="carregando" role="status">{children}</p>;

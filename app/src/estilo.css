@@ -77,6 +77,16 @@
   --recuo-da-janela: 24px;
   /* A folga em volta da janela, até a borda da tela */
   --folga-da-janela: 16px;
+  /* A tecla (<Tecla>, em ui/base): a altura (também a largura mínima, para a letra sozinha ficar quadrada), a folga dos lados,
+     o raio e o vão entre dois ícones dentro dela */
+  --altura-da-tecla: 20px;
+  --folga-da-tecla: 0 6px;
+  --raio-da-tecla: 6px;
+  --vao-dentro-da-tecla: 2px;
+  /* A lista de atalhos (a janela do "?", #86): o vão entre as linhas, entre as teclas de um atalho e o que separa os grupos */
+  --vao-da-lista-de-atalhos: 8px;
+  --vao-entre-as-teclas: 4px;
+  --separacao-na-lista-de-atalhos: 16px;
   /* A largura da janela larga, para um texto de ler (as Novidades, #353) */
   --largura-janela-larga: 640px;
   /* A letra das linhas de apoio, em cinza (a data da versão e o "onde achar" das Novidades) */
@@ -1248,6 +1258,24 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .janela-corpo .novidade p { margin: 0 0 6px }
 .novidade-onde { display: flex; align-items: flex-start; gap: 6px; font-size: var(--texto-apoio); line-height: 1.5; color: var(--muted) }
 .novidade-onde svg { flex: none; margin-top: 2px }
+
+/* ---------- atalhos do teclado (#86): a janela do "?" nas páginas de módulo ---------- */
+/* Cada linha: as teclas à esquerda, numa coluna da largura da maior (a mesma nos dois grupos, por subgrid), e o que fazem à direita. */
+.lista-de-atalhos { display: grid; grid-template-columns: max-content 1fr; column-gap: var(--separacao-na-lista-de-atalhos) }
+.lista-de-atalhos section, .lista-de-atalhos dl { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid }
+.lista-de-atalhos section + section, .atalhos-desligar { margin-top: var(--separacao-na-lista-de-atalhos); padding-top: var(--separacao-na-lista-de-atalhos); border-top: 1px solid var(--line) }
+.lista-de-atalhos h3 { grid-column: 1 / -1; margin: 0 0 var(--vao-da-lista-de-atalhos); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+.lista-de-atalhos dl { margin: 0; row-gap: var(--vao-da-lista-de-atalhos); align-items: baseline }
+.lista-de-atalhos dl > div { display: contents }
+.lista-de-atalhos dt { display: flex; gap: var(--vao-entre-as-teclas) }
+.lista-de-atalhos dd { margin: 0 }
+/* A caixa que desliga os atalhos de uma tecla só, no pé da lista. */
+.atalhos-desligar { display: flex; flex-direction: column; gap: var(--vao-da-lista-de-atalhos) }
+
+/* ---------- a tecla (<Tecla>, em ui/base): a dica de um atalho, na busca geral e na lista de atalhos ---------- */
+.tecla { display: inline-flex; align-items: center; justify-content: center; gap: var(--vao-dentro-da-tecla); min-width: var(--altura-da-tecla); min-height: var(--altura-da-tecla);
+  padding: var(--folga-da-tecla); border: 1px solid var(--line2); border-radius: var(--raio-da-tecla); background: var(--soft); color: var(--muted);
+  font-family: var(--font); font-size: var(--texto-miudo); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap }
 
 /* ---------- formulário em etapas ---------- */
 .passos { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 28px }
