@@ -1,0 +1,5 @@
+{
+  "titulo": "A logomarca do escritório na barra lateral",
+  "texto": "A logomarca guardada nas Configurações aparece agora na barra lateral, no lugar da letra, ao lado do nome do escritório. A aba do navegador também mostra o nome do escritório. Sem logomarca, fica a letra, como antes.",
+  "ondeAchar": "Configurações, em Logomarca: escolha a imagem e salve. Ela aparece no alto da barra lateral (no celular, na barra do topo)."
+}

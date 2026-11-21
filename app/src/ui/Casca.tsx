@@ -21,7 +21,7 @@ import { BotaoNovidades } from './Novidades';
 import { useSessao } from './sessao';
 import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
-import { PAPEIS } from './util';
+import { escritorioNaAba, PAPEIS } from './util';
 
 /** Tamanho do "+" ao lado de cada módulo, que leva ao cadastro. */
 const ICONE_DO_MAIS = 15;
@@ -30,6 +30,12 @@ export function Casca({ children }: { children: ReactNode }) {
   const { ctx } = useSessao();
   const p = ctx.perfil;
   const nomeEsc = ctx.escritorio?.nome || MARCA.nome;
+  const logo = ctx.escritorio?.logo || null;
+  // O nome do escritório vai para o título da aba (#323) enquanto se está no sistema; ao sair, a aba volta a só "SEMPER".
+  useEffect(() => {
+    escritorioNaAba.mudar(ctx.escritorio?.nome ?? null);
+    return () => escritorioNaAba.mudar(null);
+  }, [ctx.escritorio?.nome]);
   const quantasNaoLidas = naoLidas.usar();
   useConferirNaoLidas();
   const tema = useTema();
@@ -73,15 +79,15 @@ export function Casca({ children }: { children: ReactNode }) {
         só com o ícone, para o ponto de novidade aparecer sem abrir o menu. */}
     <header className="topo-cel">
       <button type="button" aria-label="Abrir menu" onClick={e => { e.stopPropagation(); setAberta(a => !a); }}><Icone nome="menu" tam={18} /></button>
-      <b className="topo-nome">{nomeEsc} <span style={{ color: 'var(--accent-ink)' }}>{MARCA.nome}</span></b>
+      <b className="topo-nome">{logo && <LogoDoEscritorio logo={logo} nome={nomeEsc} />}<span className="topo-nome-texto">{nomeEsc}</span> <span style={{ color: 'var(--accent-ink)' }}>{MARCA.nome}</span></b>
       {/* A busca geral (#321) também fica aqui, só com a lupa: no celular não há Ctrl+K. */}
       <span className="topo-acoes"><BotaoBuscaGeral soIcone /><BotaoNovidades soIcone /></span>
     </header>
     <div className="app">
       <aside className={'side' + (aberta ? ' aberta' : '')} aria-label="Menu" ref={lateral}>
-        {/* O nome do escritório vem das Configurações. */}
+        {/* O nome e a logomarca do escritório vêm das Configurações. A logomarca fica no lugar da letra (#323). */}
         <Link className="marca-app" to="/inicio/" aria-label={`${nomeEsc}: início`}>
-          <span className="ini">{nomeEsc.trim().charAt(0)}</span>
+          {logo ? <LogoDoEscritorio logo={logo} nome={nomeEsc} /> : <span className="ini">{nomeEsc.trim().charAt(0)}</span>}
           <span style={{ minWidth: 0 }}><b>{nomeEsc}</b><small>{MARCA.nome}</small></span>
         </Link>
         {/* A busca geral (#321): em todos os módulos de uma vez; o atalho é Ctrl+K (Cmd+K no Mac), em qualquer página. */}
@@ -148,6 +154,14 @@ export function Casca({ children }: { children: ReactNode }) {
     </div>
     <BuscaGeral modulos={modulosDaBusca} />
   </>;
+}
+
+/**
+ * A logomarca do escritório (#323), numa placa clara nos dois temas, como na prévia das Configurações: a logomarca é feita para
+ * fundo claro.
+ */
+function LogoDoEscritorio({ logo, nome }: { logo: string; nome: string }) {
+  return <span className="marca-logo"><img src={logo} alt={`Logomarca de ${nome}`} /></span>;
 }
 
 /**

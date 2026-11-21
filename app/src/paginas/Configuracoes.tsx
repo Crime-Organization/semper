@@ -1,5 +1,5 @@
 // Configurações (master e administradores): os dados da instituição. O nome aparece nas telas do
-// escritório (barra lateral, mensagem de convite); a logomarca e os demais dados ficam prontos para
+// escritório (barra lateral, título da aba, mensagem de convite), a logomarca na barra lateral (#323), e os demais dados ficam prontos para
 // contratos e procurações. O SEMPER não tem nome de escritório fixo: tudo vem daqui.
 import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
@@ -173,7 +173,7 @@ function Instituicao() {
     <header>
       <p className="olho">Administração</p>
       <h1 className="titulo">Configurações<span className="ponto">.</span></h1>
-      <p className="lead">Os dados da instituição. O nome aparece nas telas do escritório, como a barra lateral e a mensagem de convite da equipe; a logomarca e os demais dados vão para os documentos.</p>
+      <p className="lead">Os dados da instituição. O nome aparece nas telas do escritório, como a barra lateral, a aba do navegador e a mensagem de convite da equipe. A logomarca aparece na barra lateral. Os dois e os demais dados vão para os documentos.</p>
     </header>
 
     <form className="config campos" noValidate onSubmit={salvar}>
@@ -185,7 +185,7 @@ function Instituicao() {
           </div>
           <div className="config-logo-texto">
             <b>Logomarca</b>
-            <Nota>Vai para os documentos do escritório, como contratos e procurações (em breve). PNG, JPG, WebP ou SVG, de preferência com fundo transparente.</Nota>
+            <Nota>Aparece na barra lateral, ao lado do nome do escritório, e vai para os documentos, como contratos e procurações (em breve). PNG, JPG, WebP ou SVG, de preferência com fundo transparente.</Nota>
             <div className="acoes">
               <button type="button" className={estiloBotao()} onClick={() => arquivo.current?.click()}>{logo ? 'Trocar imagem' : 'Escolher imagem'}</button>
               {logo && <button type="button" className={estiloBotao()} onClick={() => setLogo(null)}>Remover</button>}

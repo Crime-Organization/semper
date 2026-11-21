@@ -1,6 +1,6 @@
 ## Overview
 
-O SEMPER (semper.app.br) é a plataforma de gestão do escritório: contratos, demandas, tarefas, pessoas, compromissos, financeiro e o conteúdo do site. Ele herda o design da Braga Ferreira Educação, com uma diferença: **a cor de destaque é verde**, e não laranja.
+O SEMPER (semper.app.br) é a plataforma de gestão do escritório: contratos, demandas, tarefas, pessoas, compromissos, financeiro e o conteúdo do site. **A cor de destaque é verde.** O SEMPER não pertence a nenhum escritório: o nome e a logomarca de cada um vêm das Configurações dele.
 
 O design tem duas faces bem separadas. A **vitrine** (telas de acesso) é editorial e escura: foto do farol em preto e branco, tipografia Lato 900 em caixa alta e gigante ("SEMPER."), blocos sobre `{colors.dark}`. A **área de trabalho** (painel, módulos, kanban, administração) é clara e silenciosa: barra lateral fixa de 264px em `{colors.soft}`, conteúdo sobre `{colors.bg}` e cartões brancos com borda fina, para que os dados do contrato ou da demanda sejam a coisa mais visível da tela.
 
@@ -313,7 +313,7 @@ Uma única fotografia de marca, `app/src/imagens/farol.webp` (já em escala de c
 
 ### Navigation
 - **`sidebar-app`:** 264px, fundo `{colors.soft}`, fixa na altura da tela. Topo com `brand-mark`, itens de menu e, no rodapé, nome do usuário e `role-pill`.
-- **`brand-mark`:** quadrado escuro de 28px com a inicial em `{colors.accent-bright}` + nome do escritório, com a submarca "SEMPER" em `{colors.accent-ink}`.
+- **`brand-mark`:** quadrado escuro de 28px com a inicial em `{colors.accent-bright}` + nome do escritório, com a submarca "SEMPER" em `{colors.accent-ink}`. Com a **logomarca** do escritório (Configurações, #323), ela fica no lugar do quadrado (`.marca-logo`): numa placa clara nos dois temas (`--fundo-da-logomarca`: a logomarca é feita para fundo claro, como na prévia das Configurações), com o fio `{colors.line}`, `--altura-da-logomarca` (36px) de altura e até `--largura-da-logomarca` (96px) de largura, para o nome caber ao lado. Na barra do topo do celular, a logomarca fica no lugar do nome (que não caberia ao lado dela); sem logomarca, o nome numa linha só, com reticências. O nome do escritório vai também para a aba do navegador ("Pessoas · Nome do escritório · SEMPER", `regras/tituloDaAba.ts`).
 - **`nav-item`:** 36px, `{rounded.sm}`, 14px `{colors.text}`. Hover e ativo com fundo `{colors.line}` (o ativo em 700 `{colors.ink}`). **Nunca verde.**
 - **`role-pill`:** pílula de 11px / 900 / .08em em caixa alta, escura para Master, `{colors.line2}` para os demais perfis.
 - **Novidades** (`ui/Novidades.tsx`, #353): primeiro item do rodapé da barra lateral, com o foguete. Enquanto há versão que a pessoa não viu, um ponto de 8px em `{colors.accent}` na ponta direita (`.nav-ponto`), que some ao abrir. No celular, onde a barra lateral é uma gaveta fechada, o mesmo botão fica também à direita da barra do topo, só com o ícone e o ponto no canto de cima; abrir por um apaga o ponto dos dois. A lista abre numa janela larga (`janela({ larga: true })`, até 640px, só o corpo rola): cada versão com o número num selo sem caixa alta e a data por extenso à direita, e cada novidade com o título em 900, o texto e a linha "onde achar" em `{colors.muted}`, com a seta que dobra.
