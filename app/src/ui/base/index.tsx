@@ -172,9 +172,14 @@ export function FaixaDoBanco({ modo = import.meta.env.MODE, noComputador = impor
 }
 
 export type TipoSelo = 'ok' | 'erro' | 'pend' | 'arq' | 'escuro';
-/** Selo curto em caixa alta (ex.: ATIVO, PENDENTE, ARQUIVADA). */
-export function Selo({ tipo, children }: { tipo?: TipoSelo; children: ReactNode }) {
-  return <span className={tipo ? 'selo ' + tipo : 'selo'}>{children}</span>;
+/**
+ * Selo curto em caixa alta (ex.: ATIVO, PENDENTE, ARQUIVADA). Com `para`, o selo é um link para onde aquilo se resolve (ex.: o
+ * "Da equipe" do cartão da pessoa leva à Equipe, #327), com a `dica` dizendo aonde vai.
+ */
+export function Selo({ tipo, para, dica, children }: { tipo?: TipoSelo; para?: string; dica?: string; children: ReactNode }) {
+  const classes = tipo ? 'selo ' + tipo : 'selo';
+  const comDica = dica ? { ...propsDaDica(dica), 'aria-description': dica } : {};
+  return para ? <Link className={classes + ' selo-link'} to={para} {...comDica}>{children}</Link> : <span className={classes}>{children}</span>;
 }
 
 /**

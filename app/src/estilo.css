@@ -137,6 +137,14 @@
      crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
   --caixa-de-marcar: 18px;
   --alvo-de-toque: 44px;
+  /* A logomarca do escritório (#323) no lugar da letra, na barra lateral e na barra do topo do celular: a placa clara nos dois
+     temas (a logomarca é feita para fundo claro, como na prévia das Configurações), a altura dela (a da letra, um pouco maior,
+     para a logomarca larga dar para ler), a largura máxima (para o nome do escritório caber ao lado) e a folga em volta */
+  --fundo-da-logomarca: #FFFFFF;
+  --altura-da-logomarca: 36px;
+  --largura-da-logomarca: 96px;
+  --folga-da-logomarca: 3px 6px;
+  --raio-da-logomarca: 6px;
   /* O círculo de concluir antes do título, na miniatura do quadro e na linha da tabela (#350): do tamanho da caixa de marcar (o
      parente mais próximo dele), com o fio um pouco mais grosso que o de 1px (que some num círculo pequeno), o vão até o título e
      quanto leva para aparecer e trocar de cor (a mesma do contorno da miniatura no hover) */
@@ -549,6 +557,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .selo.erro { background: var(--erro-bg); color: var(--erro) }
 .selo.escuro { background: var(--sel); color: var(--sel-txt) }
 .selo.arq { background: var(--soft); color: var(--muted); border: 1px dashed var(--line2) }
+/* O selo que é link (#327, o "Da equipe" do cartão da pessoa): a mesma pílula, sublinhada no mouse como os links. */
+.selo-link { text-decoration: none }
+.selo-link:hover { text-decoration: underline; text-underline-offset: .2em }
 .codigo { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); font-variant-numeric: tabular-nums }
 
 /* ---------- avatares ---------- */
@@ -567,6 +578,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .side > * { flex-shrink: 0 }
 .marca-app { display: flex; align-items: center; gap: 10px; padding: 10px 10px 14px }
 .marca-app .ini { width: 28px; height: 28px; border-radius: 6px; background: var(--dark); color: var(--accent-bright); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; flex-shrink: 0 }
+/* A logomarca no lugar da letra (#323): a placa clara, com o fio da linha (some no claro e contorna a placa no escuro). */
+.marca-logo { flex-shrink: 0; display: flex; align-items: center; justify-content: center; height: var(--altura-da-logomarca); max-width: var(--largura-da-logomarca); padding: var(--folga-da-logomarca); border-radius: var(--raio-da-logomarca); background: var(--fundo-da-logomarca); box-shadow: inset 0 0 0 1px var(--line) }
+.marca-logo img { display: block; min-width: 0; max-width: 100%; max-height: 100%; object-fit: contain }
 .marca-app b { display: block; font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .marca-app small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink) }
 .nav { display: flex; flex-direction: column; gap: 2px }
@@ -642,6 +656,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   /* O ponto de novidade (#353) no botão só com o ícone: no canto de cima, como num aplicativo */
   .topo-cel button { position: relative }
   .topo-cel .nav-ponto { position: absolute; top: 6px; right: 6px; margin: 0 }
+  /* O nome do escritório numa linha só, com reticências se não couber, entre o menu e os botões. Com a logomarca (#323), ela fica no
+     lugar do nome (que não caberia ao lado dela no celular; o leitor de tela lê o nome no texto da logomarca). */
+  .topo-nome { flex: 1; min-width: 0; display: flex; align-items: center; gap: .5em; white-space: nowrap }
+  .topo-nome-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis }
+  .topo-nome:has(.marca-logo) .topo-nome-texto { display: none }
   .conteudo { padding-top: 28px }
 }
 

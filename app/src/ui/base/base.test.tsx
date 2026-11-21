@@ -281,6 +281,16 @@ describe('Peças de texto e de estado', () => {
     expect(container.firstElementChild).toHaveAttribute('class', classes);
   });
 
+  it('dado um selo com destino, quando aparece, então é um link para lá, com a cor do selo e a dica de aonde vai (#327)', () => {
+    // Dado / Quando
+    render(<MemoryRouter><Selo tipo="ok" para="/equipe/" dica="Abrir Equipe e acessos">Da equipe</Selo></MemoryRouter>);
+    // Então
+    const selo = screen.getByRole('link', { name: 'Da equipe' });
+    expect(selo).toHaveAttribute('href', '/equipe/');
+    expect(selo).toHaveAttribute('class', 'selo ok selo-link');
+    expect(selo).toHaveAttribute('data-dica', 'Abrir Equipe e acessos');
+  });
+
   it('dado um código com dica, quando aparece, então mostra o código e leva a dica que explica o que ele é (#84)', () => {
     // Dado / Quando
     render(<Codigo dica="Código da pessoa no SEMPER">CA222B4B</Codigo>);

@@ -5,7 +5,9 @@
 // o que está ligado a ela nos outros módulos (contratos e, depois, demandas, tarefas...), vínculos, dados, informações
 // sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { SD, type AcessoSigilo, type Coluna, type ContratoDaPessoa, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
+import { SD, type AcessoSigilo, type Coluna, type ContratoDaPessoa, type Convite, type Historico, type Pessoa, type Sigilo, type Usuario, type Vinculo } from '../dados';
+import { conviteDaPessoa, lugarNaEquipe, NO_CARTAO } from '../regras/conviteDaPessoa';
+import type { AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useNavigate } from 'react-router';
@@ -104,6 +106,18 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
 
+  // Para o administrador, os usuários e os convites (#327): pelo e-mail, o cartão sabe se a pessoa já é da equipe ou já tem
+  // convite, e só oferece "Convidar para a equipe" a quem não tem. Para os outros, basta a equipe (o cartão mostra o "Da equipe").
+  const [acessos, setAcessos] = useState<{ usuarios: Usuario[]; convites: Convite[] }>({ usuarios: [], convites: [] });
+  useEffect(() => {
+    if (!ctx.ehAdmin) return;
+    let vivo = true;
+    Promise.all([SD.equipeListar(), SD.convitesListar()])
+      .then(([usuarios, convites]) => { if (vivo) setAcessos({ usuarios, convites }); })
+      .catch(() => {});   // sem a lista, o cartão mostra o que a equipe já diz, como para quem não é administrador
+    return () => { vivo = false; };
+  }, [ctx.ehAdmin, id]);
+
   // O que cada seção tem, para o número ao lado do título.
   const modulos = ctx.escritorio?.modulos;
   const chave = `${id}:${versaoHist}`;
@@ -124,7 +138,10 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) ? '' : valorLegivel(campo, v);
   const textoQual = qualificacao(p, { representantes });
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
-  const ehUsuario = ctx.equipe.some(m => m.pessoa_id === p.id);
+  // Da equipe, com convite, ou para convidar (#327): o convite é o da tela Equipe, que abre já com a pessoa escolhida.
+  const naEquipe = NO_CARTAO[lugarNaEquipe(p, ctx.equipe, acessos.usuarios, acessos.convites)];
+  const convidar: AcaoDoTopo[] = ctx.ehAdmin && naEquipe.convidar
+    ? [{ rotulo: 'Convidar para a equipe', icone: 'equipe', aoClicar: () => navegar(conviteDaPessoa(p.id)) }] : [];
   // Ligar a pessoa a um item que já existe (#341): no cartão arquivado, não. Depois, as seções e os contadores leem de novo.
   const podeLigar = !p.arquivado_em;
   const depoisDeLigar = () => setVersaoHist(v => v + 1);
@@ -198,10 +215,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         esquerda={<>
           <Codigo dica={DICA_DO_CODIGO}>{p.codigo}</Codigo>
           {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-          {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
+          {/* Para o administrador, o selo leva à Equipe, onde ele vê o acesso ou o convite da pessoa. */}
+          {naEquipe.selo && <Selo tipo="ok" para={ctx.ehAdmin ? '/equipe/' : undefined} dica={ctx.ehAdmin ? 'Abrir Equipe e acessos' : undefined}>{naEquipe.selo}</Selo>}
         </>}
         mudaEtiquetas={!p.arquivado_em} aoMudarEtiquetas={aoMudar}
-        aoArquivar={arquivar} aoExcluir={podeExcluir ? excluir : undefined}
+        aoArquivar={arquivar} aoExcluir={podeExcluir ? excluir : undefined} extras={convidar}
         lapis={{ rotulo: 'Editar', aoEditar: () => setEditando(true) }}
         situacao={<SituacaoDoCartao titulo="Etapa do atendimento">
           <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>

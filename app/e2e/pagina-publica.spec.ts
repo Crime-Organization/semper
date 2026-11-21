@@ -34,7 +34,7 @@ test.describe('Página pública', () => {
     // Então
     expect(texto).not.toMatch(/R\$|preço|quanto custa|mensalidade/i);
     expect(texto).not.toMatch(/em breve/i);
-    expect(texto).not.toMatch(/Braga Ferreira/i);
+    expect(texto).not.toMatch(/Braga|Ferreira/i);   // nem o nome do primeiro escritório cliente, nem parte dele (#323)
   });
 
   test('quando a pessoa escolhe uma parte no índice, então vai até a seção do módulo, com o título e a tela', async ({ page }) => {

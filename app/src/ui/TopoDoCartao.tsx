@@ -108,7 +108,7 @@ interface Props {
   aoArquivar?: () => unknown;
   /** Excluir, no ⋯ do arquivado, para quem pode (pergunta antes). */
   aoExcluir?: () => unknown;
-  /** As ações a mais do ⋯, antes de Arquivar (ex.: "Copiar para outra demanda", na tarefa, #312). */
+  /** As ações a mais do ⋯, antes de Arquivar (ex.: "Copiar para outra demanda", na tarefa, #312; "Convidar para a equipe", na pessoa, #327). */
   extras?: AcaoDoTopo[];
   /** O lápis (só com o item ativo): o nome ("Editar", "Editar sem os valores") e o que faz. */
   lapis?: { rotulo: string; aoEditar: () => void };

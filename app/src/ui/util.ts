@@ -1,6 +1,8 @@
 // Utilidades de texto, datas e título da página.
 import { useEffect, useState } from 'react';
 import { MARCA } from '../marca';
+import { tituloDaAba } from '../regras/tituloDaAba';
+import { criarLoja } from './loja';
 import { DIA, ESPERA_AO_DIGITAR, HORA, MINUTO } from './tempos';
 import type { Papel } from '../dados';
 
@@ -30,9 +32,16 @@ export function subirAoCadastro() {
   document.querySelector('.passos')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** Título da aba do navegador: "Pessoas · SEMPER". null deixa como está (ex.: o formulário aberto dentro de um cartão). */
+/** O nome do escritório de quem está logado, para o título da aba (#323): a casca do sistema o põe ao entrar e o tira ao sair. */
+export const escritorioNaAba = criarLoja<string | null>(null);
+
+/**
+ * Título da aba do navegador: "Pessoas · Marques & Lima Advogados · SEMPER" (fora do sistema, "Entrar · SEMPER"). null deixa como
+ * está (ex.: o formulário aberto dentro de um cartão).
+ */
 export function useTitulo(nome: string | null) {
-  useEffect(() => { if (nome !== null) document.title = `${nome} · ${MARCA.nome}`; }, [nome]);
+  const escritorio = escritorioNaAba.usar();
+  useEffect(() => { if (nome !== null) document.title = tituloDaAba(nome, escritorio, MARCA.nome); }, [nome, escritorio]);
 }
 
 /** Valor que só muda depois de um tempo parado (ex.: busca enquanto digita). */
