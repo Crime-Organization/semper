@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type DadosConta, type Lancamento } from '../../dados';
 import { TAMANHO_FINANCEIRO } from '../../dados/limites';
 import {
-  categoriasDoFormulario, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, ehAjuste, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido, rotuloDaCategoria,
+  categoriasDoFormulario, centavosNoCampo, CONTA_COM_LANCAMENTOS, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, ehAjuste, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido, rotuloDaCategoria,
   type FormDaConta, type FormDaTransferencia, type FormDoLancamento
 } from '../../regras/caixa';
 import { erroDoDas, lerAliquota } from '../../regras/financeiro';
@@ -11,8 +11,8 @@ import { fmtData } from '../../regras/pessoa';
 import { normal } from '../../regras/texto';
 import { avisar, falha, feito } from '../../ui/avisos';
 import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
-import { Botao } from '../../ui/Botoes';
-import { Icone } from '../../ui/Icone';
+import { Botao, BotaoDuplo } from '../../ui/Botoes';
+import { Icone, ICONE_DO_BOTAO_PEQUENO } from '../../ui/Icone';
 import { usePedidoDeNovo } from '../../ui/Recolhivel';
 
 const DICA_DO_AJUSTE = 'Por que o saldo precisou deste acerto: é o que se confere na auditoria. O ajuste muda o saldo da conta, mas não conta como receita, despesa nem lucro.';
@@ -124,7 +124,7 @@ export function FormTransferencia({ inicial, contas, aoTerminar, aoCancelar }: P
   </form>;
 }
 
-/** As contas do escritório: criar, mudar e arquivar. */
+/** As contas do escritório: criar, mudar, arquivar e desarquivar e, a arquivada que nunca teve lançamento, excluir (#347). */
 /** O botão de baixo das contas e o "+" do título da seção (#390), com o mesmo nome. */
 export const ROTULO_DA_NOVA_CONTA = 'Nova conta';
 
@@ -141,6 +141,15 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
     setEdicao(c ? { id: c.id } : {});
     setConferido(false);
   }
+  // As arquivadas com lançamentos (mesmo excluídos) não podem ser excluídas: no lugar da lixeira, a explicação. Enquanto não
+  // chega a lista destas contas, nem uma nem outra: a lista de antes não vale para a conta que acabou de ser arquivada.
+  const [lista, setLista] = useState<{ de: ContaFinanceira[]; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    SD.financeiroArquivadasComLancamentos().then(ids => { if (vivo) setLista({ de: contas, ids: new Set(ids) }); }).catch(falha);
+    return () => { vivo = false; };
+  }, [contas]);
+  const comLancamentos = lista?.de === contas ? lista.ids : null;
   // O "+" do título da seção abre o mesmo formulário do botão de baixo (que some com um formulário aberto).
   usePedidoDeNovo(() => { if (!edicao) abrir(); });
   async function salvar(ev: FormEvent) {
@@ -160,16 +169,29 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
   async function arquivar(c: ContaFinanceira, arquivar: boolean) {
     try {
       await SD.financeiroContaAtualizar(c.id, { arquivada_em: arquivar ? new Date().toISOString() : null });
-      feito(arquivar ? `Conta ${c.nome} arquivada.` : `Conta ${c.nome} reativada.`, 'arquivamento da conta', async () => { await SD.financeiroContaAtualizar(c.id, { arquivada_em: c.arquivada_em }); });
+      feito(arquivar ? `Conta ${c.nome} arquivada.` : `Conta ${c.nome} desarquivada.`, 'arquivamento da conta', async () => { await SD.financeiroContaAtualizar(c.id, { arquivada_em: c.arquivada_em }); });
+      aoMudar();
+    } catch (e) { falha(e); }
+  }
+  async function excluir(c: ContaFinanceira) {
+    try {
+      await SD.financeiroContaExcluir(c.id);
+      avisar(`Conta ${c.nome} excluída definitivamente.`);
       aoMudar();
     } catch (e) { falha(e); }
   }
   return <div className="financeiro-form">
     {contas.length > 0 && <ul className="financeiro-lista" aria-label="Contas do escritório">{contas.map(c => <li key={c.id}>
-      <span><b>{c.nome}</b>{c.tem_das ? ' (recolhe DAS)' : ''}{c.arquivada_em ? ' (arquivada)' : ''}<br /><small>Saldo inicial de {centavosNoCampo(c.saldo_inicial)} em {fmtData(c.saldo_inicial_em)}</small></span>
+      <span><b>{c.nome}</b>{c.tem_das ? ' (recolhe DAS)' : ''}{c.arquivada_em ? ' (arquivada)' : ''}<br /><small>Saldo inicial de {centavosNoCampo(c.saldo_inicial)} em {fmtData(c.saldo_inicial_em)}</small>
+        {c.arquivada_em && comLancamentos?.has(c.id) && <><br /><small>{CONTA_COM_LANCAMENTOS}</small></>}</span>
       <span className="financeiro-acoes">
         {!c.arquivada_em && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar a conta ${c.nome}`} onClick={() => abrir(c)}>Mudar</button>}
-        <Botao forma="mini" aria-label={`${c.arquivada_em ? 'Reativar' : 'Arquivar'} a conta ${c.nome}`} onClick={() => arquivar(c, !c.arquivada_em)}>{c.arquivada_em ? 'Reativar' : 'Arquivar'}</Botao>
+        {c.arquivada_em
+          ? <Botao forma="mini" aria-label={`Desarquivar a conta ${c.nome}`} onClick={() => arquivar(c, false)}><Icone nome="arquivoAberto" tam={ICONE_DO_BOTAO_PEQUENO} /> Desarquivar</Botao>
+          : <Botao forma="mini" aria-label={`Arquivar a conta ${c.nome}`} onClick={() => arquivar(c, true)}><Icone nome="arquivo" tam={ICONE_DO_BOTAO_PEQUENO} /> Arquivar</Botao>}
+        {c.arquivada_em && comLancamentos && !comLancamentos.has(c.id) &&
+          <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${c.nome}`} aoConfirmar={() => excluir(c)}>
+            <Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir <span className="sr">a conta {c.nome}</span></BotaoDuplo>}
       </span>
     </li>)}</ul>}
     {edicao ? <form className="financeiro-form" noValidate aria-label={edicao.id ? 'Mudar conta' : 'Nova conta'} onSubmit={salvar}>

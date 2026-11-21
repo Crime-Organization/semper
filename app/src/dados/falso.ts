@@ -11,7 +11,7 @@ import type {
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
-import { ehAjuste } from '../regras/caixa';
+import { ehAjuste, motivoParaNaoExcluirConta } from '../regras/caixa';
 import { compararPeloPrazo } from '../regras/ordemPorPrazo';
 import { compararPeloInicio, INICIO_VAZIO, inicioDoCriadoEm, inicioNosLimites } from '../regras/dataDeInicio';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
@@ -3787,6 +3787,23 @@ export const SD: Dados = {
     Object.assign(c, dados, { nome: novo.nome.trim() }); auditar('financeiro_contas', 'alteracao', c); gravar();
     return espera(undefined);
   },
+  // Como o gatilho conferir_exclusao (migração 20261120231028_excluir_conta.sql): o lançamento excluído também conta.
+  async financeiroContaExcluir(id) {
+    const c = bd.contasFinanceiras!.find(x => x.id === id);
+    if (!c) return erro(SEM_ACESSO_AO_CAIXA);
+    const motivo = motivoParaNaoExcluirConta({
+      arquivada: !!c.arquivada_em,
+      temLancamentos: [...bd.lancamentos!, ...bd.recebimentos!, ...bd.retiradas!].some(l => l.conta_id === id),
+      temRepasses: bd.repasses!.some(r => r.conta_sugerida === id || r.conta_paga === id)
+    });
+    if (motivo) return erro(motivo);
+    // Como o gatilho: o contrato fica sem conta de destino, e o histórico dele guarda o nome da conta, antes de ela sair.
+    bd.contratos!.filter(k => k.conta_destino_id === id).forEach(k => { historicoContrato(k, { conta_destino_id: null }); k.conta_destino_id = null; });
+    bd.contasFinanceiras!.splice(bd.contasFinanceiras!.indexOf(c), 1);
+    auditar('financeiro_contas', 'exclusao', c); gravar();
+    return espera(undefined);
+  },
+  financeiroArquivadasComLancamentos: () => espera(bd.contasFinanceiras!.filter(c => c.arquivada_em && bd.lancamentos!.some(l => l.conta_id === c.id)).map(c => c.id)),
   financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
     .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
   financeiroAjustesDeSaldo: () => espera(bd.lancamentos!.filter(l => !l.excluido_em && ehAjuste(l.categoria))

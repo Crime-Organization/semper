@@ -98,7 +98,11 @@ export const ICONE_DO_MODULO: Record<ModuloComentado, NomeIcone> = {
   anotacoes: 'documentos'
 };
 
+/** Tamanho dos ícones dos botões pequenos (mini) das listas: Arquivar, Desarquivar e Excluir (#347). */
+export const ICONE_DO_BOTAO_PEQUENO = 15;
+
+/** O data-icone diz qual é o desenho, para os testes conferirem (a caixa fechada ou aberta, a lixeira). */
 export function Icone({ nome, tam = 17 }: { nome: NomeIcone; tam?: number }) {
   return <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-    strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONES[nome] }} />;
+    strokeLinejoin="round" aria-hidden="true" data-icone={nome} dangerouslySetInnerHTML={{ __html: ICONES[nome] }} />;
 }

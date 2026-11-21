@@ -46,4 +46,16 @@ describe('Seção dos arquivados', () => {
     expect(arquivar).toHaveBeenCalledWith(['p1'], false);
     expect(aoMudar).toHaveBeenCalledOnce();
   });
+
+  it('quando a pessoa marca um arquivado, então Desarquivar mostra a caixa aberta (a do cartão) e Excluir mostra a lixeira (#347)', async () => {
+    // Dado
+    montar();
+    await userEvent.click(screen.getByRole('button', { name: /^Arquivados/ }));
+    // Quando
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'MARIA ARQUIVADA' }));
+    // Então
+    const icone = (nome: string) => screen.getByRole('button', { name: nome }).querySelector('svg')?.getAttribute('data-icone');
+    expect(icone('Desarquivar')).toBe('arquivoAberto');
+    expect(icone('Excluir')).toBe('lixeira');
+  });
 });

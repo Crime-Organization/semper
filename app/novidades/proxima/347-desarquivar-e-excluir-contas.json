@@ -1,0 +1,5 @@
+{
+  "titulo": "Desarquivar e excluir: o mesmo jeito em todo lugar",
+  "texto": "Nos arquivados embaixo das tabelas, o Desarquivar agora mostra a caixa aberta, como nos cartões. As contas do Financeiro também: a arquivada mostra Desarquivar e, se nunca teve lançamentos, a lixeira para excluí-la; com lançamentos, o SEMPER explica por que não pode.",
+  "ondeAchar": "Em cada módulo, a seção \"Arquivados\" embaixo da tabela. No Financeiro, a seção \"Contas\", na conta arquivada."
+}

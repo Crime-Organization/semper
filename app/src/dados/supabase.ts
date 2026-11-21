@@ -1479,6 +1479,12 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('financeiro_contas').update(dados).eq('id', id).select('id').maybeSingle());
     naoEsta(data);
   },
+  // O banco recusa, explicando, a conta ativa e a que teve lançamentos (migração 20261120231028_excluir_conta.sql).
+  async financeiroContaExcluir(id) {
+    const { data } = await rodar(sb.from('financeiro_contas').delete().eq('id', id).select('id').maybeSingle());
+    naoEsta(data);
+  },
+  financeiroArquivadasComLancamentos: () => rpc('financeiro_arquivadas_com_lancamentos') as Promise<string[]>,
   // Em partes: o saldo do mês soma tudo, e um corte deixaria o saldo final errado sem ninguém ver.
   async financeiroLancamentos(contaId, de, ate) {
     const todos: Lancamento[] = [];
