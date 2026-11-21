@@ -372,8 +372,9 @@ test.describe('Quadro e cartão', () => {
     // Quando
     await cartao.getByLabel('Escrever um comentário').fill('Levar a pauta');
     await cartao.getByRole('button', { name: 'Comentar' }).click();
-    // Então
-    await expect(cartao.getByText('Levar a pauta')).toBeVisible();
+    // Então: o comentário está na lista do cartão (não só na caixa onde foi escrito)
+    await expect(cartao.getByRole('list', { name: 'Comentários do cartão' }).getByRole('listitem').filter({ hasText: 'Levar a pauta' })).toBeVisible();
+    await expect(cartao.getByLabel('Escrever um comentário')).toHaveValue('');
   });
 });
 
