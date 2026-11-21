@@ -478,6 +478,8 @@ test.describe('A descrição no topo do cartão da demanda (#385)', () => {
     // Então: desde a #397, a descrição vem depois dos dados (as datas, o tempo e os botões rápidos)
     const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
+    // Mede depois de o cartão terminar de entrar: a animação de abertura ainda desloca os botões rápidos uns pixels.
+    await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
     const dados = (await cartao.getByRole('group', { name: 'Acrescentar ao cartão' }).boundingBox())!;
     const descricao = (await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').boundingBox())!;
     expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
