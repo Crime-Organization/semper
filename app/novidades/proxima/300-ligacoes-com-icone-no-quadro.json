@@ -1,0 +1,5 @@
+{
+  "titulo": "Ligações do cartão com ícone no quadro",
+  "texto": "No quadro, o cartão mostra a demanda e o contrato ligados com o ícone de cada um e só o código, sem as palavras. Passe o mouse no ícone para ver o que ele é; na tabela, as ligações continuam por extenso.",
+  "ondeAchar": "Tarefas e Demandas, na visão Kanban: a linha do código, logo abaixo do título de cada cartão."
+}

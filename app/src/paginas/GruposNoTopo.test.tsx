@@ -45,13 +45,13 @@ describe('Grupos da equipe no topo do cartão', () => {
     expect(depois).toHaveBeenCalled();
   });
 
-  it('dada a pessoa na demanda só pelo grupo, quando abre a pílula, então não há "Tirar": o motivo diz para pedir a um administrador', async () => {
+  it('dada a pessoa na demanda só pelo grupo, quando abre a pílula, então não há "Tirar": o motivo diz para pedir a outra pessoa do cartão ou a um administrador (#274)', async () => {
     // Dado
     montar(['ga']);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
     // Então
-    expect(screen.getByText('Sem este grupo, você deixaria de participar deste cartão. Para sair, peça a um administrador.')).toBeInTheDocument();
+    expect(screen.getByText('Sem este grupo, você deixaria de participar deste cartão. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tirar o grupo do cartão' })).not.toBeInTheDocument();
   });
 
@@ -73,7 +73,7 @@ describe('Grupos da equipe no topo do cartão', () => {
     // Quando
     await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
     // Então
-    expect(screen.getByText('Você participa deste cartão pelo grupo Núcleo Alfa. Para sair, peça a um administrador.')).toBeInTheDocument();
+    expect(screen.getByText('Você participa deste cartão pelo grupo Núcleo Alfa. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tirar o grupo do cartão' })).not.toBeInTheDocument();
   });
 
@@ -81,8 +81,8 @@ describe('Grupos da equipe no topo do cartão', () => {
     // Dado
     montar(['ga'], true);
     await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
-    // Então: ela tira o grupo pelo botão, sem a nota que manda pedir a um administrador
-    expect(screen.queryByText(/Para sair, peça a um administrador/)).not.toBeInTheDocument();
+    // Então: ela tira o grupo pelo botão, sem a nota de como sair pelo grupo
+    expect(screen.queryByText(/Para sair, peça/)).not.toBeInTheDocument();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Tirar o grupo do cartão' }));
     // Então

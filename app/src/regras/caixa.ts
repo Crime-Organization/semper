@@ -143,6 +143,21 @@ export function dadosDaConta(f: FormDaConta): DadosConta {
   return { nome: f.nome.trim(), tem_das: f.temDas, saldo_inicial: saldo.centavos, saldo_inicial_em: f.saldoInicialEm };
 }
 
+// Excluir uma conta (#347): só a arquivada que nunca teve lançamento. As mesmas palavras no banco
+// (supabase/migrations/20261120231028_excluir_conta.sql) e no banco fictício.
+export const CONTA_NAO_ARQUIVADA = 'Arquive a conta antes de excluí-la.';
+export const CONTA_COM_LANCAMENTOS = 'A conta não pode ser excluída enquanto tiver lançamentos, mesmo os já excluídos, que ficam guardados para a auditoria.';
+export const CONTA_COM_REPASSES = 'A conta não pode ser excluída: há repasses do caixa ligados a ela.';
+export interface SituacaoDaConta { arquivada: boolean; temLancamentos: boolean; temRepasses: boolean }
+/** O que impede excluir, na ordem em que se explica: o primeiro que valer. */
+const IMPEDIMENTOS: [(s: SituacaoDaConta) => boolean, string][] = [
+  [s => !s.arquivada, CONTA_NAO_ARQUIVADA],
+  [s => s.temLancamentos, CONTA_COM_LANCAMENTOS],
+  [s => s.temRepasses, CONTA_COM_REPASSES]
+];
+/** Por que a conta não pode ser excluída; null quando pode. */
+export const motivoParaNaoExcluirConta = (s: SituacaoDaConta) => IMPEDIMENTOS.find(([impede]) => impede(s))?.[1] ?? null;
+
 // ---------- o mês ----------
 /** O mês de uma data. */
 export const mesDe = (iso: string) => iso.slice(0, 7);

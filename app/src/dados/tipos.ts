@@ -1236,7 +1236,14 @@ export interface DadosComentarios {
   comentarioEditar(id: string, texto: string): Promise<Comentario>;
   /** Quem escreveu ou um administrador. */
   comentarioExcluir(id: string): Promise<void>;
+  /**
+   * Os itens chamados com !código nos comentários (#297), dos módulos mencionáveis: só os que quem lê vê (as regras de leitura de
+   * cada módulo), arquivados também. O código que não volta é de um item que a pessoa não vê ou que não existe mais.
+   */
+  itensMencionados(codigos: string[]): Promise<ItemDaAnotacao[]>;
 }
+/** Os módulos cujos itens se chamam pelo código, com !, nos comentários (#297). */
+export type ModuloMencionavel = Extract<ModuloDaAnotacao, 'tarefas' | 'demandas' | 'contratos' | 'processos' | 'pessoas'>;
 
 /** O comentário de onde veio a menção, com o cartão em que ele está. */
 export interface ComentarioDaMensagem {
@@ -1801,6 +1808,10 @@ export interface DadosFinanceiro {
   financeiroContas(): Promise<ContaFinanceira[]>;
   financeiroContaCriar(dados: DadosConta): Promise<ContaFinanceira>;
   financeiroContaAtualizar(id: string, dados: Partial<DadosConta & Pick<ContaFinanceira, 'arquivada_em'>>): Promise<void>;
+  /** Só a arquivada que nunca teve lançamento (nem excluído) e a que nenhum repasse do caixa usa; senão recusa, explicando por quê (#347). */
+  financeiroContaExcluir(id: string): Promise<void>;
+  /** As contas arquivadas que têm lançamentos, mesmo excluídos: não podem ser excluídas, e a tela explica em vez de oferecer a lixeira. */
+  financeiroArquivadasComLancamentos(): Promise<string[]>;
   /** De um mês, sem os excluídos. */
   financeiroLancamentos(contaId: string, de: string, ate: string): Promise<Lancamento[]>;
   /** Os ajustes de saldo de todas as contas, sem os excluídos, dos mais novos aos mais antigos: é o que se confere na auditoria. */

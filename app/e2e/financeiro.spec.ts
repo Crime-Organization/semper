@@ -362,6 +362,17 @@ test.describe('Caixa', () => {
     await expect(tabela).toContainText('Segundo');
   });
 
+  test('dadas as contas criadas, quando a pessoa aperta "N" fora de um campo, então abre o Novo lançamento, como o botão do cabeçalho (#86)', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await expect(page.getByRole('button', { name: 'Novo lançamento' })).toHaveAttribute('title', 'Novo lançamento (N)');
+    await page.getByRole('heading', { name: 'Caixa' }).click();
+    // Quando
+    await page.keyboard.press('n');
+    // Então
+    await expect(page.getByRole('form', { name: 'Novo lançamento' })).toBeVisible();
+  });
+
   test('quando apaga o campo do mês e clica em "Novo lançamento", então nada quebra', async ({ page }) => {
     // Dado
     await criarContas(page);
@@ -400,7 +411,8 @@ test.describe('Caixa', () => {
     await expect(form.getByText('Use um valor como 1.500,00.')).toBeVisible();
   });
 
-  test('quando arquiva e reativa uma conta, então ela sai e volta; sem conta ativa, diz o que fazer', async ({ page }) => {
+  // Desde a #347, a conta arquivada mostra "Desarquivar" (com a caixa aberta), como os outros módulos, no lugar de "Reativar".
+  test('quando arquiva e desarquiva uma conta, então ela sai e volta; sem conta ativa, diz o que fazer', async ({ page }) => {
     // Dado
     await criarContas(page);
     const conta = page.getByRole('combobox', { name: 'Conta' });
@@ -413,9 +425,32 @@ test.describe('Caixa', () => {
     // Então
     await expect(page.getByText('Todas as contas estão arquivadas.', { exact: false })).toBeVisible();
     // Quando
-    await page.getByRole('button', { name: 'Reativar a conta PJ' }).click();
+    await page.getByRole('button', { name: 'Desarquivar a conta PJ' }).click();
     // Então
     await expect(page.getByRole('combobox', { name: 'Conta' })).toContainText('PJ');
+  });
+
+  test('quando arquiva uma conta sem lançamentos, então a lixeira a exclui no segundo clique; a que tem lançamentos explica por que não (#347)', async ({ page }) => {
+    // Dado: a PJ com um lançamento, e as duas arquivadas
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await page.getByRole('button', { name: 'Arquivar a conta PF' }).click();
+    await page.getByRole('button', { name: 'Arquivar a conta PJ' }).click();
+    const contas = page.getByRole('list', { name: 'Contas do escritório' });
+    const pf = contas.getByRole('listitem').filter({ hasText: /^PF/ }), pj = contas.getByRole('listitem').filter({ hasText: /^PJ/ });
+    // Então: as duas mostram Desarquivar com a caixa aberta; só a PF tem a lixeira; a PJ explica
+    await expect(page.getByRole('button', { name: 'Desarquivar a conta PF' }).locator('svg')).toHaveAttribute('data-icone', 'arquivoAberto');
+    await expect(pj.getByText('não pode ser excluída enquanto tiver lançamentos', { exact: false })).toBeVisible();
+    await expect(pj.getByRole('button', { name: /Excluir/ })).toHaveCount(0);
+    await expect(pf.getByRole('button', { name: 'Excluir a conta PF', exact: true }).locator('svg')).toHaveAttribute('data-icone', 'lixeira');
+    // Quando: o primeiro clique só pede a confirmação; o segundo exclui
+    await pf.getByRole('button', { name: 'Excluir a conta PF', exact: true }).click();
+    await pf.getByRole('button', { name: 'Confirmar exclusão de PF' }).click();
+    // Então
+    await expect(page.getByText('Conta PF excluída definitivamente.')).toBeVisible();
+    await expect(pf).toHaveCount(0);
+    await expect(pj).toHaveCount(1);
   });
 
   test('quando muda o início da conta para depois de um lançamento, então recusa; o saldo inicial fica registrado', async ({ page }) => {

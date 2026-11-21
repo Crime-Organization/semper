@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD } from '../dados';
 import { PERIODO_MAXIMO } from '../dados/limites';
+import { ehTeclaSozinha } from '../regras/atalhos';
 import { cronometro, PARADO, segundosDoPeriodo, type Cronometro, type Evento } from '../regras/cronometro';
+import { atalhosLigados, estaEscrevendo, teclaDoEvento } from '../ui/atalhos';
 import { falha } from '../ui/avisos';
 import { anunciarCronometro } from '../ui/cronometros';
 import { janela } from '../ui/janela';
@@ -18,8 +20,6 @@ import { GRAVAR_TEMPO_A_CADA, INATIVIDADE_DO_CRONOMETRO, TIQUE_DO_CRONOMETRO } f
 const MOVIMENTOS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
 /** A tecla que inicia, pausa e retoma a contagem (com o cartão aberto e fora de um campo de texto). */
 export const TECLA_DO_CRONOMETRO = 't';
-/** Onde a tecla é só uma letra (digitando), e não o atalho. */
-const DIGITANDO = 'input, textarea, select, [contenteditable="true"]';
 
 interface Periodo { id: number | null; inicio: string; gravados: number }
 const periodoNovo = (): Periodo => ({ id: null, inicio: new Date().toISOString(), gravados: 0 });
@@ -76,11 +76,13 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
   }, [estado.contando, tarefa.id, tarefa.titulo, pausar]);
   useEffect(() => () => anunciarCronometro(tarefa.id, tarefa.titulo, false, () => {}), [tarefa.id, tarefa.titulo]);
 
-  // A tecla T: inicia, pausa e retoma (não vale digitando num campo, nem com uma janela aberta por cima).
+  // A tecla T: inicia, pausa e retoma (não vale digitando num campo, nem com uma janela aberta por cima). O que é "digitando"
+  // e "tecla sozinha" (sem Ctrl, Alt ou Cmd; o AltGr não conta) é a mesma regra dos atalhos da página (regras/atalhos.ts, #86), e ele também
+  // para quando a pessoa desliga os atalhos de uma tecla só.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== TECLA_DO_CRONOMETRO || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
-      if ((e.target as Element | null)?.closest?.(DIGITANDO) || document.querySelector('.veu-janela')) return;
+      if (e.key.toLowerCase() !== TECLA_DO_CRONOMETRO || !ehTeclaSozinha(teclaDoEvento(e))) return;
+      if (estaEscrevendo(e.target) || document.querySelector('.veu-janela') || !atalhosLigados()) return;
       e.preventDefault();
       alternar();
     };

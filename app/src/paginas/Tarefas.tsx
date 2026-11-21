@@ -25,6 +25,8 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { colunaComMarco } from '../regras/quadro';
+import { ligacoesPorExtenso, type LigacaoDoItem } from '../regras/ligacoesDoItem';
+import { LigacoesNoQuadro } from '../ui/quadro/LigacoesNoQuadro';
 import { useColunas } from '../ui/quadro/useColunas';
 import { filtroQueVale, gruposDoItem, meusGrupos, PARAMETRO_DO_GRUPO } from '../regras/gruposDaEquipe';
 import { filtroDeGrupo } from '../ui/filtroDeGrupo';
@@ -44,9 +46,8 @@ import './Contratos.css';
 import './Demandas.css';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
-/** O código e as ligações da tarefa numa linha: "C0FFEE12 · demanda D3A1F09C · contrato MA96-0001-2026". */
-const ligacoes = (t: TarefaLista) =>
-  [t.demanda_codigo && 'demanda ' + t.demanda_codigo, t.contrato_codigo && 'contrato ' + t.contrato_codigo].filter(Boolean).join(' · ');
+/** As ligações da tarefa: no quadro, ícone e código (<LigacoesNoQuadro>); na tabela, "demanda D3A1F09C · contrato MA96-0001-2026" (#300). */
+const ligacoes = (t: TarefaLista): LigacaoDoItem[] => [{ modulo: 'demandas', codigo: t.demanda_codigo }, { modulo: 'contratos', codigo: t.contrato_codigo }];
 
 export default function Tarefas() {
   useTitulo('Tarefas');
@@ -213,7 +214,7 @@ function CartaoKanban({ t, ordem, concluido }: { t: TarefaLista; ordem: OrdemCom
     <EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m, meusGrupos(ctx.grupos, m.id)))} />
     <div className="kt">{t.titulo}</div>
     <div className="km">
-      <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
+      <LigacoesNoQuadro codigo={t.codigo} ligacoes={ligacoes(t)} />
       {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
       <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -262,7 +263,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       <tbody>{linhas.map(t => <LinhaQueAbre key={t.id} para={endereco(t.id)} aoAbrir={() => aoAbrir(t.id)} marcada={selecionadas.has(t.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
-          <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
+          <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoesPorExtenso(ligacoes(t)) ? ' · ' + ligacoesPorExtenso(ligacoes(t)) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} />

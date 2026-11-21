@@ -1,9 +1,10 @@
 // A equipe do contrato mudada no topo do cartão (#356). Padrão Dado / Quando / Então: app/TESTES.md.
 import { describe, expect, it } from 'vitest';
+import { SEM_PERMISSAO } from '../dados/erros';
 import { PARTICIPANTES_MAXIMOS } from '../dados/limites';
 import { PARTICIPANTES_DEMAIS } from './contrato';
 import {
-  AVISO_NO_CONTRATO, desfazerNoContrato, equipeDoContrato, FICARIA_FORA, IMPEDIMENTO_NO_CONTRATO, MUDANCAS_NO_CONTRATO, PERCENTUAL_DE_QUEM_ENTRA, planoNoContrato, tirarDoContrato,
+  AVISO_NO_CONTRATO, desfazerNoContrato, equipeDoContrato, FICARIA_FORA, ficariaForaNoLapis, IMPEDIMENTO_NO_CONTRATO, MUDANCAS_NO_CONTRATO, PERCENTUAL_DE_QUEM_ENTRA, planoNoContrato, recusaNoLapis, tirarDoContrato,
   type EquipeDoContratoGravada
 } from './equipeDoContrato';
 
@@ -75,14 +76,14 @@ describe('Quem grava e ficaria fora do contrato', () => {
     // Dado / Quando
     const r = planoNoContrato({ tipo: 'tirar', id: 'p-carla', nome: 'Carla' }, contrato([['p-carla', 10]]), participanteComum);
     // Então
-    expect(r).toEqual({ aviso: FICARIA_FORA.tirar, tipo: 'erro' });
+    expect(r).toEqual({ aviso: FICARIA_FORA.semFinanceiro.tirar, tipo: 'erro' });
   });
 
   it('dado o responsável comum, quando passa o contrato a outro advogado, então recusa e diz como fazer', () => {
     // Dado / Quando
     const r = planoNoContrato({ tipo: 'responsavel', id: 'u-ana', nome: 'Ana' }, contrato(), responsavelComum);
     // Então
-    expect(r).toEqual({ aviso: FICARIA_FORA.responsavel, tipo: 'erro' });
+    expect(r).toEqual({ aviso: FICARIA_FORA.semFinanceiro.responsavel, tipo: 'erro' });
   });
 
   it('dado o responsável comum que também participa, quando passa o contrato a outro advogado, então grava: ele continua no contrato', () => {
@@ -127,7 +128,7 @@ describe('A bolinha que já vem desligada, antes do clique', () => {
     // Dado
     const k = contrato([['p-carla', 10], ['p-ana', 5]]);
     // Quando / Então
-    expect(IMPEDIMENTO_NO_CONTRATO.tirar(k, 'p-carla', participanteComum)).toBe(FICARIA_FORA.tirar);
+    expect(IMPEDIMENTO_NO_CONTRATO.tirar(k, 'p-carla', participanteComum)).toBe(FICARIA_FORA.semFinanceiro.tirar);
     expect(IMPEDIMENTO_NO_CONTRATO.tirar(k, 'p-ana', participanteComum)).toBeUndefined();
   });
 
@@ -141,7 +142,7 @@ describe('A bolinha que já vem desligada, antes do clique', () => {
 
   it('dado o responsável comum que não participa, quando a bolinha dele aparece, então vem desligada com o motivo; participando, não', () => {
     // Dado / Quando / Então
-    expect(IMPEDIMENTO_NO_CONTRATO.responsavel(contrato(), responsavelComum)).toBe(FICARIA_FORA.responsavel);
+    expect(IMPEDIMENTO_NO_CONTRATO.responsavel(contrato(), responsavelComum)).toBe(FICARIA_FORA.semFinanceiro.responsavel);
     expect(IMPEDIMENTO_NO_CONTRATO.responsavel(contrato([['p-bruno', 0]]), responsavelComum)).toBeUndefined();
   });
 
@@ -152,7 +153,112 @@ describe('A bolinha que já vem desligada, antes do clique', () => {
 
   it('dados os motivos de não poder sair, quando aparecem, então falam em deixar de alterar o contrato, e não em deixar de vê-lo (quem foi mencionado continua vendo)', () => {
     // Dado / Quando / Então
-    Object.values(FICARIA_FORA).forEach(m => expect(m).toMatch(/deixaria de poder alterá-lo/));
+    Object.values(FICARIA_FORA).flatMap(Object.values).forEach(m => expect(m).toMatch(/deixaria de poder alterá-lo/));
+  });
+
+  it('dado o escritório sem o financeiro, quando os motivos de quem não pode sair nem passar o contrato aparecem, então mandam pedir a outra pessoa do contrato ou a um administrador (#274)', () => {
+    // Dado / Quando / Então: quem está no contrato também o altera, não só quem o cadastrou
+    [FICARIA_FORA.semFinanceiro.tirar, FICARIA_FORA.semFinanceiro.responsavel, FICARIA_FORA.semFinanceiro.tornarResponsavel]
+      .forEach(m => expect(m).toMatch(/peça a outra pessoa do contrato ou a um administrador/i));
+    expect(FICARIA_FORA.semFinanceiro.tirar).toMatch(/para tirar você\.$/);
+  });
+
+  it('dado o escritório com o financeiro, quando um participante comum não pode sair, então o motivo diz que, com parcelas, só um administrador o tira (a trava da divisão)', () => {
+    // Dado
+    const comFinanceiro = { ...participanteComum, financeiro: true };
+    const k = contrato([['p-carla', 10], ['p-ana', 5]]);
+    // Quando
+    const motivo = IMPEDIMENTO_NO_CONTRATO.tirar(k, 'p-carla', comFinanceiro);
+    // Então
+    expect(motivo).toBe(FICARIA_FORA.comFinanceiro.tirar);
+    expect(motivo).toMatch(/Peça a outra pessoa do contrato ou a um administrador para tirar você\. Se o contrato já tem parcelas, só um administrador pode tirar você\.$/);
+  });
+
+  it('dado o escritório com o financeiro, quando o responsável comum não pode passar o contrato, então o motivo não manda pedir a outra pessoa do contrato (só o responsável ou um administrador troca o responsável)', () => {
+    // Dado
+    const comFinanceiro = { ...responsavelComum, financeiro: true };
+    // Quando
+    const motivo = IMPEDIMENTO_NO_CONTRATO.responsavel(contrato(), comFinanceiro);
+    // Então
+    expect(motivo).toBe(FICARIA_FORA.comFinanceiro.responsavel);
+    expect(motivo).toMatch(/Ponha-se antes como participante, ou peça a um administrador\. Se o contrato já tem parcelas, só um administrador o passa adiante\.$/);
+    [FICARIA_FORA.comFinanceiro.responsavel, FICARIA_FORA.comFinanceiro.tornarResponsavel].forEach(m => expect(m).not.toMatch(/outra pessoa do contrato/));
+  });
+
+  it('dado o escritório com o financeiro e o responsável sem cadastro em Pessoas, quando torna outro responsável, então o motivo manda pedir a um administrador', () => {
+    // Dado
+    const semCadastro = { ...responsavelComum, pessoa_id: null, financeiro: true };
+    const atual = contrato([['p-ana', 10]], { criado_por: 'u-master' });
+    // Quando / Então
+    expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', semCadastro, () => null)).toBe(FICARIA_FORA.comFinanceiro.tornarResponsavel);
+    expect(FICARIA_FORA.comFinanceiro.tornarResponsavel).toMatch(/Peça a um administrador\.$/);
+  });
+});
+
+describe('Sair do contrato pelo lápis (#274)', () => {
+  const recusa = new Error(SEM_PERMISSAO);
+
+  it('dado um participante comum que se tira no lápis, quando o banco recusa, então o aviso diz que outra pessoa do contrato ou um administrador precisa tirá-lo', () => {
+    // Dado
+    const antes = contrato([['p-carla', 10], ['p-ana', 5]]);
+    // Quando
+    const e = recusaNoLapis(recusa, antes, { participantes: [{ pessoa_id: 'p-ana', percentual: 5 }] }, participanteComum);
+    // Então
+    expect((e as Error).message).toBe(FICARIA_FORA.semFinanceiro.tirar);
+    expect(ficariaForaNoLapis(antes, { participantes: [] }, participanteComum)).toBe(FICARIA_FORA.semFinanceiro.tirar);
+  });
+
+  it('dado o responsável comum que não participa, quando passa o contrato a outro advogado no lápis e o banco recusa, então o aviso diz como fazer', () => {
+    // Dado / Quando
+    const e = recusaNoLapis(recusa, contrato(), { responsavel_id: 'u-ana', participantes: [] }, responsavelComum);
+    // Então
+    expect((e as Error).message).toBe(FICARIA_FORA.semFinanceiro.responsavel);
+  });
+
+  it('dado o responsável comum sem cadastro em Pessoas, quando passa o contrato a outro advogado no lápis e o banco recusa, então o aviso não manda se pôr como participante', () => {
+    // Dado: sem cadastro em Pessoas, ele não consegue se pôr como participante
+    const semCadastro = { ...responsavelComum, pessoa_id: null };
+    // Quando
+    const e = recusaNoLapis(recusa, contrato(), { responsavel_id: 'u-ana', participantes: [] }, semCadastro);
+    // Então
+    expect((e as Error).message).toBe(FICARIA_FORA.semFinanceiro.tornarResponsavel);
+    expect((e as Error).message).not.toMatch(/Ponha-se/);
+    expect(ficariaForaNoLapis(contrato(), { responsavel_id: 'u-ana' }, { ...semCadastro, financeiro: true })).toBe(FICARIA_FORA.comFinanceiro.tornarResponsavel);
+  });
+
+  it('dado o escritório com o financeiro, quando um participante comum se tira no lápis e o banco recusa, então o aviso é o do financeiro', () => {
+    // Dado
+    const antes = contrato([['p-carla', 10], ['p-ana', 5]]);
+    // Quando
+    const e = recusaNoLapis(recusa, antes, { participantes: [{ pessoa_id: 'p-ana', percentual: 5 }] }, { ...participanteComum, financeiro: true });
+    // Então
+    expect((e as Error).message).toBe(FICARIA_FORA.comFinanceiro.tirar);
+  });
+
+  it('dados um administrador e quem cadastrou o contrato, quando se tiram no lápis, então não há motivo de ficar fora: vale o erro do banco', () => {
+    // Dado
+    const antes = contrato([['p-master', 10], ['p-ana', 5]]);
+    const quemCadastrou = { id: 'u-ana', pessoa_id: 'p-ana', papel: 'usuario' };
+    // Quando / Então
+    expect(ficariaForaNoLapis(antes, { participantes: [] }, administrador)).toBeUndefined();
+    expect(ficariaForaNoLapis(antes, { participantes: [] }, quemCadastrou)).toBeUndefined();
+    expect(recusaNoLapis(recusa, antes, { participantes: [] }, administrador)).toBe(recusa);
+  });
+
+  it('dado um participante comum que continua no contrato, quando o banco recusa por outro motivo, então o erro passa como veio', () => {
+    // Dado
+    const antes = contrato([['p-carla', 10], ['p-ana', 5]]);
+    const outro = new Error('Confira a situação e as pessoas do contrato.');
+    // Quando / Então
+    expect(recusaNoLapis(recusa, antes, { participantes: [{ pessoa_id: 'p-carla', percentual: 10 }] }, participanteComum)).toBe(recusa);
+    expect(recusaNoLapis(outro, antes, { participantes: [] }, participanteComum)).toBe(outro);
+  });
+
+  it('dado quem nem estava no contrato, quando o banco recusa a gravação, então o erro passa como veio', () => {
+    // Dado
+    const deFora = { id: 'u-davi', pessoa_id: 'p-davi', papel: 'usuario' };
+    // Quando / Então
+    expect(recusaNoLapis(recusa, contrato([['p-ana', 5]]), { participantes: [] }, deFora)).toBe(recusa);
   });
 });
 
@@ -237,8 +343,8 @@ describe('Tornar responsável um participante do contrato (#388)', () => {
     const semCadastro = { ...responsavelComum, pessoa_id: null };
     const atual = contrato([['p-ana', 10]], { criado_por: 'u-master' });
     // Quando / Então
-    expect(planoNoContrato(tornarAna, atual, semCadastro, () => null)).toEqual({ aviso: FICARIA_FORA.tornarResponsavel, tipo: 'erro' });
-    expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', semCadastro, () => null)).toBe(FICARIA_FORA.tornarResponsavel);
+    expect(planoNoContrato(tornarAna, atual, semCadastro, () => null)).toEqual({ aviso: FICARIA_FORA.semFinanceiro.tornarResponsavel, tipo: 'erro' });
+    expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', semCadastro, () => null)).toBe(FICARIA_FORA.semFinanceiro.tornarResponsavel);
     // Com o cadastro, ele continua como participante, e pode.
     expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', responsavelComum, pessoaDe)).toBeUndefined();
   });

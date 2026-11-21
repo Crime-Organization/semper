@@ -177,6 +177,15 @@ export function Selo({ tipo, children }: { tipo?: TipoSelo; children: ReactNode 
   return <span className={tipo ? 'selo ' + tipo : 'selo'}>{children}</span>;
 }
 
+/**
+ * O código do item no SEMPER (ex.: CA222B4B), em letra miúda. Com `dica`, ela explica o código como as outras dicas (propsDaDica):
+ * ao passar o mouse e no foco do teclado (por isso o código com dica entra no Tab); o leitor de tela lê a dica como descrição.
+ */
+export function Codigo({ dica, children }: { dica?: string; children: ReactNode }) {
+  const comDica = dica ? { ...propsDaDica(dica), tabIndex: 0, 'aria-description': dica } : {};
+  return <span className="codigo" {...comDica}>{children}</span>;
+}
+
 /** Caixa branca com borda fina, para agrupar um conteúdo. */
 export function Cartao({ className, ...resto }: ComponentProps<'div'>) {
   return <div className={className ? 'cartao ' + className : 'cartao'} {...resto} />;
@@ -193,6 +202,11 @@ export function Nota({ className, ...resto }: ComponentProps<'p'>) {
 }
 export function Dica({ className, ...resto }: ComponentProps<'p'>) {
   return <p className={className ? 'dica ' + className : 'dica'} {...resto} />;
+}
+
+/** Uma tecla do teclado, como na dica de um atalho (Ctrl, K, Esc, N): o mesmo desenho na busca geral e na lista de atalhos. */
+export function Tecla({ className, ...resto }: ComponentProps<'kbd'>) {
+  return <kbd className={className ? 'tecla ' + className : 'tecla'} {...resto} />;
 }
 
 /** Enquanto os dados não chegam. */

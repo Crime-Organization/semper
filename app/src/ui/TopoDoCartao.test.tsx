@@ -157,6 +157,21 @@ describe('O topo em edição', () => {
     expect(screen.queryByRole('group', { name: 'Equipe' })).not.toBeInTheDocument();
     expect(screen.queryAllByRole('button')).toEqual([]);
   });
+
+  it('dado o topo com a Situação (#351), quando o lápis abre, então a Situação sai do topo, e volta quando a edição termina', () => {
+    // Dado
+    const topo = (editando: boolean) => <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA</span>} arquivado={false} editando={editando}
+      mudaEtiquetas={false} situacao={<select aria-label="Situação da tarefa"><option>FAZENDO</option></select>} />;
+    const { rerender } = render(topo(false));
+    expect(screen.getByRole('combobox', { name: 'Situação da tarefa' })).toBeInTheDocument();
+    // Quando
+    rerender(topo(true));
+    // Então
+    expect(screen.queryByRole('combobox', { name: 'Situação da tarefa' })).not.toBeInTheDocument();
+    // E, ao terminar a edição
+    rerender(topo(false));
+    expect(screen.getByRole('combobox', { name: 'Situação da tarefa' })).toBeInTheDocument();
+  });
 });
 
 describe('A faixa do item arquivado', () => {

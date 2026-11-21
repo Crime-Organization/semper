@@ -1,12 +1,12 @@
 // Embaixo da tabela de cada módulo, a seção recolhível "Arquivados (N)": os arquivados numa tabela própria (a mesma
-// tabela do módulo), com seleção e as ações Desarquivar e Excluir. Começa recolhida, como toda seção, e a lista só é
-// lida quando ela abre; o número aparece mesmo fechada. Peça comum: todo módulo com arquivo a usa assim.
+// tabela do módulo), com seleção e as ações Desarquivar (a caixa aberta, como no cartão) e Excluir (a lixeira). Começa
+// recolhida, como toda seção, e a lista só é lida quando ela abre; o número aparece mesmo fechada. Peça comum: todo módulo com arquivo a usa assim.
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Exclusao, Pagina } from '../dados';
 import { avisar, falha, feito } from './avisos';
 import { BotaoDuplo } from './Botoes';
 import { Aviso, Carregando, estiloBotao } from './base';
-import { Icone } from './Icone';
+import { Icone, ICONE_DO_BOTAO_PEQUENO } from './Icone';
 import { Recolhivel } from './Recolhivel';
 import { useSelecao, type Selecao } from './useSelecao';
 import { numero } from './util';
@@ -78,8 +78,8 @@ function ListaDeArquivados<T extends { id: string }>({ nome, listar, arquivar, e
   return <div className="arquivados">
     {n > 0 && <div className="arquivados-acoes" role="group" aria-label="Ações nos arquivados selecionados">
       <span><b>{numero(n)}</b> {n === 1 ? `selecionad${o}` : `selecionad${o}s`}</span>
-      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={desarquivar}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
-      <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${numero(n)}`} aoConfirmar={excluirSelecionados}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
+      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={desarquivar}><Icone nome="arquivoAberto" tam={ICONE_DO_BOTAO_PEQUENO} /> Desarquivar</button>
+      <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${numero(n)}`} aoConfirmar={excluirSelecionados}><Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir</BotaoDuplo>
       <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => selecao.limpar()}>limpar</button>
     </div>}
     {tabela(lista, pagina, selecao, p => { selecao.limpar(); setPagina(p); })}

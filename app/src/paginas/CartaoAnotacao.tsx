@@ -62,6 +62,7 @@ import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
 import { plural } from './importarPessoas/textos';
 import { NOME_DO_MENU_NOVO_NA_ANOTACAO, NovoNaAnotacao } from './NovoNaAnotacao';
 import { LigadosDoRascunho, TopoDoRascunho, useRascunhoDaAnotacao, type AnotacaoNova } from './RascunhoDaAnotacao';
+import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import './Documentos.css';
 
 /** O nome de cada campo no histórico. */
@@ -578,6 +579,9 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
         datas, nem a que acabou de ir ao banco e ainda não foi lida de volta (se a leitura falhar, ela continua a em branco). */}
     {!emBranco && a.criado_em && <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: a.criado_em }} />}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
+    {/* O botão rápido "Ligação" (#351), como nos outros cartões: abre "Ligada a" e o menu do item novo, preso a ele. Sem a Situação, o
+        "Expandir tudo" continua no alto da coluna. */}
+    {!emBranco && <AtalhosDoCartao comExpandirTudo={false} />}
     {a.arquivado_em && <FaixaDoArquivado modulo="anotacoes" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     {conflito && <Aviso tipo="erro" className="anotacao-conflito">
@@ -603,7 +607,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
         </Recolhivel>
         : <SecaoComentarios modulo="anotacoes" cartaoId={a.id} motivoSemMencao={motivoSemMencaoNaAnotacao(a, chavesDaMencao)} />}
       <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={emBranco ? rascunho.itens.length : totalLigados} abertaAoIniciar={emBranco || !!criada}
-        novo={!emBranco && podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && modulosDoNovo(modulos).length ? { rotulo: NOME_DO_MENU_NOVO_NA_ANOTACAO, menu: true } : undefined}>
+        novo={!emBranco && podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && modulosDoNovo(modulos).length ? { rotulo: NOME_DO_MENU_NOVO_NA_ANOTACAO, menu: true } : undefined} atalho="ligacao">
         {emBranco ? <LigadosDoRascunho rascunho={rascunho} />
           : itens === null ? <Carregando />
           : typeof itens === 'string' ? <Aviso tipo="erro">{itens}</Aviso>

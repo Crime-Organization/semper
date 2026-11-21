@@ -3,7 +3,8 @@
 // selos do item (na anotação, o caminho da pasta); à direita a equipe em bolinhas (com os grupos e o "+"), e, junto dos botões da
 // janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o lápis (verde) e o menu ⋯ (as ações a mais, Arquivar ou
 // Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último, encostado no formato e no X. Logo abaixo,
-// os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe. Em edição (o lápis aberto), no lugar
+// os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe. Desde a #351, a Situação do cartão (um
+// menu compacto, SituacaoDoCartao) fica no topo, depois do código e dos selos, e não numa linha própria; em edição, ela some. Em edição (o lápis aberto), no lugar
 // dos botões fica "Modo de edição", a equipe some (o formulário tem os campos dela) e os selos ficam sem o x.
 // Como fica no lugar (veja .cartao-topo em estilo.css): o começo da esquerda (o tipo; na anotação, o caminho) fica sempre no canto
 // de cima, à esquerda; a direita, no canto de cima, à direita; o resto da esquerda (o código e os selos) corre entre os dois e
@@ -47,10 +48,12 @@ interface PropsDoMolde {
   editando?: boolean;
   /** Depois do ícone de etiqueta, junto dos botões da janela: o lápis e o ⋯. */
   botoes?: ReactNode;
+  /** Depois do código e dos selos: a Situação do cartão, num menu compacto (SituacaoDoCartao, #351). Some em edição. */
+  situacao?: ReactNode;
 }
 
 /** O desenho do topo, igual em todos os cartões com etiquetas (veja o comentário do arquivo). */
-export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas, aoMudarEtiquetas, editando = false, botoes }: PropsDoMolde) {
+export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas, aoMudarEtiquetas, editando = false, botoes, situacao }: PropsDoMolde) {
   const muda = mudaEtiquetas && !editando;
   // Os botões do cartão vão para a linha dos botões da janela (ao lado, na janela estreita): o tipo vem antes, e a equipe flutua
   // logo depois dele (na linha dele, se couber). No centro largo, os botões ficam aqui: a direita vem antes, no canto de cima.
@@ -71,7 +74,7 @@ export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas
     <div className="cartao-topo">
       {/* Com as chaves, trocar a ordem (a janela foi para o centro ou para o lado) só move as caixas: a equipe não recomeça. */}
       {botoesNaJanela ? [noComeco, direita] : [direita, noComeco]}
-      <div className="cartao-topo-esquerda">{esquerda}</div>
+      <div className="cartao-topo-esquerda">{esquerda}{!editando && situacao}</div>
     </div>
     <SelosDasEtiquetas ids={etiquetas.ids} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={muda ? e => etiquetas.marcar(e, false) : undefined} />
   </>;
@@ -99,14 +102,16 @@ interface Props {
   aoExcluir?: () => unknown;
   /** O lápis (só com o item ativo): o nome ("Editar", "Editar sem os valores") e o que faz. */
   lapis?: { rotulo: string; aoEditar: () => void };
+  /** A Situação do cartão, num menu compacto, depois do código e dos selos (#351). Some em edição. */
+  situacao?: ReactNode;
 }
 
-export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, lapis }: Props) {
+export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, lapis, situacao }: Props) {
   const etiquetas = useEtiquetasDoCartao(modulo, id);
   const textos = TOPO_DO_CARTAO[modulo];
   const menu = useFocoAoDesarquivar(arquivado);
   return <MoldeDoTopo inicio={inicio} esquerda={esquerda} equipe={equipe} etiquetas={etiquetas} mudaEtiquetas={mudaEtiquetas} aoMudarEtiquetas={aoMudarEtiquetas}
-    editando={editando} botoes={<>
+    editando={editando} situacao={situacao} botoes={<>
       {lapis && !arquivado && <LapisDoCartao rotulo={lapis.rotulo} aoEditar={lapis.aoEditar} />}
       <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar} refDoBotao={menu}
         excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir } : undefined} />

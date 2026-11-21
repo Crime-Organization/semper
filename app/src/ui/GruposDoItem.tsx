@@ -13,12 +13,12 @@ import {
 } from '../regras/gruposDaEquipe';
 import { Avatar } from './Avatar';
 import { estiloBotao, Nota, propsDaDica } from './base';
-import { Icone } from './Icone';
+import { Icone, ICONE_NO_QUADRO } from './Icone';
 import { MenuFlutuante } from './Menu';
 import { useCtx } from './sessao';
 
-/** Tamanho do ícone de equipe dentro da pílula do topo do cartão e dentro da do quadro. */
-const ICONE_DA_PILULA = 15, ICONE_NO_QUADRO = 12;
+/** Tamanho do ícone de equipe dentro da pílula do topo do cartão (a do quadro usa ICONE_NO_QUADRO, o mesmo das ligações). */
+const ICONE_DA_PILULA = 15;
 /** Tamanho da bolinha de cada integrante na lista do grupo. */
 const BOLINHA_NA_LISTA = 24;
 /** O que o botão de dentro da lista faz. */
@@ -72,7 +72,7 @@ interface PropsDoCartao {
   tirar?: (g: GrupoDaEquipe) => unknown;
   /** Uma mudança ainda grava: o "Tirar" fica desligado. */
   ocupado?: boolean;
-  /** A nota de quem está no cartão só por este grupo ("Para sair, peça a um administrador"). */
+  /** A nota de quem está no cartão só por este grupo (notaDeQuemEstaPeloGrupo: como sair, por outra pessoa do cartão ou um administrador). */
   nota?: (g: GrupoDaEquipe) => string | null;
   /** Por que este grupo não sai do cartão: o motivo aparece no lugar do "Tirar". */
   impedeTirar?: (g: GrupoDaEquipe) => string | undefined;

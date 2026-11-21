@@ -4,6 +4,9 @@ import { MARCA } from '../marca';
 import { DIA, ESPERA_AO_DIGITAR, HORA, MINUTO } from './tempos';
 import type { Papel } from '../dados';
 
+/** O aparelho é um Mac (ou iPhone, iPad): os atalhos são com Cmd, e a dica mostra ⌘. */
+export const ehMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+
 export const PAPEIS: Record<Papel, string> = { master: 'Master', admin: 'Administrador', usuario: 'Usuário' };
 
 export const dataCurta = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('pt-BR') : '';

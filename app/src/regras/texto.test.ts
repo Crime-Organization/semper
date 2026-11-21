@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { emCaixaAlta, normal, semAcento, sugestoesQueCombinam } from './texto';
+import { emCaixaAlta, normal, partesParaQuebrar, semAcento, sugestoesQueCombinam } from './texto';
 
 describe('Nomes em maiúsculas (#386)', () => {
   it.each([
@@ -71,5 +71,20 @@ describe('Sugestões enquanto se digita', () => {
     const achadas = sugestoesQueCombinam('', OBJETOS, 2);
     // Então
     expect(valores(achadas)).toEqual(['Ação de cobrança', 'Ação de indenização por danos morais']);
+  });
+});
+
+describe('Onde o nome da coluna pode quebrar a linha (#352)', () => {
+  it.each([
+    ['Diligência/Análise/Falta de documentação', ['Diligência/', 'Análise/', 'Falta de documentação']],
+    ['Para fazer', ['Para fazer']],
+    ['Termina com barra/', ['Termina com barra/']],
+    ['Barras//juntas', ['Barras/', '/', 'juntas']]
+  ])('quando o nome é "%s", então as partes são %j, e juntas voltam a ser o nome', (nome, esperado) => {
+    // Quando
+    const partes = partesParaQuebrar(nome);
+    // Então
+    expect(partes).toEqual(esperado);
+    expect(partes.join('')).toBe(nome);
   });
 });

@@ -34,6 +34,7 @@ import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContr
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
+import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -187,7 +188,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         equipe={<EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />}
         mudaEtiquetas={!k.arquivado_em && !(oculto && !semValores)} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined} />
+        lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
+        situacao={<SituacaoDoCartao>
+          <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
+        </SituacaoDoCartao>} />
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
           valores do contrato também não vê a assinatura, como antes, e aí a faixa some (#385): sobraria só a criação, que o
@@ -198,9 +202,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
             aoMudarRascunho={noLugar.rascunhoDe('assinatura')} aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
         </DadoDoGrupo>}
       </FaixaDasDatas>
-      {!editando && <SituacaoDoCartao>
-        <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
-      </SituacaoDoCartao>}
+      {!editando && <AtalhosDoCartao />}
     </header>
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>

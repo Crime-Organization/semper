@@ -160,3 +160,15 @@ export function cartoesEmPalavras(total: number | null, formatar: (n: number) =>
   if (total === null) return 'carregando';
   return total === 1 ? '1 cartão' : `${formatar(total)} cartões`;
 }
+
+/** Folga, em pixels, ao medir a rolagem de lado: o navegador arredonda as medidas, e o quadro rolado até o fim pode ficar a menos
+ *  de um pixel dele. Sem a folga, o indicador do lado ficaria aceso no fim. */
+export const FOLGA_DA_ROLAGEM = 1;
+
+/** A medida da rolagem de lado de uma área: quanto já rolou, a largura de tudo o que há nela e a largura que aparece. */
+export interface RolagemDeLado { rolado: number; total: number; visivel: number }
+
+/** Se há mais conteúdo fora da área, de cada lado (#87): à esquerda, depois de rolar; à direita, até chegar ao fim. Tudo cabendo, nenhum. */
+export function maisNosLados({ rolado, total, visivel }: RolagemDeLado): { esquerda: boolean; direita: boolean } {
+  return { esquerda: rolado > FOLGA_DA_ROLAGEM, direita: rolado + visivel < total - FOLGA_DA_ROLAGEM };
+}

@@ -216,7 +216,7 @@ test.describe('Cadastro de compromisso', () => {
     await expect(page.getByText('Dê um título ao compromisso.')).toBeVisible();
     await expect(page.getByText('Informe a data.')).toBeVisible();
     await expect(page.getByText('Informe a hora.')).toBeVisible();
-    await expect(page.getByText('Etapa 1 de 4')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 4')).toBeVisible();
   });
 
   test('quando é uma audiência sem processo nem modalidade, então a etapa avisa e não segue', async ({ page }) => {
@@ -231,7 +231,7 @@ test.describe('Cadastro de compromisso', () => {
     // Então
     await expect(page.getByText('Audiência precisa de um processo.')).toBeVisible();
     await expect(page.getByText('Escolha a modalidade.')).toBeVisible();
-    await expect(page.getByText('Etapa 2 de 4')).toBeVisible();
+    await expect(page.getByText('Passo 2 de 4')).toBeVisible();
   });
 
   test('quando se escolhe o processo da audiência, então os clientes dele entram, e ela aparece nos cartões do processo e da pessoa', async ({ page }) => {
@@ -372,8 +372,9 @@ test.describe('Quadro e cartão', () => {
     // Quando
     await cartao.getByLabel('Escrever um comentário').fill('Levar a pauta');
     await cartao.getByRole('button', { name: 'Comentar' }).click();
-    // Então
-    await expect(cartao.getByText('Levar a pauta')).toBeVisible();
+    // Então: o comentário está na lista do cartão (não só na caixa onde foi escrito)
+    await expect(cartao.getByRole('list', { name: 'Comentários do cartão' }).getByRole('listitem').filter({ hasText: 'Levar a pauta' })).toBeVisible();
+    await expect(cartao.getByLabel('Escrever um comentário')).toHaveValue('');
   });
 });
 

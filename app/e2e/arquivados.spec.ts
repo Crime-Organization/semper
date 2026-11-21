@@ -50,7 +50,12 @@ test.describe('Arquivados na tabela', () => {
     await expect(maria).toHaveCount(1);
     // Quando
     await maria.getByRole('checkbox').check();
-    await page.getByRole('group', { name: 'Ações nos arquivados selecionados' }).getByRole('button', { name: 'Desarquivar' }).click();
+    // Então: Desarquivar com a caixa aberta (a do cartão) e Excluir com a lixeira (#347)
+    const acoes = page.getByRole('group', { name: 'Ações nos arquivados selecionados' });
+    await expect(acoes.getByRole('button', { name: 'Desarquivar' }).locator('svg')).toHaveAttribute('data-icone', 'arquivoAberto');
+    await expect(acoes.getByRole('button', { name: 'Excluir' }).locator('svg')).toHaveAttribute('data-icone', 'lixeira');
+    // Quando
+    await acoes.getByRole('button', { name: 'Desarquivar' }).click();
     // Então
     await expect(page.getByText('1 contrato voltou para a lista.')).toBeVisible();
     await expect(page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' })).toHaveCount(1);

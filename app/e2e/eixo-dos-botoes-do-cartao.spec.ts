@@ -40,9 +40,12 @@ async function formato(cartao: Locator, qual: 'Abrir no centro da tela' | 'Abrir
   if (await botao.count()) await botao.click();
   await esperarParar(cartao);
 }
-/** Espera as transições da janela terminarem (ela entra deslizando). */
+/**
+ * Espera as transições da janela terminarem (ela entra deslizando). Uma transição cancelada também parou: o fundo de um botão que
+ * passa sob o ponteiro parado enquanto a janela desliza (o hover que começa e acaba) é cancelado, e não termina.
+ */
 async function esperarParar(cartao: Locator) {
-  await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished)));
+  await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
 }
 /** O meio, na horizontal, de um elemento. */
 async function meio(alvo: Locator) {

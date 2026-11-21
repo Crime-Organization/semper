@@ -14,12 +14,12 @@ import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
 import { situacaoDoItem } from '../regras/quadro';
 import { emCaixaAlta } from '../regras/texto';
-import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
+import { CAMPOS, DICA_DO_CODIGO, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, estiloBotao, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Codigo, estiloBotao, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
@@ -43,6 +43,7 @@ import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
 import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
+import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 
 interface Props {
   id: string;
@@ -193,23 +194,24 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
         equipe={<EquipeDaPessoaNoTopo pessoa={p} depois={p.arquivado_em ? null : depoisDosResponsaveis} />}
         esquerda={<>
-          <span className="codigo">{p.codigo}</span>
+          <Codigo dica={DICA_DO_CODIGO}>{p.codigo}</Codigo>
           {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
         </>}
         mudaEtiquetas={!p.arquivado_em} aoMudarEtiquetas={aoMudar}
         aoArquivar={arquivar} aoExcluir={podeExcluir ? excluir : undefined}
-        lapis={{ rotulo: 'Editar', aoEditar: () => setEditando(true) }} />
+        lapis={{ rotulo: 'Editar', aoEditar: () => setEditando(true) }}
+        situacao={<SituacaoDoCartao titulo="Etapa do atendimento">
+          <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
+            <option value="">{emCaixaAlta('Sem etapa')}</option>
+            {quadro.colunas.map(c => <option key={c.id} value={c.id}>{emCaixaAlta(c.nome)}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+          </select>
+        </SituacaoDoCartao>} />
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
       {/* A faixa das datas (#383, #385), a mesma dos outros cartões: com só a do cadastro, ela some (o rodapé já a mostra). */}
       <FaixaDasDatas criacao={{ rotulo: 'Cadastrada em', em: p.criado_em }} />
-      {!editando && <SituacaoDoCartao titulo="Etapa do atendimento">
-        <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
-          <option value="">{emCaixaAlta('Sem etapa')}</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{emCaixaAlta(c.nome)}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
-      </SituacaoDoCartao>}
+      {!editando && <AtalhosDoCartao />}
     </header>
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
@@ -269,7 +271,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </Recolhivel>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}
-      novo={podeLigar ? { rotulo: ORIGEM_DA_PESSOA.vinculos.novo } : undefined}>
+      novo={podeLigar ? { rotulo: ORIGEM_DA_PESSOA.vinculos.novo } : undefined} atalho="ligacao">
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} podeCriar={podeLigar} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}

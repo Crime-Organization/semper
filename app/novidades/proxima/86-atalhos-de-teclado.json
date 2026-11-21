@@ -1,0 +1,5 @@
+{
+  "titulo": "Atalhos de teclado nas páginas dos módulos",
+  "texto": "Em Pessoas, Contratos, Demandas, Tarefas, no Financeiro e nos outros módulos, a tecla / leva à busca da página e a tecla N abre o cadastro novo (Nova pessoa, Nova entrada…). A tecla ? mostra a lista de atalhos, e quem preferir pode desligá-los.",
+  "ondeAchar": "Em qualquer página de módulo, com o cursor fora de um campo de texto e sem cartão aberto. Para desligar: Minha conta > Teclado."
+}

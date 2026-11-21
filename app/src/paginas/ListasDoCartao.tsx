@@ -2,7 +2,8 @@
 // checklist com nome, a barra do quanto já foi feito e os itens para marcar, em grupos e subgrupos numerados (1. Documentos
 // pessoais › 1.1 RG), cada item com data de entrega opcional. O nome do checklist, o de cada grupo e o texto de cada item se
 // renomeiam ali mesmo, com um clique (<TituloEditavel>); o "⋯" de cada um, que aparece ao passar o mouse ou com o foco (e fica
-// sempre à vista na tela de toque), muda de posição e exclui. Cada checklist é um <Lista> (paginas/listas/).
+// sempre à vista na tela de toque), muda de posição e exclui. Cada checklist é um <Lista> (paginas/listas/). O "+" do título também
+// é o botão rápido "Checklist" do cartão (#351), que abre o mesmo menu, preso a ele.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type CartaoComListas, type ListaDoCartao, type ModeloDeLista } from '../dados';
@@ -84,7 +85,7 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
 
   const total = Array.isArray(listas) ? listas.length : undefined;
   return <Recolhivel titulo="Checklists" icone="check" preferencia={`${modulo}.cartao.listas`} contador={total}
-    novo={somenteLer ? undefined : { rotulo: ADICIONAR_CHECKLIST, menu: true }}>
+    novo={somenteLer ? undefined : { rotulo: ADICIONAR_CHECKLIST, menu: true }} atalho="checklist">
     {/* O "+" do título abre o mesmo menu do botão de baixo, preso a ele, mesmo antes de os checklists chegarem. */}
     {!somenteLer && <AoPedirNovo atender={abrirMenuNova} />}
     {listas === null ? <Carregando />

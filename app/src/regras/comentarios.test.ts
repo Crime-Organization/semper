@@ -1,7 +1,10 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import type { Membro } from '../dados/tipos';
-import { inserirMencao, mencaoNegada, mencaoSendoDigitada, mencoesNoTexto, membrosParaMencionar, MOTIVO_SEM_MENCAO, trechosDoComentario } from './comentarios';
+import type { ItemDaAnotacao, Membro } from '../dados/tipos';
+import {
+  codigosNoTexto, inserirMencao, itemSendoDigitado, itensPeloCodigo, mencaoNegada, mencaoSendoDigitada, mencoesNoTexto, membrosParaMencionar, modulosParaMencionar,
+  MOSTRAR_ITEM_MENCIONADO, MOTIVO_SEM_MENCAO, ordenarItensParaMencionar, situacaoDaMencaoDeItem, trechosDoComentario
+} from './comentarios';
 
 const EQUIPE: Membro[] = [
   { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', funcao: 'advogado', ativo: true },
@@ -88,5 +91,99 @@ describe('Lista do @ enquanto se digita', () => {
     const r = inserirMencao(texto, 3, cursor, 'ana.lima');
     // Então
     expect(r).toEqual({ texto: esperado, cursor: 13 });
+  });
+});
+
+describe('Menções de itens pelo código, com ! (#297)', () => {
+  const item = (modulo: ItemDaAnotacao['modulo'], id: string, codigo: string, nome: string, arquivado_em: string | null = null): ItemDaAnotacao =>
+    ({ modulo, id, codigo, nome, arquivado_em });
+
+  it('quando o texto chama itens com !, então vêm os códigos, em maiúsculas, sem repetir, e o ! do fim da frase não conta', () => {
+    // Quando
+    const codigos = codigosNoTexto('Urgente! Fazer !D3A1F09C e !c0ffee12, depois !D3A1F09C.', 'Contrato !HE62-0163-2026! Isso!F00D1234 não');
+    // Então
+    expect(codigos).toEqual(['C0FFEE12', 'D3A1F09C', 'HE62-0163-2026']);
+  });
+
+  it.each([
+    ['um ! no fim da frase', 'Urgente!'],
+    ['um ! seguido de espaço', 'Atenção ! veja'],
+    ['um ! com uma palavra que não é código', 'Veja !marca agora'],
+    ['um código mais comprido', 'Veja !D3A1F09C1'],
+    ['um ! grudado numa palavra', 'abc!D3A1F09C']
+  ])('quando o texto tem %s, então não há menção de item', (_caso, texto) => {
+    // Quando
+    const codigos = codigosNoTexto(texto);
+    // Então
+    expect(codigos).toEqual([]);
+  });
+
+  it('quando o comentário é mostrado, então cada item chamado vira um trecho próprio, junto das menções de pessoas', () => {
+    // Quando
+    const trechos = trechosDoComentario('Oi @ana.lima, faça !d3a1f09c e !HE62-0163-2026.', EQUIPE);
+    // Então
+    expect(trechos.map(t => [t.texto, t.membro?.id ?? null, t.codigo ?? null])).toEqual([
+      ['Oi ', null, null], ['@ana.lima', 'u-ana', null], [', faça ', null, null], ['!d3a1f09c', null, 'D3A1F09C'], [' e ', null, null],
+      ['!HE62-0163-2026', null, 'HE62-0163-2026'], ['.', null, null]
+    ]);
+  });
+
+  it.each([
+    ['acabou de digitar o !', 'Oi !', 4, null],
+    ['terminou a frase com !', 'Urgente!', 8, null],
+    ['pôs um espaço depois do !', 'Oi ! ', 5, null],
+    ['digitou o começo do código', 'Oi !D3', 6, { inicio: 3, termo: 'D3' }],
+    ['digitou uma palavra do título', 'Veja !marca', 11, { inicio: 5, termo: 'marca' }],
+    ['digitou o número do contrato', '!HE62-01', 8, { inicio: 0, termo: 'HE62-01' }],
+    ['já passou da menção', 'Oi !D3A1F09C veja', 17, null]
+  ])('quando a pessoa %s, então a lista do ! recebe %j', (_caso, texto, cursor, esperado) => {
+    // Quando
+    const r = itemSendoDigitado(texto, cursor);
+    // Então
+    expect(r).toEqual(esperado);
+  });
+
+  it('quando a pessoa escolhe um item, então o "!termo" vira "!CODIGO", com um espaço, e o cursor fica depois dele', () => {
+    // Quando
+    const r = inserirMencao('Veja !marca hoje', 5, 11, 'D3A1F09C', '!');
+    // Então
+    expect(r).toEqual({ texto: 'Veja !D3A1F09C hoje', cursor: 15 });
+  });
+
+  it('quando a busca acha itens, então o de código igual vem primeiro, depois os de código que começa com o termo, sem repetir e até o limite', () => {
+    // Dado
+    const achados = [
+      item('tarefas', 't1', 'AAAA0001', 'Revisar D3A1'), item('demandas', 'd2', 'D3A1F000', 'Outra'), item('demandas', 'd1', 'D3A1F09C', 'Registro'),
+      item('demandas', 'd2', 'D3A1F000', 'Outra'), item('pessoas', 'p1', 'BBBB0002', 'Pessoa D3A1')
+    ];
+    // Quando
+    const pelosCodigos = ordenarItensParaMencionar(achados, 'd3a1f0', 3);
+    const exato = ordenarItensParaMencionar(achados, 'D3A1F09C', 2);
+    // Então
+    expect(pelosCodigos.map(i => i.id)).toEqual(['d2', 'd1', 't1']);
+    expect(exato.map(i => i.id)).toEqual(['d1', 't1']);
+  });
+
+  it('dado os itens que voltaram da consulta, quando cada menção é mostrada, então só o item visto abre, e o que não voltou não mostra título', () => {
+    // Dado
+    const consultados = itensPeloCodigo(['D3A1F09C', '7B42C0DE', 'ffff0000'],
+      [item('demandas', 'd1', 'D3A1F09C', 'Registro de marca'), item('demandas', 'd2', '7B42C0DE', 'Busca', '2026-11-01T00:00:00Z')]);
+    // Quando
+    const situacoes = ['d3a1f09c', '7B42C0DE', 'FFFF0000', 'ABCD1234'].map(c => situacaoDaMencaoDeItem(consultados, c));
+    // Então
+    expect(situacoes).toEqual(['aberto', 'arquivado', 'indisponivel', 'semConsulta']);
+    expect(situacaoDaMencaoDeItem(undefined, 'D3A1F09C')).toBe('semConsulta');
+    expect(MOSTRAR_ITEM_MENCIONADO.aberto.explicacao(consultados.get('D3A1F09C')!)).toBe('Abrir Demanda D3A1F09C: Registro de marca');
+    expect(MOSTRAR_ITEM_MENCIONADO.arquivado).toMatchObject({ abre: true, aviso: 'arquivado' });
+    expect(MOSTRAR_ITEM_MENCIONADO.indisponivel).toMatchObject({ abre: false, aviso: 'sem acesso ou excluído' });
+    expect(MOSTRAR_ITEM_MENCIONADO.indisponivel.explicacao(undefined)).not.toContain('Busca');
+  });
+
+  it('dado um escritório sem contratos e sem processos, quando a lista do ! procura, então ela vai só às tarefas, demandas e pessoas', () => {
+    // Quando
+    const modulos = modulosParaMencionar({ tarefas: true, demandas: true, contratos: false });
+    // Então
+    expect(modulos).toEqual(['tarefas', 'demandas', 'pessoas']);
+    expect(modulosParaMencionar(undefined)).toEqual(['pessoas']);
   });
 });

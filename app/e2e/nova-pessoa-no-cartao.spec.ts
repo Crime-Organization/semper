@@ -208,7 +208,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     await expect(aviso.getByRole('button', { name: 'Ligar esta pessoa' })).toHaveCount(0);
     await aviso.getByRole('button', { name: 'Atualizar e ligar' }).click();
     await expect(janela.getByText(/Você está atualizando o cadastro de JOSÉ DA SILVA TESTE/)).toBeVisible();
-    for (const etapa of ['Etapa 3 de 5', 'Etapa 4 de 5']) {
+    for (const etapa of ['Passo 3 de 5', 'Passo 4 de 5']) {
       await expect(janela.getByText(etapa)).toBeVisible();
       await janela.getByRole('button', { name: 'Próxima' }).click();
     }

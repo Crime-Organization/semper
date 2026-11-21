@@ -15,21 +15,18 @@ import { estadoDoItemSemAcesso, ITEM_SEM_ACESSO } from '../regras/pedidoDePartic
 import { abrirEmNovaAba, cliquesQueAbrem, pedeNovaAba } from './abrirItem';
 import { avisar, falha } from './avisos';
 import { Botao } from './Botoes';
-import { Aviso, Carregando, estiloBotao, Nota, Segmentos, Vazio } from './base';
+import { Aviso, Carregando, estiloBotao, Nota, Segmentos, Tecla, Vazio } from './base';
 import { abrirBuscaGeral, alternarPedido, buscaGeralAberta, buscarEmTudo, fecharBuscaGeral, type AlternarPedido, type BuscarEmTudo, type ResultadoDaBuscaGeral } from './fontesDaBuscaGeral';
-import { Icone, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_MODULO, type NomeIcone } from './Icone';
 import { haJanelaAberta } from './janela';
 import { travarRolagem } from './rolagem';
-import { useAtrasado } from './util';
+import { ehMac, useAtrasado } from './util';
 import './BuscaGeral.css';
 
-/** O ícone de cada grupo: o mesmo do módulo no menu. */
+/** O ícone de cada grupo: o mesmo do módulo no menu (ICONE_DO_MODULO); os processos judiciais e os administrativos, o dos processos. */
 const ICONE_DO_GRUPO: Record<GrupoDaBusca, NomeIcone> = {
-  pessoas: 'pessoas', judiciais: 'processos', administrativos: 'processos', contratos: 'contratos', demandas: 'demandas', tarefas: 'tarefas',
-  compromissos: 'calendario', anotacoes: 'documentos'
+  ...ICONE_DO_MODULO, judiciais: ICONE_DO_MODULO.processos, administrativos: ICONE_DO_MODULO.processos
 };
-/** O aparelho é um Mac (ou iPhone, iPad): o atalho é com Cmd, e a dica mostra ⌘. */
-const ehMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 /**
  * O atalho Ctrl+K (Cmd+K no Mac), em qualquer página: abre a busca; com ela aberta, volta ao campo e seleciona o que está escrito.
@@ -55,7 +52,7 @@ export function BotaoBuscaGeral({ soIcone = false }: { soIcone?: boolean }) {
   return <button type="button" className={soIcone ? 'busca-geral-lupa' : 'busca-geral-botao'} aria-label="Buscar em todo o SEMPER" aria-keyshortcuts="Control+K Meta+K"
     title={`Buscar em todo o SEMPER (${atalho})`} onClick={e => { e.stopPropagation(); abrirBuscaGeral(); }}>
     <Icone nome="buscar" tam={soIcone ? 18 : 16} />
-    {!soIcone && <><span>Buscar</span><kbd aria-hidden="true">{atalho}</kbd></>}
+    {!soIcone && <><span>Buscar</span><Tecla aria-hidden="true">{atalho}</Tecla></>}
   </button>;
 }
 
@@ -69,7 +66,7 @@ export function CampoDaBuscaGeral() {
     onClick={e => { e.stopPropagation(); abrirBuscaGeral(); }}>
     <Icone nome="buscar" tam={18} />
     <span>Buscar pessoa, processo, contrato, tarefa…</span>
-    <kbd aria-hidden="true">{atalho}</kbd>
+    <Tecla aria-hidden="true">{atalho}</Tecla>
   </button>;
 }
 
@@ -214,7 +211,7 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, alternar = alternarPedi
           </select>
         </label>
         <button type="button" className="busca-geral-fechar" onClick={() => fechar()} aria-label="Fechar a busca" title="Fechar (Esc)">
-          <kbd aria-hidden="true">Esc</kbd><span className="icone-de-toque" aria-hidden="true"><Icone nome="fechar" tam={18} /></span>
+          <Tecla aria-hidden="true">Esc</Tecla><span className="icone-de-toque" aria-hidden="true"><Icone nome="fechar" tam={18} /></span>
         </button>
       </div>
       {leitura && <p className="busca-geral-leitura" id={idLeitura}>{leitura}</p>}
@@ -234,10 +231,10 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, alternar = alternarPedi
         </Aviso>}
       </div>
       <p className="busca-geral-rodape" aria-hidden="true">
-        <span><kbd><Icone nome="acima" tam={12} /></kbd><kbd><Icone nome="abaixo" tam={12} /></kbd> andar</span>
-        <span><kbd>Enter</kbd> abrir</span>
-        <span><kbd>{ehMac() ? '⌘' : 'Ctrl'}</kbd><kbd>Enter</kbd> abrir em nova aba</span>
-        <span><kbd>Esc</kbd> fechar</span>
+        <span><Tecla><Icone nome="acima" tam={12} /></Tecla><Tecla><Icone nome="abaixo" tam={12} /></Tecla> andar</span>
+        <span><Tecla>Enter</Tecla> abrir</span>
+        <span><Tecla>{ehMac() ? '⌘' : 'Ctrl'}</Tecla><Tecla>Enter</Tecla> abrir em nova aba</span>
+        <span><Tecla>Esc</Tecla> fechar</span>
       </p>
     </div>
   </div>;

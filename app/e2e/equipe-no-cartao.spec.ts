@@ -404,8 +404,69 @@ test.describe('Equipe no topo do cartão do contrato', () => {
     // Quando
     const menu = await abrirMenuDaBolinha(page, doBruno, 'Bruno Exemplo Souza, Participante · 0%');
     // Então: sem a saída que pergunta antes (o contrato não a tem), a ação nem é oferecida
-    const motivo = 'Você não pode sair deste contrato: sem estar nele, deixaria de poder alterá-lo. Peça a quem o cadastrou ou a um administrador.';
+    // O banco fictício tem o financeiro ligado: o motivo diz também o caso do contrato com parcelas (só um administrador).
+    const motivo = 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você. Se o contrato já tem parcelas, só um administrador pode tirar você.';
     await expect(menu).toContainText(motivo);
     await expect(menu.getByRole('menuitem', { name: 'Sair do contrato' })).toHaveCount(0);
+  });
+});
+
+// Sair de um cartão pelo lápis, sem ser administrador nem quem criou (#274). No processo e no compromisso, a pessoa sai de verdade
+// (#276), e nenhum aviso diz que só um administrador a tiraria. No contrato, o banco recusa, e o aviso diz o que fazer.
+test.describe('Sair de um cartão pelo lápis (#274)', () => {
+  const NAO_SO_ADMINISTRADOR = /só um administrador/i;
+
+  test('dado o Bruno colaborador de um processo, quando se tira no lápis e salva, então sai dele, sem aviso de que só um administrador o tiraria', async ({ page }) => {
+    // Dado
+    const doMauro = await abrirPelaTabela(page, '/processos/judicial/', 'JOSÉ DA SILVA TESTE');
+    await porPelaBolinha(page, doMauro, 'Pôr colaborador', 'bru', 'Bruno Exemplo Souza');
+    await expect(bolinha(doMauro, 'Bruno Exemplo Souza, Colaborador')).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    const doBruno = await abrirPelaTabela(page, '/processos/judicial/', 'JOSÉ DA SILVA TESTE');
+    // Quando
+    await doBruno.getByRole('button', { name: 'Editar' }).click();
+    await doBruno.getByRole('group', { name: 'Colaboradores' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
+    await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Processo atualizado. Você saiu dele, e a saída ficou no histórico.' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: NAO_SO_ADMINISTRADOR })).toHaveCount(0);
+  });
+
+  test('dado o Bruno participante de um compromisso, quando se tira no lápis e salva, então sai dele, sem aviso de que só um administrador o tiraria', async ({ page }) => {
+    // Dado
+    const doMauro = await abrirPelaTabela(page, '/agenda/', 'Reunião de equipe');
+    await porPelaBolinha(page, doMauro, 'Pôr participante', 'bru', 'Bruno Exemplo Souza');
+    await expect(bolinha(doMauro, 'Bruno Exemplo Souza, Participante')).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    const doBruno = await abrirPelaTabela(page, '/agenda/', 'Reunião de equipe');
+    // Quando
+    await doBruno.getByRole('button', { name: 'Editar' }).click();
+    await doBruno.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
+    await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Compromisso atualizado. Você saiu dele, e a saída ficou no histórico.' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: NAO_SO_ADMINISTRADOR })).toHaveCount(0);
+  });
+
+  test('dado o Bruno participante de um contrato que ele não cadastrou, quando se tira no lápis e salva, então o aviso diz que outra pessoa do contrato ou um administrador precisa tirá-lo', async ({ page }) => {
+    // Dado: o contrato de MARIA APARECIDA EXEMPLO é da Ana; o Mauro põe o Bruno nele
+    const abrirContrato = () => abrirPelaTabela(page, '/contratos/', 'MARIA APARECIDA EXEMPLO');
+    const doMauro = await abrirContrato();
+    await porPelaBolinha(page, doMauro, 'Pôr participante', 'bru', 'Bruno Exemplo Souza');
+    await expect(bolinha(doMauro, 'Bruno Exemplo Souza, Participante · 0%')).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    const doBruno = await abrirContrato();
+    // Quando
+    await doBruno.getByRole('button', { name: 'Editar' }).click();
+    await doBruno.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
+    await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então (o banco fictício tem o financeiro ligado: o motivo diz também o caso do contrato com parcelas)
+    await expect(page.getByRole('status').filter({
+      hasText: 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você. Se o contrato já tem parcelas, só um administrador pode tirar você.'
+    })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Você não tem permissão para fazer isso.' })).toHaveCount(0);
+    // E ele continua no contrato (o cartão aberto de novo, sem a edição)
+    const deNovo = await abrirContrato();
+    await expect(bolinha(deNovo, 'Bruno Exemplo Souza, Participante · 0%')).toBeVisible();
   });
 });

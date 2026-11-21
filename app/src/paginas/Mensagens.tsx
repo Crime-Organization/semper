@@ -19,6 +19,7 @@ import { Aviso, Carregando, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { atualizarNaoLidas, naoLidas } from '../ui/mensagens';
 import { useCtx } from '../ui/sessao';
+import { TextoComMencoes } from '../ui/TextoComMencoes';
 import { dataHora, relativo, useTitulo } from '../ui/util';
 import './Mensagens.css';
 
@@ -102,7 +103,7 @@ function ItemDaMencao(props: PropsDoItem) {
     <Avatar p={autor} tam={32} />
     <LinkDaMensagem {...props} para={enderecoDoComentario(c.modulo, c.cartao_id, c.id, c.tipo_do_processo)}>
       <span className="mensagem-titulo"><b>{nome}</b> citou você em {CARTAO_DO_MODULO[c.modulo].nome.toLowerCase()} <b>{c.cartao_nome || c.cartao_codigo}</b></span>
-      <span className="mensagem-trecho">{trechoDaMensagem(c.texto)}</span>
+      <span className="mensagem-trecho"><TextoComMencoes texto={trechoDaMensagem(c.texto)} /></span>
     </LinkDaMensagem>
   </LinhaDaMensagem>;
 }

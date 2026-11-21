@@ -75,8 +75,20 @@
   --recuo-da-pasta: 14px;
   /* O recuo da janela (ui/janela.tsx) por dentro; a janela larga usa o mesmo para o corpo rolar até a borda */
   --recuo-da-janela: 24px;
+  /* O recuo que o Safari do iPhone põe por conta própria de cada lado do texto de um campo de várias linhas (o padding não o tira) */
+  --recuo-do-texto-no-ios: 3px;
   /* A folga em volta da janela, até a borda da tela */
   --folga-da-janela: 16px;
+  /* A tecla (<Tecla>, em ui/base): a altura (também a largura mínima, para a letra sozinha ficar quadrada), a folga dos lados,
+     o raio e o vão entre dois ícones dentro dela */
+  --altura-da-tecla: 20px;
+  --folga-da-tecla: 0 6px;
+  --raio-da-tecla: 6px;
+  --vao-dentro-da-tecla: 2px;
+  /* A lista de atalhos (a janela do "?", #86): o vão entre as linhas, entre as teclas de um atalho e o que separa os grupos */
+  --vao-da-lista-de-atalhos: 8px;
+  --vao-entre-as-teclas: 4px;
+  --separacao-na-lista-de-atalhos: 16px;
   /* A largura da janela larga, para um texto de ler (as Novidades, #353) */
   --largura-janela-larga: 640px;
   /* A letra das linhas de apoio, em cinza (a data da versão e o "onde achar" das Novidades) */
@@ -87,6 +99,9 @@
   --texto-titulo-da-nota: clamp(26px, 1.6vw + 14px, 34px);
   /* O espaço entre as letras dos nomes de coluna e de grupo do quadro, que aparecem em maiúsculas (#386) */
   --espaco-dos-nomes-do-quadro: .1em;
+  /* No cartão do quadro (#300): o espaço entre o código do cartão e cada ligação, e entre o ícone da ligação e o código dela */
+  --folga-entre-ligacoes: .8em;
+  --folga-do-icone-da-ligacao: .3em;
   /* A espera da dica das bolinhas da equipe ao passar o mouse (como a do navegador); no foco do teclado, ela aparece na hora */
   --espera-da-dica: .4s;
   /* A largura máxima da dica das bolinhas: um nome comprido quebra em duas linhas, sem atravessar o cartão */
@@ -184,6 +199,13 @@
   /* O vão entre o título do cartão e a descrição logo abaixo (#385): o mesmo para a descrição lida, a caixa aberta e o convite
      da descrição vazia */
   --vao-do-titulo-a-descricao: 14px;
+  /* O degradê na borda do quadro quando há colunas fora da tela (#87): a largura dele e quanto leva para acender e apagar */
+  --largura-do-degrade-do-quadro: 56px;
+  --tempo-do-degrade-do-quadro: .2s;
+  /* O nome da coluna do quadro (#352): quantas linhas ele ocupa, no máximo, antes das reticências, e a altura da primeira linha
+     do topo da coluna, a do botão "⋯" (.coluna-menu), em que a quantidade e o "⋯" ficam centrados */
+  --linhas-do-nome-da-coluna: 3;
+  --altura-do-topo-da-coluna: 28px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -412,10 +434,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
+/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). */
 :root { --altura-do-campo: var(--alvo-de-toque) }
 .campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
-.campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
+.campos textarea, textarea.campo, .campo.caixa-comentario-espelho { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
 .campo:focus, .campos input:focus, .campos select:focus, .campos textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .campos label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text) }
 .campos label small { font-weight: 400; color: var(--muted) }
@@ -644,7 +666,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .paginacao { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted) }
 
 /* ---------- quadro kanban ---------- */
-.quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth }
+.quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth;
+  /* O que recebe o foco pelo teclado (ou é levado à vista) para fora da faixa do degradê, e não embaixo dele (#87) */
+  scroll-padding-inline: var(--largura-do-degrade-do-quadro) }
+/* Colunas fora da tela (#87): o degradê da borda, da cor do fundo da página (muda com o tema), esmaece as colunas daquele lado,
+   e um fio {colors.line2} na própria borda mostra que o quadro continua, mesmo quando por baixo só há o fundo (o vão entre as
+   colunas, "Arquivados", "Nova coluna"). Acende à direita enquanto há o que rolar e à esquerda depois de rolar
+   (ui/quadro/useMaisNosLados.ts); com tudo cabendo, nenhum. Fica por cima das colunas sem pegar o clique e para acima da barra
+   de rolagem de lado (--barra-do-quadro, a altura dela, medida pelo mesmo gancho), para não esconder as setas dela. */
+.area-quadro { position: relative }
+.area-quadro::before, .area-quadro::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: var(--barra-do-quadro, 0); width: var(--largura-do-degrade-do-quadro); pointer-events: none; opacity: 0; transition: opacity var(--tempo-do-degrade-do-quadro) ease-out }
+.area-quadro::before { left: 0; border-left: 1px solid var(--line2); background: linear-gradient(to right, var(--bg), transparent) }
+.area-quadro::after { right: 0; border-right: 1px solid var(--line2); background: linear-gradient(to left, var(--bg), transparent) }
+.area-quadro[data-mais-a-esquerda]::before, .area-quadro[data-mais-a-direita]::after { opacity: 1 }
+@media (prefers-reduced-motion: reduce) { .area-quadro::before, .area-quadro::after { transition: none } }
 .coluna { flex: 0 0 284px; display: flex; flex-direction: column; max-height: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
 .coluna.sem-etapa { background: var(--soft2) }
 /* Coluna-marco (ex.: a do contrato assinado): cor própria, para se ver de longe qual é o ponto do fluxo. */
@@ -652,10 +687,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .coluna-marco .coluna-topo h3 { color: var(--accent-ink) }
 .coluna-marco-selo { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent) }
 .kmenu-nota { margin: 0; padding: 6px 12px 8px; max-width: 260px; font-size: 12px; line-height: 1.45; color: var(--muted) }
-.coluna-topo { display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 14px; flex-shrink: 0 }
-.coluna-topo h3 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: var(--espaco-dos-nomes-do-quadro); text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* O nome da coluna aparece inteiro, quebrando em até --linhas-do-nome-da-coluna linhas (#352); se nem elas bastam, a última
+   termina em reticências e a dica (title) mostra o nome todo. O topo alinha pelo alto: a primeira linha do nome fica centrada na
+   altura do "⋯", e o selo, a quantidade e o "⋯" ficam nela, alinhados entre as colunas lado a lado, qualquer que seja o nome. */
+.coluna-topo { display: flex; align-items: flex-start; gap: 8px; padding: 12px 10px 8px 14px; flex-shrink: 0 }
+.coluna-topo h3 { margin: calc((var(--altura-do-topo-da-coluna) - 1lh) / 2) 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: var(--espaco-dos-nomes-do-quadro); text-transform: uppercase; color: var(--text);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--linhas-do-nome-da-coluna); line-clamp: var(--linhas-do-nome-da-coluna); overflow: hidden }
+.coluna-topo-acoes { display: flex; align-items: center; gap: 8px; flex-shrink: 0; height: var(--altura-do-topo-da-coluna) }
 .coluna-n { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--line) }
-.coluna-menu { width: 28px; height: 28px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
+.coluna-menu { width: var(--altura-do-topo-da-coluna); height: var(--altura-do-topo-da-coluna); border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
 .coluna-menu:hover { background: var(--line) }
 .coluna-lista { flex: 1; min-height: 40px; overflow-y: auto; padding: 2px 8px 8px; display: flex; flex-direction: column; gap: 8px }
 .coluna-vazia { margin: 4px 6px; font-size: 13px; color: var(--muted) }
@@ -670,6 +710,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kcartao .kt { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
 /* Detalhes do cartão, um por linha (telefone, cidade, data). */
 .kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px }
+/* O código do cartão e as ligações dele (#300), na mesma linha: o ícone de cada tipo e só o código; quebra entre uma e outra. */
+.codigo-no-quadro { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--folga-entre-ligacoes) }
+.ligacao-no-quadro { display: inline-flex; align-items: center; gap: var(--folga-do-icone-da-ligacao); white-space: nowrap }
+.ligacao-no-quadro svg { flex-shrink: 0 }
+/* A dica da ligação (propsDaDica) encosta à esquerda: as ligações ficam no lado esquerdo do cartão, e a dica encostada à direita
+   (a das bolinhas) passaria da borda da coluna. */
+.ligacao-no-quadro[data-dica]::after { right: auto; left: 0 }
 .kcartao .kp { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 26px }
 /* Rodapé só com os responsáveis: ficam no canto direito. */
 .kcartao .kp > :only-child { margin-left: auto }
@@ -719,9 +766,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible, .kmenu a[role="menuitem"]:hover, .kmenu a[role="menuitem"]:focus-visible { background: var(--soft); outline: 0 }
 /* O item do menu que é um link (o "Ver perfil" da bolinha da equipe, #388) tem a mesma cara dos botões. */
 .kmenu a[role="menuitem"] { text-decoration: none }
-/* O alto do menu da bolinha da equipe (#388): o nome e, embaixo, o papel no item, separados das ações por uma linha. */
-.equipe-menu-titulo { display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
-.equipe-menu-titulo b { font-size: var(--texto-tabela); color: var(--ink); overflow-wrap: anywhere }
+/* O alto do menu da bolinha da equipe (#388): o nome e, embaixo, o papel no item, separados das ações por uma linha. O menu da
+   coluna do quadro usa o mesmo alto, com o nome inteiro da coluna (#352). */
+.equipe-menu-titulo, .menu-titulo-com-nome { display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
+.equipe-menu-titulo b, .menu-titulo-com-nome b { font-size: var(--texto-tabela); color: var(--ink); overflow-wrap: anywhere }
 .equipe-menu-titulo span { font-size: var(--texto-miudo); color: var(--muted) }
 .kmenu button.perigo { color: var(--erro) }
 /* Ordem de cada coluna: escolhida no topo do menu da coluna e mostrada abaixo do título quando não é a manual. */
@@ -837,6 +885,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .comentarios { display: flex; flex-direction: column; gap: 16px }
 .caixa-comentario { display: flex; flex-direction: column; gap: 8px }
 .caixa-comentario-campo { position: relative }
+/* O destaque das menções enquanto se digita (#297): o texto fica no campo, de fundo transparente, e um espelho dele por trás, com as
+   mesmas medidas e as letras invisíveis, pinta o fundo de cada menção. A borda e a barra de rolagem ocupam o mesmo lugar nos dois. */
+.caixa-comentario-texto { position: relative; display: block; background: transparent; scrollbar-gutter: stable }
+.campo.caixa-comentario-espelho { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; border-color: transparent; white-space: pre-wrap; overflow-wrap: break-word; scrollbar-gutter: stable; resize: none }
+/* No iPhone, o campo recua o texto (--recuo-do-texto-no-ios): o espelho encolhe o mesmo de cada lado, para a quebra de linha e o
+   destaque continuarem em cima da menção (o ajuste do highlight-within-textarea). Só o Safari do iOS reconhece -webkit-touch-callout. */
+@supports (-webkit-touch-callout: none) { .campo.caixa-comentario-espelho { inset-inline: var(--recuo-do-texto-no-ios); width: auto } }
+.mencao-no-campo { color: transparent; background: var(--accent-tint); border-radius: 4px }
 .caixa-comentario-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 /* Lista de sugestões (CampoComSugestoes e o @ dos comentários): logo abaixo do campo, da largura dele, por cima do
    que vem depois, com o texto inteiro. */
@@ -867,6 +923,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .anotacao-na-coluna-inicio { white-space: pre-line; color: var(--text2) }
 .anotacao-na-coluna .selo { align-self: center }
 .mencao { color: var(--accent-ink); font-weight: 700; background: var(--accent-tint); border-radius: 4px; padding: 0 2px }
+/* A menção de um item (#297): o código e o título, como link do cartão; o aviso (arquivado, sem acesso) vem miúdo, sem negrito. */
+.mencao-item { text-decoration: none; cursor: pointer }
+@media (hover: hover) { .mencao-item:hover { text-decoration: underline } }
+.mencao-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.mencao-nome { font-weight: 400; color: var(--ink) }
+.mencao-aviso { font-weight: 400; color: var(--muted) }
 /* O comentário que a mensagem abriu. */
 .comentario-citado .comentario-texto { background: var(--accent-tint); outline: 1px solid var(--accent); outline-offset: -1px }
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
@@ -1004,6 +1066,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    continua com a dica). */
 [data-dica][aria-haspopup][aria-expanded="true"]::after { opacity: 0 }
 @media (prefers-reduced-motion: reduce) { [data-dica]::after { transition: none; transform: none } }
+/* A dica do código (peça Codigo, #84): o código fica à esquerda do cartão e da linha, então a dica encosta à esquerda dele. Na
+   tabela, ela abre para cima: escondida, a caixa dela continua no desenho, e embaixo da última linha faria a tabela (que rola de
+   lado, .tabela) rolar também na vertical; o que passa para cima não cria área de rolagem. */
+.codigo[data-dica] { cursor: help }
+.codigo[data-dica]::after { right: auto; left: 0; letter-spacing: 0 }
+.tabela .codigo[data-dica]::after { top: auto; bottom: calc(100% + 8px); transform: translateY(2px) }
+.tabela .codigo[data-dica]:is(:hover, :focus-visible)::after { transform: none }
 /* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
    tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
 .equipe-mais { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 1px dashed var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); cursor: pointer }
@@ -1067,17 +1136,44 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */
 /* Toda seção do cartão abaixo do cabeçalho tem a linha fina acima (as que recolhem e as etiquetas). */
 .recolhivel, .bloco.separada { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
-/* A situação fica no cabeçalho, logo abaixo do nome do cartão. */
-.cartao-situacao { margin-top: 16px }
-/* A situação com o botão Concluir ou Reabrir ao lado; em tela estreita, o botão desce para a linha de baixo. */
-.situacao-com-acao { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.situacao-com-acao select { flex: 1 1 12rem; min-width: 0 }
-/* A situação e o "Expandir tudo" das seções numa linha (#389): o menu (com o Concluir, na tarefa) ocupa o que sobra, e o botão fica
-   à direita, com o meio no eixo das setas das seções e do X (#381: a margem da direita de .secoes-todas, que o leva além da ponta
-   da linha). Pelo alto, com o botão no meio da altura do menu: quando o Concluir desce para a linha de baixo, o botão fica na do menu. */
-.situacao-linha { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao) }
-.situacao-linha > :not(.secoes-todas) { flex: 1 1 auto; min-width: 0 }
-.situacao-linha > .secoes-todas { flex-shrink: 0; margin-top: calc((var(--altura-do-campo) - var(--botao-redondo)) / 2); margin-bottom: 0 }
+/* A Situação do cartão no topo (#351, SituacaoDoCartao): um menu compacto, numa pílula com o ícone do quadro à esquerda e a seta à
+   direita, no tamanho dos botões pequenos (.mini) e com as letras dos selos (o nome da coluna, em maiúsculas). Os ícones ficam por
+   cima do menu, sem pegar o clique: a pílula toda é o menu. Desligado (o cartão arquivado, quem só lê), fica sem a seta e sem o
+   hover, como um selo com borda. Ao lado, o que vai com ela (o Concluir da tarefa). Na tela de toque, a pílula tem a altura do alvo
+   do dedo, como o menu de antes, e o Concluir e o Reabrir aceitam o toque nessa altura (o ::before, como os botões rápidos). */
+.cartao-situacao { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao); max-width: 100% }
+/* A folga das pontas e o vão entre o ícone e o texto. O tamanho do ícone (--situacao-icone) vem de ICONE_DA_PILULA, em
+   SituacaoDoCartao.tsx, no style da pílula: um lugar só. */
+.situacao-compacta { --situacao-folga: 10px; --situacao-vao: 6px;
+  position: relative; display: inline-flex; min-width: 0; max-width: 100%; color: var(--text2) }
+.situacao-compacta > svg, .situacao-seta { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none }
+.situacao-compacta > svg { left: calc(var(--situacao-folga) + 1px) }
+.situacao-seta { right: var(--situacao-folga); display: inline-flex }
+.situacao-compacta select { appearance: none; min-width: 0; max-width: 100%; height: var(--botao-mini); border: 1px solid var(--line2); border-radius: 999px;
+  padding: 0 calc(var(--situacao-folga) + var(--situacao-icone) + var(--situacao-vao)); background: var(--superficie); color: var(--ink);
+  font-size: var(--texto-miudo); font-weight: 900; letter-spacing: .06em; text-overflow: ellipsis; cursor: pointer; field-sizing: content }
+.situacao-compacta select option { background: var(--superficie); color: var(--ink) }
+.situacao-compacta select:hover:not(:disabled) { background: var(--soft) }
+.situacao-compacta select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.situacao-compacta select:disabled { padding-right: var(--situacao-folga); color: var(--text2); cursor: default; opacity: 1 }
+.situacao-compacta:has(select:disabled) .situacao-seta { display: none }
+.situacao-acao { display: inline-flex }
+@media (pointer: coarse) { .situacao-compacta select { height: var(--alvo-de-toque) } }
+/* A linha dos botões rápidos (#351, AtalhosDoCartao), no pé da cabeça do cartão: os botões pequenos (.mini) à esquerda, que descem
+   para a linha de baixo quando não cabem, e o "Expandir tudo" das seções à direita, com o meio no eixo das setas das seções e do X
+   (#381: a margem da direita de .secoes-todas, que o leva além da ponta da linha), no meio da altura da primeira linha de botões.
+   Na tela de toque, cada botão aceita o toque na altura do alvo do dedo (o ::before); o vão entre as linhas é o que falta do botão
+   até o alvo, e um toque não cai no botão de baixo. O Concluir e o Reabrir da tarefa, ao lado da Situação, ganham o mesmo alvo. Sem
+   botões nem "Expandir tudo", a linha não ocupa nada. */
+:root { --vao-acima-dos-atalhos: 16px }
+.cartao-atalhos { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao); margin-top: var(--vao-acima-dos-atalhos) }
+.cartao-atalhos:empty { display: none }
+.cartao-atalhos-botoes { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: calc(var(--alvo-de-toque) - var(--botao-mini)) var(--botao-redondo-vao) }
+.cartao-atalhos > .secoes-todas { flex-shrink: 0; margin-left: auto; margin-top: calc((var(--botao-mini) - var(--botao-redondo)) / 2); margin-bottom: 0 }
+@media (pointer: coarse) {
+  .cartao-atalhos-botoes > .mini, .situacao-acao > .mini { position: relative }
+  .cartao-atalhos-botoes > .mini::before, .situacao-acao > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
+}
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,
@@ -1215,6 +1311,24 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .janela-corpo .novidade p { margin: 0 0 6px }
 .novidade-onde { display: flex; align-items: flex-start; gap: 6px; font-size: var(--texto-apoio); line-height: 1.5; color: var(--muted) }
 .novidade-onde svg { flex: none; margin-top: 2px }
+
+/* ---------- atalhos do teclado (#86): a janela do "?" nas páginas de módulo ---------- */
+/* Cada linha: as teclas à esquerda, numa coluna da largura da maior (a mesma nos dois grupos, por subgrid), e o que fazem à direita. */
+.lista-de-atalhos { display: grid; grid-template-columns: max-content 1fr; column-gap: var(--separacao-na-lista-de-atalhos) }
+.lista-de-atalhos section, .lista-de-atalhos dl { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid }
+.lista-de-atalhos section + section, .atalhos-desligar { margin-top: var(--separacao-na-lista-de-atalhos); padding-top: var(--separacao-na-lista-de-atalhos); border-top: 1px solid var(--line) }
+.lista-de-atalhos h3 { grid-column: 1 / -1; margin: 0 0 var(--vao-da-lista-de-atalhos); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+.lista-de-atalhos dl { margin: 0; row-gap: var(--vao-da-lista-de-atalhos); align-items: baseline }
+.lista-de-atalhos dl > div { display: contents }
+.lista-de-atalhos dt { display: flex; gap: var(--vao-entre-as-teclas) }
+.lista-de-atalhos dd { margin: 0 }
+/* A caixa que desliga os atalhos de uma tecla só, no pé da lista. */
+.atalhos-desligar { display: flex; flex-direction: column; gap: var(--vao-da-lista-de-atalhos) }
+
+/* ---------- a tecla (<Tecla>, em ui/base): a dica de um atalho, na busca geral e na lista de atalhos ---------- */
+.tecla { display: inline-flex; align-items: center; justify-content: center; gap: var(--vao-dentro-da-tecla); min-width: var(--altura-da-tecla); min-height: var(--altura-da-tecla);
+  padding: var(--folga-da-tecla); border: 1px solid var(--line2); border-radius: var(--raio-da-tecla); background: var(--soft); color: var(--muted);
+  font-family: var(--font); font-size: var(--texto-miudo); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap }
 
 /* ---------- formulário em etapas ---------- */
 .passos { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 28px }

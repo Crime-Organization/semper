@@ -34,12 +34,17 @@ import { colunaDaOrdem, dataDaOrdem, ORDENS_COM_INICIO, ORDENS_COM_PRAZO, ORDENS
 import { filtroDoInicio } from '../ui/filtroDoInicio';
 import { limitesDoPeriodo, type PeriodoDoInicio } from '../regras/dataDeInicio';
 import { hojeNaAgenda } from '../regras/agenda';
+import { ligacoesPorExtenso, type LigacaoDoItem } from '../regras/ligacoesDoItem';
+import { LigacoesNoQuadro } from '../ui/quadro/LigacoesNoQuadro';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { hojeISO, numero, useTitulo } from '../ui/util';
 import { CartaoDemanda } from './CartaoDemanda';
 import './Contratos.css';
 import './Demandas.css';
+
+/** A ligação da demanda: no quadro, ícone e código (<LigacoesNoQuadro>); na tabela, "contrato MA96-0001-2026" (#300). */
+const ligacoes = (d: DemandaLista): LigacaoDoItem[] => [{ modulo: 'contratos', codigo: d.contrato_codigo }];
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
 /** Se o cartão está concluído: o módulo dele (está na coluna das concluídas), false (não está) ou null (as colunas ainda
@@ -215,7 +220,7 @@ function CartaoKanban({ d, ordem, concluido }: { d: DemandaLista; ordem: OrdemCo
     <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} />
     <div className="kt">{d.titulo}</div>
     <div className="km">
-      <span className="codigo">{d.codigo}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</span>
+      <LigacoesNoQuadro codigo={d.codigo} ligacoes={ligacoes(d)} />
       {d.cliente_nome && <span>{clientesPorExtenso(d.cliente_nome)}</span>}
       <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -264,7 +269,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       <tbody>{linhas.map(d => <LinhaQueAbre key={d.id} para={endereco(d.id)} aoAbrir={() => aoAbrir(d.id)} marcada={selecionadas.has(d.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
-          <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</div></td>
+          <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · ' + ligacoesPorExtenso(ligacoes(d)) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} />

@@ -59,7 +59,7 @@ test.describe('Cadastro de tarefas', () => {
   test('quando a pessoa cadastra uma tarefa pelas duas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');
-    await expect(page.getByText('Etapa 1 de 2')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 2')).toBeVisible();
     // Quando: na primeira etapa, a tarefa, o prazo e a demanda (que traz os clientes dela para as pessoas)
     await page.getByLabel('Título').fill('Mandar a notificação');
     await page.getByRole('textbox', { name: 'Prazo' }).fill('10112030');
@@ -341,7 +341,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     // Quando: clica fora
     await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
     await campo.fill('Renovar a procuração já');
-    await cartao.getByRole('heading', { name: 'Situação', level: 3 }).click();
+    await cartao.getByText('Criada em', { exact: true }).click();
     // Então
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração já', level: 2 })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();

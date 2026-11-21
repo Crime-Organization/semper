@@ -8,7 +8,7 @@ import { useRef, useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, idsDoCampoDeVarios, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, TituloSecao, useFocoNoGrupo, Vazio } from '.';
+import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Codigo, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, idsDoCampoDeVarios, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, Tecla, TituloSecao, useFocoNoGrupo, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -268,14 +268,43 @@ describe('Peças de texto e de estado', () => {
     ['Cartão com classe da tela', () => <Cartao className="campos">Conteúdo</Cartao>, 'cartao campos'],
     ['Nota', () => <Nota>Conteúdo</Nota>, 'nota'],
     ['Dica', () => <Dica>Conteúdo</Dica>, 'dica'],
+    ['Código', () => <Codigo>CA222B4B</Codigo>, 'codigo'],
     ['Vazio', () => <Vazio>Conteúdo</Vazio>, 'vazio'],
     ['Contador', () => <Contador>12</Contador>, 'recolher-contador num'],
-    ['Contador apagado (zero)', () => <Contador apagado>0</Contador>, 'recolher-contador num vazio']
+    ['Contador apagado (zero)', () => <Contador apagado>0</Contador>, 'recolher-contador num vazio'],
+    ['Tecla', () => <Tecla>Esc</Tecla>, 'tecla'],
+    ['Tecla com classe da tela', () => <Tecla className="busca-geral-tecla">K</Tecla>, 'tecla busca-geral-tecla']
   ])('quando a peça é %s, então gera as classes "%s"', (_peca, criar, classes) => {
     // Quando
     const { container } = render(criar());
     // Então
     expect(container.firstElementChild).toHaveAttribute('class', classes);
+  });
+
+  it('dado um código com dica, quando aparece, então mostra o código e leva a dica que explica o que ele é (#84)', () => {
+    // Dado / Quando
+    render(<Codigo dica="Código da pessoa no SEMPER">CA222B4B</Codigo>);
+    // Então
+    expect(screen.getByText('CA222B4B')).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    expect(screen.getByText('CA222B4B')).toHaveAttribute('aria-description', 'Código da pessoa no SEMPER');
+  });
+
+  it('dado um código com dica, quando a pessoa usa o Tab, então o código recebe o foco, onde a dica aparece (#84)', async () => {
+    // Dado
+    render(<Codigo dica="Código da pessoa no SEMPER">CA222B4B</Codigo>);
+    // Quando
+    await userEvent.tab();
+    // Então
+    expect(screen.getByText('CA222B4B')).toHaveFocus();
+  });
+
+  it('dado um código sem dica, quando aparece, então não leva dica', () => {
+    // Dado / Quando
+    render(<Codigo>CA222B4B</Codigo>);
+    // Então
+    expect(screen.getByText('CA222B4B')).not.toHaveAttribute('data-dica');
+    expect(screen.getByText('CA222B4B')).not.toHaveAttribute('tabindex');
+    expect(screen.getByText('CA222B4B')).not.toHaveAttribute('aria-description');
   });
 
   it('quando o título de seção é usado, então é um h2 com a classe "secao"', () => {

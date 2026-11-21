@@ -13,6 +13,7 @@ import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
+import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
@@ -565,6 +566,48 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         await expect(gravar).rejects.toThrow('Escolha uma conta ativa do escritório para o dinheiro deste contrato.');
         expect((await SD.contasParaEscolher()).map(c => c.nome)).not.toContain('PF ' + id);
+      });
+    });
+
+    describe('Menções de itens pelo código, com ! (#297)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+
+      it('dado uma demanda ativa e uma arquivada, quando os códigos são consultados, então vem só o que quem lê vê, com o título e o arquivamento', async () => {
+        // Dado: as duas só do master (o Bruno não está nelas)
+        const titulo = 'MENCAO ' + Math.random().toString(36).slice(2, 8).toUpperCase();
+        const ativa = await SD.demandaCriar({ titulo, responsavel_id: 'u-master' });
+        const arquivada = await SD.demandaCriar({ titulo: titulo + ' ARQUIVADA', responsavel_id: 'u-master' });
+        await SD.demandasArquivar([arquivada.id]);
+        const codigos = [ativa.codigo.toLowerCase(), arquivada.codigo, 'FFFF0000'];
+        // Quando
+        const doMaster = await SD.itensMencionados(codigos);
+        entrarComo('u-bruno');
+        const doBruno = await SD.itensMencionados(codigos);
+        // Então
+        expect(doMaster.map(i => [i.modulo, i.id, i.nome, !!i.arquivado_em])).toEqual(expect.arrayContaining([
+          ['demandas', arquivada.id, titulo + ' ARQUIVADA', true], ['demandas', ativa.id, titulo, false]
+        ]));
+        expect(doMaster).toHaveLength(2);
+        expect(doBruno.map(i => i.id)).not.toContain(ativa.id);
+        expect(doBruno.map(i => i.id)).not.toContain(arquivada.id);
+        expect(await SD.itensMencionados([])).toEqual([]);
+      });
+
+      it('dado uma tarefa e um contrato, quando a lista do ! busca pelo começo do código ou do número, então eles vêm na busca de ligar', async () => {
+        // Dado
+        const tarefa = await SD.tarefaCriar({ titulo: 'MENCAO PELO CODIGO ' + marca(), responsavel_id: 'u-master' });
+        const { id: cliente } = await criar(marca());
+        const contrato = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+        const [sigla, numero] = contrato.codigo.split('-');
+        // Quando: o que a pessoa digita depois do !, como a caixa de comentário manda para a busca
+        const pelaTarefa = await SD.itensParaLigar('tarefas', tarefa.codigo.slice(0, 6).toLowerCase());
+        const peloComecoDoNumero = await SD.itensParaLigar('contratos', `${sigla}-${numero}`);
+        const peloNumeroInteiro = await SD.itensParaLigar('contratos', contrato.codigo);
+        // Então
+        expect(pelaTarefa.map(i => [i.id, i.codigo])).toContainEqual([tarefa.id, tarefa.codigo]);
+        expect(peloComecoDoNumero.map(i => i.id)).toContain(contrato.id);
+        expect(peloNumeroInteiro.map(i => [i.id, i.codigo])).toContainEqual([contrato.id, contrato.codigo]);
       });
     });
 
@@ -3476,6 +3519,45 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const arquivada = lancar(id);
         // Então
         await expect(arquivada).rejects.toThrow('Esta conta está arquivada.');
+      });
+
+      it('quando exclui uma conta, então só a arquivada que nunca teve lançamento sai; as outras são recusadas com o motivo (#347)', async () => {
+        // Dado: uma ativa, uma arquivada sem nada e uma arquivada com um lançamento já excluído
+        const ativa = await novaConta(), vazia = await novaConta(), comLancamento = await novaConta();
+        const l = await lancar(comLancamento.id);
+        await SD.financeiroLancamentoExcluir(l.id);
+        for (const c of [vazia, comLancamento]) await SD.financeiroContaAtualizar(c.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        const arquivadasComLancamentos = await SD.financeiroArquivadasComLancamentos();
+        // Então: só a arquivada com lançamento (a ativa não entra)
+        expect(arquivadasComLancamentos).toContain(comLancamento.id);
+        expect(arquivadasComLancamentos).not.toContain(vazia.id);
+        expect(arquivadasComLancamentos).not.toContain(ativa.id);
+        // Quando / Então: a ativa e a com lançamento são recusadas, com o motivo
+        await expect(SD.financeiroContaExcluir(ativa.id)).rejects.toThrow(CONTA_NAO_ARQUIVADA);
+        await expect(SD.financeiroContaExcluir(comLancamento.id)).rejects.toThrow(CONTA_COM_LANCAMENTOS);
+        // Quando
+        await SD.financeiroContaExcluir(vazia.id);
+        // Então: a vazia sumiu; as outras continuam
+        const ids = (await SD.financeiroContas()).map(c => c.id);
+        expect(ids).not.toContain(vazia.id);
+        expect(ids).toEqual(expect.arrayContaining([ativa.id, comLancamento.id]));
+      });
+
+      it('dado uma conta arquivada que é a conta de destino de um contrato, quando é excluída, então o contrato fica sem conta e o histórico guarda o nome dela (#347)', async () => {
+        // Dado
+        const { id } = await criar('DESTINO ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        const nome = 'DESTINO ' + marca();
+        const conta = await novaConta({ nome });
+        await SD.contratoAtualizar(contratoId, { conta_destino_id: conta.id });
+        await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        await SD.financeiroContaExcluir(conta.id);
+        // Então
+        expect((await SD.contratoObter(contratoId))!.conta_destino_id).toBeNull();
+        const [ultima] = await SD.contratoHistorico(contratoId);
+        expect(ultima.alteracoes).toEqual({ conta_destino_id: { de: nome, para: null } });
       });
 
       it('quando o início da conta passaria de um lançamento, então é recusado; o lançamento excluído não conta, mas não volta antes do início', async () => {
@@ -8155,7 +8237,7 @@ describe('Grupos da equipe (banco fictício, #378)', () => {
     expect((await SD.demandaObter(id))?.titulo).toBe('Demanda do grupo');
     await SD.demandaAtualizar(id, { titulo: 'Demanda mudada pelo Bruno' });
     await expect(SD.cartaoSair('demandas', id)).rejects.toThrow(
-      'Você está neste cartão pelo grupo Núcleo do Teste. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.');
+      'Você está neste cartão pelo grupo Núcleo do Teste. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.');
     // Quando
     entrarComo('u-ana');
     await SD.grupoDaEquipeTirar(grupo, 'u-bruno');

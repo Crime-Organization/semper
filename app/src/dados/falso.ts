@@ -11,7 +11,7 @@ import type {
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
-import { ehAjuste } from '../regras/caixa';
+import { ehAjuste, motivoParaNaoExcluirConta } from '../regras/caixa';
 import { compararPeloPrazo } from '../regras/ordemPorPrazo';
 import { compararPeloInicio, INICIO_VAZIO, inicioDoCriadoEm, inicioNosLimites } from '../regras/dataDeInicio';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
@@ -27,7 +27,7 @@ import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '..
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
-import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
+import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
@@ -40,7 +40,7 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos } from '../regras/gruposDaEquipe';
+import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
@@ -52,7 +52,7 @@ import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLu
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
 import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
@@ -1582,6 +1582,10 @@ const ABRE_COM_A_CHAVE: Record<ModuloDaAnotacao, Record<keyof ChavesDaEquipe, bo
   demandas: { equipeVeTudo: true, equipeEditaTudo: true },
   tarefas: { equipeVeTudo: true, equipeEditaTudo: true },
   compromissos: { equipeVeTudo: false, equipeEditaTudo: true }
+};
+/** As linhas de cada módulo mencionável com !código nos comentários (#297). */
+const ITENS_MENCIONAVEIS: Record<ModuloMencionavel, () => { id: string; codigo: string }[]> = {
+  tarefas: () => bd.tarefas!, demandas: () => bd.demandas!, contratos: () => bd.contratos!, processos: () => bd.processos!, pessoas: () => bd.pessoas
 };
 /** Quem está logado vê o item, pelas regras do módulo ou pela chave da equipe que abre esse módulo? */
 const vejoOItem = (modulo: ModuloDaAnotacao, id: string) => {
@@ -3787,6 +3791,23 @@ export const SD: Dados = {
     Object.assign(c, dados, { nome: novo.nome.trim() }); auditar('financeiro_contas', 'alteracao', c); gravar();
     return espera(undefined);
   },
+  // Como o gatilho conferir_exclusao (migração 20261120231028_excluir_conta.sql): o lançamento excluído também conta.
+  async financeiroContaExcluir(id) {
+    const c = bd.contasFinanceiras!.find(x => x.id === id);
+    if (!c) return erro(SEM_ACESSO_AO_CAIXA);
+    const motivo = motivoParaNaoExcluirConta({
+      arquivada: !!c.arquivada_em,
+      temLancamentos: [...bd.lancamentos!, ...bd.recebimentos!, ...bd.retiradas!].some(l => l.conta_id === id),
+      temRepasses: bd.repasses!.some(r => r.conta_sugerida === id || r.conta_paga === id)
+    });
+    if (motivo) return erro(motivo);
+    // Como o gatilho: o contrato fica sem conta de destino, e o histórico dele guarda o nome da conta, antes de ela sair.
+    bd.contratos!.filter(k => k.conta_destino_id === id).forEach(k => { historicoContrato(k, { conta_destino_id: null }); k.conta_destino_id = null; });
+    bd.contasFinanceiras!.splice(bd.contasFinanceiras!.indexOf(c), 1);
+    auditar('financeiro_contas', 'exclusao', c); gravar();
+    return espera(undefined);
+  },
+  financeiroArquivadasComLancamentos: () => espera(bd.contasFinanceiras!.filter(c => c.arquivada_em && bd.lancamentos!.some(l => l.conta_id === c.id)).map(c => c.id)),
   financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
     .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
   financeiroAjustesDeSaldo: () => espera(bd.lancamentos!.filter(l => !l.excluido_em && ehAjuste(l.categoria))
@@ -4352,8 +4373,7 @@ export const SD: Dados = {
       // Como public.cartao_sair: quem está só por um grupo do cartão recebe o motivo (o primeiro grupo, pelo nome).
       const doItem = GRUPOS_DO_ITEM[modulo](id) ?? [], meus = meusGruposNoFalso();
       const pelo = bd.gruposDaEquipe!.filter(g => doItem.includes(g.id) && meus.includes(g.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0];
-      return erro(pelo ? `Você está neste cartão pelo grupo ${pelo.nome}. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.`
-        : 'Você não está entre as pessoas deste cartão.');
+      return erro(pelo ? recusaDeSairPeloGrupo(pelo.nome) : 'Você não está entre as pessoas deste cartão.');
     }
     gravar();
   },
@@ -4555,6 +4575,12 @@ export const SD: Dados = {
     // Quem está logado no banco fictício é o master: apaga os de qualquer autor.
     if (!c) return erro('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
     bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
+  },
+  // Como em supabase.ts: os itens com o código, só os que quem lê vê (as mesmas regras das ligações da anotação), arquivados também.
+  itensMencionados(codigos) {
+    const procurados = new Set(codigos.map(c => c.toUpperCase()));
+    return espera(MODULOS_MENCIONAVEIS.flatMap(modulo => ITENS_MENCIONAVEIS[modulo]()
+      .filter(x => procurados.has(x.codigo) && vejoOItem(modulo, x.id)).map(x => ITEM_NO_FALSO[modulo](x.id)!.item)));
   },
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------

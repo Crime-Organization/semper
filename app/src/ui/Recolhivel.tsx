@@ -5,16 +5,19 @@
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
 // primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
 // só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma. Quando o cartão
-// marca um lugar para ele (<LugarDoExpandirTudo>, na linha da Situação: veja ui/quadro/SituacaoDoCartao.tsx), o botão fica ali, e
-// não acima da primeira seção (#389).
+// marca um lugar para ele (<LugarDoExpandirTudo>, na ponta direita da linha dos botões rápidos: veja ui/AtalhosDoCartao.tsx, #351),
+// o botão fica ali, e não acima da primeira seção (#389).
 // O "+" do título leva ao cadastro de outro módulo (um endereço) ou, desde a #390, pede à própria seção o formulário ou o menu do
 // item novo (Novo prazo, Adicionar checklist…): abre a seção, se estiver fechada, sem mudar a escolha guardada, e quem está dentro
-// atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre.
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+// atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre. Com `atalho` (#351), o mesmo "+" vira também um botão
+// rápido do cartão (AtalhosDoCartao), que faz o que ele faz: abre a seção e o formulário ou o menu do item novo, preso ao botão.
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { TipoDeAtalho } from '../regras/atalhosDoCartao';
 import { BotaoLink, Contador, estiloBotao, propsDaDica } from './base';
-import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_MINI, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
+import { useAtalhoDoCartao } from './registroDeAtalhos';
 
 /** O tamanho da seta na ponta direita do título da seção: o mesmo de --seta-da-secao (estilo.css), em cujo meio fica o do "Expandir tudo" (#381). */
 const TAMANHO_DA_SETA = 16;
@@ -133,7 +136,8 @@ function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
 }
 
 /**
- * O lugar do botão "Expandir tudo" fora das seções (#389): na linha da Situação do cartão, à direita. Enquanto ele está na tela, o
+ * O lugar do botão "Expandir tudo" fora das seções (#389): desde a #351, na ponta direita da linha dos botões rápidos do cartão
+ * (AtalhosDoCartao), no eixo das setas das seções e do X. Enquanto ele está na tela, o
  * botão do grupo fica aqui, e não acima da primeira seção; sem seções no grupo (ou fora de um grupo), não desenha nada. Um por grupo.
  */
 export function LugarDoExpandirTudo() {
@@ -162,10 +166,15 @@ interface Props {
    * aparece (veja CriarNoCartao, em ItensLigados.tsx).
    */
   novo?: NovoLigado | NovoNaSecao;
+  /**
+   * O botão rápido que o "+" oferece ao cartão (#351): o tipo dele na linha (Checklist, Anotação…). Só enquanto o "+" aparece: no
+   * cartão arquivado ou só para ler, nenhum.
+   */
+  atalho?: TipoDeAtalho;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, abertaAoIniciar = false, novo: pedido, children }: Props) {
+export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, abertaAoIniciar = false, novo: pedido, atalho, children }: Props) {
   const novo = useNovoNoCartao(pedido);
   const [aberto, setAberto] = useState(() => abertaAoIniciar || (preferencia ? lerPreferencia(preferencia, false) : false));
   const id = useId();
@@ -187,11 +196,13 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
   /** Os formulários que a seção já mostrava no clique do "+" (que abre um formulário, e não um menu): o do item novo é o que vem depois. */
   const formulariosAntes = useRef<Set<Element> | null>(null);
   // Abre a seção como o abertaAoIniciar: só agora, sem gravar a escolha (#390).
-  const pedirNovo = (e: MouseEvent<HTMLButtonElement>) => {
+  const pedirNovo = (botao: HTMLElement) => {
     setAberto(true);
-    setAAtender({ botao: e.currentTarget });
+    setAAtender({ botao });
     if (novo && !('para' in novo) && !novo.menu) formulariosAntes.current = new Set(corpo.current?.querySelectorAll('form') ?? []);
   };
+  // O botão rápido do cartão faz o mesmo que o "+": leva ao mesmo endereço ou pede o item novo à seção.
+  useAtalhoDoCartao(atalho, novo && ('para' in novo ? { nome: novo.rotulo, para: novo.para } : { nome: novo.rotulo, menu: novo.menu, abrir: pedirNovo }));
   // Fechada antes de quem atende aparecer (ex.: a leitura falhou), o pedido acaba: não abre o formulário quando ela reabrir.
   useEffect(() => { if (!aberto) setAAtender(null); }, [aberto]);
   // Atendido o pedido, o foco vai ao primeiro campo do formulário novo, que fica à vista: com uma lista longa, ele aparece
@@ -216,9 +227,9 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
         </button>
         {novo && <>
           {'para' in novo
-            ? <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
+            ? <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={ICONE_DO_MINI} /></BotaoLink>
             : <button type="button" className={estiloBotao({ forma: 'mini' }, 'secao-novo')} aria-label={novo.rotulo} title={novo.rotulo}
-              aria-haspopup={novo.menu ? 'menu' : undefined} onClick={pedirNovo}><Icone nome="mais" tam={15} /></button>}
+              aria-haspopup={novo.menu ? 'menu' : undefined} onClick={e => pedirNovo(e.currentTarget)}><Icone nome="mais" tam={ICONE_DO_MINI} /></button>}
           <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span></span>
         </>}
       </h3>
