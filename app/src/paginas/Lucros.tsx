@@ -62,7 +62,7 @@ function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancela
     } catch (e) { falha(e); setOcupado(false); }
   }
   return <form className="cartao financeiro-form" noValidate aria-label="Pagar lucro" onSubmit={salvar}>
-    <Nota>Isto cria a saída "Divisão de lucro" no caixa. Para só mover dinheiro da PJ para a PF, use "Repasse entre contas", no Caixa: não conta como lucro.</Nota>
+    <Nota>Isto cria a saída "Divisão de lucro" no caixa. Para só mover dinheiro da PJ para a PF, use "Repasse entre contas", em "Contas e DAS": não conta como lucro.</Nota>
     <div className="financeiro-form-linha">
       <Campo rotulo="Sócio" para={id + 'socio'} obrigatorio erro={erros.pessoaId}>
         <select {...propsDoCampo(id + 'socio', { erro: erros.pessoaId })} value={f.pessoaId} onChange={e => { const em = emAberto(e.target.value); mudar({ pessoaId: e.target.value, valor: retiradaNova(e.target.value, f.contaId, f.data, em).valor }); }}>

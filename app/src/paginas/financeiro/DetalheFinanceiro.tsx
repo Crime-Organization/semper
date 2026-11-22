@@ -8,7 +8,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type ContaFinanceira, type Contrato, type Lancamento, type Parcela, type RecebimentoGravado } from '../../dados';
-import { fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/caixa';
+import { CAMPOS_DO_LANCAMENTO, fmtCentavos, formDoLancamento, nomeDaCategoria, valorNoHistorico } from '../../regras/caixa';
 import { CATEGORIAS, fmtDinheiro, fmtPercentual } from '../../regras/contrato';
 import { divisaoGravada, linhasDaDivisao, maiorParcelaPorContrato, nomesDoRecebimento, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
@@ -18,7 +18,9 @@ import { copiarTexto } from '../../ui/util';
 import { Aviso, Carregando, estiloBotao, Nota } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { Recolhivel } from '../../ui/Recolhivel';
 import { useCtx } from '../../ui/sessao';
+import { HistoricoDoCartao } from '../HistoricoDoCartao';
 import { CorrigirRecebimento } from './CorrigirRecebimento';
 import { FormLancamento } from './Formularios';
 import { Divisao, ParcelasDoContrato } from './Parcelas';
@@ -185,6 +187,11 @@ export function DetalheDoLancamento({ lancamento: l, contas, aoTerminar }: { lan
       {!l.par_id && <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setEditando(true)}><Icone nome="editar" tam={14} /> Editar lançamento</button>}
       <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={excluir}><Icone nome="lixeira" tam={14} /> Excluir</BotaoDuplo>
     </div>}
+    {/* Como o lançamento estava antes de cada mudança (até a #331, só se via ao mudá-lo na página das contas). */}
+    <Recolhivel titulo="Histórico deste lançamento" icone="relogio" preferencia="financeiro.historico">
+      {/* A janela abre de novo a cada lançamento (e depois de mudar): o histórico é lido uma vez. */}
+      <HistoricoDoCartao key={l.id} carregar={() => SD.financeiroHistorico(l.id)} campos={CAMPOS_DO_LANCAMENTO} valor={valorNoHistorico} versao={0} />
+    </Recolhivel>
   </div>;
 }
 

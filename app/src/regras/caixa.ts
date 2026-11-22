@@ -71,6 +71,24 @@ export interface FormDoLancamento {
   tipoGuardado?: TipoDeLancamento;
 }
 export const lancamentoNovo = (contaId: string, hoje: string): FormDoLancamento => ({ contaId, data: hoje, categoria: 'recebimento', valor: '', descricao: '' });
+/**
+ * O que a página das contas lança à mão desde a #331: só o ajuste de saldo, para igualar o saldo ao do banco. Entradas e saídas
+ * se lançam no Financeiro.
+ */
+export const CATEGORIAS_DO_AJUSTE_NOVO: FormDoLancamento['categoria'][] = ['ajuste_a_mais', 'ajuste_a_menos'];
+export const ajusteNovo = (contaId: string, hoje: string): FormDoLancamento => ({ ...lancamentoNovo(contaId, hoje), categoria: CATEGORIAS_DO_AJUSTE_NOVO[0] });
+
+/**
+ * Onde cada linha do extrato da página das contas muda (#331): o que nasceu de uma parcela, de um repasse ou do lucro muda por lá; o
+ * repasse entre contas só se exclui (as duas pontas juntas); o ajuste de saldo muda ali mesmo; as entradas e saídas comuns, no
+ * Financeiro, que as lança.
+ */
+export type OndeMuda = 'na_origem' | 'repasse_entre_contas' | 'ajuste' | 'no_financeiro';
+export function ondeMuda(l: Pick<Lancamento, 'origem' | 'par_id' | 'categoria'>): OndeMuda {
+  if (l.origem) return 'na_origem';
+  if (l.par_id) return 'repasse_entre_contas';
+  return ehAjuste(l.categoria) ? 'ajuste' : 'no_financeiro';
+}
 export const formDoLancamento = (l: Lancamento): FormDoLancamento => ({
   contaId: l.conta_id, data: l.data, categoria: l.categoria as keyof typeof CATEGORIAS, valor: centavosNoCampo(l.valor), descricao: l.descricao,
   ...(dadosDaCategoria(l.categoria) ? {} : { tipoGuardado: l.tipo })

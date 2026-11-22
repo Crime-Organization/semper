@@ -35,10 +35,11 @@ export async function acaoDaParcela(page: Page, lugar: Page | Locator, acao: 'Mu
 
 /**
  * As telas do Financeiro que não são abas da página principal, cada uma no seu endereço. O menu tem só o link do
- * Financeiro (desde 07/11/2026): elas se abrem pelos atalhos das abas, e o teste vai direto ao endereço.
+ * Financeiro (desde 07/11/2026): elas se abrem pelos botões do alto do Financeiro e pelo "Contas e DAS" (#331), e o teste vai
+ * direto ao endereço. A página antiga das parcelas saiu na #331 (o endereço leva a Direitos).
  */
 const TELAS_DO_FINANCEIRO: Record<string, string> = {
-  Caixa: '/financeiro/contas/', 'Conferência': '/conferencia/', 'Lucro dos sócios': '/lucros/', 'Meus valores': '/meus-valores/', Parcelas: '/parcelas/'
+  'Contas, DAS e sócios': '/financeiro/contas/', 'Conferência': '/conferencia/', 'Lucro dos sócios': '/lucros/', 'Meus valores': '/meus-valores/'
 };
 export async function abrirNoFinanceiro(page: Page, tela: string) {
   await page.goto(TELAS_DO_FINANCEIRO[tela]);

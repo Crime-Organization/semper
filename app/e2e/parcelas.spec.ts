@@ -2,7 +2,7 @@
 // As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mauro (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
+import { abrir, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
@@ -251,7 +251,7 @@ test.describe('Receber', () => {
     await cartao.getByRole('button', { name: 'Ver a divisão da parcela 1' }).click();
     await expect(cartao.getByLabel('Como ficou a divisão')).toContainText('DAS (4,5%)');
     // Quando: paga o repasse
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     const repasses = page.getByRole('table', { name: 'Repasses' });
     await expect(repasses).toContainText(dinheiro('647,50'));
     await expect(repasses).toContainText('A pagar');
@@ -317,7 +317,7 @@ test.describe('Receber', () => {
     const form = await receberPrimeira(cartao);
     await form.getByRole('button', { name: 'Registrar recebimento' }).click();
     await expect(form).toHaveCount(0);
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
     await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     const repasses = page.getByRole('table', { name: 'Repasses' });
@@ -329,7 +329,7 @@ test.describe('Receber', () => {
     // Então
     await expect(page.getByText('Há repasse já pago deste recebimento', { exact: false })).toBeVisible();
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await repasses.getByRole('button', { name: 'Desfazer pagamento' }).click();
     await repasses.getByRole('button', { name: 'Confirmar: desfazer' }).click();
     // Então
@@ -359,28 +359,40 @@ test.describe('Receber', () => {
     await expect(divisao).not.toContainText('Fica com o responsável');
     await form.getByRole('button', { name: 'Registrar recebimento' }).click();
     await expect(form).toHaveCount(0);
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await expect(page.getByText('Nenhum repasse a pagar, nem pago neste mês.')).toBeVisible();
   });
 });
 
-test.describe('Página de parcelas', () => {
-  test('quando troca de mês, então vê as do mês e as atrasadas, com o resumo', async ({ page }) => {
+// A regra mudou em 22/11/2026 (#331, aprovado pelo dono): a página das parcelas de cada mês saiu. O endereço antigo leva para sempre à
+// aba Direitos do Financeiro, que mostra o que falta receber de cada contrato, com as atrasadas, e abre as parcelas do contrato.
+test.describe('O endereço antigo das parcelas', () => {
+  test('dado um contrato com parcelas atrasadas, quando alguém abre /parcelas/, então vai a Direitos, que mostra o contrato com atraso e abre as parcelas dele', async ({ page }) => {
     // Dado
     await contratoComParcelas(page);
     await page.goto('/inicio/');
     // Quando
-    await abrirNoFinanceiro(page, 'Parcelas');
-    await page.getByLabel('Mês').fill(`${new Date().getFullYear() - 1}-01`);
-    // Então: nada venceu antes do contrato
-    await expect(page.getByText('Nenhuma parcela neste mês.')).toBeVisible();
-    // Quando
-    await page.getByLabel('Mês').fill(`${new Date().getFullYear()}-03`);
+    await page.goto('/parcelas/');
     // Então
-    const tabela = page.getByRole('table', { name: 'Parcelas' });
-    await expect(tabela).toContainText('JOSÉ DA SILVA TESTE');
-    await expect(tabela.getByRole('link').first()).toHaveAttribute('href', /\/contratos\/\?id=/);
-    await expect(page.getByLabel('Resumo das parcelas')).toContainText('Atrasada');
+    await expect(page).toHaveURL(/\/financeiro\/direitos\/$/);
+    const linha = page.getByRole('table', { name: 'Direitos' }).getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    await expect(linha).toContainText('Com atraso');
+    // Quando
+    await linha.getByRole('button', { name: /^Abrir o contrato/ }).click();
+    // Então
+    const parcelas = page.getByRole('dialog', { name: 'Contrato' }).getByRole('table', { name: 'Parcelas' });
+    await expect(parcelas.getByRole('row')).toHaveCount(6);
+    await expect(parcelas).toContainText('Atrasada');
+  });
+
+  test('dado o bloco "Parcelas da semana" do Início, quando clica em "Ver todas", então abre a aba Direitos do Financeiro', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    // Quando
+    await page.getByRole('main').getByRole('region', { name: 'Parcelas da semana' }).getByRole('link', { name: 'Ver todas' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/financeiro\/direitos\/$/);
+    await expect(page.getByRole('navigation', { name: 'Abas do financeiro' }).getByRole('link', { name: 'Direitos', exact: true })).toHaveAttribute('aria-current', 'page');
   });
 });
 
@@ -552,7 +564,7 @@ test.describe('Corrigir uma parcela já recebida (#267)', () => {
     await expect(corrigir).toHaveCount(0);
     await expect(cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1)).toContainText(dinheiro('900,00'));
     // Quando: o repasse é pago, e tenta corrigir de novo
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
     await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');

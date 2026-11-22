@@ -254,7 +254,7 @@ export function FormDoCaixa({ tipo, titulo, rotulo, aoRegistrar }: { tipo: 'entr
   }, []);
   if (contas === null) return <Carregando />;
   if (typeof contas === 'string') return <Aviso tipo="erro">{contas}</Aviso>;
-  if (!contas.length) return <Vazio>Nenhuma conta ativa. Crie as contas do escritório em Caixa.</Vazio>;
+  if (!contas.length) return <Vazio>Nenhuma conta ativa. Crie as contas do escritório em "Contas e DAS".</Vazio>;
 
   const form = { ...f, contaId: f.contaId || contas[0].id };
   const conta = contas.find(c => c.id === form.contaId);

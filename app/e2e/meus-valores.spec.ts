@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// A tela "Meus valores" e a seção "A passar" das Parcelas. Quem está logado é o Mauro (administrador), responsável pelo contrato de
+// A tela "Meus valores" e a seção "A passar" da aba Obrigações do Financeiro. Quem está logado é o Mauro (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
+import { abrir, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 type Lugar = ReturnType<Page['getByRole']>;
@@ -70,7 +70,7 @@ const linhas = (page: Page) => page.getByRole('table', { name: 'Valores de cada 
 const totalDe = (page: Page, nome: string) => page.getByLabel('Totais por papel').getByRole('term').filter({ hasText: nome }).locator('+ dd');
 
 test.describe('Meus valores', () => {
-  test('dado o menu, quando abre Meus valores, então a tela abre; e, sem recebimento, parcela futura não aparece', async ({ page }) => {
+  test('dado o menu, quando abre o Financeiro e o botão Meus valores do alto, então a tela abre; e, sem recebimento, parcela futura não aparece', async ({ page }) => {
     // Dado: o contrato tem parcelas, mas o cliente ainda não pagou nenhuma
     const cartao = await abrirContrato(page);
     await cartao.getByRole('button', { name: 'Editar' }).click();
@@ -81,7 +81,8 @@ test.describe('Meus valores', () => {
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 5' })).toBeVisible();
     await page.goto('/inicio/');
     // Quando
-    await abrirNoFinanceiro(page, 'Meus valores');
+    await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Financeiro', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Outras telas do Financeiro' }).getByRole('link', { name: 'Meus valores' }).click();
     // Então
     await expect(page).toHaveURL(/\/meus-valores\/?$/);
     await expect(page.getByRole('heading', { name: /^Meus valores/ })).toBeVisible();
@@ -104,7 +105,7 @@ test.describe('Meus valores', () => {
     await expect(totalDe(page, 'Responsável: recebido')).toHaveText(dinheiro('0,00'));
     await expect(page.getByText('Além dos recebimentos do mês, aparecem os valores ainda a receber de antes dele.', { exact: false })).toBeVisible();
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
     await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');
@@ -139,7 +140,7 @@ test.describe('Meus valores', () => {
     await expect(participante).toContainText(dinheiro('92,50'));
     await expect(participante).toContainText('Ana Teste Lima');
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     const aPassar = page.getByRole('region', { name: 'A passar a participantes e indicadores' });
     await aPassar.getByRole('button', { name: /Marcar como pago/ }).click();
     await page.getByRole('form', { name: /Marcar como pago/ }).getByRole('button', { name: 'Confirmar' }).click();
@@ -149,7 +150,7 @@ test.describe('Meus valores', () => {
     await expect(participante).toContainText('Recebido');
     await expect(totalDe(page, 'Participante: recebido')).toHaveText(dinheiro('92,50'));
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await aPassar.getByRole('button', { name: 'Desfazer marcação' }).click();
     await aPassar.getByRole('button', { name: 'Confirmar: desfazer' }).click();
     await expect(aPassar.getByRole('table')).toContainText('A pagar');
@@ -172,7 +173,7 @@ test.describe('Meus valores', () => {
     await expect(indicador).toContainText('A receber');
     await expect(indicador).toContainText(dinheiro('46,25'));
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await page.getByRole('button', { name: /Marcar como pago/ }).click();
     await page.getByRole('form', { name: /Marcar como pago/ }).getByRole('button', { name: 'Confirmar' }).click();
     await expect(page.getByRole('table', { name: 'Valores a passar' })).toContainText('Pago');
@@ -206,7 +207,7 @@ test.describe('Meus valores', () => {
     await expect(linhas(page)).toHaveCount(2);
     await expect(linhas(page).nth(1)).toContainText('Responsável');
     await expect(linhas(page).nth(1)).toContainText(dinheiro('740,00'));
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await expect(page.getByRole('region', { name: 'A passar a participantes e indicadores' }).getByText('Nada a passar neste mês.')).toBeVisible();
   });
 
@@ -221,7 +222,7 @@ test.describe('Meus valores', () => {
     await expect(linhas(page).filter({ hasText: 'Participante' })).toContainText('A receber');
     await expect(totalDe(page, 'Participante: a receber')).toHaveText(dinheiro('92,50'));
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     const aPassar = page.getByRole('region', { name: 'A passar a participantes e indicadores' });
     await aPassar.getByRole('button', { name: /Marcar como pago/ }).click();
     await page.getByRole('form', { name: /Marcar como pago/ }).getByRole('button', { name: 'Confirmar' }).click();
@@ -273,7 +274,7 @@ test.describe('A passar a participantes e indicadores', () => {
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
     await form.getByLabel('Data do pagamento').fill('2026-03-20');
@@ -293,7 +294,7 @@ test.describe('A passar a participantes e indicadores', () => {
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     // Então
     const tabela = secao(page).getByRole('table');
     await expect(tabela.getByRole('columnheader', { name: 'Quem paga' })).toBeVisible();
@@ -312,7 +313,7 @@ test.describe('A passar a participantes e indicadores', () => {
       sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
     });
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     // Então
     await expect(secao(page).getByRole('table').getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' })).toContainText('Usuário removido');
   });
@@ -323,7 +324,7 @@ test.describe('A passar a participantes e indicadores', () => {
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.setViewportSize({ width: 375, height: 812 });
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     // Então
     const tabela = secao(page).getByRole('table');
     await tabela.getByRole('columnheader', { name: 'Para' }).scrollIntoViewIfNeeded();
@@ -335,7 +336,7 @@ test.describe('A passar a participantes e indicadores', () => {
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     // Então
     await secao(page).getByRole('columnheader', { name: 'Para' }).scrollIntoViewIfNeeded();
     await expect(secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ })).toBeInViewport({ ratio: 1 });
@@ -346,7 +347,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Dado
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     const tabela = secao(page).getByRole('table');
     await expect(tabela).toContainText('BRUNO EXEMPLO SOUZA');
     await expect(tabela).toContainText(dinheiro('92,50'));
@@ -371,7 +372,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Dado
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
     await form.getByLabel('Data do pagamento').fill('2026-03-20');
@@ -395,7 +396,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Dado
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
     // Quando
@@ -410,7 +411,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Dado
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     await page.getByRole('form', { name: /Marcar como pago: BRUNO/ }).getByRole('button', { name: 'Confirmar' }).click();
     await expect(secao(page).getByRole('table')).toContainText('Pago');
@@ -421,7 +422,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Então
     await expect(page.getByText('É preciso desfazer a marcação antes.', { exact: false })).toBeVisible();
     // Quando
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await secao(page).getByRole('button', { name: 'Desfazer marcação' }).click();
     await secao(page).getByRole('button', { name: 'Confirmar: desfazer' }).click();
     await expect(secao(page).getByRole('table')).toContainText('A pagar');
@@ -430,7 +431,7 @@ test.describe('A passar a participantes e indicadores', () => {
     await acaoDaParcela(page, cartao, 'Estornar', 1);
     // Então
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 1' })).toBeVisible();
-    await page.goto('/parcelas/');
+    await page.goto('/financeiro/obrigacoes/');
     await expect(secao(page).getByText('Nada a passar neste mês.')).toBeVisible();
   });
 });

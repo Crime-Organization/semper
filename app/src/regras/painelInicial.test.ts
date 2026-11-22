@@ -50,6 +50,11 @@ describe('Painel da página inicial', () => {
       expect(verTodosDoBloco('pessoas', {}, MEU)).toMatchObject({ para: '/pessoas/' });
     });
 
+    it('dado o Financeiro ligado, quando o bloco das parcelas mostra o "Ver todas", então ele abre a aba Direitos do Financeiro (a página antiga das parcelas saiu, #331)', () => {
+      // Quando / Então
+      expect(verTodosDoBloco('parcelas', { financeiro: true }, MEU)).toEqual({ rotulo: 'Ver todas', para: '/financeiro/direitos/' });
+    });
+
     it.each([
       [MEU, '/tarefas/?pessoa=eu'],
       [EQUIPE, '/tarefas/?pessoa=todos'],

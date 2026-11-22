@@ -62,7 +62,7 @@ test.describe('Conferência dos lançamentos', () => {
     await page.reload();
     await expect(linhas(page).getByRole('row', { name: /CLIENTE QUE CONFERE/ }).getByLabel(/^Valor pago/)).toHaveValue('1.234,56');
     await page.goto('/financeiro/contas/');
-    await expect(page.getByRole('heading', { name: /^Caixa/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Contas, DAS e sócios/ })).toBeVisible();
     await expect(page.getByText('1.234,56')).toHaveCount(0);
   });
 

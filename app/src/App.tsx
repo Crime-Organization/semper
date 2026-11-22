@@ -2,10 +2,11 @@
 // Os endereços são os mesmos do site antigo (os links dos e-mails e os favoritos continuam valendo).
 // Os cadastros novos (pessoa, contrato, demanda, tarefa), abertos de dentro do sistema, aparecem numa janela no meio da tela, sobre
 // a página de onde se veio; abertos direto pelo endereço (ou numa aba nova), aparecem como página. A anotação nova não é um
-// cadastro: abre em Documentos, na mesma janela da anotação aberta (#369); o endereço antigo dela (/documentos/nova/) leva para lá.
+// cadastro: abre em Documentos, na mesma janela da anotação aberta (#369).
+// Os endereços que mudaram de lugar (como /parcelas/ e /documentos/nova/) levam para sempre à página nova: veja regras/enderecosAntigos.ts.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createBrowserRouter, Navigate, Route, RouterProvider, Routes, useLocation, useNavigate, type Location } from 'react-router';
-import { enderecoNovoDaAnotacaoNova } from './regras/anotacao';
+import { ENDERECOS_ANTIGOS, enderecoNovo } from './regras/enderecosAntigos';
 import { Avisos, sinalizarMudanca } from './ui/avisos';
 import { Carregando } from './ui/base';
 import { PainelCartao } from './ui/PainelCartao';
@@ -40,7 +41,6 @@ const PerfilDaEquipe = lazy(() => import('./paginas/PerfilDaEquipe'));
 const MinhaConta = lazy(() => import('./paginas/MinhaConta'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 const Calendario = lazy(() => import('./paginas/Calendario'));
-const Parcelas = lazy(() => import('./paginas/Parcelas'));
 const MeusValores = lazy(() => import('./paginas/MeusValores'));
 const Conferencia = lazy(() => import('./paginas/Conferencia'));
 const Lucros = lazy(() => import('./paginas/Lucros'));
@@ -76,10 +76,10 @@ function FormularioTarefa() {
   const { key } = useLocation();
   return <NovaTarefa key={key} />;
 }
-/** O endereço antigo da anotação nova (dos favoritos e dos links já mandados) leva a Documentos, onde ela abre agora (#369). */
-function AnotacaoNovaAntiga() {
-  const { search } = useLocation();
-  return <Navigate to={enderecoNovoDaAnotacaoNova(search)} replace />;
+/** Um endereço antigo (dos favoritos e dos links já mandados) leva à página que faz o mesmo hoje. */
+function EnderecoAntigo() {
+  const { pathname, search } = useLocation();
+  return <Navigate to={enderecoNovo(pathname, search) ?? '/inicio/'} replace />;
 }
 
 /** Os cadastros novos (e a importação de pessoas): cada endereço, o formulário dele e o nome da janela (padrão: "Cadastro"). */
@@ -143,16 +143,12 @@ function Rotas() {
           <Route path="processos/investigacao" element={<Processos key="investigacao" tipo="investigacao" />} />
           <Route path="agenda" element={<Compromissos />} />
           <Route path="documentos" element={<Documentos />} />
-          <Route path="documentos/nova" element={<AnotacaoNovaAntiga />} />
           <Route path="financeiro" element={<HubDoFinanceiro />} />
           <Route path="financeiro/saidas" element={<HubDoFinanceiro />} />
           <Route path="financeiro/direitos" element={<HubDoFinanceiro />} />
           <Route path="financeiro/obrigacoes" element={<HubDoFinanceiro />} />
-          {/* Os nomes antigos das abas levam às novas. */}
-          <Route path="financeiro/receitas" element={<Navigate to="/financeiro/direitos/" replace />} />
-          <Route path="financeiro/despesas" element={<Navigate to="/financeiro/obrigacoes/" replace />} />
+          {/* As contas do escritório, o DAS, os sócios e o extrato de cada conta: abre pelo botão "Contas e DAS" do Financeiro. */}
           <Route path="financeiro/contas" element={<Financeiro />} />
-          <Route path="parcelas" element={<Parcelas />} />
           <Route path="meus-valores" element={<MeusValores />} />
           <Route path="conferencia" element={<Conferencia />} />
           <Route path="lucros" element={<Lucros />} />
@@ -162,6 +158,7 @@ function Rotas() {
           <Route path="minha-conta" element={<MinhaConta />} />
           <Route path="configuracoes" element={<Configuracoes />} />
           {CADASTROS.map(([caminho, Formulario]) => <Route key={caminho} path={caminho} element={<Formulario />} />)}
+          {Object.keys(ENDERECOS_ANTIGOS).map(caminho => <Route key={caminho} path={caminho} element={<EnderecoAntigo />} />)}
         </Route>
         <Route path="*" element={<Navigate to="/inicio/" replace />} />
       </Routes>

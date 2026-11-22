@@ -74,7 +74,7 @@ export const BLOCOS_DO_PAINEL: Record<BlocoDoPainel, DefinicaoDoBloco> = {
     verTodos: { rotulo: 'Ver o painel', caminho: '/processos/' }, modulo: 'processos' },
   anotacoes: { titulo: 'Anotações recentes', vazio: 'Nenhuma anotação sua ainda.', vazioDeOutros: 'Nenhuma anotação ainda.',
     verTodos: { rotulo: 'Ver todas', caminho: '/documentos/' }, modulo: 'anotacoes' },
-  parcelas: { titulo: 'Parcelas da semana', vazio: 'Nenhuma parcela vencida ou a vencer nos próximos 7 dias.', verTodos: { rotulo: 'Ver todas', caminho: '/parcelas/' }, modulo: 'financeiro' },
+  parcelas: { titulo: 'Parcelas da semana', vazio: 'Nenhuma parcela vencida ou a vencer nos próximos 7 dias.', verTodos: { rotulo: 'Ver todas', caminho: '/financeiro/direitos/' }, modulo: 'financeiro' },
   pessoas: { titulo: 'Pessoas', vazio: 'Nenhuma pessoa cadastrada ainda.', verTodos: { rotulo: 'Ver todas', caminho: '/pessoas/' }, modulo: null }
 };
 export const ORDEM_DOS_BLOCOS = Object.keys(BLOCOS_DO_PAINEL) as BlocoDoPainel[];
