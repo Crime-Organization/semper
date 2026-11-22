@@ -1772,8 +1772,8 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* ---------- painéis (ui/painel, #401): Processos e, depois, Início e Financeiro. Veja "Painéis" no DESIGN.md ---------- */
 .miolo.do-painel { max-width: var(--largura-do-painel); gap: calc(var(--vao-do-painel) * 1.5); container-type: inline-size }
 /* Lendo de novo (trocou o filtro): o painel fica, mais claro, até a resposta chegar, sem pular. */
-.miolo.do-painel :is(.numeros-do-painel, .painel) { transition: opacity .2s ease-out }
-.miolo.do-painel.atualizando :is(.numeros-do-painel, .painel) { opacity: .55 }
+.miolo.do-painel :is(.numeros-do-painel, .painel-grade) { transition: opacity .2s ease-out }
+.miolo.do-painel.atualizando :is(.numeros-do-painel, .painel-grade) { opacity: .55 }
 .painel-topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px }
 .painel-topo-texto { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
 .painel-frase { margin: 0; max-width: 640px; font-size: 15px; color: var(--text2) }
@@ -1816,9 +1816,10 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
   .numero-do-painel-seta { top: 14px; right: 12px }
 }
 
-/* A grade dos cartões: no computador, cada cartão ocupa a largura que pediu; no celular, a linha inteira. Cada cartão é um container,
+/* A grade dos cartões (painel-grade, e não "painel", que é a classe do menu-painel .kmenu.painel: com ela, o menu de etiquetas virava
+   grade e andava pela tela sem parar). No computador, cada cartão ocupa a largura que pediu; no celular, a linha inteira. Cada cartão é um container,
    para o que vai dentro (dois gráficos lado a lado) se arrumar pela largura dele. */
-.painel { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--vao-do-painel) }
+.painel-grade { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--vao-do-painel) }
 .painel-cartao { grid-column: 1 / -1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; container-type: inline-size; scroll-margin-top: var(--folga-acima-da-lista) }
 @container (min-width: 900px) {
   .painel-cartao.metade { grid-column: span 3 }

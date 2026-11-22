@@ -90,7 +90,7 @@ export function NumeroDoPainel({ rotulo, valor, detalhe, para, tom = 'neutro', v
 
 /** A grade dos cartões do painel. Cada cartão diz a largura que ocupa no computador; no celular, todos ocupam a linha inteira. */
 export function Painel({ children }: { children: ReactNode }) {
-  return <div className="painel">{children}</div>;
+  return <div className="painel-grade">{children}</div>;
 }
 
 /** Quanto da linha o cartão ocupa no computador (no celular, sempre a linha inteira). */
