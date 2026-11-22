@@ -2506,6 +2506,83 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Demandas relacionadas (#310)', () => {
+      const novaDemanda = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const ids = async (demandaId: string) => (await SD.demandasRelacionadas(demandaId)).map(r => r.id);
+
+      it('quando liga uma à outra, então cada uma mostra a outra com o número; ligar de novo, no outro sentido, não repete', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        // Quando
+        const nova = await SD.demandaRelacionar(d.id, e.id);
+        const deNovo = await SD.demandaRelacionar(e.id, d.id);
+        // Então
+        expect([nova, deNovo]).toEqual([true, false]);
+        expect(await SD.demandasRelacionadas(d.id)).toEqual([expect.objectContaining({ id: e.id, codigo: e.codigo, demanda: expect.objectContaining({ arquivado_em: null }) })]);
+        expect((await SD.demandasRelacionadas(e.id))[0]).toMatchObject({ id: d.id, codigo: d.codigo });
+      });
+
+      it('quando tenta ligar a demanda a ela mesma, ou a uma arquivada, então é recusado', async () => {
+        // Dado
+        const [d, arquivada] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandasArquivar([arquivada.id], true);
+        // Quando
+        const mesma = SD.demandaRelacionar(d.id, d.id);
+        const comArquivada = SD.demandaRelacionar(d.id, arquivada.id);
+        // Então
+        await expect(mesma).rejects.toThrow();
+        await expect(comArquivada).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect(await SD.demandasRelacionadas(d.id)).toEqual([]);
+      });
+
+      it('quando desfaz a ligação num dos lados, então ela some dos dois, e as outras ficam', async () => {
+        // Dado
+        const [d, e, f] = [await novaDemanda(), await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        await SD.demandaRelacionar(d.id, f.id);
+        // Quando
+        await SD.demandaDesrelacionar(e.id, d.id);
+        // Então
+        expect(await ids(d.id)).toEqual([f.id]);
+        expect(await ids(e.id)).toEqual([]);
+      });
+
+      it('quando desfaz o que não está ligado, então é recusado', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        // Quando
+        const desfazer = SD.demandaDesrelacionar(d.id, e.id);
+        // Então
+        await expect(desfazer).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando uma das duas é arquivada depois de ligada, então a ligação continua e ainda se desfaz', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        // Então
+        expect((await SD.demandasRelacionadas(d.id))[0].demanda?.arquivado_em).toBeTruthy();
+        await SD.demandaDesrelacionar(d.id, e.id);
+        expect(await ids(d.id)).toEqual([]);
+      });
+
+      it('quando uma das duas é excluída, então a ligação sai junto', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        await SD.demandasExcluir([e.id]);
+        // Então
+        expect(await ids(d.id)).toEqual([]);
+      });
+    });
+
     describe('Processo e demanda', () => {
       const novoProcesso = async () => {
         const { id: cliente } = await criar(marca());

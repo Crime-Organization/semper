@@ -30,6 +30,9 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
 import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
+import { outraDaRelacao, parDaRelacao, type LinhaDaRelacao } from '../regras/demandasRelacionadas';
+import type { DemandaRelacionada } from './tipos';
+import { DEMANDAS_RELACIONADAS } from './limites';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
@@ -668,6 +671,8 @@ const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id' | 'contr
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
 const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, objeto, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
+/** A demanda relacionada como o cartão de outra a mostra (#310): o id e o número vêm da ligação. */
+const CAMPOS_DEMANDA_RELACIONADA = 'titulo, prazo, prazo_hora, etapa_id, arquivado_em';
 const ligada = (pessoaId: string, perfilId: string | null) => ({ clientes, responsavel_id, colaboradores, ...d }: DemandaParaLigar): DemandaLigada =>
   ({ ...d, papeis: papeisNaDemanda({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) });
 
@@ -1111,6 +1116,27 @@ export const SD: Dados = {
   },
   // A função do banco confere quem pode e não repete a demanda do objeto (supabase/migrations/20261121223632_objetos_sem_demanda.sql).
   contratoCriarDemanda: (contratoId, objeto) => rpc('contrato_criar_demanda', { p_contrato: contratoId, p_objeto: objeto }) as Promise<{ id: string; codigo: string }>,
+
+  // ---------- demandas relacionadas (supabase/migrations/20261122125913_demandas_relacionadas.sql, #310) ----------
+  async demandasRelacionadas(demandaId) {
+    // Cada ponta vem pela regra de leitura das demandas: a que quem lê não vê chega null, e fica só o número gravado na ligação.
+    const { data } = await rodar(sb.from('demandas_relacionadas')
+      .select(`demanda_a, demanda_b, codigo_a, codigo_b, a:demandas!demandas_relacionadas_a(${CAMPOS_DEMANDA_RELACIONADA}), b:demandas!demandas_relacionadas_b(${CAMPOS_DEMANDA_RELACIONADA})`)
+      .or(`demanda_a.eq.${demandaId},demanda_b.eq.${demandaId}`).order('criado_em').order('demanda_a').limit(DEMANDAS_RELACIONADAS));
+    return (data as LinhaDaRelacao<DemandaRelacionada['demanda']>[]).map(l => outraDaRelacao(l, demandaId));
+  },
+  async demandaRelacionar(demandaId, outraId) {
+    // O mesmo par, em qualquer sentido, é a mesma linha: a repetida o banco descarta, e ela não volta na resposta.
+    const [demanda_a, demanda_b] = parDaRelacao(demandaId, outraId);
+    const { data } = await rodar(sb.from('demandas_relacionadas').upsert({ demanda_a, demanda_b, criado_por: uid() },
+      { onConflict: 'demanda_a,demanda_b', ignoreDuplicates: true }).select('demanda_a'));
+    return data.length > 0;
+  },
+  async demandaDesrelacionar(demandaId, outraId) {
+    // A regra do banco não apaga o que a pessoa não pode desfazer: nenhuma linha sai, e a tela precisa saber.
+    const [a, b] = parDaRelacao(demandaId, outraId);
+    conferirQueMudou((await rodar(sb.from('demandas_relacionadas').delete().eq('demanda_a', a).eq('demanda_b', b).select('demanda_a').maybeSingle())).data);
+  },
 
   // ---------- compromissos ----------
   async compromissosListar(f = {}) {

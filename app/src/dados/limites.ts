@@ -48,6 +48,8 @@ export const TAMANHO_DEMANDA = { titulo: 300, descricao: 4000 };
 export const COLABORADORES_MAXIMOS = 20;
 /** Quantas demandas o cartão de uma pessoa ou de um contrato mostra (as mais novas primeiro). */
 export const DEMANDAS_LIGADAS = 200;
+/** Quantas demandas relacionadas o cartão de uma demanda mostra (as ligadas há mais tempo primeiro, #310). */
+export const DEMANDAS_RELACIONADAS = 200;
 /** Tarefas: os mesmos do banco (supabase/migrations/20261027000020_tarefas.sql). Os participantes seguem COLABORADORES_MAXIMOS; as pessoas, CLIENTES_MAXIMOS. */
 export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
 /** Quantas tarefas o cartão de uma pessoa, de uma demanda ou de um contrato mostra. */
