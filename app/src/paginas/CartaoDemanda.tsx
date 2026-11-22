@@ -2,13 +2,13 @@
 // #382, como o da anotação), o tipo, o código e o prazo, com a equipe da demanda em bolinhas (responsável e colaboradores), a
 // etiqueta, o lápis e o ⋯ à direita; logo abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os
 // selos das etiquetas; o título; os dados (as datas e o tempo da equipe nas tarefas) e a descrição (CabecaDoCartao, #397); depois,
-// cada tópico numa seção que recolhe (listas, tarefas, processos, clientes, contrato), com o "Expandir tudo" sozinho acima da
+// cada tópico numa seção que recolhe (listas, tarefas, processos, clientes, contrato, demandas relacionadas), com o "Expandir tudo" sozinho acima da
 // primeira (#394); comentários, anotações e histórico na coluna da direita.
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 // Desde a #346, quem altera a demanda muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { SD, type Demanda, type PessoaResumida } from '../dados';
+import { SD, type Demanda, type DemandaRelacionada, type PessoaResumida } from '../dados';
 import { TAMANHO_DEMANDA } from '../dados/limites';
 import { CAMPOS_DEMANDA, DEMANDA_VAZIA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, validarDemanda, valorLegivelDemanda, estaNaDemanda } from '../regras/demanda';
 import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
@@ -39,6 +39,7 @@ import { relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
 import { concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
+import { DemandasRelacionadas } from './DemandasRelacionadas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { novoProcessoDaDemanda, ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
@@ -84,6 +85,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     if (comProcessos) SD.processosDaDemanda(id).then(x => { if (vivo) setLigados(l => ({ ...l, processos: x.visiveis.length + x.ocultos })); }).catch(() => {});
     return () => { vivo = false; };
   }, [id, versaoHist, comTarefas, comProcessos]);
+  // As demandas relacionadas (#310): lidas aqui, para o número aparecer no título da seção mesmo recolhida.
+  const [relacionadas, setRelacionadas] = useState<DemandaRelacionada[] | string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    SD.demandasRelacionadas(id).then(x => { if (vivo) setRelacionadas(x); }).catch(e => { if (vivo) setRelacionadas((e as Error).message); });
+    return () => { vivo = false; };
+  }, [id, versaoHist]);
   // Depois de desfazer: mostra a demanda como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
 
@@ -245,6 +253,12 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
           aoEscolher={k => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
+    </Recolhivel>
+
+    {/* As demandas ligadas a esta, nos dois sentidos (#310). */}
+    <Recolhivel titulo="Demandas relacionadas" icone="demandas" preferencia="demandas.cartao.relacionadas"
+      contador={Array.isArray(relacionadas) ? relacionadas.length : undefined}>
+      <DemandasRelacionadas demandaId={d.id} relacionadas={relacionadas} colunas={quadro.colunas} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
     </Recolhivel>
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e

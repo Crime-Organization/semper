@@ -1,0 +1,5 @@
+{
+  "titulo": "Demandas relacionadas",
+  "texto": "Uma demanda pode ser ligada a outra: a ligação aparece nas duas, com o número, e desfeita num cartão some dos dois. Quem não participa da outra demanda vê que ela existe e o número dela, sem ver o conteúdo.",
+  "ondeAchar": "Demandas: abra o cartão de uma demanda > seção Demandas relacionadas > Ligar demanda existente. O X ao lado de cada uma desfaz a ligação."
+}

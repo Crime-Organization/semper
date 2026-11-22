@@ -134,6 +134,11 @@ export async function ligarDemandaNoProcesso(processoId: string, demandaId: stri
   if (!await SD.processoDemandaLigar(processoId, demandaId, 'atua')) return null;
   return () => SD.processoDemandaDesligar(processoId, demandaId);
 }
+/** Relaciona uma demanda à outra (#310), nos dois sentidos. A que já estava relacionada (talvez por outra pessoa agora há pouco) não ganha Desfazer. */
+export async function relacionarDemandas(demandaId: string, outraId: string): Promise<Desfazer | null> {
+  if (!await SD.demandaRelacionar(demandaId, outraId)) return null;
+  return () => SD.demandaDesrelacionar(demandaId, outraId);
+}
 /** Liga o contrato ao processo (a mesma ligação do cartão do contrato). */
 export async function ligarContratoNoProcesso(processoId: string, contratoId: string): Promise<Desfazer | null> {
   if ((await SD.contratosDoProcesso(processoId)).visiveis.some(k => k.id === contratoId)) return null;

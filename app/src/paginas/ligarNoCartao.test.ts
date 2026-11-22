@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SD } from '../dados';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
 import { CONTRATOS_DIFERENTES, DEMANDA_DE_OUTRO_CONTRATO, LISTA_CHEIA, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO } from '../regras/ligarExistente';
-import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarNoItem, ligarTarefaNaDemanda, ligarTarefaNoPrazo, porAPessoa } from './ligarNoCartao';
+import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarNoItem, ligarTarefaNaDemanda, ligarTarefaNoPrazo, porAPessoa, relacionarDemandas } from './ligarNoCartao';
 
 const marca = () => 'LIGAR ' + Math.random().toString(36).slice(2, 8).toUpperCase();
 const pessoa = async () => (await SD.pessoaCriar({ tipo: 'pf', nome: marca() })).id;
@@ -266,5 +266,28 @@ describe('As ligações de muitos para muitos', () => {
     // Quando / Então
     expect(await ligarDemandaNoProcesso(p.id, d.id)).toBeNull();
     expect(await ligarContratoNoProcesso(p.id, k.id)).toBeNull();
+  });
+});
+
+describe('As demandas relacionadas (#310)', () => {
+  it('dadas duas demandas, quando relaciona, então as duas se mostram, e o Desfazer tira a ligação dos dois lados', async () => {
+    // Dado
+    const [d, e] = [await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' }), await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' })];
+    // Quando
+    const desfazer = await relacionarDemandas(d.id, e.id);
+    // Então
+    expect((await SD.demandasRelacionadas(e.id)).map(r => r.id)).toEqual([d.id]);
+    // Quando
+    await desfazer!();
+    // Então
+    expect(await SD.demandasRelacionadas(d.id)).toEqual([]);
+  });
+
+  it('dada uma ligação que já existe (no outro sentido), quando relaciona de novo, então não há Desfazer', async () => {
+    // Dado
+    const [d, e] = [await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' }), await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' })];
+    await relacionarDemandas(e.id, d.id);
+    // Quando / Então
+    expect(await relacionarDemandas(d.id, e.id)).toBeNull();
   });
 });
