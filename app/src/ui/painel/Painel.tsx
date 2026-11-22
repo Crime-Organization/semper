@@ -5,8 +5,9 @@
 // O desenho vem do estilo.css (seção "painéis") e está descrito no DESIGN.md ("Painéis").
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { partesDoDinheiro } from '../../regras/numerosDoFinanceiro';
 import { Contador, Nota, TituloSecao } from '../base';
-import { Icone } from '../Icone';
+import { Icone, type NomeIcone } from '../Icone';
 
 /** O título do painel, com o ponto verde, a frase de quem é o trabalho e, à direita, o filtro (só para o administrador). */
 export function CabecaDoPainel({ titulo, frase, children }: { titulo: string; frase?: ReactNode; children?: ReactNode }) {
@@ -26,13 +27,31 @@ export function NumerosDoPainel({ rotulo, children }: { rotulo: string; children
 
 /** O tom do número: neutro; alerta (algo pede atenção); erro (algo passou da hora); bom. */
 export type TomDoNumero = 'neutro' | 'alerta' | 'erro' | 'bom';
-/** A comparação com outro período (ex.: "3 a mais que em outubro"): a seta e a cor dizem se é bom ou ruim. */
-export interface VariacaoDoNumero { texto: string; seta: 'sobe' | 'desce'; tom: Exclude<TomDoNumero, 'alerta'> }
+/** A comparação com outro período (ex.: "3 a mais que em outubro"): a seta e a cor dizem se é bom ou ruim; "igual" vai sem seta. */
+export interface VariacaoDoNumero { texto: string; seta: 'sobe' | 'desce' | 'igual'; tom: Exclude<TomDoNumero, 'alerta'> }
 /** Uma parte do número que leva à lista dela (ex.: os judiciais e os administrativos dos processos ativos). */
 export interface ParteDoNumero { chave: string; texto: string; para: string }
 
 /** O tamanho das setas do número (a da variação e a de "leva à lista"). */
 const ICONE_DA_VARIACAO = 14;
+/** A seta de cada lado da comparação (a igualdade vai sem seta). */
+const SETA_DA_VARIACAO: Record<VariacaoDoNumero['seta'], NomeIcone | null> = { sobe: 'acima', desce: 'abaixo', igual: null };
+
+/**
+ * Um valor em reais grande (o número do painel): o "R$" e os centavos menores, para o valor caber e se ler de relance. O leitor de
+ * tela lê o valor inteiro, como no resto do SEMPER ("R$ 1.234,56").
+ */
+export function ValorEmReais({ centavos }: { centavos: number }) {
+  const { sinal, moeda, inteiro, decimais, texto } = partesDoDinheiro(centavos);
+  if (!moeda) return <>{texto}</>;
+  return <span className="valor-em-reais">
+    <span aria-hidden="true">{sinal}<small className="valor-em-reais-moeda">{moeda}</small>{inteiro}<small className="valor-em-reais-centavos">{decimais}</small></span>
+    <span className="sr">{texto}</span>
+  </span>;
+}
+
+/** Uma contagem, como no resto do SEMPER ("1.234"). */
+const contagem = (n: number): ReactNode => n.toLocaleString('pt-BR');
 
 /** Um endereço da tela: "#..." é um lugar desta página; o resto, outra página do SEMPER. */
 function Destino({ para, className, children, ...resto }: { para: string; className?: string; children: ReactNode; 'aria-describedby'?: string }) {
@@ -41,18 +60,21 @@ function Destino({ para, className, children, ...resto }: { para: string; classN
 
 /**
  * Um número grande do alto do painel: o nome em cima, o número e, embaixo, o detalhe (ex.: "de hoje a 28/11"). Com "para", o número
- * inteiro leva à lista daquilo; com "partes", cada parte leva à sua (e o número em si não leva a lugar nenhum).
+ * inteiro leva à lista daquilo; com "partes", cada parte leva à sua (e o número em si não leva a lugar nenhum). "formatar" escreve o
+ * número: uma contagem, se não vier; um valor em reais, com `centavos => <ValorEmReais centavos={centavos} />`.
  */
-export function NumeroDoPainel({ rotulo, valor, detalhe, para, tom = 'neutro', variacao, partes }: {
+export function NumeroDoPainel({ rotulo, valor, detalhe, para, tom = 'neutro', variacao, partes, formatar = contagem }: {
   rotulo: string; valor: number; detalhe?: ReactNode; para?: string; tom?: TomDoNumero; variacao?: VariacaoDoNumero; partes?: readonly ParteDoNumero[];
+  formatar?: (n: number) => ReactNode;
 }) {
   const id = useId();
+  const seta = variacao && SETA_DA_VARIACAO[variacao.seta];
   const miolo = <>
     <span className="numero-do-painel-rotulo" id={id + '-rotulo'}>{rotulo}</span>
-    <b className="numero-do-painel-valor">{valor.toLocaleString('pt-BR')}</b>
+    <b className="numero-do-painel-valor">{formatar(valor)}</b>
     {detalhe && <span className="numero-do-painel-detalhe">{detalhe}</span>}
     {variacao && <span className={'numero-do-painel-variacao ' + variacao.tom}>
-      <Icone nome={variacao.seta === 'sobe' ? 'acima' : 'abaixo'} tam={ICONE_DA_VARIACAO} />{variacao.texto}
+      {seta && <Icone nome={seta} tam={ICONE_DA_VARIACAO} />}{variacao.texto}
     </span>}
     {para && <span className="numero-do-painel-seta" aria-hidden="true"><Icone nome="seta" tam={ICONE_DA_VARIACAO} /></span>}
   </>;

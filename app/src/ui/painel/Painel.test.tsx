@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { FiltroDoPainel } from './FiltroDoPainel';
-import { CabecaDoPainel, CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel } from './Painel';
+import { CabecaDoPainel, CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel, ValorEmReais } from './Painel';
 
 const comRotas = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -44,6 +44,24 @@ describe('Números do painel', () => {
     comRotas(<NumeroDoPainel rotulo="Andamentos" valor={10} variacao={{ texto: '3 a mais que em outubro', seta: 'sobe', tom: 'bom' }} />);
     // Então
     expect(screen.getByText('3 a mais que em outubro')).toBeInTheDocument();
+  });
+
+  it('dada uma variação igual, quando aparece, então vem só o texto, sem seta', () => {
+    // Quando
+    const { container } = comRotas(<NumeroDoPainel rotulo="Entradas" valor={10} variacao={{ texto: 'igual a Out/2026', seta: 'igual', tom: 'neutro' }} />);
+    // Então
+    expect(screen.getByText('igual a Out/2026')).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  it('dado um valor em reais, quando aparece, então o número mostra o "R$" e os centavos à parte, e o leitor de tela ouve o valor inteiro', () => {
+    // Quando
+    comRotas(<NumeroDoPainel rotulo="Entradas · Nov/2026" valor={123456} formatar={c => <ValorEmReais centavos={c} />} para="/financeiro/" />);
+    // Então
+    const link = screen.getByRole('link', { name: /^Entradas · Nov\/2026/u });
+    expect(link).toHaveTextContent(/R\$\s1\.234,56/u);
+    expect(within(link).getByText('R$', { selector: 'small' })).toBeInTheDocument();
+    expect(within(link).getByText(',56', { selector: 'small' })).toBeInTheDocument();
   });
 });
 

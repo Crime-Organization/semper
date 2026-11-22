@@ -102,4 +102,26 @@ describe('Gráfico de barras empilhadas', () => {
     const tabela = screen.getByRole('table', { name: 'Contratos por categoria' });
     expect(within(tabela).getByRole('row', { name: /Pró-labore/ })).toHaveTextContent('R$ 70R$ 30R$ 100');
   });
+
+  it('dado "tabelaVisivel", quando aparece, então "Ver os números" abre a tabela com cada parte', () => {
+    // Quando
+    render(<BarrasEmpilhadas rotulo="Receita por área" formatar={reais} series={[ENTRADA, SAIDA]} tabelaVisivel
+      grupos={[{ chave: 'a', rotulo: 'Registro de marca', partes: [70, 30], total: 100 }]} />);
+    // Então
+    expect(screen.getByText('Ver os números').closest('details')).toContainElement(screen.getByRole('table', { name: 'Receita por área' }));
+  });
+});
+
+describe('Números que não viram barra', () => {
+  it('dado um número a mais (o resultado do mês), quando a pessoa passa o mouse, então a dica e a tabela o mostram, sem barra para ele', () => {
+    // Dado
+    const { container } = porMes({ extras: [{ chave: 'r', nome: 'Resultado', valor: i => i.e - i.s }], tabelaVisivel: true });
+    // Então: duas barras por mês (as séries), nenhuma para o resultado
+    expect(container.querySelectorAll('.grafico-barra')).toHaveLength(MESES.length * 2);
+    expect(within(screen.getByRole('table', { name: 'Entradas e saídas de 2026' })).getByRole('row', { name: /janeiro de 2026/ })).toHaveTextContent('R$ 10R$ 4R$ 6');
+    // Quando
+    fireEvent.pointerEnter(container.querySelectorAll('.grafico-alvo')[1]);
+    // Então
+    expect(screen.getByRole('status')).toHaveTextContent('R$ -2Resultado');
+  });
 });

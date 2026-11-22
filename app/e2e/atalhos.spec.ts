@@ -75,7 +75,8 @@ test.describe('Atalhos de teclado no Financeiro', () => {
     // Dado
     await page.goto('/financeiro/');
     await expect(page.getByRole('button', { name: 'Nova entrada' })).toHaveAttribute('title', 'Nova entrada (N)');
-    await expect(page.getByRole('group', { name: /^Desempenho de/ })).toBeVisible();
+    // A página já leu tudo quando as abas aparecem (sem nada lançado, o painel do alto mostra como começar, #403, e não o desempenho).
+    await expect(page.getByRole('navigation', { name: 'Abas do financeiro' })).toBeVisible();
     // Quando
     await page.keyboard.press('?');
     // Então

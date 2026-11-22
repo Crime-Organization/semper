@@ -27,6 +27,9 @@
   --grafico-principal: var(--grafico-entrada); --grafico-vencido: #C43B5C;
   /* Painéis (#401): a largura máxima, o tamanho dos números do alto (no computador e no celular) e o vão entre as partes */
   --largura-do-painel: 1200px; --numero-do-painel: 40px; --numero-do-painel-estreito: 30px; --vao-do-painel: 16px;
+  /* O valor em reais no número do painel (#403): o "R$" e os centavos menores que o número, e o teto do número pela largura do cartão
+     (assim "R$ 1.234.567,89" cabe nos dois números lado a lado do celular) */
+  --parte-menor-do-valor: .5em; --valor-pela-largura: 16cqi;
   /* Até onde o número do alto leva: o lugar da lista fica abaixo da barra do topo do celular */
   --folga-acima-da-lista: 72px;
   --on-accent: #FFFFFF;
@@ -268,7 +271,7 @@
     --erro-forte: #C2412D; --erro-borda: #6E2A22;
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
     --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
-    --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+    --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
     --grafico-vencido: #D35A8C;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -283,7 +286,7 @@
   --erro-forte: #C2412D; --erro-borda: #6E2A22;
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
   --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
-  --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+  --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
   --grafico-vencido: #D35A8C;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -1766,6 +1769,8 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* Os números do alto: dois por linha no celular, três no computador. */
 .numeros-do-painel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
 @container (min-width: 760px) { .numeros-do-painel { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+/* Quatro números: quatro numa linha no computador (em vez de três e um sozinho embaixo). */
+@container (min-width: 900px) { .numeros-do-painel:has(> :nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
 .numero-do-painel { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 20px 22px 18px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--superficie); color: inherit }
 .numero-do-painel-rotulo { padding-right: 24px; font-size: var(--texto-miudo); font-weight: 700; letter-spacing: .08em; line-height: 1.35; text-transform: uppercase; color: var(--muted) }
@@ -1774,9 +1779,13 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .numero-do-painel.alerta .numero-do-painel-valor { color: var(--warn-ink) }
 .numero-do-painel.bom .numero-do-painel-valor { color: var(--ok-ink) }
 .numero-do-painel-detalhe { font-size: 13px; color: var(--muted); overflow-wrap: anywhere }
-.numero-do-painel-variacao { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700 }
+.numero-do-painel-variacao { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 13px; font-weight: 700; line-height: 1.35 }
+/* A seta fica na primeira linha, quando o texto da comparação quebra em duas (no celular). */
+.numero-do-painel-variacao svg { flex-shrink: 0; margin-top: .15em }
+/* Um pedaço do detalhe que não se quebra no meio (ex.: "PJ R$ 1.234,56", no saldo de cada conta). */
+.numero-do-painel-parte { white-space: nowrap }
 .numero-do-painel-variacao.bom { color: var(--ok-ink) }
-.numero-do-painel-variacao.ruim { color: var(--erro) }
+.numero-do-painel-variacao:is(.ruim, .erro) { color: var(--erro) }
 .numero-do-painel-variacao.neutro { color: var(--muted) }
 .numero-do-painel.com-destino { transition: border-color .15s ease-out, background-color .15s ease-out }
 .numero-do-painel.com-destino:hover { border-color: var(--line2); background: var(--soft) }
@@ -1816,5 +1825,21 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .painel-dupla > section { display: flex; flex-direction: column; min-width: 0 }
 .painel-dupla > section > .grafico { flex: 1; justify-content: flex-end }
 @media (max-width: 640px) { .painel-cartao { padding: 18px 16px } }
+/* O valor em reais (ValorEmReais): o número grande, o "R$" e os centavos menores, na mesma linha de base. O cartão com dinheiro é um
+   container, para o número diminuir quando o valor é grande e o cartão, estreito (dois por linha no celular). */
+.numero-do-painel:has(.valor-em-reais) { container-type: inline-size }
+.valor-em-reais { font-size: min(1em, var(--valor-pela-largura)); white-space: nowrap; font-variant-numeric: tabular-nums }
+.valor-em-reais small { font-size: var(--parte-menor-do-valor); font-weight: 700; letter-spacing: 0 }
+.valor-em-reais-moeda { margin-right: .3em; color: var(--muted) }
+.numero-do-painel:is(.erro, .alerta, .bom) .valor-em-reais-moeda { color: inherit }
+/* O resumo à direita do título do cartão ("Resultado no período R$ 4.200,00"). */
+.painel-cartao-resumo { font-size: var(--texto-apoio); color: var(--muted) }
+.painel-cartao-resumo b { margin-left: 4px; font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+/* Os indicadores dentro de um cartão do painel (o desempenho do Financeiro): sem cartão dentro do cartão, só uma linha entre eles. */
+.painel-cartao .indicadores { gap: 0 24px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.painel-cartao .indicador { padding: 14px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none }
+.painel-cartao .indicador-valor { font-size: var(--texto-titulo-1); color: var(--ink) }
+/* Na dica do gráfico, o número que não vira barra (o resultado do mês) vem depois de um fio. */
+.grafico-dica-extra { margin-top: 4px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--texto-sobre-escuro) 20%, transparent) }
 .vazio .painel-vazio-titulo { margin: 0 0 6px; font-size: 17px; font-weight: 900; color: var(--ink) }
 .vazio p { margin: 0 0 16px }
