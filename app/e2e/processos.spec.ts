@@ -829,7 +829,7 @@ test.describe('Painel de Processos', () => {
     await expect(page).toHaveURL(/\/processos\/$/);
     await expect(page.getByRole('heading', { name: 'Processos', level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Intimações a tratar' })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Judicial' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Judicial', exact: true })).toBeVisible();
     await expect(page.getByText('Nenhuma intimação a tratar.')).toBeVisible();
   });
 

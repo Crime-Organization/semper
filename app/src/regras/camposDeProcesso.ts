@@ -39,7 +39,10 @@ export const TIPOS_DE_CAMPO: Record<TipoDeCampo, { nome: string; ler: (digitado:
   lista: { nome: 'Lista de opções', ler: comoGuardado, mostrar: comoGuardado }
 };
 export const TIPOS_DE_CAMPO_EM_ORDEM = Object.keys(TIPOS_DE_CAMPO) as TipoDeCampo[];
-export const ONDE_APARECE: Record<ApareceEm, string> = { ambos: 'Judicial e administrativo', judicial: 'Só judicial', administrativo: 'Só administrativo' };
+/** Onde o campo aparece: em todos os tipos de processo (ambos, o nome guardado de antes da #316) ou num só. */
+export const ONDE_APARECE: Record<ApareceEm, string> = {
+  ambos: 'Todos os tipos', judicial: 'Só judicial', administrativo: 'Só administrativo', extrajudicial: 'Só extrajudicial', investigacao: 'Só investigação'
+};
 
 /** Os campos que valem para um tipo de processo (os apagados saem). */
 export const camposDoTipo = (campos: CampoDeProcesso[], tipo: TipoProcesso) =>

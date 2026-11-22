@@ -13,7 +13,8 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
-  primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
+  LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
+  TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
 import { enderecoDoItem } from '../regras/anotacao';
@@ -48,8 +49,8 @@ const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: []
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
 
-/** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. */
-const ORIGENS = ['demanda', 'contrato', 'tarefa'] as const;
+/** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. Do processo: recurso ou incidental (#316). */
+const ORIGENS = ['demanda', 'contrato', 'tarefa', 'processo'] as const;
 type OrigemDoProcesso = typeof ORIGENS[number];
 /**
  * A origem lida: o aviso no topo do cadastro, o que ela traz (e o nome sugerido), o cartão para onde voltar (null: vai ao processo novo)
@@ -109,6 +110,20 @@ const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
     ligar: (processoId, tarefaId) => ligarNoItem('processo da tarefa', tarefaId, processoId),
     aOrigem: 'à tarefa',
     fala: { nome: 'A tarefa', arquivada: 'arquivada', pronome: 'ela' }
+  },
+  // O recurso ou incidental (#316): a ligação vai junto ao criar (origemAoCriar), e a tela volta ao processo de origem, onde ele aparece.
+  processo: {
+    ler: async (id, ativos, eu) => {
+      const o = await SD.processoObter(id);
+      if (!o) return null;
+      // Arquivado, o processo de origem não aceita mais o novo ligado: o cadastro traz o que ele tem, mas sem a origem.
+      const recusa = recusaDaOrigem({ arquivada: !!o.arquivado_em }), campos = processoDoProcesso(o, ativos, eu);
+      return { codigo: o.codigo, aviso: <>Este processo nasce do processo <b>{o.codigo}</b> ({o.numero}) e fica ligado a ele, com o próprio número e os próprios andamentos.</>,
+        campos: recusa ? { ...campos, origemId: '' } : campos, clientes: o.clientes, cartao: TIPOS_PROCESSO[o.tipo].caminho + '?id=' + o.id, recusa };
+    },
+    ligar: async () => {},
+    aOrigem: 'ao processo',
+    fala: { nome: 'O processo', arquivada: 'arquivado', pronome: 'ele' }
   }
 };
 
@@ -135,13 +150,14 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), clienteInicial = params.get('cliente');
-  const tipoInicial: TipoProcesso = params.get('tipo') === 'administrativo' ? 'administrativo' : 'judicial';
+  const tipoInicial: TipoProcesso = tipoDoEndereco(params.get('tipo'));
   // Vindo de uma demanda, de um contrato ou de uma tarefa, o processo já traz o que ela tem e nasce ligado a ela.
   const [origem] = useState(() => idAtualizar ? null : origemNoEndereco(params, ORIGENS));
   const [lida, setLida] = useState<OrigemLida | null>(null);
 
   // Quem cadastra já vem como responsável.
-  const [c, setC] = useState<CamposProcesso>(() => ({ ...processoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
+  // O recurso ou incidental já pode vir escolhido pelo botão do cartão de origem (?ligacao=, #316).
+  const [c, setC] = useState<CamposProcesso>(() => ({ ...processoVazio(tipoInicial), responsavelId: ctx.perfil.id, ligacao: ligacaoDoEndereco(params.get('ligacao')) }));
   const [alvo, setAlvo] = useState<Processo | null>(null);   // processo sendo atualizado
   // Vindo de outro cartão, espera os dados dele: o que chegar depois não pode trocar o que a pessoa já escolheu.
   const [pronto, setPronto] = useState(!idAtualizar && !origem);
@@ -356,7 +372,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       } else {
         // Sem coluna escolhida, o processo novo entra na coluna-marco de início. A coluna vinda do quadro só vale para o tipo daquele quadro.
         const coluna = (c.tipo === tipoInicial && etapaInicial) || await colunaInicial(quadro);
-        const r = await SD.processoCriar({ ...dados, tipo: c.tipo, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        // A origem do recurso ou incidental vai junto (#316): ela não muda depois.
+        const r = await SD.processoCriar({ ...dados, ...(lida?.recusa ? {} : origemAoCriar(c)), tipo: c.tipo, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Processo ${r.codigo} cadastrado.`, 'cadastro do processo', async () => {
           await SD.processosArquivar([r.id], true);
           const x = await SD.processosExcluir([r.id]);
@@ -390,6 +407,10 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
 
   const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
     processo: () => <>
+      {/* O recurso ou incidental (#316): nasce de outro processo, e a pessoa diz qual dos dois ele é. */}
+      {!alvo && c.origemId && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
+        {TIPOS_DE_LIGACAO.map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l} onChange={() => mudar({ ligacao: l })} />{LIGACOES[l].nome}</label>)}
+      </Escolhas>}
       {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
       {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
         : <Escolhas rotulo="Tipo" obrigatorio>

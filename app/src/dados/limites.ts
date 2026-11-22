@@ -180,6 +180,8 @@ export const DIGITOS_DO_NUMERO = { inteiros: 20, decimais: 10 };
 export const OPCOES_POR_CAMPO = 50;
 /** Quantos processos entram na lista de um cartão (o da pessoa, o da demanda, o do contrato). */
 export const PROCESSOS_LIGADOS = 200;
+/** Quantas pessoas com papel (autor, réu, testemunha...) cabem num processo (#316; exigido pelo banco: privado.partes_maximas). */
+export const PARTES_MAXIMAS = 50;
 /** Quantos contratos entram na lista do cartão do processo. */
 export const CONTRATOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */

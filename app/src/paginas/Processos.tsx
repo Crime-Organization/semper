@@ -1,4 +1,4 @@
-// Processos: um quadro para os judiciais e outro para os administrativos, cada um com as suas colunas e grupos. Tabela
+// Processos: um quadro para cada tipo (judicial, administrativo, extrajudicial e investigação, #316), cada um com as suas colunas e grupos. Tabela
 // com ações em lote, quadro e o cartão de cada processo. A estrutura da página vem de <PaginaModulo>; o modelo é o
 // módulo Pessoas. O órgão aparece como um selo neutro acima do nome do cartão, fora da lista de etiquetas.
 import { useEffect, useMemo, useState } from 'react';

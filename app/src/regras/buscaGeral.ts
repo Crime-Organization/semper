@@ -18,10 +18,10 @@ export type ModuloDaBusca = 'pessoas' | 'processos' | 'contratos' | 'demandas' |
 /** O filtro de módulo: um deles, ou todos. */
 export type FiltroDeModulo = ModuloDaBusca | 'todos';
 /**
- * Os grupos de resultados. Os processos aparecem em dois grupos, como no menu: cada tipo tem a sua página, e o "Ver todos" de
- * cada grupo leva à página certa.
+ * Os grupos de resultados. Os processos aparecem num grupo por tipo, como no menu (quatro desde a #316): cada tipo tem a sua página, e
+ * o "Ver todos" de cada grupo leva à página certa.
  */
-export type GrupoDaBusca = 'pessoas' | 'judiciais' | 'administrativos' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos' | 'anotacoes';
+export type GrupoDaBusca = 'pessoas' | 'judiciais' | 'administrativos' | 'extrajudiciais' | 'investigacoes' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos' | 'anotacoes';
 
 /** Os escritórios ligam e desligam módulos (Configurações da plataforma); as pessoas existem em todos. */
 type ModulosDoEscritorio = Record<string, boolean> | undefined;
@@ -55,6 +55,10 @@ export const GRUPOS_DA_BUSCA: Record<GrupoDaBusca, { modulo: ModuloDaBusca; titu
     alemDaBusca: {} },
   administrativos: { modulo: 'processos', titulo: TIPOS_PROCESSO.administrativo.titulo, tipo: 'Processo administrativo', caminho: TIPOS_PROCESSO.administrativo.caminho,
     pagina: TIPOS_PROCESSO.administrativo.titulo, alemDaBusca: {} },
+  extrajudiciais: { modulo: 'processos', titulo: TIPOS_PROCESSO.extrajudicial.titulo, tipo: 'Processo extrajudicial', caminho: TIPOS_PROCESSO.extrajudicial.caminho,
+    pagina: TIPOS_PROCESSO.extrajudicial.titulo, alemDaBusca: {} },
+  investigacoes: { modulo: 'processos', titulo: TIPOS_PROCESSO.investigacao.titulo, tipo: 'Investigação', caminho: TIPOS_PROCESSO.investigacao.caminho,
+    pagina: TIPOS_PROCESSO.investigacao.titulo, alemDaBusca: {} },
   contratos: { modulo: 'contratos', titulo: 'Contratos', tipo: 'Contrato', caminho: '/contratos/', pagina: 'Contratos', alemDaBusca: {} },
   demandas: { modulo: 'demandas', titulo: 'Demandas', tipo: 'Demanda', caminho: '/demandas/', pagina: 'Demandas', alemDaBusca: {} },
   tarefas: { modulo: 'tarefas', titulo: 'Tarefas', tipo: 'Tarefa', caminho: '/tarefas/', pagina: 'Tarefas', alemDaBusca: {} },
@@ -167,7 +171,8 @@ export interface ItemSemAcesso {
 }
 /** O módulo de cada grupo em que se pede para participar (os dois grupos de processos são do mesmo módulo). */
 export const MODULO_DO_GRUPO_DO_PEDIDO: Record<GrupoDoPedido, ModuloDoPedido> = {
-  tarefas: 'tarefas', demandas: 'demandas', judiciais: 'processos', administrativos: 'processos', compromissos: 'compromissos', contratos: 'contratos', anotacoes: 'anotacoes'
+  tarefas: 'tarefas', demandas: 'demandas', judiciais: 'processos', administrativos: 'processos', extrajudiciais: 'processos', investigacoes: 'processos',
+  compromissos: 'compromissos', contratos: 'contratos', anotacoes: 'anotacoes'
 };
 /** O item que o banco achou para pedir, como a janela o mostra. */
 export const semAcessoDoPedido = (i: ItemParaPedir): ItemSemAcesso =>
@@ -176,7 +181,8 @@ export type ResultadoDaBusca = ItemAchado | ItemSemAcesso;
 
 /** A linha que a listagem de cada grupo devolve. */
 export interface LinhaDoGrupo {
-  pessoas: PessoaLista; judiciais: ProcessoLista; administrativos: ProcessoLista; contratos: ContratoLista; demandas: DemandaLista;
+  pessoas: PessoaLista; judiciais: ProcessoLista; administrativos: ProcessoLista; extrajudiciais: ProcessoLista; investigacoes: ProcessoLista;
+  contratos: ContratoLista; demandas: DemandaLista;
   tarefas: TarefaLista; compromissos: CompromissoLista; anotacoes: AnotacaoLista;
 }
 /** A linha pequena: as partes que existem, separadas por " · ". */
@@ -197,6 +203,8 @@ export const ACHADO_DO_GRUPO: { [G in GrupoDaBusca]: (x: LinhaDoGrupo[G]) => Pic
   }),
   judiciais: x => ({ titulo: nomeDoProcesso(x), contexto: contextoDoProcesso(x), exatos: [normal(x.codigo), dig(x.numero)] }),
   administrativos: x => ({ titulo: nomeDoProcesso(x), contexto: contextoDoProcesso(x), exatos: [normal(x.codigo), dig(x.numero)] }),
+  extrajudiciais: x => ({ titulo: nomeDoProcesso(x), contexto: contextoDoProcesso(x), exatos: [normal(x.codigo), dig(x.numero)] }),
+  investigacoes: x => ({ titulo: nomeDoProcesso(x), contexto: contextoDoProcesso(x), exatos: [normal(x.codigo), dig(x.numero)] }),
   contratos: x => ({
     titulo: clientes(x.cliente_nome) || x.servico,
     contexto: juntar(x.servico, x.codigo_antigo && `Código antigo ${x.codigo_antigo}`),

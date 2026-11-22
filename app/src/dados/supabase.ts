@@ -31,7 +31,7 @@ import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
 import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
-import { papeisNoProcesso } from '../regras/processo';
+import { processosComPartes, relacionadosDoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
@@ -556,7 +556,11 @@ const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id,
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
-  + `criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
+  + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
+/** As pessoas com papel no processo (#316). */
+const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;
+/** O processo ligado a outro (#316), com o que diz como ele se liga. */
+const CAMPOS_PROCESSO_RELACIONADO = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, origem_id, ligacao';
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
 const processoComClientes = ({ clientela, ...p }: ProcessoLido): Processo => ({ ...p, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
 // Na ordem "nome", vale o nome do cartão ou, sem ele, os clientes (a coluna nome_ordem). O id no fim desempata a paginação.
@@ -1751,10 +1755,32 @@ export const SD: Dados = {
     return data;
   },
   async processosDaPessoa(pessoaId, perfilId = null) {
+    const campos = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, colaboradores';
     const filtros = [`clientes.cs.{${pessoaId}}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`, `colaboradores.cs.{${perfilId}}`] : [])];
-    const { data } = await rodar(sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, colaboradores')
-      .or(filtros.join(',')).order('criado_em', { ascending: false }).limit(PROCESSOS_LIGADOS));
-    return data.map(({ clientes, responsavel_id, colaboradores, ...p }: Livre) => ({ ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) }));
+    // Os processos em que ela é cliente ou da equipe e, à parte, os em que tem um papel (#316): a regra de leitura do processo vale nos dois.
+    const [{ data }, { data: partes }] = await Promise.all([
+      rodar(sb.from('processos').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(PROCESSOS_LIGADOS)),
+      rodar(sb.from('processo_partes').select(`papel, processo:processos!inner(${campos})`).eq('pessoa_id', pessoaId).limit(PROCESSOS_LIGADOS))
+    ]);
+    return processosComPartes(data, partes, pessoaId, perfilId);
+  },
+  async processoPartes(processoId) {
+    const { data } = await rodar(sb.from('processo_partes').select(CAMPOS_PARTE).eq('processo_id', processoId).order('criado_em').order('id'));
+    return data;
+  },
+  async processoParteIncluir(processoId, pessoaId, papel) {
+    const { data } = await rodar(sb.from('processo_partes').insert({ processo_id: processoId, pessoa_id: pessoaId, papel, criado_por: uid() }).select(CAMPOS_PARTE).single());
+    return data;
+  },
+  async processoParteRetirar(id) {
+    conferirQueMudou((await rodar(sb.from('processo_partes').delete().eq('id', id).select('id').maybeSingle())).data);
+  },
+  async processosRelacionados(processoId) {
+    const { data: aberto } = await rodar(sb.from('processos').select('id, origem_id').eq('id', processoId).maybeSingle());
+    if (!aberto) return [];
+    const filtros = [`origem_id.eq.${processoId}`, ...(aberto.origem_id ? [`id.eq.${aberto.origem_id}`] : [])];
+    const { data } = await rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS));
+    return relacionadosDoProcesso(data, aberto);
   },
   async processoOpcoes() {
     const { data } = await rodar(sb.from('processo_opcoes').select('id, campo, valor').order('valor'));

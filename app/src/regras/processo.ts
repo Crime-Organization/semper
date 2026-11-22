@@ -1,8 +1,11 @@
-// Regras do processo (módulo Processos): os dois tipos, as listas prontas, o cadastro por etapas e o que aparece no cartão.
-// Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
-import type { CampoDeOpcao, Membro, DadosProcesso, GratuidadeProcesso, MeioProcesso, Modulo, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista, TipoProcesso } from '../dados/tipos';
+// Regras do processo (módulo Processos): os quatro tipos, as listas prontas, o cadastro por etapas, o que aparece no cartão, as
+// pessoas com papel e os recursos e incidentais (#316). Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
+import type {
+  CampoDeOpcao, DadosProcesso, GratuidadeProcesso, LigacaoDeProcesso, MeioProcesso, Membro, Modulo, PapelDaParte, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista,
+  ProcessoLigado, ProcessoRelacionado, RelacaoEntreProcessos, TipoProcesso
+} from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_PROCESSO, VALOR_CAUSA_LIMITE } from '../dados/limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, PARTES_MAXIMAS, TAMANHO_PROCESSO, VALOR_CAUSA_LIMITE } from '../dados/limites';
 import { clientesPorExtenso, dinheiroNoCampo, fmtDinheiro, lerDinheiro } from './contrato';
 import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroCNJ';
 import { fmtData, lerData } from './pessoa';
@@ -12,12 +15,21 @@ import { estaPeloGrupo } from './gruposDaEquipe';
 /** Rótulo dos processos fora das colunas do quadro. */
 export const SEM_SITUACAO_PROCESSO = 'Sem situação';
 
-/** O que cada tipo de processo tem de próprio: o nome, o quadro e o endereço. */
-export const TIPOS_PROCESSO: Record<TipoProcesso, { nome: string; titulo: string; quadro: Extract<Modulo, 'processos_judiciais' | 'processos_administrativos'>; caminho: string }> = {
+/** Os quadros dos processos, um por tipo. */
+export type QuadroDeProcesso = Extract<Modulo, 'processos_judiciais' | 'processos_administrativos' | 'processos_extrajudiciais' | 'processos_investigacoes'>;
+/**
+ * O que cada tipo de processo tem de próprio: o nome, o título da página, o quadro e o endereço. Extrajudicial e investigação vieram
+ * com a #316; o quadro de cada tipo é o de privado.quadro_do_tipo_de_processo no banco.
+ */
+export const TIPOS_PROCESSO: Record<TipoProcesso, { nome: string; titulo: string; quadro: QuadroDeProcesso; caminho: string }> = {
   judicial: { nome: 'Judicial', titulo: 'Processos judiciais', quadro: 'processos_judiciais', caminho: '/processos/judicial/' },
-  administrativo: { nome: 'Administrativo', titulo: 'Processos administrativos', quadro: 'processos_administrativos', caminho: '/processos/administrativo/' }
+  administrativo: { nome: 'Administrativo', titulo: 'Processos administrativos', quadro: 'processos_administrativos', caminho: '/processos/administrativo/' },
+  extrajudicial: { nome: 'Extrajudicial', titulo: 'Processos extrajudiciais', quadro: 'processos_extrajudiciais', caminho: '/processos/extrajudicial/' },
+  investigacao: { nome: 'Investigação', titulo: 'Investigações', quadro: 'processos_investigacoes', caminho: '/processos/investigacao/' }
 };
 export const TIPOS = Object.keys(TIPOS_PROCESSO) as TipoProcesso[];
+/** O tipo que vem do endereço (?tipo=); fora da lista, o judicial. */
+export const tipoDoEndereco = (valor: string | null): TipoProcesso => TIPOS.find(t => t === valor) ?? 'judicial';
 
 /** O polo do cliente; vítima, investigado e apenado servem aos processos criminais (#289). A lista do banco é a mesma (migração polo_criminal). */
 export const POLOS: Record<PoloProcesso, string> = { autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro', vitima: 'Vítima', investigado: 'Investigado', apenado: 'Apenado' };
@@ -88,11 +100,15 @@ export interface CamposProcesso {
   observacoes: string;
   /** Os campos que o escritório criou, como digitados, por id do campo (regras em camposDeProcesso.ts). */
   extras: Record<string, string>;
+  /** O processo de que este nasce (#316), só no cadastro de um recurso ou incidental; vazio nos outros. */
+  origemId: string;
+  /** Recurso ou incidental: obrigatório quando há origem. */
+  ligacao: LigacaoDeProcesso | '';
 }
 export const processoVazio = (tipo: TipoProcesso): CamposProcesso => ({
   tipo, numero: '', numeroAntigo: false, titulo: '', orgao: '', responsavelId: '', colaboradores: [], clientes: [''], polo: '', sistema: '', meio: '', area: '',
   natureza: '', gratuidade: '', comarca: '', vara: '', classe: '', assunto: '', juiz: '', distribuicao: '', valorCausa: '', instancia: '', segredo: false,
-  advogadoContrario: '', observacoes: '', extras: {}
+  advogadoContrario: '', observacoes: '', extras: {}, origemId: '', ligacao: ''
 });
 
 type DefineONumero = Pick<CamposProcesso, 'tipo' | 'numero' | 'numeroAntigo'>;
@@ -141,6 +157,7 @@ const CONFERENCIAS: Partial<Record<keyof CamposProcesso, Conferencia[]>> = {
     ateTamanho('numero', 'O número')
   ],
   titulo: [ateTamanho('titulo', 'O nome do cartão')],
+  ligacao: [c => c.origemId && !c.ligacao ? 'Escolha se é um recurso ou um incidental.' : null],
   orgao: [ateTamanho('orgao', 'A sigla do órgão')],
   responsavelId: [c => c.responsavelId ? null : 'Escolha o responsável.'],
   colaboradores: [
@@ -197,6 +214,10 @@ export function dadosDoProcesso(c: CamposProcesso): DadosProcesso {
   };
 }
 
+/** A origem do processo novo (#316), que vai junto ao criar (ela não muda depois). Sem origem, nada. */
+export const origemAoCriar = (c: Pick<CamposProcesso, 'origemId' | 'ligacao'>): Pick<DadosProcesso, 'origem_id' | 'ligacao'> =>
+  c.origemId && c.ligacao ? { origem_id: c.origemId, ligacao: c.ligacao } : {};
+
 /**
  * Quem não é administrador nem criou o processo só o vê enquanto participa, e o banco recusa a gravação que o tiraria
  * dele. Por isso, ao passar o processo adiante ou sair dos colaboradores, esta gravação ainda a mantém como colaboradora. A saída vem depois, por SD.cartaoSair: assim o resto é gravado e ela sai de verdade (#276).
@@ -213,7 +234,8 @@ export const camposDoProcesso = (p: Processo): CamposProcesso => ({
   responsavelId: p.responsavel_id, colaboradores: [...p.colaboradores], clientes: p.clientes.length ? p.clientes.map(x => x.id) : [''], polo: p.polo || '',
   sistema: p.sistema || '', meio: p.meio || '', area: p.area || '', natureza: p.natureza || '', gratuidade: p.gratuidade || '', comarca: p.comarca || '', vara: p.vara || '',
   classe: p.classe || '', assunto: p.assunto || '', juiz: p.juiz || '', distribuicao: fmtData(p.distribuicao), valorCausa: dinheiroNoCampo(p.valor_causa),
-  instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || '', extras: {}
+  instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || '', extras: {},
+  origemId: p.origem_id || '', ligacao: p.ligacao || ''
 });
 
 // ---------- etapas do cadastro ----------
@@ -221,7 +243,7 @@ export type EtapaProcesso = 'processo' | 'pessoas' | 'detalhes';
 export interface DefinicaoEtapaProcesso { id: EtapaProcesso; titulo: string; texto: string; campos: (keyof CamposProcesso)[] }
 /** As etapas do cadastro, na ordem. São obrigatórios o tipo, o número e o cliente, e sempre há um responsável (começa com quem cadastra). */
 export const ETAPAS_PROCESSO: DefinicaoEtapaProcesso[] = [
-  { id: 'processo', titulo: 'O processo', texto: 'O tipo, o número e, se quiser, um nome para o cartão.', campos: ['tipo', 'numero', 'numeroAntigo', 'titulo', 'orgao'] },
+  { id: 'processo', titulo: 'O processo', texto: 'O tipo, o número e, se quiser, um nome para o cartão.', campos: ['ligacao', 'tipo', 'numero', 'numeroAntigo', 'titulo', 'orgao'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'De quais clientes é o processo e quem da equipe cuida dele.', campos: ['clientes', 'polo', 'responsavelId', 'colaboradores'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.',
     campos: ['sistema', 'meio', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valorCausa', 'instancia', 'segredo', 'advogadoContrario', 'observacoes'] }
@@ -259,12 +281,18 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   numero: 'Número', titulo: 'Nome do cartão', responsavel_id: 'Responsável', colaboradores: 'Colaboradores', clientes: 'Clientes', orgao: 'Órgão', sistema: 'Sistema',
   polo: 'Polo do cliente', area: 'Área do direito', meio: 'Meio de tramitação', natureza: 'Natureza processual', gratuidade: 'Gratuidade de justiça', comarca: 'Comarca',
   vara: 'Vara', classe: 'Classe', assunto: 'Assunto', juiz: 'Juiz ou relator', distribuicao: 'Distribuição', valor_causa: 'Valor da causa', instancia: 'Instância',
-  segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento'
+  segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento',
+  partes: 'Pessoas do processo'
+};
+/** A pessoa com papel como o histórico a guarda (#316): o nome e o papel. */
+const parteNoHistorico = (v: unknown) => {
+  const x = v as { nome?: string; papel?: string };
+  return `${x.nome ?? 'pessoa excluída'} (${PAPEIS_DA_PARTE[x.papel as PapelDaParte] ?? x.papel})`;
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
   polo: naLista(POLOS), meio: naLista(MEIOS), gratuidade: naLista(GRATUIDADES), distribuicao: v => fmtData(String(v)), arquivado_em: v => fmtData(String(v)),
-  valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não'
+  valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não', partes: parteNoHistorico
 };
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelProcesso = (campo: string, v: unknown) =>
@@ -279,6 +307,63 @@ export const linhasDoProcesso = (p: Processo): [string, string][] => CAMPOS_NO_C
 
 // ---------- pessoas do processo ----------
 export const PAPEIS_NO_PROCESSO: Record<PapelNoProcesso, string> = { cliente: 'Cliente', responsavel: 'Responsável', colaborador: 'Colaborador' };
+/**
+ * Os papéis de uma pessoa no processo, além dos clientes (#316), na ordem da lista do cadastro. A lista do banco é a mesma
+ * (regra check de processo_partes): papel novo = entrada nova aqui e lá.
+ */
+export const PAPEIS_DA_PARTE: Record<PapelDaParte, string> = {
+  autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro interessado', testemunha: 'Testemunha', perito: 'Perito', assistente_tecnico: 'Assistente técnico',
+  vitima: 'Vítima', investigado: 'Investigado', advogado_contrario: 'Advogado da parte contrária', outro: 'Outro papel'
+};
+export const PAPEIS = Object.keys(PAPEIS_DA_PARTE) as PapelDaParte[];
+/** A recusa de pôr a pessoa com um papel que ela já tem no processo (a mesma no banco e no fictício). */
+export const PAPEL_REPETIDO = 'Esta pessoa já tem esse papel neste processo.';
+/** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316). */
+export const papeisPorExtenso = (p: { papeis: PapelNoProcesso[]; partes?: PapelDaParte[] }) =>
+  [...p.papeis.map(x => PAPEIS_NO_PROCESSO[x]), ...(p.partes ?? []).map(x => PAPEIS_DA_PARTE[x])].join(', ');
+/** Os papéis que a pessoa ainda não tem no processo (o mesmo papel duas vezes, o banco recusa). */
+export const papeisQueFaltam = (partes: readonly { papel: PapelDaParte; pessoa: { id: string } }[], pessoaId: string) =>
+  PAPEIS.filter(papel => !partes.some(x => x.pessoa.id === pessoaId && x.papel === papel));
+/** Se ainda cabe outra pessoa com papel no processo (o banco tem o mesmo máximo). */
+export const cabeOutraParte = (partes: number) => partes < PARTES_MAXIMAS;
+
+// ---------- recursos e incidentais (#316) ----------
+/** O nome de cada ligação: no cadastro e no botão do cartão. */
+export const LIGACOES: Record<LigacaoDeProcesso, { nome: string; novo: string }> = {
+  recurso: { nome: 'Recurso', novo: 'Novo recurso' },
+  incidental: { nome: 'Incidental', novo: 'Novo incidental' }
+};
+export const TIPOS_DE_LIGACAO = Object.keys(LIGACOES) as LigacaoDeProcesso[];
+/** Como cada processo ligado aparece no cartão do outro. */
+export const RELACOES: Record<RelacaoEntreProcessos, string> = { origem: 'Processo de origem', recurso: 'Recurso deste processo', incidental: 'Incidental deste processo' };
+/**
+ * Como o processo achado se relaciona com o aberto: é a origem dele, ou nasceu dele (recurso ou incidental). null quando não há ligação
+ * entre os dois.
+ */
+export function relacaoEntreProcessos(achado: Pick<Processo, 'id' | 'origem_id' | 'ligacao'>, aberto: Pick<Processo, 'id' | 'origem_id'>): RelacaoEntreProcessos | null {
+  if (achado.id === aberto.origem_id) return 'origem';
+  return achado.origem_id === aberto.id ? achado.ligacao ?? 'recurso' : null;
+}
+/** A ordem no cartão: a origem primeiro; depois os que nasceram dele, dos mais novos aos mais antigos. */
+export const ordemDosRelacionados = <T extends { relacao: RelacaoEntreProcessos; criado_em: string }>(lista: readonly T[]) =>
+  lista.toSorted((a, b) => Number(b.relacao === 'origem') - Number(a.relacao === 'origem') || b.criado_em.localeCompare(a.criado_em));
+/** O endereço do cadastro de um recurso ou incidental deste processo; sem a ligação, o cadastro pergunta qual dos dois. */
+export const cadastroDoDerivado = (origemId: string, ligacao?: LigacaoDeProcesso) =>
+  `/processos/novo/?processo=${encodeURIComponent(origemId)}${ligacao ? '&ligacao=' + ligacao : ''}`;
+/** A ligação que vem do endereço (?ligacao=); fora da lista, nenhuma (a pessoa escolhe no cadastro). */
+export const ligacaoDoEndereco = (valor: string | null): LigacaoDeProcesso | '' => TIPOS_DE_LIGACAO.find(l => l === valor) ?? '';
+/**
+ * O processo que nasce de outro (#316): do mesmo tipo, com os mesmos clientes, o polo, a área, o sistema e o meio, e a equipe ativa dele
+ * (quem cadastra fica de responsável se o de lá saiu da equipe). O número, o órgão, os andamentos e o resto são do processo novo.
+ */
+export const processoDoProcesso = (o: Pick<Processo, 'id' | 'tipo' | 'responsavel_id' | 'colaboradores' | 'polo' | 'area' | 'sistema' | 'meio'> & { clientes: { id: string }[] },
+  ativos: readonly string[], eu: string): Partial<CamposProcesso> => {
+  const responsavelId = ativos.includes(o.responsavel_id) ? o.responsavel_id : eu;
+  return {
+    origemId: o.id, tipo: o.tipo, responsavelId, colaboradores: o.colaboradores.filter(id => ativos.includes(id) && id !== responsavelId),
+    clientes: o.clientes.length ? o.clientes.map(x => x.id) : [''], polo: o.polo ?? '', area: o.area ?? '', sistema: o.sistema ?? '', meio: o.meio ?? ''
+  };
+};
 interface PessoasDoProcesso { clientes: string[]; responsavel_id: string; colaboradores: string[] }
 const CONFERE_PAPEL: Record<PapelNoProcesso, (p: PessoasDoProcesso, pessoaId: string, perfilId: string | null) => boolean> = {
   cliente: (p, id) => p.clientes.includes(id),
@@ -306,3 +391,28 @@ export const mencaoNegadaNoProcesso = (nome: string) => `Não é possível menci
 
 export const papeisNoProcesso = (p: PessoasDoProcesso, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNoProcesso[]).filter(papel => CONFERE_PAPEL[papel](p, pessoaId, perfilId));
+
+// ---------- o que as duas pontas de dados montam (supabase.ts e falso.ts, #316) ----------
+type ProcessoDaPessoa = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
+  & { clientes: string[] };
+/**
+ * Os processos do cartão da pessoa: os em que ela é cliente ou da equipe (`daEquipe`) e os em que tem um papel (`partes`), cada
+ * processo uma vez só, com tudo o que ela é nele, dos mais novos aos mais antigos.
+ */
+export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes: readonly { papel: PapelDaParte; processo: ProcessoDaPessoa }[],
+  pessoaId: string, perfilId: string | null): ProcessoLigado[] {
+  const porId = new Map<string, ProcessoDaPessoa>();
+  for (const p of [...daEquipe, ...partes.map(x => x.processo)]) porId.set(p.id, p);
+  return [...porId.values()].map(({ clientes, responsavel_id, colaboradores, ...p }): ProcessoLigado => ({
+    ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId),
+    partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel))
+  })).filter(p => p.papeis.length || p.partes?.length).toSorted((a, b) => b.criado_em.localeCompare(a.criado_em));
+}
+/** Os processos ligados ao aberto, cada um com a relação (os sem ligação com ele saem), na ordem do cartão. */
+export function relacionadosDoProcesso(achados: readonly (Omit<ProcessoRelacionado, 'relacao'> & Pick<Processo, 'origem_id' | 'ligacao'>)[],
+  aberto: Pick<Processo, 'id' | 'origem_id'>): ProcessoRelacionado[] {
+  return ordemDosRelacionados(achados.flatMap(({ origem_id, ligacao, ...p }) => {
+    const relacao = relacaoEntreProcessos({ id: p.id, origem_id, ligacao }, aberto);
+    return relacao ? [{ ...p, relacao }] : [];
+  }));
+}

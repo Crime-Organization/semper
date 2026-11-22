@@ -8,7 +8,8 @@ export type Funcao = 'advogado' | 'administrativo' | 'estagiario';
 export type ComoEntrarNoProcesso = 'colaborador' | 'responsavel';
 export type ModuloComSaida = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'anotacoes';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
-export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos';
+export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos'
+  | 'processos_extrajudiciais' | 'processos_investigacoes';
 
 export interface Perfil {
   id: string;
@@ -795,9 +796,13 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
-/** Processo: judicial ou administrativo (não muda depois), com número e pelo menos um cliente. O código (curto e aleatório) é dado pelo banco.
- *  Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
-export type TipoProcesso = 'judicial' | 'administrativo';
+/** Processo: judicial, administrativo, extrajudicial ou investigação (#316; não muda depois), com número e pelo menos um cliente. O código
+ *  (curto e aleatório) é dado pelo banco. Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
+export type TipoProcesso = 'judicial' | 'administrativo' | 'extrajudicial' | 'investigacao';
+/** Como o processo nasceu de outro (#316): recurso ou incidental. */
+export type LigacaoDeProcesso = 'recurso' | 'incidental';
+/** O papel de uma pessoa no processo, além dos clientes (#316). A lista do banco é a mesma (processo_partes). */
+export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro';
 export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
@@ -818,6 +823,17 @@ export interface Processo {
   clientes: PessoaResumida[];
   /** Os valores dos campos que o escritório criou, por id do campo. */
   campos: Record<string, string>;
+  /** O processo de que este nasceu, como recurso ou incidental (#316). Gravados só ao criar; excluída a origem, origem_id fica vazio. */
+  origem_id: string | null;
+  ligacao: LigacaoDeProcesso | null;
+}
+/** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
+export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
+/** Como um processo ligado se relaciona com o aberto: é a origem dele, ou nasceu dele como recurso ou incidental. */
+export type RelacaoEntreProcessos = 'origem' | LigacaoDeProcesso;
+/** Processo ligado a outro (#316), como aparece no cartão. */
+export interface ProcessoRelacionado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+  relacao: RelacaoEntreProcessos;
 }
 /** O que aparece de uma tarefa ligada; null quando quem está logado não pode vê-la. */
 export type TarefaDoAcompanhamento = { id: string; codigo: string } | null;
@@ -883,7 +899,11 @@ export interface FiltroProcessos {
 }
 export type PapelNoProcesso = 'cliente' | 'responsavel' | 'colaborador';
 /** Processo como aparece no cartão da pessoa, com o papel dela nele. */
-export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> { papeis: PapelNoProcesso[] }
+export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+  papeis: PapelNoProcesso[];
+  /** No cartão da pessoa: os papéis dela no processo, além de cliente e equipe (#316). */
+  partes?: PapelDaParte[];
+}
 /** Opção acrescentada pelo administrador a uma das listas. */
 export interface OpcaoDeProcesso { id: string; campo: CampoDeOpcao; valor: string }
 /** Campo que o escritório cria nos processos. Apagado, some do cadastro e do cartão, e o que foi preenchido fica guardado. */
@@ -914,6 +934,13 @@ export interface DadosProcessos {
   processoHistorico(id: string): Promise<Historico[]>;
   /** Processos em que a pessoa é cliente; com perfilId (a pessoa é da equipe), também os em que é responsável ou colaboradora. */
   processosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ProcessoLigado[]>;
+  /** As pessoas com papel no processo (#316), na ordem em que entraram. */
+  processoPartes(processoId: string): Promise<ParteDoProcesso[]>;
+  /** Põe a pessoa no processo com o papel (#316): quem altera o processo, com ele ativo. O mesmo papel de novo é recusado. */
+  processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte): Promise<ParteDoProcesso>;
+  processoParteRetirar(id: string): Promise<void>;
+  /** Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê. */
+  processosRelacionados(processoId: string): Promise<ProcessoRelacionado[]>;
   processoOpcoes(): Promise<OpcaoDeProcesso[]>;
   /** Só administradores. */
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
@@ -1941,8 +1968,8 @@ export interface DadosParcelas {
 // ---------- pedir para participar (#363) ----------
 /** Os módulos em que se pede para participar de um item. */
 export type ModuloDoPedido = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'contratos' | 'anotacoes';
-/** O grupo da busca geral em que o item aparece: os processos se dividem pelo tipo (judiciais e administrativos). */
-export type GrupoDoPedido = 'tarefas' | 'demandas' | 'judiciais' | 'administrativos' | 'compromissos' | 'contratos' | 'anotacoes';
+/** O grupo da busca geral em que o item aparece: os processos se dividem pelo tipo (judiciais, administrativos, extrajudiciais e investigações). */
+export type GrupoDoPedido = 'tarefas' | 'demandas' | 'judiciais' | 'administrativos' | 'extrajudiciais' | 'investigacoes' | 'compromissos' | 'contratos' | 'anotacoes';
 export type SituacaoDoPedido = 'pendente' | 'aprovado' | 'recusado' | 'cancelado';
 /**
  * Um item de que a pessoa não faz parte, achado pelo código exato ou pelo número inteiro do processo: só o tipo e o código.

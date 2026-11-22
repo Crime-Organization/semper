@@ -73,7 +73,8 @@ describe('Busca geral: módulos e endereços', () => {
     const modulos = modulosLigados({ processos: true, demandas: true, tarefas: true, anotacoes: true });
     // Então
     expect(modulos).toEqual(['pessoas', 'processos', 'demandas', 'tarefas', 'anotacoes']);
-    expect(gruposDosModulos(modulos)).toEqual(['pessoas', 'judiciais', 'administrativos', 'demandas', 'tarefas', 'anotacoes']);
+    // Os processos aparecem num grupo por tipo (quatro desde a #316).
+    expect(gruposDosModulos(modulos)).toEqual(['pessoas', 'judiciais', 'administrativos', 'extrajudiciais', 'investigacoes', 'demandas', 'tarefas', 'anotacoes']);
   });
 
   it.each([

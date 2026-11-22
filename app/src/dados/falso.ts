@@ -35,7 +35,10 @@ import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromi
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
-import { alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
+import {
+  alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, TIPOS_PROCESSO,
+  LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, type QuadroDeProcesso
+} from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -52,6 +55,7 @@ import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
+import { PARTES_MAXIMAS } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
@@ -60,6 +64,7 @@ import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import type { GrupoDoPedido, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem } from './tipos';
+import type { PapelDaParte, ParteDoProcesso } from './tipos';
 import { LISTA_CHEIA, RECUSA_DO_PEDIDO } from '../regras/pedidoDeParticipacao';
 import type { EntrouComo, ItemDaInclusao } from './tipos';
 import { avisoDaMudanca, mudancasDaEquipe, type EquipeDoItem, type SequenciaDeMudancas } from '../regras/inclusao';
@@ -199,6 +204,8 @@ interface Banco {
   etiquetas?: Etiqueta[];
   etiquetasAplicadas?: { modulo: ModuloComEtiquetas; cartao_id: string; etiqueta_id: string }[];
   processos?: ProcessoGuardado[];
+  /** As pessoas com papel nos processos (processo_partes, #316). */
+  processoPartes?: { id: string; processo_id: string; pessoa_id: string; papel: PapelDaParte; criado_em: string }[];
   historicoProcessos?: (Historico & { processo_id: string })[];
   compromissos?: CompromissoGuardado[];
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
@@ -507,7 +514,7 @@ bd.gruposDeColunas ??= [];
 bd.etiquetas ??= [];
 bd.etiquetasAplicadas ??= [];
 // Os quadros de processos, como a função criar_quadros_de_processos da migração: grupos, colunas e marcos.
-const QUADROS_DE_PROCESSOS: Record<'processos_judiciais' | 'processos_administrativos', { nome: string; fechado?: boolean; colunas: string[] }[]> = {
+const QUADROS_DE_PROCESSOS: Record<QuadroDeProcesso, { nome: string; fechado?: boolean; colunas: string[] }[]> = {
   processos_judiciais: [
     { nome: 'Início', colunas: ['Distribuído', 'Pedido de habilitação', 'Emendar a inicial', 'Tutela provisória', 'Aguardando citação'] },
     { nome: 'Conhecimento', colunas: ['Audiência de conciliação', 'Contestação/defesa', 'Impugnação à contestação', 'Cumprir intimação', 'Provas/saneamento/perícia', 'Audiência de instrução e julgamento', 'Alegações finais/memoriais'] },
@@ -523,8 +530,23 @@ const QUADROS_DE_PROCESSOS: Record<'processos_judiciais' | 'processos_administra
     { nome: 'Decisão', colunas: ['Deferido/concedido', 'Indeferido', 'Recurso administrativo', 'Ajuizar ação'] },
     { nome: 'Concessão e vigência', colunas: ['Pagamento da concessão', 'Expedição do certificado', 'Registro em vigor', 'Retribuição anual', 'Prorrogação', 'Contra nulidade'] },
     { nome: 'Encerrado', fechado: true, colunas: ['Arquivado/baixado'] }
+  ],
+  // Os dois quadros dos tipos novos (#316), como a migração processo_partes_recursos_e_tipos.
+  processos_extrajudiciais: [
+    { nome: 'Início', colunas: ['Aberto', 'Reunir documentos'] },
+    { nome: 'Andamento', colunas: ['Notificação enviada', 'Aguardando resposta', 'Em negociação', 'Minuta em análise'] },
+    { nome: 'Conclusão', colunas: ['Acordo ou escritura assinada', 'Registro ou averbação'] },
+    { nome: 'Encerrado', fechado: true, colunas: ['Concluído/arquivado'] }
+  ],
+  processos_investigacoes: [
+    { nome: 'Instauração', colunas: ['Instaurado', 'Pedido de acesso aos autos'] },
+    { nome: 'Diligências', colunas: ['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa'] },
+    { nome: 'Conclusão', colunas: ['Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento'] },
+    { nome: 'Encerrado', fechado: true, colunas: ['Arquivado'] }
   ]
 };
+/** O grupo da busca pelo código de cada tipo de processo, como privado.grupo_do_tipo_de_processo no banco (#316). */
+const GRUPO_DO_TIPO: Record<TipoProcesso, GrupoDoPedido> = { judicial: 'judiciais', administrativo: 'administrativos', extrajudicial: 'extrajudiciais', investigacao: 'investigacoes' };
 /** Folga entre a última coluna e o primeiro grupo de um quadro, a mesma de privado.folga_dos_grupos() no banco (#296). */
 const FOLGA_DOS_GRUPOS = 1_000_000;
 for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as[keyof typeof QUADROS_DE_PROCESSOS, (typeof QUADROS_DE_PROCESSOS)[keyof typeof QUADROS_DE_PROCESSOS]][]) {
@@ -561,6 +583,7 @@ bd.retiradas ??= [];
 bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(k => k.id);
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
+bd.processoPartes ??= [];
 bd.contratoProcessos ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
@@ -571,7 +594,7 @@ bd.processos ??= (() => {
   const pessoa = (nome: string) => bd.pessoas.find(p => p.nome === nome)?.id;
   const base = { campos: {}, titulo: null, responsavel_id: eu, colaboradores: [] as string[], sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null,
     classe: null, assunto: null, juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, arquivado_em: null, arquivado_por: null,
-    criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora(), etapa_ordem: 1 };
+    criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora(), etapa_ordem: 1, origem_id: null, ligacao: null };
   const lista: ProcessoGuardado[] = [];
   const jose = pessoa('JOSÉ DA SILVA TESTE'), maria = pessoa('MARIA APARECIDA EXEMPLO');
   if (jose) lista.push({ ...base, id: novoId(), codigo: codigo(), tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', orgao: 'TJMG', comarca: 'Montes Claros', vara: '2ª Vara Cível', clientes: [jose], etapa_id: coluna('Distribuído') });
@@ -1687,7 +1710,7 @@ const ITENS_DO_PEDIDO: Record<ModuloDoPedido, () => ItemDoPedidoNoFalso[]> = {
     por: (perfil: string) => { const novos = { colaboradores: [...d.colaboradores, perfil] }; historicoDemanda(d, novos); Object.assign(d, novos, { atualizado_em: agora(), atualizado_por: eu }); },
     registrar: (a: Historico['alteracoes']) => { bd.historicoDemandas!.unshift({ ...linhaDoHistorico(a), demanda_id: d.id }); } })),
   processos: () => bd.processos!.map(p => ({ id: p.id, codigo: p.codigo, criado_por: p.criado_por, responsavel_id: p.responsavel_id, equipe: p.colaboradores, arquivado: !!p.arquivado_em, quantos: p.colaboradores.length, achavel: () => true, souIndicador: () => false,
-    grupo: p.tipo === 'judicial' ? 'judiciais' as const : 'administrativos' as const, numero: numeroParaComparar(p.numero ?? ''), vejo: () => vejoNoModulo('processos', p.id),
+    grupo: GRUPO_DO_TIPO[p.tipo], numero: numeroParaComparar(p.numero ?? ''), vejo: () => vejoNoModulo('processos', p.id),
     por: (perfil: string) => { const novos = { colaboradores: [...p.colaboradores, perfil] }; historicoProcesso(p, novos); Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu }); },
     registrar: (a: Historico['alteracoes']) => { bd.historicoProcessos!.unshift({ ...linhaDoHistorico(a), processo_id: p.id }); } })),
   compromissos: () => bd.compromissos!.map(c => ({ id: c.id, codigo: c.codigo, criado_por: c.criado_por, responsavel_id: c.responsavel_id, equipe: c.participantes, arquivado: !!c.arquivado_em, quantos: c.participantes.length, achavel: () => true, souIndicador: () => false,
@@ -2094,7 +2117,33 @@ function conferirPrazo(p: PrazoGuardado) {
   if (p.tarefa_id && !bd.tarefas!.some(t => t.id === p.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
 }
 // ---------- processos ----------
-const processoCompleto = (p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
+type ParteGuardada = NonNullable<Banco['processoPartes']>[number];
+/** A pessoa com papel como o cartão a mostra (#316). */
+const parteNoCartao = (x: ParteGuardada): ParteDoProcesso => ({ id: x.id, processo_id: x.processo_id, papel: x.papel, pessoa: resumoDe(x.pessoa_id)! });
+/** Como o gatilho historico de processo_partes: quem entrou (para) ou saiu (de), com o nome e o papel. */
+function historicoDaParte(x: ParteGuardada, lado: 'de' | 'para') {
+  const parte = { pessoa_id: x.pessoa_id, nome: resumoDe(x.pessoa_id)?.nome ?? null, papel: x.papel };
+  bd.historicoProcessos!.unshift({ id: Date.now() + Math.random(), processo_id: x.processo_id, feito_por: eu, em: agora(),
+    alteracoes: { partes: lado === 'para' ? { de: null, para: parte } : { de: parte, para: null } } });
+}
+/** LGPD, como o gatilho esquecer_nas_partes: a pessoa excluída sai das entradas de papel do histórico. */
+function esquecerNasPartes(pessoaId: string) {
+  for (const h of bd.historicoProcessos!) {
+    const a = h.alteracoes.partes as { de: Record<string, unknown> | null; para: Record<string, unknown> | null } | undefined;
+    if (!a) continue;
+    for (const lado of ['de', 'para'] as const) {
+      const v = a[lado];
+      if (v?.pessoa_id === pessoaId) { const { pessoa_id: _sai, ...resto } = v; a[lado] = { ...resto, nome: 'pessoa excluída' }; }
+    }
+  }
+}
+/** Como o gatilho conferir_origem e a regra processos_origem_com_ligacao: a origem é um processo que quem cria vê, e diz a ligação. */
+function conferirOrigemDoProcesso(d: DadosProcesso) {
+  if (!d.origem_id) return;
+  if (!d.ligacao || !(d.ligacao in LIGACOES)) throw new Error(FORMATO_INVALIDO);
+  if (!bd.processos!.some(p => p.id === d.origem_id && vejoNoModulo('processos', p.id))) throw new Error('O processo de origem não foi encontrado neste escritório.');
+}
+const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [], cliente_nome: nomesDosClientes(p.clientes),
   orgao: p.orgao, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
@@ -2866,12 +2915,13 @@ export const SD: Dados = {
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       if (bd.demandas!.some(d => d.clientes.includes(id))) { motivo = 'Esta pessoa está em demandas e não pode ser excluída.'; return; }
       if (bd.tarefas!.some(t => t.pessoas.includes(id))) { motivo = 'Esta pessoa está em tarefas e não pode ser excluída.'; return; }
-      if (bd.processos!.some(x => x.clientes.includes(id))) { motivo = 'Esta pessoa está em processos e não pode ser excluída.'; return; }
+      if (bd.processos!.some(x => x.clientes.includes(id)) || bd.processoPartes!.some(x => x.pessoa_id === id)) { motivo = 'Esta pessoa está em processos e não pode ser excluída.'; return; }
       if (bd.compromissos!.some(c => c.pessoas.includes(id))) { motivo = 'Esta pessoa está em compromissos e não pode ser excluída.'; return; }
       if (bd.anotacaoLigacoes!.some(l => l.modulo === 'pessoas' && l.item_id === id)) { motivo = 'Esta pessoa está ligada a anotações e não pode ser excluída.'; return; }
       if (bd.socios!.some(s => s.pessoa_id === id) || bd.repasses!.some(r => r.pessoa_id === id)) { motivo = 'Esta pessoa está no financeiro e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
+      esquecerNasPartes(id);
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
       ligados.forEach(v => historicoVinculo(v, false));
@@ -4413,15 +4463,20 @@ export const SD: Dados = {
   },
   processoObter: id => { const p = bd.processos!.find(x => x.id === id && vejoNoModulo('processos', x.id)); return espera(p ? processoCompleto(p) : null); },
   async processoCriar({ tipo, ...dados }) {
+    if (!(tipo in TIPOS_PROCESSO)) return erro(FORMATO_INVALIDO);
+    conferirOrigemDoProcesso(dados);
     const pronto = prepararProcesso({ colaboradores: [], clientes: [], ...dados }, tipo);
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
+      origem_id: null, ligacao: null,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
     bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
   },
   async processoAtualizar(id, dados) {
+    // A origem e a ligação ficam de fora do que se altera, como no banco (#316).
+    if ('origem_id' in dados || 'ligacao' in dados) return erro('Você não tem permissão para fazer isso.');
     const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p), antes = equipeDoItemNoFalso('processos', id);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
@@ -4453,6 +4508,9 @@ export const SD: Dados = {
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'processos' && c.cartao_id === id));
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
+      // As pessoas com papel saem junto; os recursos e incidentais dele continuam, só sem a origem (#316).
+      bd.processoPartes = bd.processoPartes!.filter(x => x.processo_id !== id);
+      bd.processos!.forEach(x => { if (x.origem_id === id) x.origem_id = null; });
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'processos' && a.cartao_id === id));
       auditar('processos', 'exclusao', p); excluidas++;
@@ -4485,10 +4543,45 @@ export const SD: Dados = {
     Object.assign(p, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
   processoHistorico: id => espera(bd.historicoProcessos!.filter(h => h.processo_id === id).slice(0, HISTORICO_DO_PROCESSO)),
-  processosDaPessoa: (pessoaId, perfilId = null) => espera(bd.processos!.map((p): ProcessoLigado => ({
-    id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em,
-    papeis: papeisNoProcesso(p, pessoaId, perfilId)
-  })).filter(p => p.papeis.length).sort((a, b) => b.criado_em.localeCompare(a.criado_em))),
+  processosDaPessoa: (pessoaId, perfilId = null) => {
+    const vistos = bd.processos!.filter(p => vejoNoModulo('processos', p.id)).map(p => ({ ...p, cliente_nome: nomesDosClientes(p.clientes) }));
+    const daEquipe = vistos.filter(p => papeisNoProcesso(p, pessoaId, perfilId).length);
+    const partes = bd.processoPartes!.filter(x => x.pessoa_id === pessoaId).flatMap(x => vistos.filter(p => p.id === x.processo_id).map(processo => ({ papel: x.papel, processo })));
+    return espera(processosComPartes(daEquipe, partes, pessoaId, perfilId).map((p): ProcessoLigado => ({
+      id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: p.cliente_nome, etapa_id: p.etapa_id, arquivado_em: p.arquivado_em,
+      criado_em: p.criado_em, papeis: p.papeis, partes: p.partes
+    })));
+  },
+  // ---------- pessoas com papel e processos ligados (#316, como a migração processo_partes_recursos_e_tipos) ----------
+  processoPartes: processoId => espera(bd.processoPartes!.filter(x => x.processo_id === processoId && vejoNoModulo('processos', processoId)).map(parteNoCartao)),
+  async processoParteIncluir(processoId, pessoaId, papel) {
+    const p = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
+    if (!p || p.arquivado_em || soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
+    if (!(papel in PAPEIS_DA_PARTE)) return erro(FORMATO_INVALIDO);
+    if (!bd.pessoas.some(x => x.id === pessoaId)) return erro('Pessoa não encontrada neste escritório.');
+    if (bd.processoPartes!.some(x => x.processo_id === processoId && x.pessoa_id === pessoaId && x.papel === papel)) return erro(PAPEL_REPETIDO);
+    if (bd.processoPartes!.filter(x => x.processo_id === processoId).length >= PARTES_MAXIMAS) return erro(`Um processo pode ter até ${PARTES_MAXIMAS} pessoas com papel.`);
+    const x = { id: novoId(), processo_id: processoId, pessoa_id: pessoaId, papel, criado_em: agora() };
+    bd.processoPartes!.push(x);
+    historicoDaParte(x, 'para');
+    auditar('processo_partes', 'inclusao', x); gravar();
+    return espera(parteNoCartao(x));
+  },
+  async processoParteRetirar(id) {
+    const x = bd.processoPartes!.find(y => y.id === id), p = x && bd.processos!.find(y => y.id === x.processo_id);
+    if (!x || !p || p.arquivado_em || !vejoNoModulo('processos', p.id) || soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
+    bd.processoPartes = bd.processoPartes!.filter(y => y.id !== id);
+    historicoDaParte(x, 'de');
+    auditar('processo_partes', 'exclusao', x); gravar();
+  },
+  processosRelacionados: processoId => {
+    const aberto = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
+    if (!aberto) return espera([]);
+    return espera(relacionadosDoProcesso(bd.processos!.filter(x => vejoNoModulo('processos', x.id)).map(x => ({
+      id: x.id, codigo: x.codigo, tipo: x.tipo, numero: x.numero, titulo: x.titulo, cliente_nome: nomesDosClientes(x.clientes), etapa_id: x.etapa_id, arquivado_em: x.arquivado_em,
+      criado_em: x.criado_em, origem_id: x.origem_id, ligacao: x.ligacao
+    })), aberto));
+  },
   processoOpcoes: () => espera([...bd.opcoesDeProcesso!].sort((a, b) => a.valor.localeCompare(b.valor, 'pt-BR'))),
   async processoOpcaoCriar(campo, valor) {
     const limpo = valor.trim();

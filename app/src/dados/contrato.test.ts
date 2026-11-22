@@ -1945,6 +1945,116 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Processos: pessoas com papel, recursos e incidentais, tipos novos (#316)', () => {
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+      };
+
+      it('quando um processo extrajudicial e uma investigação são criados, então cada um fica no seu tipo e na sua página', async () => {
+        // Dado
+        const numero = marca();
+        // Quando
+        const extra = await novoProcesso({ tipo: 'extrajudicial', numero });
+        const inv = await novoProcesso({ tipo: 'investigacao', numero });
+        // Então
+        expect(await SD.processoObter(extra.id)).toMatchObject({ tipo: 'extrajudicial', origem_id: null, ligacao: null });
+        expect((await SD.processosListar({ tipo: 'investigacao', termo: numero })).linhas.map(p => p.id)).toEqual([inv.id]);
+        expect((await SD.processosListar({ tipo: 'judicial', termo: numero })).linhas).toEqual([]);
+      });
+
+      it('quando a pessoa ganha um papel no processo, então ela aparece nele com o papel, e o processo aparece no cartão dela', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: testemunha } = await criar(marca());
+        // Quando
+        const parte = await SD.processoParteIncluir(processo.id, testemunha, 'testemunha');
+        // Então
+        expect(await SD.processoPartes(processo.id)).toEqual([expect.objectContaining({ id: parte.id, papel: 'testemunha', pessoa: expect.objectContaining({ id: testemunha }) })]);
+        expect(await SD.processosDaPessoa(testemunha)).toEqual([expect.objectContaining({ id: processo.id, papeis: [], partes: ['testemunha'] })]);
+        expect((await SD.processoHistorico(processo.id))[0].alteracoes.partes).toMatchObject({ de: null, para: { papel: 'testemunha' } });
+      });
+
+      it('quando a pessoa ganha o mesmo papel de novo, então é recusado; outro papel, pode', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: pessoa } = await criar(marca());
+        await SD.processoParteIncluir(processo.id, pessoa, 'perito');
+        // Quando
+        const repetido = SD.processoParteIncluir(processo.id, pessoa, 'perito');
+        const outro = SD.processoParteIncluir(processo.id, pessoa, 'assistente_tecnico');
+        // Então
+        await expect(repetido).rejects.toThrow('Esta pessoa já tem esse papel neste processo.');
+        await expect(outro).resolves.toMatchObject({ papel: 'assistente_tecnico' });
+        expect((await SD.processosDaPessoa(pessoa))[0].partes).toEqual(['perito', 'assistente_tecnico']);
+      });
+
+      it('quando a pessoa com papel é tirada, então ela sai do processo e pode ser excluída do cadastro', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: pessoa } = await criar(marca());
+        const parte = await SD.processoParteIncluir(processo.id, pessoa, 'reu');
+        await SD.pessoasArquivar([pessoa], true);
+        expect((await SD.pessoasExcluir([pessoa])).motivo).toBe('Esta pessoa está em processos e não pode ser excluída.');
+        // Quando
+        await SD.processoParteRetirar(parte.id);
+        // Então
+        expect(await SD.processoPartes(processo.id)).toEqual([]);
+        expect((await SD.pessoasExcluir([pessoa])).excluidas).toBe(1);
+      });
+
+      it('quando o processo está arquivado, então não ganha pessoas com papel', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: pessoa } = await criar(marca());
+        await SD.processosArquivar([processo.id], true);
+        // Quando
+        const pedido = SD.processoParteIncluir(processo.id, pessoa, 'autor');
+        // Então
+        await expect(pedido).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando um recurso nasce de um processo, então cada um mostra o outro, e o recurso tem o próprio número e andamentos', async () => {
+        // Dado
+        const origem = await novoProcesso();
+        // Quando
+        const recurso = await novoProcesso({ origem_id: origem.id, ligacao: 'recurso' });
+        await SD.processoAndamentoCriar(recurso.id, { tipo: 'andamento', data: '2026-11-20', hora: null, local: null, texto: 'Recurso distribuído' });
+        // Então
+        expect(await SD.processosRelacionados(origem.id)).toEqual([expect.objectContaining({ id: recurso.id, relacao: 'recurso' })]);
+        expect(await SD.processosRelacionados(recurso.id)).toEqual([expect.objectContaining({ id: origem.id, relacao: 'origem' })]);
+        expect(await SD.processoAndamentos(origem.id)).toEqual([]);
+        expect(await SD.processoAndamentos(recurso.id)).toHaveLength(1);
+      });
+
+      it('quando falta dizer se é recurso ou incidental, ou a origem não existe, então é recusado; a origem não muda depois', async () => {
+        // Dado
+        const origem = await novoProcesso();
+        const incidental = await novoProcesso({ origem_id: origem.id, ligacao: 'incidental' });
+        // Quando
+        const semLigacao = novoProcesso({ origem_id: origem.id });
+        const semOrigem = novoProcesso({ origem_id: '00000000-0000-0000-0000-000000000000', ligacao: 'recurso' });
+        const mudar = () => SD.processoAtualizar(incidental.id, { origem_id: null });
+        // Então
+        await expect(semLigacao).rejects.toThrow('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+        await expect(semOrigem).rejects.toThrow('O processo de origem não foi encontrado neste escritório.');
+        await expect(mudar()).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect(await SD.processoObter(incidental.id)).toMatchObject({ origem_id: origem.id, ligacao: 'incidental' });
+      });
+
+      it('quando o processo de origem é excluído, então o incidental continua, só sem a ligação', async () => {
+        // Dado
+        const origem = await novoProcesso();
+        const incidental = await novoProcesso({ origem_id: origem.id, ligacao: 'incidental' });
+        await SD.processosArquivar([origem.id], true);
+        // Quando
+        await SD.processosExcluir([origem.id]);
+        // Então
+        expect(await SD.processoObter(incidental.id)).toMatchObject({ origem_id: null, ligacao: 'incidental' });
+        expect(await SD.processosRelacionados(incidental.id)).toEqual([]);
+      });
+    });
+
     describe('Processos', () => {
       // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const NUMERO = '0005678-13.2026.8.13.0433';

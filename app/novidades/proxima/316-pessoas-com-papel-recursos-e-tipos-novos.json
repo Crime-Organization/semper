@@ -1,0 +1,5 @@
+{
+  "titulo": "Pessoas com papel, recursos e tipos novos nos processos",
+  "texto": "No cartão do processo, a seção \"Pessoas do processo\" liga autor, réu, testemunha, perito, assistente técnico e outros papéis, e o processo aparece no cartão da pessoa com o papel. A seção \"Recursos e incidentais\" cria um processo novo já ligado ao de origem, com número e andamentos próprios, e cada um mostra o outro. Há também os tipos Extrajudicial e Investigação, cada um com o seu quadro.",
+  "ondeAchar": "Processos: abra um processo e veja as seções \"Pessoas do processo\" e \"Recursos e incidentais\". Os tipos novos ficam no menu Processos e na escolha do tipo, ao cadastrar."
+}
