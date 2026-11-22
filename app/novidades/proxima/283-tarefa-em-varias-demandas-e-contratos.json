@@ -1,0 +1,5 @@
+{
+  "titulo": "Tarefa em mais de uma demanda e mais de um contrato",
+  "texto": "A mesma tarefa pode fazer parte de várias demandas e de vários contratos. Ela aparece na seção Tarefas de cada uma, e quem está em qualquer uma delas passa a vê-la.",
+  "ondeAchar": "Tarefas > Nova tarefa ou o lápis do cartão: o botão \"+ Adicionar demanda\" e \"+ Adicionar contrato\". No cartão da tarefa, \"Ligar mais uma demanda\" e \"Ligar mais um contrato\"."
+}

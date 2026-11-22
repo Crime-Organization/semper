@@ -31,7 +31,7 @@ import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO }
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
 import { DEMANDAS_RELACIONADAS } from './limites';
-import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
+import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
@@ -51,14 +51,14 @@ import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMO
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
-import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
+import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
-import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
+import type { ContratoDoCartao, DemandaDaTarefa, EquipeDoContrato } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import type { GrupoDoPedido, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem } from './tipos';
@@ -285,7 +285,7 @@ type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: st
 type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 /** O pedido para participar como fica guardado (o tipo do processo vem na leitura). */
 type PedidoGuardado = Omit<PedidoDaMensagem, 'tipo_do_processo'> & { criado_em: string; respondido_em: string | null };
-type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
+type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo' | 'demandas_ligadas' | 'contratos_ligados'> & { pessoas: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
 const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
@@ -392,7 +392,7 @@ function demandaNova(): DemandaGuardada {
 function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
-    contrato_id: null, contrato_codigo: null, processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
+    contrato_id: null, contrato_codigo: null, demanda_ids: [], contrato_ids: [], processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null, data_inicio: inicioDoCriadoEm(agora())
   };
 }
@@ -1021,10 +1021,13 @@ const contratosDoMembro = (m: Membro) => contratosEmQueEsta(bd.contratos!.map(pe
 /** Também os contratos dos grupos de quem está logado (#378): as demandas e as tarefas deles abrem, só para ler. */
 const contratosEmQueEstou = () => [...contratosDoMembro(membroLogado()), ...bd.contratos!.filter(peloGrupoDoContrato).map(k => k.id)];
 const demandaDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id'>) => bd.demandas!.find(d => d.id === t.demanda_id) ?? null;
+/** Todas as demandas ligadas à tarefa (#283), na ordem. */
+const demandasDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id' | 'demanda_ids'>) =>
+  demandasDaTarefa(t).flatMap(id => bd.demandas!.filter(d => d.id === id));
 /** Como a regra de leitura das demandas: quem está nela e, só para ler, quem está no contrato ligado a ela (#326). */
 const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou(), meusGruposNoFalso());
-/** Como a regra de leitura das tarefas: quem está nela e, só para ler, quem está no contrato dela ou no da demanda ligada (#326). */
-const vejoTarefa = (t: TarefaGuardada) => veATarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), contratosEmQueEstou(), meusGruposNoFalso());
+/** Como a regra de leitura das tarefas: quem está nela ou numa das demandas e, só para ler, quem está num dos contratos dela ou no de uma das demandas (#326, #283). */
+const vejoTarefa = (t: TarefaGuardada) => veATarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), contratosEmQueEstou(), meusGruposNoFalso());
 /** Como privado.altero_o_contrato: quem é parte e, na fase de adaptação, toda a equipe. */
 const alteroContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && (alteroContrato(k) || !!bd.equipeEditaTudo));
 /** Como as colunas de contratos_da_equipe para quem não é parte. */
@@ -1328,15 +1331,26 @@ const processoDaTarefa = (id: string | null | undefined) => {
   const p = id ? bd.processos!.find(x => x.id === id) : null;
   return p ? { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes) } : null;
 };
+/** A demanda como a tarefa a mostra, com quem está no contrato dela (se quem lê pode abri-lo). */
+const demandaNaTarefa = (d: DemandaGuardada): DemandaDaTarefa => {
+  const contratoDaDemanda = contratoQueVejo(d.contrato_id);
+  return { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
+    colaboradores: d.colaboradores, grupos: d.grupos ?? [], contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) };
+};
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
-  const contratoDaDemanda = contratoQueVejo(d?.contrato_id);
-  return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
-    demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
-      colaboradores: d.colaboradores, grupos: d.grupos ?? [], contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) } : null,
+  return { ...t, demanda_ids: t.demanda_ids ?? [], contrato_ids: t.contrato_ids ?? [], pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
+    demanda: d ? demandaNaTarefa(d) : null,
     contrato: contratoDoCartao(t.contrato_id),
+    // Como o banco (#283): cada ligada com o código, e a demanda (ou o contrato) só para quem pode abri-la.
+    demandas_ligadas: demandasDaTarefa(t).map(id => {
+      const x = bd.demandas!.find(y => y.id === id);
+      return { id, codigo: x?.codigo ?? '', item: x && vejoDemanda(x) ? demandaNaTarefa(x) : null };
+    }),
+    contratos_ligados: contratosDaTarefa(t).map(id => ({ id, codigo: bd.contratos!.find(k => k.id === id)?.codigo ?? '', item: contratoDoCartao(id) })),
     processo: processoDaTarefa(t.processo_id) };
 };
+const equipeNaLista = (d: DemandaGuardada) => ({ criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] });
 const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   // Como o banco, quem está na demanda ligada (as listagens do banco fictício não filtram quem vê, e quem não vê a demanda não está nela).
   const d = demandaDaTarefaNoFalso(t);
@@ -1344,7 +1358,9 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
     id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, data_inicio: t.data_inicio, responsavel_id: t.responsavel_id, participantes: t.participantes,
     grupos: t.grupos ?? [], pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
     etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em,
-    equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] } : null
+    equipe_da_demanda: d ? equipeNaLista(d) : null,
+    // As outras demandas ligadas (#283), como o banco as lê numa leitura a mais: só as que quem lê vê, na ordem da lista.
+    equipes_das_outras_demandas: demandasDaTarefa(t).slice(1).flatMap(id => bd.demandas!.filter(x => x.id === id && vejoDemanda(x)).map(equipeNaLista))
   };
 };
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
@@ -1355,7 +1371,7 @@ const noGrupoDoFiltro = (grupos: string[] | undefined, filtro: string | undefine
 };
 /** Nas tarefas, também as das demandas do grupo (como public.tarefas_dos_grupos). */
 const daTarefaNoGrupo = (x: TarefaGuardada, f: FiltroTarefas) =>
-  noGrupoDoFiltro(x.grupos, f.grupo) || (!!f.grupo && noGrupoDoFiltro(demandaDaTarefaNoFalso(x)?.grupos, f.grupo));
+  noGrupoDoFiltro(x.grupos, f.grupo) || (!!f.grupo && demandasDaTarefaNoFalso(x).some(d => noGrupoDoFiltro(d.grupos, f.grupo)));
 function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
   return bd.tarefas!.filter(x => vejoNoModulo('tarefas', x.id) && (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)
@@ -1397,17 +1413,29 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
     if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`);
     t.participantes = lista;
   }
-  if (t.demanda_id !== undefined) {
-    const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
-    if (t.demanda_id && !d) throw new Error('Demanda não encontrada neste escritório.');
-    t.demanda_codigo = d?.codigo ?? null;
+  const demandas = listaAoGravar(t.demanda_ids, t.demanda_id, atual && { lista: demandasDaTarefa(atual), principal: atual.demanda_id });
+  if (demandas) {
+    if (demandas.some(id => !bd.demandas!.some(d => d.id === id))) throw new Error('Demanda não encontrada neste escritório.');
+    if (demandas.length > DEMANDAS_POR_TAREFA) throw new Error(DEMANDAS_DA_TAREFA_CHEIA);
+    Object.assign(t, { demanda_ids: demandas, demanda_id: demandas[0] ?? null, demanda_codigo: bd.demandas!.find(d => d.id === demandas[0])?.codigo ?? null });
   }
-  if (t.contrato_id !== undefined) {
-    const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
-    if (t.contrato_id && !k) throw new Error('Contrato não encontrado neste escritório.');
-    t.contrato_codigo = k?.codigo ?? null;
+  const contratos = listaAoGravar(t.contrato_ids, t.contrato_id, atual && { lista: contratosDaTarefa(atual), principal: atual.contrato_id });
+  if (contratos) {
+    if (contratos.some(id => !bd.contratos!.some(k => k.id === id))) throw new Error('Contrato não encontrado neste escritório.');
+    if (contratos.length > CONTRATOS_POR_TAREFA) throw new Error(CONTRATOS_DA_TAREFA_CHEIA);
+    Object.assign(t, { contrato_ids: contratos, contrato_id: contratos[0] ?? null, contrato_codigo: bd.contratos!.find(k => k.id === contratos[0])?.codigo ?? null });
   }
   return t;
+}
+/**
+ * Como o gatilho "ligacoes" do banco (#283): a lista gravada vale; sem ela, quem grava só a principal (a versão anterior do site) troca
+ * só a principal (a antiga sai, a nova entra no lugar); na inclusão, a principal entra no começo. Sem repetir. undefined: nada muda.
+ */
+function listaAoGravar(lista: string[] | undefined, principal: string | null | undefined, antes?: { lista: string[]; principal: string | null }): string[] | undefined {
+  if (lista !== undefined) return [...new Set([...(antes ? [] : principal ? [principal] : []), ...lista])];
+  if (principal === undefined || (antes && principal === antes.principal)) return antes ? undefined : principal ? [principal] : [];
+  const resto = (antes?.lista ?? []).filter(id => id !== antes?.principal && id !== principal);
+  return principal ? [principal, ...resto] : resto;
 }
 // Do responsável, dos participantes, das pessoas, da demanda, do contrato e da coluna, o histórico guarda os nomes (como no banco).
 const NOME_NO_HISTORICO_TAREFA: Record<string, [string, (v: unknown) => unknown]> = {
@@ -1417,6 +1445,9 @@ const NOME_NO_HISTORICO_TAREFA: Record<string, [string, (v: unknown) => unknown]
   pessoas: ['pessoas', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
   demanda_id: ['demanda', id => bd.demandas!.find(d => d.id === id)?.codigo ?? null],
   contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
+  // As listas (#283) pelos códigos, em ordem, como privado.codigos_das_demandas e codigos_dos_contratos.
+  demanda_ids: ['demandas', lista => (lista as string[] | null ?? []).map(id => bd.demandas!.find(d => d.id === id)?.codigo ?? 'demanda excluída').join(', ') || null],
+  contrato_ids: ['contratos', lista => (lista as string[] | null ?? []).map(id => bd.contratos!.find(k => k.id === id)?.codigo ?? 'contrato excluído').join(', ') || null],
   // Como privado.nome_do_processo_no_historico: o número ou, sem número, o código.
   processo_id: ['processo', id => { const p = bd.processos!.find(x => x.id === id); return p ? p.numero || p.codigo : null; }],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
@@ -1425,8 +1456,13 @@ const FORA_DO_HISTORICO_TAREFA = new Set(['etapa_ordem', 'arquivado_por', 'deman
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico da tarefa. */
 function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
   const atual = t as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
+  const mudou = (campo: string, v: unknown) => JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null);
+  // A lista mudou: ela já conta a troca da principal (como o banco, #283).
+  const pelaLista: Record<string, string> = { demanda_id: 'demanda_ids', contrato_id: 'contrato_ids' };
   Object.entries(dados).forEach(([campo, v]) => {
-    if (!FORA_DO_HISTORICO_TAREFA.has(campo) && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
+    const lista = pelaLista[campo];
+    if (lista && lista in dados && mudou(lista, (dados as Record<string, unknown>)[lista])) return;
+    if (!FORA_DO_HISTORICO_TAREFA.has(campo) && mudou(campo, v)) {
       const [chave, nome] = NOME_NO_HISTORICO_TAREFA[campo] ?? [campo, (x: unknown) => x];
       alt[chave] = { de: nome(atual[campo] ?? null), para: nome(v ?? null) };
     }
@@ -1707,7 +1743,7 @@ const ITENS_DO_PEDIDO: Record<ModuloDoPedido, () => ItemDoPedidoNoFalso[]> = {
     equipe: EQUIPE.filter(m => k.participantes.some(p => p.pessoa_id === m.pessoa_id)).map(m => m.id), arquivado: !!k.arquivado_em,
     quantos: k.participantes.length, grupo: 'contratos' as const, vejo: () => alcancoContrato(k),
     achavel: () => !(k.indicador_id && k.indicador_id === membroLogado().pessoa_id)
-      && (bd.demandas!.some(d => d.contrato_id === k.id && vejoNoModulo('demandas', d.id)) || bd.tarefas!.some(t => t.contrato_id === k.id && vejoNoModulo('tarefas', t.id))),
+      && (bd.demandas!.some(d => d.contrato_id === k.id && vejoNoModulo('demandas', d.id)) || bd.tarefas!.some(t => contratosDaTarefa(t).includes(k.id) && vejoNoModulo('tarefas', t.id))),
     souIndicador: () => !!k.indicador_id && k.indicador_id === membroLogado().pessoa_id,
     por: (perfil: string) => {
       // A trava da divisão (o banco fictício tem o financeiro sempre ligado): com parcelas, mesmo excluídas, só um administrador.
@@ -2465,7 +2501,7 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
   // Na tarefa: só quem a vê (quem está nela, na demanda ligada a ela ou no contrato de uma das duas, #326).
   const tarefa = modulo === 'tarefas' ? bd.tarefas!.find(t => t.id === cartaoId) : null;
-  const daTarefa = tarefa ? bd.demandas!.find(d => d.id === tarefa.demanda_id) ?? null : null;
+  const daTarefa = tarefa ? demandasDaTarefaNoFalso(tarefa) : null;
   const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa, contratosDoMembro(m), gruposDoMembro(m)))) : null;
   if (foraDaTarefa) throw new Error(mencaoNegadaNaTarefa(foraDaTarefa.nome));
   // No compromisso: só quem o vê (quem está nele, quem vê o processo ligado ou todos, na Agenda geral).
@@ -2678,7 +2714,7 @@ const GRUPOS_AO_GRAVAR: Record<ModuloDoPedido, (id: string, grupos: string[]) =>
   },
   tarefas: async (id, grupos) => {
     const t = acharTarefa(id);
-    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso())) || !vejoComOsGrupos(t, grupos, () => vejoNoModulo('tarefas', id))) return erro(SEM_PERMISSAO);
+    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), meusGruposNoFalso())) || !vejoComOsGrupos(t, grupos, () => vejoNoModulo('tarefas', id))) return erro(SEM_PERMISSAO);
     return SD.tarefaAtualizar(id, { grupos });
   },
   processos: async (id, grupos) => {
@@ -3089,7 +3125,8 @@ export const SD: Dados = {
       soltarDasAnotacoes('contratos', id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
-      bd.tarefas!.forEach(t => { if (t.contrato_id === id) Object.assign(t, { contrato_id: null, contrato_codigo: null }); });
+      // Como o banco (#283): o contrato sai da lista de cada tarefa; a tarefa continua, ligada aos outros.
+      bd.tarefas!.forEach(t => { if (contratosDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ contrato_ids: contratosDaTarefa(t).filter(x => x !== id) }, t)); });
       auditar('contratos', 'exclusao', k); excluidas++;
     });
     gravar();
@@ -3179,7 +3216,8 @@ export const SD: Dados = {
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
-      bd.tarefas!.forEach(t => { if (t.demanda_id === id) Object.assign(t, { demanda_id: null, demanda_codigo: null }); });
+      // Com várias (#283), ela sai só da lista de cada tarefa, e a próxima vira a principal.
+      bd.tarefas!.forEach(t => { if (demandasDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ demanda_ids: demandasDaTarefa(t).filter(x => x !== id) }, t)); });
       excluirListasDoCartao('demanda_id', id);
       auditar('demandas', 'exclusao', d); excluidas++;
     });
@@ -3269,7 +3307,7 @@ export const SD: Dados = {
     return espera({ id, codigo: t.codigo });
   },
   async tarefasArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso())); });
+    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(estaNaTarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), meusGruposNoFalso())); });
     ids.forEach(id => {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
@@ -3298,7 +3336,7 @@ export const SD: Dados = {
   },
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
-    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     historicoTarefa(t, { etapa_id: etapaId });
     // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
     const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
@@ -3307,8 +3345,8 @@ export const SD: Dados = {
   tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
   tarefasDaPessoa: (pessoaId, perfilId = null) => espera(bd.tarefas!.map(tarefaLigada(pessoaId, perfilId)).filter(t => t.papeis.length)
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, TAREFAS_LIGADAS)),
-  tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.demanda_id === demandaId))),
-  tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.contrato_id === contratoId))),
+  tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => demandasDaTarefa(t).includes(demandaId)))),
+  tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => contratosDaTarefa(t).includes(contratoId)))),
 
   // ---------- tempo nas tarefas (como supabase/migrations/20261030120000_tempo_nas_tarefas.sql) ----------
   async tempoIniciar(tarefaId, inicio, segundos) {
@@ -3370,7 +3408,7 @@ export const SD: Dados = {
     return espera({ registros: registros.filter(r => souAdmin() || r.perfil_id === eu).map(({ tarefa_id: _t, ...r }) => r), equipe, total });
   },
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
-    .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
+    .filter(r => { const t = bd.tarefas!.find(x => x.id === r.tarefa_id); return !!t && demandasDaTarefa(t).includes(demandaId); }).reduce((s, r) => s + r.segundos, 0))),
   // Como public.tempo_por_tarefa (supabase/migrations/20261030160000_meu_tempo.sql). Quem entra no fictício é administrador.
   tempoPorTarefa(perfilId, de, ate) {
     const [desde, antes] = [inicioDoDia(de), inicioDoDia(ate)];

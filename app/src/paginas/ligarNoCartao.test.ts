@@ -5,8 +5,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SD } from '../dados';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
-import { CONTRATOS_DIFERENTES, DEMANDA_DE_OUTRO_CONTRATO, LISTA_CHEIA, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO } from '../regras/ligarExistente';
-import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarNoItem, ligarTarefaNaDemanda, ligarTarefaNoPrazo, porAPessoa, relacionarDemandas } from './ligarNoCartao';
+import { LISTA_CHEIA, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO } from '../regras/ligarExistente';
+import { ligarContratoNaTarefa, ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarNoItem, ligarTarefaNaDemanda, ligarTarefaNoPrazo, porAPessoa, relacionarDemandas } from './ligarNoCartao';
 
 const marca = () => 'LIGAR ' + Math.random().toString(36).slice(2, 8).toUpperCase();
 const pessoa = async () => (await SD.pessoaCriar({ tipo: 'pf', nome: marca() })).id;
@@ -86,15 +86,20 @@ describe('As ligações de um só', () => {
     await expect(ligarNoItem('processo da tarefa', id, outro.id)).rejects.toThrow('Esta tarefa já está ligada a outro processo.');
   });
 
-  it('dada uma tarefa cuja demanda ganhou um contrato depois da busca, quando liga a tarefa a outro contrato, então é recusado e nada é gravado', async () => {
+  it('dada uma tarefa de um contrato (#283), quando liga outro contrato, então fica nos dois, e o Desfazer tira só o novo', async () => {
     // Dado
     const [k1, k2] = [await contrato(), await contrato()];
-    const d = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' });
-    const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', demanda_id: d.id });
-    await SD.demandaAtualizar(d.id, { contrato_id: k1.id });
-    // Quando / Então
-    await expect(ligarNoItem('contrato da tarefa', id, k2.id)).rejects.toThrow(DEMANDA_DE_OUTRO_CONTRATO);
-    expect((await SD.tarefaObter(id))!.contrato_id).toBeNull();
+    const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_ids: [k1.id] });
+    // Quando
+    const desfazer = await ligarContratoNaTarefa(id, k2.id);
+    // Então
+    expect(await SD.tarefaObter(id)).toMatchObject({ contrato_id: k1.id, contrato_ids: [k1.id, k2.id] });
+    expect((await SD.tarefasDoContrato(k2.id)).map(t => t.id)).toContain(id);
+    expect(await ligarContratoNaTarefa(id, k2.id)).toBeNull();
+    // Quando
+    await desfazer!();
+    // Então
+    expect(await SD.tarefaObter(id)).toMatchObject({ contrato_id: k1.id, contrato_ids: [k1.id] });
   });
 
   it('dada uma demanda sem contrato com uma tarefa de outro contrato, quando liga a demanda a um contrato, então é recusado (a tarefa ficaria em dois)', async () => {
@@ -166,13 +171,30 @@ describe('A tarefa e a demanda', () => {
     expect(t.pessoas.map(p => p.id)).toEqual([cliente]);
   });
 
-  it('dada uma tarefa de um contrato, quando entra numa demanda de outro contrato, então é recusado', async () => {
+  it('dada uma tarefa de uma demanda e de um contrato (#283), quando entra numa demanda de outro contrato, então fica nas duas demandas e nos dois contratos', async () => {
     // Dado
     const [k1, k2] = [await contrato(), await contrato()];
-    const d = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k2.id });
-    const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k1.id });
-    // Quando / Então
-    await expect(ligarTarefaNaDemanda(id, d.id)).rejects.toThrow(CONTRATOS_DIFERENTES);
+    const d1 = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k1.id });
+    const d2 = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k2.id });
+    const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', demanda_ids: [d1.id], contrato_ids: [k1.id] });
+    // Quando
+    await ligarTarefaNaDemanda(id, d2.id);
+    // Então
+    const t = (await SD.tarefaObter(id))!;
+    expect(t).toMatchObject({ demanda_id: d1.id, demanda_ids: [d1.id, d2.id], contrato_ids: [k1.id, k2.id] });
+    expect(t.demandas_ligadas.map(l => l.codigo)).toEqual([d1.codigo, d2.codigo]);
+    for (const d of [d1, d2]) expect((await SD.tarefasDaDemanda(d.id)).map(x => x.id)).toContain(id);
+  });
+
+  it('dada uma tarefa em duas demandas, quando uma delas é excluída, então a tarefa continua, ligada à outra', async () => {
+    // Dado
+    const [d1, d2] = [await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' }), await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' })];
+    const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', demanda_ids: [d1.id, d2.id] });
+    // Quando
+    await SD.demandasArquivar([d1.id], true);
+    await SD.demandasExcluir([d1.id]);
+    // Então
+    expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d2.id, demanda_ids: [d2.id] });
   });
 });
 

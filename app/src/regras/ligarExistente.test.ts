@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
 import {
-  acrescentar, CONTRATOS_DIFERENTES, DEMANDA_DE_OUTRO_CONTRATO, desfazerTarefaNaDemanda, ligacaoDeUm, listaDoItemCheia, motivoDaListaCheia, motivoDasTarefasDaDemanda,
-  motivoDeContratoDiferente, PESSOA_NO_ITEM, semOId, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO, tarefaNaDemanda, tarefaNoPrazo, voltarOQueAindaE, type TarefaParaOPrazo
+  acrescentar, CONTRATOS_DIFERENTES, DEMANDA_DE_OUTRO_CONTRATO, desfazerTarefaEmMaisUmaDemanda, ligacaoDeUm, listaDoItemCheia, motivoDaListaCheia, motivoDasTarefasDaDemanda,
+  motivoDeContratoDiferente, PESSOA_NO_ITEM, semOId, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO, tarefaEmMaisUmaDemanda, tarefaNaDemanda, tarefaNoPrazo, voltarOQueAindaE, type TarefaParaOPrazo
 } from './ligarExistente';
 
 const cheia = Array.from({ length: CLIENTES_MAXIMOS }, (_, i) => 'p' + i);
@@ -68,39 +68,69 @@ describe('O Desfazer dos campos de um só', () => {
 });
 
 describe('A tarefa e a demanda', () => {
-  it('dada uma tarefa sem pessoas e sem contrato, quando entra numa demanda de um contrato, então leva os clientes e o contrato, e o Desfazer tira os três', () => {
-    // Dado
-    const t = { pessoas: [], contrato_id: null }, d = { id: 'd1', clientes: ['c1', 'c2'], contrato_id: 'k1' };
-    // Quando
-    const dados = tarefaNaDemanda(t, d);
+  const MAXIMOS = { demandas: 2, contratos: 2 };
+
+  it('dada uma tarefa nova sem pessoas e sem contrato, quando nasce numa demanda de um contrato, então leva os clientes e o contrato', () => {
+    // Dado / Quando
+    const dados = tarefaNaDemanda({ pessoas: [], contrato_id: null }, { id: 'd1', clientes: ['c1', 'c2'], contrato_id: 'k1' });
     // Então
     expect(dados).toEqual({ demanda_id: 'd1', pessoas: ['c1', 'c2'], contrato_id: 'k1' });
-    expect(desfazerTarefaNaDemanda({ demanda_id: 'd1', pessoas: ['c1', 'c2'], contrato_id: 'k1' }, dados)).toEqual({ demanda_id: null, pessoas: [], contrato_id: null });
+    expect(tarefaNaDemanda({ pessoas: ['x'], contrato_id: 'k1' }, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' })).toEqual({ demanda_id: 'd1' });
   });
 
-  it('dada uma tarefa que já tem pessoas e contrato, quando entra na demanda, então só a demanda muda, e o Desfazer só a tira', () => {
-    // Dado / Quando
-    const dados = tarefaNaDemanda({ pessoas: ['x'], contrato_id: 'k1' }, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' });
-    // Então
-    expect(dados).toEqual({ demanda_id: 'd1' });
-    expect(desfazerTarefaNaDemanda({ demanda_id: 'd1', pessoas: ['x'], contrato_id: 'k1' }, dados)).toEqual({ demanda_id: null });
-  });
-
-  it('dada uma tarefa que levou os clientes e o contrato da demanda, quando outra pessoa pôs alguém e trocou o contrato depois, então o Desfazer não mexe nisso', () => {
+  it('dada uma tarefa sem nada, quando entra numa demanda de um contrato, então leva os clientes e o contrato, e o Desfazer tira os três', () => {
     // Dado
-    const dados = tarefaNaDemanda({ pessoas: [], contrato_id: null }, { id: 'd1', clientes: ['c1', 'c2'], contrato_id: 'k1' });
+    const t = { demanda_ids: [], pessoas: [], contrato_ids: [] }, d = { id: 'd1', clientes: ['c1', 'c2'], contrato_id: 'k1' };
     // Quando
-    const volta = desfazerTarefaNaDemanda({ demanda_id: 'd1', pessoas: ['c1', 'c2', 'de outro'], contrato_id: 'k2' }, dados);
+    const r = tarefaEmMaisUmaDemanda(t, d, MAXIMOS);
     // Então
-    expect(volta).toEqual({ demanda_id: null, pessoas: ['de outro'] });
+    expect(r).toEqual({ dados: { demanda_ids: ['d1'], pessoas: ['c1', 'c2'], contrato_ids: ['k1'] }, demandaId: 'd1', contratoId: 'k1', pessoas: ['c1', 'c2'] });
+    if ('recusa' in r) throw new Error('não devia recusar');
+    expect(desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: ['c1', 'c2'], contrato_ids: ['k1'] }, r)).toEqual({ demanda_ids: [], pessoas: [], contrato_ids: [] });
   });
 
-  it('dada uma tarefa que outra pessoa já tirou da demanda (ou pôs em outra), quando desfaz, então nada volta', () => {
+  it('dada uma tarefa de outra demanda e de outro contrato (#283), quando entra em mais uma, então fica nas duas e nos dois contratos; o Desfazer tira só o que entrou', () => {
     // Dado
-    const dados = tarefaNaDemanda({ pessoas: [], contrato_id: null }, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' });
+    const t = { demanda_ids: ['d0'], pessoas: ['x'], contrato_ids: ['k0'] };
+    // Quando
+    const r = tarefaEmMaisUmaDemanda(t, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' }, MAXIMOS);
+    // Então
+    expect(r).toMatchObject({ dados: { demanda_ids: ['d0', 'd1'], contrato_ids: ['k0', 'k1'] }, pessoas: [] });
+    if ('recusa' in r) throw new Error('não devia recusar');
+    expect(desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d0', 'd1'], pessoas: ['x'], contrato_ids: ['k0', 'k1'] }, r)).toEqual({ demanda_ids: ['d0'], contrato_ids: ['k0'] });
+  });
+
+  it('dada uma tarefa que já tem o contrato da demanda, quando entra nela, então só a demanda muda, e o Desfazer só a tira', () => {
+    // Dado / Quando
+    const r = tarefaEmMaisUmaDemanda({ demanda_ids: [], pessoas: ['x'], contrato_ids: ['k1'] }, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' }, MAXIMOS);
+    // Então
+    expect(r).toEqual({ dados: { demanda_ids: ['d1'] }, demandaId: 'd1', contratoId: null, pessoas: [] });
+    if ('recusa' in r) throw new Error('não devia recusar');
+    expect(desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: ['x'], contrato_ids: ['k1'] }, r)).toEqual({ demanda_ids: [] });
+  });
+
+  it('dada uma tarefa que já está na demanda ou que já tem o máximo de demandas, quando liga, então é recusado', () => {
+    // Dado / Quando / Então
+    expect(tarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: [], contrato_ids: [] }, { id: 'd1', clientes: [], contrato_id: null }, MAXIMOS)).toEqual({ recusa: 'ja' });
+    expect(tarefaEmMaisUmaDemanda({ demanda_ids: ['d1', 'd2'], pessoas: [], contrato_ids: [] }, { id: 'd3', clientes: [], contrato_id: null }, MAXIMOS)).toEqual({ recusa: 'cheia' });
+  });
+
+  it('dada uma tarefa que levou os clientes e o contrato da demanda, quando outra pessoa pôs alguém e tirou o contrato depois, então o Desfazer não mexe nisso', () => {
+    // Dado
+    const r = tarefaEmMaisUmaDemanda({ demanda_ids: [], pessoas: [], contrato_ids: [] }, { id: 'd1', clientes: ['c1', 'c2'], contrato_id: 'k1' }, MAXIMOS);
+    if ('recusa' in r) throw new Error('não devia recusar');
+    // Quando
+    const volta = desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: ['c1', 'c2', 'de outro'], contrato_ids: ['k2'] }, r);
+    // Então
+    expect(volta).toEqual({ demanda_ids: [], pessoas: ['de outro'] });
+  });
+
+  it('dada uma tarefa que outra pessoa já tirou da demanda, quando desfaz, então nada volta', () => {
+    // Dado
+    const r = tarefaEmMaisUmaDemanda({ demanda_ids: [], pessoas: [], contrato_ids: [] }, { id: 'd1', clientes: ['c1'], contrato_id: 'k1' }, MAXIMOS);
+    if ('recusa' in r) throw new Error('não devia recusar');
     // Quando / Então
-    expect(desfazerTarefaNaDemanda({ demanda_id: 'd2', pessoas: ['c1'], contrato_id: 'k1' }, dados)).toBeNull();
-    expect(desfazerTarefaNaDemanda({ demanda_id: null, pessoas: ['c1'], contrato_id: 'k1' }, dados)).toBeNull();
+    expect(desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d2'], pessoas: ['c1'], contrato_ids: ['k1'] }, r)).toBeNull();
   });
 
   it.each([

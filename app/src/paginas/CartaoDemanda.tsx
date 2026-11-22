@@ -47,7 +47,6 @@ import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
@@ -225,8 +224,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa' }}>
-        <LigarDoModulo modulo="tarefas" filtro={{ sem: 'demandas' }} motivo={t => motivoDeContratoDiferente(t.contrato_id, d.contrato_id)}
-          aviso="Quem está nesta demanda passa a ver a tarefa que você ligar. Sem pessoas ou sem contrato, a tarefa leva os clientes e o contrato da demanda."
+        {/* A tarefa pode estar em várias demandas (#283): a de outra demanda também entra nesta, e continua na outra. */}
+        <LigarDoModulo modulo="tarefas" motivo={t => t.demanda_id === d.id ? 'já ligada a esta demanda' : ''}
+          aviso="Quem está nesta demanda passa a ver a tarefa que você ligar. A tarefa leva o contrato da demanda e, se ainda não tem pessoas, os clientes dela."
           aoEscolher={t => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava nesta demanda.' }, depoisDeLigar)} />
       </AcoesDosLigados>}

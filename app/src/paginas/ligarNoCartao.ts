@@ -5,9 +5,11 @@
 // RecusaDaLigacao: tentar de novo pelo cartão daria a mesma recusa (#376).
 import { SD, type Tarefa } from '../dados';
 import {
-  acrescentar, DEMANDA_DE_OUTRO_CONTRATO, desfazerTarefaNaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, motivoDeContratoDiferente, RecusaDaLigacao, semOId,
-  TAREFA_DE_OUTRO_PROCESSO, tarefaNaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
+  acrescentar, desfazerTarefaEmMaisUmaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, RecusaDaLigacao, semOId,
+  TAREFA_DE_OUTRO_PROCESSO, tarefaEmMaisUmaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
 } from '../regras/ligarExistente';
+import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa } from '../regras/tarefa';
+import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA } from '../dados/limites';
 import { avisar, falha, feito } from '../ui/avisos';
 
 /** Volta o que a ligação gravou. */
@@ -44,24 +46,24 @@ export async function porAPessoa(modulo: ItemComPessoas, itemId: string, pessoaI
 }
 
 // ---------- as ligações de um só ----------
-/** As ligações de um só que os cartões fazem (a tarefa e a demanda tem a sua, ligarTarefaNaDemanda). */
-export type LigacaoNoItem = 'contrato da demanda' | 'contrato da tarefa' | 'processo da tarefa' | 'processo do compromisso';
+/**
+ * As ligações de um só que os cartões fazem. A tarefa com as demandas e os contratos, que são listas desde a #283, tem as suas:
+ * ligarTarefaNaDemanda e ligarContratoNaTarefa.
+ */
+export type LigacaoNoItem = 'contrato da demanda' | 'processo da tarefa' | 'processo do compromisso';
 interface UmNoItem {
   /** A ligação de agora: null, sem nenhuma; undefined, o item não foi encontrado. */
   ler: (id: string) => Promise<string | null | undefined>;
   gravar: (id: string, valor: string | null) => Promise<unknown>;
   /** A recusa quando o item já tem outro (trocar o tiraria de lá). */
   outro: string;
-  /** Outra recusa, lida logo antes de gravar ('' = pode): a das ligações que deixariam uma tarefa em dois contratos (#283). */
+  /** Outra recusa, lida logo antes de gravar ('' = pode): a da demanda cujas tarefas são de outro contrato. */
   conferir?: (id: string, valor: string) => Promise<string>;
 }
 const LIGACOES_NO_ITEM: Record<LigacaoNoItem, UmNoItem> = {
   'contrato da demanda': { ler: async id => (await SD.demandaObter(id))?.contrato_id, gravar: (id, contrato_id) => SD.demandaAtualizar(id, { contrato_id }),
     outro: 'Esta demanda já está ligada a outro contrato.',
     conferir: async (id, contrato) => motivoDasTarefasDaDemanda((await SD.tarefasDaDemanda(id)).map(t => t.contrato_id), contrato) },
-  'contrato da tarefa': { ler: async id => (await SD.tarefaObter(id))?.contrato_id, gravar: (id, contrato_id) => SD.tarefaAtualizar(id, { contrato_id }),
-    outro: 'Esta tarefa já está ligada a outro contrato.',
-    conferir: async (id, contrato) => motivoDeContratoDiferente((await SD.tarefaObter(id))?.demanda?.contrato_id, contrato, DEMANDA_DE_OUTRO_CONTRATO) },
   'processo da tarefa': { ler: async id => (await SD.tarefaObter(id))?.processo_id, gravar: (id, processo_id) => SD.tarefaAtualizar(id, { processo_id }),
     outro: TAREFA_DE_OUTRO_PROCESSO },
   'processo do compromisso': { ler: async id => (await SD.compromissoObter(id))?.processo_id, gravar: (id, processo_id) => SD.compromissoAtualizar(id, { processo_id }),
@@ -81,23 +83,42 @@ export async function ligarNoItem(qual: LigacaoNoItem, itemId: string, valor: st
   return async () => { if (await l.ler(itemId) === valor) await l.gravar(itemId, null); };
 }
 
-// ---------- a tarefa e a demanda ----------
-const tarefaParaADemanda = (t: Tarefa): TarefaParaADemanda => ({ demanda_id: t.demanda_id, pessoas: ids(t.pessoas)!, contrato_id: t.contrato_id });
-/** Liga a tarefa à demanda, levando os clientes e o contrato da demanda, como o cadastro de tarefa (veja tarefaNaDemanda). */
+// ---------- a tarefa, as demandas e os contratos (#283: listas) ----------
+const tarefaParaADemanda = (t: Tarefa): TarefaParaADemanda => ({ demanda_ids: demandasDaTarefa(t), pessoas: ids(t.pessoas)!, contrato_ids: contratosDaTarefa(t) });
+/**
+ * Liga a tarefa a mais uma demanda, levando os clientes (se a tarefa não tem pessoas) e o contrato da demanda, como o cadastro de
+ * tarefa (veja tarefaEmMaisUmaDemanda). As outras demandas da tarefa ficam.
+ */
 export async function ligarTarefaNaDemanda(tarefaId: string, demandaId: string): Promise<Desfazer | null> {
   const [t, d] = await Promise.all([SD.tarefaObter(tarefaId), SD.demandaObter(demandaId)]);
   if (!t || !d) throw new RecusaDaLigacao(ITEM_SUMIU);
-  const r = ligacaoDeUm(t.demanda_id, demandaId);
-  if (r === 'ja') return null;
-  if (r === 'outro') throw new RecusaDaLigacao('Esta tarefa já está em outra demanda.');
-  const motivo = motivoDeContratoDiferente(t.contrato_id, d.contrato_id);
-  if (motivo) throw new RecusaDaLigacao(motivo);
-  const gravado = tarefaNaDemanda(tarefaParaADemanda(t), { id: d.id, clientes: ids(d.clientes)!, contrato_id: d.contrato_id });
-  await SD.tarefaAtualizar(tarefaId, gravado);
+  const r = tarefaEmMaisUmaDemanda(tarefaParaADemanda(t), { id: d.id, clientes: ids(d.clientes)!, contrato_id: d.contrato_id },
+    { demandas: DEMANDAS_POR_TAREFA, contratos: CONTRATOS_POR_TAREFA });
+  if ('recusa' in r) {
+    if (r.recusa === 'ja') return null;
+    throw new RecusaDaLigacao(DEMANDAS_DA_TAREFA_CHEIA);
+  }
+  await SD.tarefaAtualizar(tarefaId, r.dados);
   return async () => {
     const agora = await SD.tarefaObter(tarefaId);
-    const volta = agora && desfazerTarefaNaDemanda(tarefaParaADemanda(agora), gravado);
+    const volta = agora && desfazerTarefaEmMaisUmaDemanda(tarefaParaADemanda(agora), r);
     if (volta) await SD.tarefaAtualizar(tarefaId, volta);
+  };
+}
+/** Liga a tarefa a mais um contrato (no fim da lista); os outros contratos dela ficam. */
+export async function ligarContratoNaTarefa(tarefaId: string, contratoId: string): Promise<Desfazer | null> {
+  const t = await SD.tarefaObter(tarefaId);
+  if (!t) throw new RecusaDaLigacao(ITEM_SUMIU);
+  const r = acrescentar(contratosDaTarefa(t), contratoId, CONTRATOS_POR_TAREFA);
+  if ('recusa' in r) {
+    if (r.recusa === 'ja') return null;
+    throw new RecusaDaLigacao(CONTRATOS_DA_TAREFA_CHEIA);
+  }
+  await SD.tarefaAtualizar(tarefaId, { contrato_ids: r.lista });
+  return async () => {
+    const agora = await SD.tarefaObter(tarefaId);
+    const lista = agora ? contratosDaTarefa(agora) : [];
+    if (lista.includes(contratoId)) await SD.tarefaAtualizar(tarefaId, { contrato_ids: semOId(lista, contratoId) });
   };
 }
 

@@ -41,10 +41,9 @@ import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContr
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { ligarEAvisar, ligarNoItem } from './ligarNoCartao';
+import { ligarContratoNaTarefa, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
 
 /** O valor de "Assinado em", na faixa das datas, enquanto o contrato não tem a data da assinatura. */
 const NAO_ASSINADO = 'Ainda não';
@@ -324,9 +323,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist} />
       {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa' }}>
-        <LigarDoModulo modulo="tarefas" filtro={{ sem: 'contratos' }} motivo={t => motivoDeContratoDiferente(t.contrato_da_demanda, k.id, DEMANDA_DE_OUTRO_CONTRATO)}
+        {/* A tarefa pode estar em vários contratos (#283): a de outro contrato também entra neste, e continua no outro. */}
+        <LigarDoModulo modulo="tarefas" motivo={t => t.contrato_id === k.id ? 'já ligada a este contrato' : ''}
           aviso="Quem está neste contrato passa a ver, só para ler, a tarefa que você ligar."
-          aoEscolher={t => ligarEAvisar(() => ligarNoItem('contrato da tarefa', t.id, k.id),
+          aoEscolher={t => ligarEAvisar(() => ligarContratoNaTarefa(t.id, k.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este contrato.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
     </Recolhivel>}

@@ -5,6 +5,7 @@ import { INICIO_VAZIO } from '../regras/dataDeInicio';
 import { recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
+import { CONTRATOS_DA_TAREFA_CHEIA, DEMANDAS_DA_TAREFA_CHEIA } from '../regras/tarefa';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
@@ -64,6 +65,9 @@ const ERROS: Regra[] = [
   { codigo: '23514', padrao: /anotacao_pastas_nome_preenchido/, mensagem: PASTA_SEM_NOME },
   { codigo: '23514', padrao: /anotacao_pastas_nome_tamanho/, mensagem: PASTA_NOME_LONGO },
   { codigo: '23514', padrao: /demandas_relacionadas_em_ordem/, mensagem: MESMA_DEMANDA },
+  // Demandas ou contratos demais na tarefa (#283): as mesmas mensagens do cadastro e do banco fictício.
+  { codigo: '23514', padrao: /tarefas_demanda_ids_maximo/, mensagem: DEMANDAS_DA_TAREFA_CHEIA },
+  { codigo: '23514', padrao: /tarefas_contrato_ids_maximo/, mensagem: CONTRATOS_DA_TAREFA_CHEIA },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: SEM_PERMISSAO },
   { padrao: /permission denied|row-level security/i, mensagem: SEM_PERMISSAO },

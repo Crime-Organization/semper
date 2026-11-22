@@ -43,33 +43,52 @@ export function voltarOQueAindaE<T extends object>(atual: T, gravado: Partial<T>
 }
 
 // ---------- a tarefa e a demanda ----------
-/** A tarefa como está gravada, no que ligar à demanda mexe. */
-export interface TarefaParaADemanda { demanda_id: string | null; pessoas: readonly string[]; contrato_id: string | null }
+/** A demanda que a tarefa recebe: os clientes e o contrato dela. */
+type DemandaQueRecebe = { id: string; clientes: readonly string[]; contrato_id: string | null };
 /**
- * Ligar a tarefa à demanda, como o cadastro de tarefa faz ao escolher a demanda: os clientes da demanda entram como pessoas da
- * tarefa que ainda não tem nenhuma, e o contrato da demanda, na tarefa que ainda não tem contrato.
+ * A tarefa nova que já nasce na demanda (a cópia para outra demanda, #312): os clientes da demanda entram como pessoas da tarefa que
+ * ainda não tem nenhuma, e o contrato da demanda, na tarefa que ainda não tem contrato.
  */
-export function tarefaNaDemanda(t: Omit<TarefaParaADemanda, 'demanda_id'>, d: { id: string; clientes: readonly string[]; contrato_id: string | null }): DadosTarefa {
+export function tarefaNaDemanda(t: { pessoas: readonly string[]; contrato_id: string | null }, d: DemandaQueRecebe): DadosTarefa {
   const dados: DadosTarefa = { demanda_id: d.id };
   if (!t.pessoas.length && d.clientes.length) dados.pessoas = [...d.clientes];
   if (!t.contrato_id && d.contrato_id) dados.contrato_id = d.contrato_id;
   return dados;
 }
+/** A tarefa como está gravada, no que ligar mais uma demanda mexe (#283: as listas de demandas e de contratos). */
+export interface TarefaParaADemanda { demanda_ids: readonly string[]; pessoas: readonly string[]; contrato_ids: readonly string[] }
+/** O que ligar a tarefa a mais uma demanda gravou: os dados e o que entrou por ela (para o Desfazer tirar só isso). */
+export interface TarefaEmMaisUmaDemanda { dados: DadosTarefa; demandaId: string; contratoId: string | null; pessoas: string[] }
 /**
- * O que o Desfazer de tarefaNaDemanda grava, com a tarefa lida de novo (`atual`) e o que a ligação gravou (`feito`): null se a
- * tarefa já não está nesta demanda (outra pessoa a tirou ou trocou; nada a voltar). Senão, ela sai da demanda e perde só as
- * pessoas e o contrato que a ligação pôs: quem outra pessoa pôs depois fica, e o contrato trocado depois também.
+ * Ligar a tarefa a mais uma demanda (#283), como o cadastro de tarefa faz ao acrescentar a demanda: ela entra no fim da lista; os
+ * clientes dela entram como pessoas da tarefa que ainda não tem nenhuma; o contrato dela entra nos contratos da tarefa, se ainda não
+ * está lá (e a lista não está cheia). `recusa`: a tarefa já está nela ('ja') ou já tem o máximo de demandas ('cheia').
  */
-export function desfazerTarefaNaDemanda(atual: TarefaParaADemanda, feito: DadosTarefa): DadosTarefa | null {
-  if (atual.demanda_id !== feito.demanda_id) return null;
-  const volta: DadosTarefa = { demanda_id: null };
-  if (feito.contrato_id && atual.contrato_id === feito.contrato_id) volta.contrato_id = null;
-  const postas = feito.pessoas ?? [];
-  const ficam = atual.pessoas.filter(p => !postas.includes(p));
+export function tarefaEmMaisUmaDemanda(t: TarefaParaADemanda, d: DemandaQueRecebe, maximos: { demandas: number; contratos: number }):
+  TarefaEmMaisUmaDemanda | { recusa: 'ja' | 'cheia' } {
+  const demandas = acrescentar(t.demanda_ids, d.id, maximos.demandas);
+  if ('recusa' in demandas) return demandas;
+  const dados: DadosTarefa = { demanda_ids: demandas.lista };
+  const pessoas = !t.pessoas.length && d.clientes.length ? [...d.clientes] : [];
+  if (pessoas.length) dados.pessoas = pessoas;
+  const contratos = d.contrato_id ? acrescentar(t.contrato_ids, d.contrato_id, maximos.contratos) : null;
+  if (contratos && 'lista' in contratos) dados.contrato_ids = contratos.lista;
+  return { dados, demandaId: d.id, contratoId: dados.contrato_ids ? d.contrato_id : null, pessoas };
+}
+/**
+ * O que o Desfazer de tarefaEmMaisUmaDemanda grava, com a tarefa lida de novo (`atual`): null se a tarefa já não está nesta demanda
+ * (outra pessoa a tirou; nada a voltar). Senão, ela sai só desta demanda e perde só as pessoas e o contrato que a ligação pôs: as
+ * outras demandas, quem outra pessoa pôs depois e o contrato tirado depois ficam como estão.
+ */
+export function desfazerTarefaEmMaisUmaDemanda(atual: TarefaParaADemanda, feito: TarefaEmMaisUmaDemanda): DadosTarefa | null {
+  if (!atual.demanda_ids.includes(feito.demandaId)) return null;
+  const volta: DadosTarefa = { demanda_ids: semOId(atual.demanda_ids, feito.demandaId) };
+  if (feito.contratoId && atual.contrato_ids.includes(feito.contratoId)) volta.contrato_ids = semOId(atual.contrato_ids, feito.contratoId);
+  const ficam = atual.pessoas.filter(p => !feito.pessoas.includes(p));
   if (ficam.length !== atual.pessoas.length) volta.pessoas = ficam;
   return volta;
 }
-/** A tarefa é de um contrato e a demanda, de outro: ligar deixaria a tarefa em dois contratos (o que é a #283). */
+/** A tarefa é de um contrato e a demanda, de outro (o padrão de motivoDeContratoDiferente). */
 export const CONTRATOS_DIFERENTES = 'A tarefa e a demanda são de contratos diferentes.';
 /** O contrato escolhido não é o da demanda da tarefa. */
 export const DEMANDA_DE_OUTRO_CONTRATO = 'A demanda desta tarefa é de outro contrato.';

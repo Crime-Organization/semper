@@ -1,8 +1,10 @@
 // Cadastro de tarefa (novo ou atualizar), o mais curto do sistema (#299), em duas etapas: a tarefa (título, descrição, o prazo com a hora e
-// o lembrete num campo só, e as ligações opcionais: demanda, contrato e processo) e as pessoas (responsável, participantes da equipe e pessoas do cadastro).
+// o lembrete num campo só, e as ligações opcionais: demandas, contratos e processo) e as pessoas (responsável, participantes da equipe e pessoas do cadastro).
+// A tarefa pode fazer parte de mais de uma demanda e de mais de um contrato (#283): o "+" de cada um liga mais um.
 // Vindo do cartão de uma pessoa (?pessoa=), de uma demanda (?demanda=) ou de um contrato (?contrato=), ele já vem
-// escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios; ao tirá-la, saem
-// de novo, se a pessoa não os mudou (regras/tarefa.ts: oQueADemandaTraz e semADemanda).
+// escolhido (e outros podem ser acrescentados). Ao escolher uma demanda, o contrato dela entra nos contratos e, se a tarefa ainda não
+// tem pessoas, os clientes dela entram nas pessoas; ao tirá-la, saem de novo, se a pessoa não os mudou (regras/tarefa.ts:
+// oQueADemandaTraz e semADemanda).
 // Vindo do "+ Nova tarefa" de um processo (?processo=, #376), ela já vem ligada a ele (o aviso do topo diz de onde nasce), com os clientes
 // dele como pessoas (se o endereço não traz outras), e, ao salvar, a tela volta ao cartão do processo (se a pessoa não tirou o processo no
 // cadastro). O processo arquivado depois que o cartão abriu não é ligado: o aviso diz isso antes de gravar.
@@ -13,14 +15,15 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosTarefa, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { camposForaDoLapis, DATAS_NO_LUGAR, etapasDoLapis, semOsCampos } from '../regras/datasNoCartao';
-import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TAREFA } from '../dados/limites';
+import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, CONTRATOS_POR_TAREFA, DEMANDAS_PARA_LIGAR, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { enderecoDoItem } from '../regras/anotacao';
 import { depoisDeCriar, tarefaDoProcesso } from '../regras/origemDoCadastro';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import {
-  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, primeiraEtapaComErroTarefa, semADemanda,
+  camposDaTarefa, comMaisUm, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, ligadasDaTarefa, ligadosDaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
+  primeiraEtapaComErroTarefa, semADemanda,
   semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
 } from '../regras/tarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -36,6 +39,7 @@ import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { GruposNoLapis } from '../ui/GruposDoItem';
 import { EscolhaDeProcessos, nomeDoEscolhido, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { Icone } from '../ui/Icone';
+import { LigadosNoCadastro, type TextosDosLigados } from '../ui/LigadosNoCadastro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useTitulo } from '../ui/util';
@@ -102,25 +106,27 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // Os campos de agora, para a resposta da demanda, que chega depois de a pessoa talvez ter mudado alguma coisa.
   const camposAgora = useRef(c);
   camposAgora.current = c;
-  // O que a demanda ligada trouxe (as pessoas e o contrato), para tirar junto com ela.
-  const trazido = useRef<TrazidoDaDemanda | null>(null);
-  // Ao ligar uma demanda: as pessoas e o contrato dela entram na tarefa, se a tarefa ainda não tem (decidido com os campos de agora).
+  // O que cada demanda ligada trouxe (as pessoas e o contrato), para tirar junto com ela.
+  const trazidos = useRef<TrazidoDaDemanda[]>([]);
+  // Ao ligar mais uma demanda: o contrato dela e, se a tarefa ainda não tem pessoas, os clientes dela entram (decidido com os campos de agora).
   async function ligarDemanda(id: string) {
-    mudar({ demandaId: id });
-    camposAgora.current = { ...camposAgora.current, demandaId: id };
+    const demandas = comMaisUm(camposAgora.current.demandas, id, DEMANDAS_POR_TAREFA);
+    mudar({ demandas });
+    camposAgora.current = { ...camposAgora.current, demandas };
     const d = await SD.demandaObter(id).catch(() => null);
     if (!d) return;
     setConhecidos(x => ({ ...x, [d.id]: [d.codigo, d.titulo].filter(Boolean).join(' · '), ...(d.contrato_id && d.contrato_codigo ? { [d.contrato_id]: d.contrato_codigo } : {}) }));
     const r = oQueADemandaTraz(camposAgora.current, { id: d.id, clientes: d.clientes.map(p => p.id), contratoId: d.contrato_id });
     if (!r) return;
-    trazido.current = r.trazido;
+    trazidos.current = [...trazidos.current.filter(x => x.demandaId !== id), r.trazido];
     if (r.mudancas.pessoas) porPessoas(d.clientes);
     mudar(r.mudancas);
+    camposAgora.current = { ...camposAgora.current, ...r.mudancas };
   }
-  // Ao tirar a demanda: sai também o que ela trouxe e a pessoa não mudou.
-  function tirarDemanda() {
-    const { mudancas, ficam } = semADemanda(c, trazido.current);
-    trazido.current = null;
+  // Ao tirar uma das demandas: sai também o que ela trouxe e a pessoa não mudou; as outras ficam.
+  function tirarDemanda(id: string) {
+    const { mudancas, ficam } = semADemanda(c, id, trazidos.current);
+    trazidos.current = trazidos.current.filter(x => x.demandaId !== id);
     if (ficam.includes(false)) {
       const restam = pessoas.filter((_, i) => ficam[i]);
       if (restam.length) { setPessoas(restam); setChaves(chaves.filter((_, i) => ficam[i])); } else porPessoas([]);
@@ -150,7 +156,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (!k) return;
       setConhecidos(x => ({ ...x, [k.id]: k.codigo }));
       porPessoas(k.clientes);
-      setC(x => ({ ...x, contratoId: k.id, pessoas: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));
+      setC(x => ({ ...x, contratos: comMaisUm(x.contratos, k.id, CONTRATOS_POR_TAREFA), pessoas: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));
     }).catch(falha);
     if (processoInicial && comProcessos) SD.processoObter(processoInicial).then(p => {
       if (!p) return;
@@ -226,18 +232,24 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
 
-  // ---------- demanda e contrato ----------
-  const demandaEscolhida = demandas.find(d => d.id === c.demandaId);
-  const rotuloDemanda = demandaEscolhida ? rotuloDaDemanda(demandaEscolhida) : conhecidos[c.demandaId] ?? (alvo?.demanda_id === c.demandaId ? alvo?.demanda_codigo ?? '' : '');
+  // ---------- demandas e contratos (#283: mais de um de cada) ----------
+  // Como cada um aparece: pelo nome da busca, pelo que veio do cartão ou, na tarefa que já existe, pelo código gravado.
+  const codigoGravado = (lista: readonly { id: string; codigo: string }[] | undefined, id: string) => lista?.find(l => l.id === id)?.codigo ?? '';
+  const rotuloDemanda = (id: string) => {
+    const d = demandas.find(x => x.id === id);
+    return d ? rotuloDaDemanda(d) : conhecidos[id] ?? (codigoGravado(alvo ? ligadasDaTarefa(alvo) : [], id) || 'Demanda ligada');
+  };
+  const rotuloContrato = (id: string) => {
+    const k = contratos.find(x => x.id === id);
+    return k ? rotuloDoContrato(k) : conhecidos[id] ?? (codigoGravado(alvo ? ligadosDaTarefa(alvo) : [], id) || 'Contrato ligado');
+  };
   function digitarDemanda(texto: string) {
-    const d = demandas.find(x => rotuloDaDemanda(x) === texto);
+    const d = demandas.find(x => rotuloDaDemanda(x) === texto && !c.demandas.includes(x.id));
     if (d) { void ligarDemanda(d.id); setBuscaDemanda(''); } else setBuscaDemanda(texto);
   }
-  const contratoEscolhido = contratos.find(k => k.id === c.contratoId);
-  const rotuloContrato = contratoEscolhido ? rotuloDoContrato(contratoEscolhido) : conhecidos[c.contratoId] ?? (alvo?.contrato_id === c.contratoId ? alvo?.contrato_codigo ?? '' : '');
   function digitarContrato(texto: string) {
-    const k = contratos.find(x => rotuloDoContrato(x) === texto);
-    if (k) { mudar({ contratoId: k.id }); setBuscaContrato(''); } else setBuscaContrato(texto);
+    const k = contratos.find(x => rotuloDoContrato(x) === texto && !c.contratos.includes(x.id));
+    if (k) { mudar({ contratos: comMaisUm(c.contratos, k.id, CONTRATOS_POR_TAREFA) }); setBuscaContrato(''); } else setBuscaContrato(texto);
   }
 
   // ---------- envio ----------
@@ -259,7 +271,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (alvo) {
         // Para desfazer: a tarefa como estava, no mesmo formato que o cadastro grava.
         const antes = noLapis(dadosDaTarefa(camposDaTarefa(alvo)));
-        const eu = ctx.perfil.id, peloLigado = continuaPelaDemanda(alvo, dados.demanda_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
+        const eu = ctx.perfil.id, peloLigado = continuaPelaDemanda(alvo, dados.demanda_ids), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
         const { dados: gravar, ficou } = semSairDaTarefa(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
         await SD.tarefaAtualizar(alvo.id, gravar);
         if (ficou) {
@@ -346,21 +358,16 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       </CampoDeVarios>
     </>
   };
-  /** A demanda, o contrato e o processo da tarefa: opcionais, no fim da primeira etapa. */
+  /** As demandas, os contratos e o processo da tarefa: opcionais, no fim da primeira etapa. */
   function ligacoes() {
     return <>
-      {c.demandaId
-        ? <Escolhido rotulo="Demanda" texto={rotuloDemanda || 'Demanda ligada'} tirar="Tirar a demanda" aoTirar={tirarDemanda} />
-        : <Campo rotulo="Demanda" para="demanda" dica="Busque pelo código, pelo título ou pelo cliente. Deixe vazio se a tarefa é avulsa.">
-          <CampoComSugestoes id="demanda" aria-describedby="demanda-dica" placeholder="Buscar demanda…" valor={buscaDemanda} aoMudar={digitarDemanda}
-            sugestoes={demandas.map(d => ({ valor: rotuloDaDemanda(d) }))} />
-        </Campo>}
-      {c.contratoId
-        ? <Escolhido rotulo="Contrato" texto={rotuloContrato || 'Contrato ligado'} tirar="Tirar o contrato" aoTirar={() => mudar({ contratoId: '' })} />
-        : <Campo rotulo="Contrato" para="contrato" dica="Busque pelo número, pelo cliente ou pelo objeto. Deixe vazio se a tarefa não vem de um contrato.">
-          <CampoComSugestoes id="contrato" aria-describedby="contrato-dica" placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}
-            sugestoes={contratos.map(k => ({ valor: rotuloDoContrato(k) }))} />
-        </Campo>}
+      <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.demandas} escolhidos={c.demandas.map(id => ({ id, texto: rotuloDemanda(id) }))} erro={erros.demandas}
+        aoTirar={tirarDemanda} busca={<CampoComSugestoes id="demanda" aria-describedby="demanda-dica" placeholder="Buscar demanda…" valor={buscaDemanda}
+          aoMudar={digitarDemanda} sugestoes={demandas.filter(d => !c.demandas.includes(d.id)).map(d => ({ valor: rotuloDaDemanda(d) }))} />} />
+      <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.contratos} escolhidos={c.contratos.map(id => ({ id, texto: rotuloContrato(id) }))} erro={erros.contratos}
+        aoTirar={id => mudar({ contratos: c.contratos.filter(x => x !== id) })} busca={<CampoComSugestoes id="contrato" aria-describedby="contrato-dica"
+          placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}
+          sugestoes={contratos.filter(k => !c.contratos.includes(k.id)).map(k => ({ valor: rotuloDoContrato(k) }))} />} />
       {/* O processo que a pessoa não pode abrir fica como está: só contado, sem o "X". */}
       {comProcessos && <EscolhaDeProcessos rotulo="Processo" dica="O processo de que a tarefa cuida. Busque pelo número, pelo nome ou pelo cliente." maximo={1}
         escolhidos={processo ? [processo] : []} ocultos={c.processoId && !processo ? 1 : 0}
@@ -414,13 +421,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   </div>;
 }
 
-/** A demanda ou o contrato já escolhido, com o botão de tirar. */
-function Escolhido({ rotulo, texto, tirar, aoTirar }: { rotulo: string; texto: string; tirar: string; aoTirar: () => void }) {
-  return <div className="pergunta">
-    <span className="rot">{rotulo}</span>
-    <div className="demanda-contrato-escolhido">
-      <span>{texto}</span>
-      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={aoTirar}>{tirar}</button>
-    </div>
-  </div>;
-}
+/** Os textos das demandas e dos contratos da tarefa no cadastro (#283: o "+" liga mais um). */
+const LIGADOS_NO_CADASTRO: Record<'demandas' | 'contratos', TextosDosLigados> = {
+  demandas: { rotulo: 'Demanda', maisUm: 'Mais uma demanda', adicionar: 'Adicionar demanda', tirar: 'Tirar a demanda', id: 'demanda', maximo: DEMANDAS_POR_TAREFA,
+    dica: 'Busque pelo código, pelo título ou pelo cliente. Deixe vazio se a tarefa é avulsa.' },
+  contratos: { rotulo: 'Contrato', maisUm: 'Mais um contrato', adicionar: 'Adicionar contrato', tirar: 'Tirar o contrato', id: 'contrato', maximo: CONTRATOS_POR_TAREFA,
+    dica: 'Busque pelo número, pelo cliente ou pelo objeto. Deixe vazio se a tarefa não vem de um contrato.' }
+};

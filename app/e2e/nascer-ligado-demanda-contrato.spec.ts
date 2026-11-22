@@ -96,9 +96,9 @@ test.describe('Criar no cartão a demanda ou o contrato já ligados (#376)', () 
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
     await expect(tituloDaSecao(cartao, 'Demanda')).toHaveText(/1$/);
     await expect(cartao.getByRole('link', { name: /Regularizar a representação/ })).toBeVisible();
-    // Então: com a demanda dela, a tarefa não cria nem liga outra
-    await expect(cartao.getByRole('link', { name: 'Nova demanda desta tarefa' })).toHaveCount(0);
-    await expect(cartao.getByRole('button', { name: 'Ligar demanda existente' })).toHaveCount(0);
+    // Então: com a demanda dela, a tarefa ainda cria ou liga mais uma (#283)
+    await expect(cartao.getByRole('link', { name: 'Nova demanda desta tarefa' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Ligar mais uma demanda' })).toBeVisible();
   });
 
   test('dado o cartão de um processo, quando clica em "+ Nova demanda" e cria, então a demanda nasce com os clientes dele e volta ao processo, com ela na seção', async ({ page }) => {
@@ -190,17 +190,19 @@ test.describe('Criar no cartão a demanda ou o contrato já ligados (#376)', () 
 });
 
 test.describe('O item que não fica ligado à origem abre o cartão dele, e não o da origem (#376)', () => {
-  test('dada uma tarefa que já está em outra demanda, quando cria a demanda por ela, então avisa que não ligou e vai ao cartão da demanda nova', async ({ page }) => {
-    // Dado: "Pedir documentos ao cliente" já é da demanda "Registro de marca" (como se outra aba a tivesse ligado depois de abrir o cadastro)
+  test('dada uma tarefa que já está em outra demanda, quando cria a demanda por ela, então ela fica nas duas (#283) e volta ao cartão da tarefa', async ({ page }) => {
+    // Dado: "Pedir documentos ao cliente" já é da demanda "Registro de marca"
     const id = await idDe(page, 'tarefas', 'titulo', 'Pedir documentos ao cliente');
     await page.goto('/demandas/nova/?tarefa=' + id);
     await expect(page.getByText(/Esta demanda nasce da tarefa \w+ \(Pedir documentos ao cliente\)/)).toBeVisible();
     // Quando: aberto pelo endereço, o cadastro ocupa a página
     await salvarDemanda(page, 'Conferir os documentos', page);
     // Então
-    await expect(page.getByText(/Não foi possível ligar a tarefa \w+ à demanda nova/)).toBeVisible();
-    await expect(page).toHaveURL(/\/demandas\/\?id=/);
-    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Conferir os documentos', level: 2 })).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/tarefas/\\?id=${id}$`));
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Pedir documentos ao cliente', level: 2 })).toBeVisible();
+    await expect(tituloDaSecao(cartao, 'Demanda')).toHaveText(/2$/);
+    await expect(page.getByText(/Não foi possível ligar a tarefa/)).toHaveCount(0);
   });
 
   test('dado o "+ Nova demanda" de um processo, quando a pessoa tira o processo no cadastro e salva, então vai ao cartão da demanda nova', async ({ page }) => {
