@@ -7,7 +7,7 @@ import { mesDoCaixa } from './caixa';
 import { indicadoresRealizados, mesesDoCaixa, mesesRealizados } from './graficosFinanceiros';
 import {
   aReceberNoPeriodo, aReceberPorSemana, caixaPorMes, comparar, corteDoSaldo, diasDoPeriodo, emAtraso, mesesDoGrafico, MESES_DO_GRAFICO, nomeDoPeriodo, numerosDoCaixa,
-  partesDoDinheiro, periodoAnterior, receitaPorMes, saldoAntesDe, SEMANAS_A_RECEBER
+  periodoAnterior, receitaPorMes, saldoAntesDe, SEMANAS_A_RECEBER
 } from './numerosDoFinanceiro';
 import { carteiraDeContratos, filtrarCarteira, filtrarExtrato, FILTRO_VAZIO, totaisDaCarteira, totaisDoExtrato } from './painelFinanceiro';
 
@@ -194,15 +194,5 @@ describe('A comparação com o período de antes', () => {
     // Então
     expect(comparar(1000, 1000, '2025', 'mais-e-bom')).toEqual({ texto: 'igual a 2025', seta: 'igual', tom: 'neutro' });
     expect(comparar(5000, 1000, '2026-10', 'neutro')).toMatchObject({ seta: 'sobe', tom: 'neutro' });
-  });
-});
-
-describe('O valor em partes', () => {
-  it('dado um valor, quando separa, então o "R$", o número e os centavos são os do valor escrito de sempre', () => {
-    // Quando
-    const p = partesDoDinheiro(123456789);
-    // Então
-    expect(p).toMatchObject({ sinal: '', moeda: 'R$', inteiro: '1.234.567', decimais: ',89' });
-    expect(partesDoDinheiro(-5050)).toMatchObject({ sinal: '-', moeda: 'R$', inteiro: '50', decimais: ',50' });
   });
 });

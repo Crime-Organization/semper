@@ -546,14 +546,15 @@ test.describe('O painel do Financeiro', () => {
    * O caixa e as parcelas de exemplo: a conta PJ com R$ 1.000,00 no começo do ano; em outubro, R$ 3.000,00 de entrada e R$ 1.000,00 de
    * saída; em novembro, R$ 5.000,00 de entrada, R$ 2.000,00 de saída e um ajuste de R$ 100,00 a mais (que muda o saldo, mas não é
    * receita). Num contrato da Ana, uma parcela de R$ 400,00 recebida em novembro, uma de R$ 800,00 vencida em 05/11 e uma de
-   * R$ 1.200,00 que vence em 25/11.
+   * R$ 1.200,00 que vence em 25/11. "dono" troca de quem é o contrato; "logado", quem abre o Financeiro (o Mauro, administrador, se não vier).
    */
-  async function painelDeExemplo(page: Page) {
+  async function painelDeExemplo(page: Page, { dono = 'u-ana', logado }: { dono?: string; logado?: string } = {}) {
     await page.clock.setFixedTime(HOJE);
     await page.goto('/inicio/');
-    await page.evaluate(() => {
+    await page.evaluate(({ dono, logado }) => {
       const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
-      const contrato = bd.contratos.find((k: { responsavel_id: string; arquivado_em: string | null }) => k.responsavel_id === 'u-ana' && !k.arquivado_em);
+      const contrato = bd.contratos.find((k: { responsavel_id: string; arquivado_em: string | null }) => k.responsavel_id === dono && !k.arquivado_em);
+      if (logado) bd.logadoComo = logado;
       bd.contasFinanceiras = [{ id: 'c-pj', nome: 'PJ', tem_das: false, saldo_inicial: 100000, saldo_inicial_em: '2026-01-01', arquivada_em: null }];
       let n = 0;
       const lancamento = (data: string, tipo: string, categoria: string, valor: number, descricao: string) => ({
@@ -570,7 +571,7 @@ test.describe('O painel do Financeiro', () => {
       bd.parcelas = [parcela(1, '2026-11-03', 40000, true), parcela(2, '2026-11-05', 80000, false), parcela(3, '2026-11-25', 120000, false)];
       bd.recebimentos = [];
       sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
-    });
+    }, { dono, logado });
     await page.goto('/financeiro/');
     return page.getByRole('group', { name: 'Números de Nov/2026' });
   }
@@ -680,6 +681,44 @@ test.describe('O painel do Financeiro', () => {
     for (const numero of await page.getByRole('group', { name: 'Números de Nov/2026' }).getByRole('link').all()) {
       expect(await numero.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     }
+  });
+
+  test('quando abre, então a receita por área do mês mostra o objeto do contrato que recebeu, e um mês sem receita fica sem barras', async ({ page }) => {
+    // Dado
+    await painelDeExemplo(page);
+    const objeto = await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      const parcela = bd.parcelas.find((p: { id: string }) => p.id === 'px1');
+      return bd.contratos.find((k: { id: string }) => k.id === parcela.contrato_id).objetos[0] as string;
+    });
+    const area = page.getByRole('region', { name: 'Receita por área · Nov/2026' });
+    // Quando
+    await area.getByText('Ver os números').click();
+    // Então: só o que entrou (a parcela recebida de R$ 400,00), nada do que falta receber
+    await expect(area.getByRole('table').getByRole('row', { name: new RegExp(objeto) })).toContainText(dinheiro('400,00'));
+    await expect(area).not.toContainText('1.200,00');
+    // Quando
+    await page.getByRole('group', { name: 'Mês' }).getByRole('button', { name: 'Set' }).click();
+    // Então
+    await expect(page.getByRole('region', { name: 'Receita por área · Set/2026' })).toContainText('Nenhuma receita neste período.');
+  });
+
+  test('dado quem não é administrador com um contrato, quando abre, então vê a receita, o que falta receber e o atraso só dele, sem nada do caixa', async ({ page }) => {
+    // Quando: o contrato com as parcelas é do Bruno, e é ele quem abre
+    const numeros = await painelDeExemplo(page, { dono: 'u-bruno', logado: 'u-bruno' });
+    // Então
+    await expect(page.getByText('Os contratos de que você é responsável.')).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /^Receita bruta · Nov\/2026/ })).toContainText(dinheiro('400,00'));
+    await expect(numeros.getByRole('link', { name: /^A receber · Nov\/2026/ })).toContainText(dinheiro('2.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Em atraso hoje/ })).toContainText(dinheiro('800,00'));
+    // Então: nada do caixa (entradas e saídas das contas, resultado, saldo), nem a escolha de quem
+    await expect(numeros.getByRole('link', { name: /^(Entradas|Saídas|Saldo nas contas)/ })).toHaveCount(0);
+    await expect(numeros.getByRole('region', { name: /^Resultado/ })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: /^Entradas e saídas/ })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Receita bruta e líquida · 12 meses' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'De quem' })).toHaveCount(0);
+    await expect(page.getByText('Consultoria de novembro')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Saídas', exact: true })).toHaveCount(0);
   });
 
   test('quando quem não é administrador abre, então vê só os contratos de que é responsável, sem o caixa', async ({ page }) => {

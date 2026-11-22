@@ -5,7 +5,7 @@
 // O desenho vem do estilo.css (seção "painéis") e está descrito no DESIGN.md ("Painéis").
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { partesDoDinheiro } from '../../regras/numerosDoFinanceiro';
+import { partesDoDinheiro } from '../../regras/caixa';
 import { BotaoLink, Contador, Nota, TituloSecao } from '../base';
 import { Icone, type NomeIcone } from '../Icone';
 

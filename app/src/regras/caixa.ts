@@ -11,6 +11,12 @@ import { somarDias } from './prazos';
 export const paraCentavos = (reais: number) => Math.round(reais * 100);
 export const fmtCentavos = (centavos: number) => fmtDinheiro(centavos / 100);
 export const centavosNoCampo = (centavos: number) => dinheiroNoCampo(centavos / 100);
+/** O valor em reais em partes, para o número grande do painel mostrar o "R$" e os centavos menores: "-", "R$", "1.234", ",56". */
+export function partesDoDinheiro(centavos: number) {
+  const texto = fmtCentavos(centavos);
+  const [, sinal = '', moeda = '', inteiro = texto, decimais = ''] = /^(-?)(R\$)\s*([\d.]+)(,\d+)$/u.exec(texto.replace(/\s/gu, ' ')) ?? [];
+  return { sinal, moeda, inteiro, decimais, texto };
+}
 
 /** Cada categoria: o nome e o tipo a que serve. A transferência é à parte: tem uma ponta de cada tipo, e o sistema a cria. */
 export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>, { nome: string; tipo: TipoDeLancamento }> = {

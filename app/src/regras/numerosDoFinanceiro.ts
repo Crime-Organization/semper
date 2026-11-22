@@ -142,13 +142,6 @@ export function comparar(atual: number, anterior: number, periodoDeAntes: string
   return { texto: `${diferenca(Math.abs(atual - anterior))} a ${seta === 'sobe' ? 'mais' : 'menos'} que em ${quando}`, seta, tom: TOM_DA_VARIACAO[sentido][seta] };
 }
 
-/** O valor em reais em partes, para o número grande do painel mostrar o "R$" e os centavos menores: "-", "R$", "1.234", ",56". */
-export function partesDoDinheiro(centavos: number) {
-  const texto = fmtCentavos(centavos);
-  const [, sinal = '', moeda = '', inteiro = texto, decimais = ''] = /^(-?)(R\$)\s*([\d.]+)(,\d+)$/u.exec(texto.replace(/\s/gu, ' ')) ?? [];
-  return { sinal, moeda, inteiro, decimais, texto };
-}
-
 /** Os números do alto, de um período: o caixa do escritório todo. */
 export function numerosDoCaixa(lancamentos: Lancamento[], periodo: string) {
   return totaisDoExtrato(lancamentos.filter(l => l.data.startsWith(periodo)));
