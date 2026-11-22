@@ -15,9 +15,10 @@ async function abrirModulo(page: Page, modulo: Modulo, visao: 'Kanban' | 'Tabela
   await page.goto(`/${modulo}/`);
   await page.getByRole('button', { name: visao }).click();
 }
-/** A miniatura do item na coluna do quadro. */
+/** A miniatura do item na coluna do quadro, pelo título inteiro: o texto da miniatura junta o título e o código, e só um pedaço
+ *  ("Fictícia longa 30") também acharia outra ("Fictícia longa 3" com um código que começa por 0). */
 const miniatura = (page: Page, coluna: string, titulo: string) =>
-  page.getByRole('list', { name: coluna, exact: true }).getByRole('listitem').filter({ hasText: titulo });
+  page.getByRole('list', { name: coluna, exact: true }).getByRole('listitem').filter({ has: page.getByText(titulo, { exact: true }) });
 /** O círculo de concluir (ou de reabrir) do item, dentro de um lugar (a miniatura ou a linha). */
 const circulo = (lugar: ReturnType<Page['getByRole']>, acao: 'Concluir' | 'Reabrir', titulo: string) =>
   lugar.getByRole('button', { name: `${acao} ${titulo}`, exact: true });
