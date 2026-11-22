@@ -181,8 +181,8 @@ export default function PainelProcessos() {
 
       {incompleto && <div className="painel-cartao inteira"><Nota>Algumas listas da equipe passam de {ITENS_POR_LISTA} itens: as de {nomeDaPessoa} podem não estar completas.</Nota></div>}
 
-      <CartaoDoPainel titulo="Prazos" id={LISTA.prazos} largura="metade">
-        {!grupos.length && <Nota>Nenhum prazo vencido nem para os próximos dias.</Nota>}
+      <CartaoDoPainel titulo="Prazos" id={LISTA.prazos} largura="metade" contador={contagem(painel.total_vencidos + painel.total_a_vencer)}>
+        {!grupos.length && <Vazio>Nenhum prazo vencido nem para os próximos dias.</Vazio>}
         {grupos.map(g => <section key={g.titulo} aria-label={g.titulo}>
           <h3 className="painel-grupo">{g.destaque ? <Selo tipo="erro">{g.titulo}</Selo> : <Selo tipo="pend">{g.titulo}</Selo>}</h3>
           <ItensLigados itens={g.prazos.map(z => ({
@@ -194,13 +194,13 @@ export default function PainelProcessos() {
         <MaisDoQueCabe total={painel.total_a_vencer} de=" a vencer" />
       </CartaoDoPainel>
 
-      <CartaoDoPainel titulo="Audiências e perícias" id={LISTA.marcados} largura="metade">
-        <ItensLigados vazio="Nenhuma audiência ou perícia marcada para os próximos dias." itens={painel.marcados.map(andamentoLigado)} />
+      <CartaoDoPainel titulo="Audiências e perícias" id={LISTA.marcados} largura="metade" contador={contagem(painel.total_marcados)}>
+        <ListaDoPainel vazio="Nenhuma audiência ou perícia marcada para os próximos dias." itens={painel.marcados.map(andamentoLigado)} />
         <MaisDoQueCabe total={painel.total_marcados} />
       </CartaoDoPainel>
 
-      <CartaoDoPainel titulo="Intimações a tratar" id={LISTA.intimacoes} largura="metade">
-        <ItensLigados vazio="Nenhuma intimação a tratar." itens={painel.intimacoes.map(a => ({
+      <CartaoDoPainel titulo="Intimações a tratar" id={LISTA.intimacoes} largura="metade" contador={contagem(painel.total_intimacoes)}>
+        <ListaDoPainel vazio="Nenhuma intimação a tratar." itens={painel.intimacoes.map(a => ({
           ...andamentoLigado(a),
           acao: ctx.escritorio?.modulos?.tarefas && <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`Criar tarefa da intimação: ${a.texto.slice(0, 60)}`} onClick={() => criarTarefa(a)}>Criar tarefa</Botao>
         }))} />
@@ -208,11 +208,11 @@ export default function PainelProcessos() {
       </CartaoDoPainel>
 
       <CartaoDoPainel titulo="Últimos andamentos" largura="metade">
-        <ItensLigados vazio="Nenhum andamento lançado." itens={painel.ultimos.slice(0, ULTIMOS_ANDAMENTOS).map(andamentoLigado)} />
+        <ListaDoPainel vazio="Nenhum andamento lançado." itens={painel.ultimos.slice(0, ULTIMOS_ANDAMENTOS).map(andamentoLigado)} />
       </CartaoDoPainel>
 
-      <CartaoDoPainel titulo="Processos parados" id={LISTA.parados} nota={`Sem andamento há mais de ${painel.dias_parado} dias. É hora de consultar a movimentação.`}>
-        <ItensLigados vazio="Nenhum processo parado." itens={painel.parados.map(x => ({
+      <CartaoDoPainel titulo="Processos parados" id={LISTA.parados} contador={contagem(painel.total_parados)} nota={`Sem andamento há mais de ${painel.dias_parado} dias. É hora de consultar a movimentação.`}>
+        <ListaDoPainel vazio="Nenhum processo parado." itens={painel.parados.map(x => ({
           id: x.processo.id, para: enderecoDoProcesso(x.processo), codigo: `${x.dias} dias sem andamento · desde ${fmtData(x.ultimo)}`, titulo: linhaDoProcesso(x.processo), detalhe: responsavel(x.processo)
         }))} />
         <MaisDoQueCabe total={painel.total_parados} />
@@ -220,6 +220,11 @@ export default function PainelProcessos() {
       </CartaoDoPainel>
     </Painel>
   </div>;
+}
+
+/** Uma lista do painel: os itens, ou, sem nenhum, o vazio pontilhado, como as listas do Início. */
+function ListaDoPainel({ itens, vazio }: { itens: ItemLigado[]; vazio: string }) {
+  return itens.length ? <ItensLigados itens={itens} /> : <Vazio>{vazio}</Vazio>;
 }
 
 /** Quantos dias sem andamento fazem o processo aparecer como parado: o administrador muda para o escritório todo. */

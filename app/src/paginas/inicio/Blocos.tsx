@@ -17,10 +17,10 @@ import {
 import { fmtData } from '../../regras/pessoa';
 import { TIPOS_PROCESSO } from '../../regras/processo';
 import { SEM_SITUACAO_TAREFA } from '../../regras/tarefa';
-import { Aviso, BotaoLink, Carregando, ListaDeNumeros, Nota, Selo, Vazio } from '../../ui/base';
+import { Aviso, Carregando, ListaDeNumeros, Nota, Selo, Vazio } from '../../ui/base';
 import { BarrasDeitadas } from '../../ui/Graficos';
 import { ItensLigados, type ItemLigado } from '../../ui/ItensLigados';
-import { CartaoDoPainel } from '../../ui/painel/Painel';
+import { CartaoDoPainel, VerTodos } from '../../ui/painel/Painel';
 import { numero, relativo } from '../../ui/util';
 import type { FontesDoPainel, ResultadoDoBloco } from './fontes';
 
@@ -68,7 +68,7 @@ function Bloco<T>({ bloco, modulos, alcance, largura, carregar, contar, vazio, t
   };
   return <CartaoDoPainel titulo={BLOCOS_DO_PAINEL[bloco].titulo} id={LUGAR_DO_BLOCO[bloco]} largura={largura} ocupado={leitura.estado === 'carregando'}
     contador={pronto === null ? undefined : contar(pronto)}
-    acao={verTodos && <BotaoLink forma="link" className="painel-ver-todos" to={verTodos.para}>{verTodos.rotulo}</BotaoLink>}>
+    acao={verTodos && <VerTodos para={verTodos.para}>{verTodos.rotulo}</VerTodos>}>
     {(CORPO[leitura.estado] as (l: Leitura<T>) => ReactNode)(leitura)}
   </CartaoDoPainel>;
 }

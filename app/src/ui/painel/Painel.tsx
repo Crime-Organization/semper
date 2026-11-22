@@ -6,7 +6,7 @@
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { partesDoDinheiro } from '../../regras/numerosDoFinanceiro';
-import { Contador, Nota, TituloSecao } from '../base';
+import { BotaoLink, Contador, Nota, TituloSecao } from '../base';
 import { Icone, type NomeIcone } from '../Icone';
 
 /** O título do painel, com o ponto verde, a frase de quem é o trabalho e, à direita, o filtro (só para o administrador). */
@@ -95,6 +95,14 @@ export function Painel({ children }: { children: ReactNode }) {
 
 /** Quanto da linha o cartão ocupa no computador (no celular, sempre a linha inteira). */
 export type LarguraDoCartao = 'inteira' | 'metade' | 'terco' | 'dois-tercos';
+
+/**
+ * O link à direita do título do cartão ("Ver todos", "Ver a agenda", "Ver em Direitos"), que leva à página com a lista inteira: o
+ * mesmo desenho em todos os painéis. Vai no "acao" do CartaoDoPainel.
+ */
+export function VerTodos({ para, children }: { para: string; children: ReactNode }) {
+  return <BotaoLink forma="link" className="painel-ver-todos" to={para}>{children}</BotaoLink>;
+}
 
 /**
  * Um cartão do painel: o título (um h2, que dá nome à região), uma nota opcional embaixo dele, um link ou botão à direita do título

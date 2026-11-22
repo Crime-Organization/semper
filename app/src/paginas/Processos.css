@@ -4,4 +4,4 @@
 /* Painel de Processos (o resto vem da seção "painéis" do estilo.css) */
 .painel-grupo { margin: 0 0 8px; font-size: inherit }
 .painel-dias { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px }
-.painel-dias .pergunta { margin: 0; flex: 1 1 240px }
+.painel-dias .pergunta { margin: 0; flex: 0 1 var(--campo-curto-do-painel) }

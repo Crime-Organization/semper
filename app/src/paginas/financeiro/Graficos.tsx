@@ -16,9 +16,9 @@ import {
   saldoAntesDe, SEMANAS_A_RECEBER, type MesDaReceita, type MesDoCaixaNoGrafico, type SemanaAReceber, type SentidoDoNumero
 } from '../../regras/numerosDoFinanceiro';
 import { somarDias } from '../../regras/prazos';
-import { BotaoLink, Indicador, Indicadores, Nota } from '../../ui/base';
+import { Indicador, Indicadores, Nota, Vazio } from '../../ui/base';
 import { BarrasEmpilhadas, BarrasPorMes, type Serie } from '../../ui/Graficos';
-import { CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel, ValorEmReais } from '../../ui/painel/Painel';
+import { CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel, ValorEmReais, VerTodos } from '../../ui/painel/Painel';
 
 /** O caixa lido: as contas, os lançamentos dos dois anos e o saldo de cada conta ativa no começo deles ("base") e hoje. */
 export interface CaixaDoPainel {
@@ -131,7 +131,7 @@ export function PainelDoFinanceiro({ dados, periodo, hoje, quem, nomeDeQuem }: {
 
       <CartaoDoPainel titulo="A receber nas próximas semanas" id={LUGAR_DO_A_RECEBER} largura="terco"
         nota={`As parcelas em aberto de cada uma das próximas ${SEMANAS_A_RECEBER} semanas, a partir de hoje, e as já atrasadas.`}
-        acao={<BotaoLink forma="link" to="/financeiro/direitos/">Ver em Direitos</BotaoLink>}>
+        acao={<VerTodos para="/financeiro/direitos/">Ver em Direitos</VerTodos>}>
         <BarrasPorMes<SemanaAReceber> rotulo={`O que falta receber: as parcelas atrasadas e as de cada uma das próximas ${SEMANAS_A_RECEBER} semanas`} itens={semanas} series={[A_RECEBER]}
           valor={s => s.valor} formatar={fmtCentavos} formatarCurto={fmtCompacto} corDoItem={s => s.atrasadas && s.valor ? 'var(--grafico-vencido)' : undefined} tabelaVisivel />
       </CartaoDoPainel>
@@ -140,7 +140,7 @@ export function PainelDoFinanceiro({ dados, periodo, hoje, quem, nomeDeQuem }: {
         nota="Cada área é um objeto/demanda dos contratos. Num contrato com mais de um, o valor se divide igualmente entre eles; a barra inteira é a receita bruta.">
         {grupos.length
           ? <BarrasEmpilhadas rotulo={`Receita por área em ${nome}`} series={[LIQUIDA_NA_BARRA, RESTO_DA_BRUTA]} formatar={fmtCentavos} grupos={grupos} tabelaVisivel />
-          : <Nota>Nenhuma receita neste período.</Nota>}
+          : <Vazio>Nenhuma receita neste período.</Vazio>}
       </CartaoDoPainel>
 
       <CartaoDoPainel titulo={`Desempenho · ${nome}`} largura="metade" nota="Só o que já entrou: as parcelas recebidas e a divisão de cada recebimento.">

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { FiltroDoPainel } from './FiltroDoPainel';
-import { CabecaDoPainel, CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel, ValorEmReais } from './Painel';
+import { CabecaDoPainel, CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel, ValorEmReais, VerTodos } from './Painel';
 
 const comRotas = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -93,6 +93,17 @@ describe('Cartões do painel', () => {
     const cartao = screen.getByRole('region', { name: 'Ritmo' });
     expect(within(cartao).queryByTitle('Quantos há')).not.toBeInTheDocument();
     expect(cartao).not.toHaveAttribute('aria-busy');
+  });
+});
+
+describe('O "Ver todos" do cartão', () => {
+  it('dado um cartão de lista com o "Ver todos", quando aparece, então o link fica na cabeça do cartão, ao lado do título, e leva à página da lista', () => {
+    // Quando
+    comRotas(<CartaoDoPainel titulo="Tarefas em andamento" contador="2" acao={<VerTodos para="/tarefas/?pessoa=eu">Ver todas</VerTodos>}><p>Lista</p></CartaoDoPainel>);
+    // Então
+    const cartao = screen.getByRole('region', { name: 'Tarefas em andamento' });
+    expect(within(cartao).getByRole('link', { name: 'Ver todas' })).toHaveAttribute('href', '/tarefas/?pessoa=eu');
+    expect(within(cartao).getByTitle('Quantos há')).toHaveTextContent('2');
   });
 });
 

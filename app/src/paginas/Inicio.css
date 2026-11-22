@@ -1,16 +1,16 @@
 /* Início: o painel de quem trabalha no escritório (#319, #402; paginas/Inicio.tsx e paginas/inicio/). O desenho vem da seção "painéis"
    do estilo.css, como o painel de Processos; aqui fica só o que é do Início: a busca geral no alto, os grupos dos prazos e o vazio. */
 
-/* No alto, à direita do título, a busca geral e, para o administrador, o filtro; no estreito, eles descem e a busca ocupa a linha. */
-.painel-inicio .painel-topo { align-items: center }
+/* No alto, à direita do título, a busca geral e, para o administrador, o filtro, na linha de baixo do título, como nos outros
+   painéis; no estreito, eles descem, a busca ocupa a linha e o filtro fica à esquerda, como o de Processos e o do Financeiro. */
 .painel-inicio .painel-topo-filtro { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 20px; flex: 1 1 320px; min-width: 0 }
 .painel-inicio .painel-topo-filtro .busca-do-painel { flex: 1 1 240px; width: auto; min-width: 0 }
+@container (max-width: 640px) { .painel-inicio .painel-topo-filtro { justify-content: flex-start } }
 
 /* Os grupos dos prazos e das parcelas (em atraso, hoje, próximos dias): um embaixo do outro; no cartão largo, lado a lado. */
 .painel-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 20px; align-items: start }
 .painel-grupos > section { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
 .painel-inicio .painel-grupo { margin: 0; font-size: inherit }
-.painel-inicio .painel-cartao .vazio { padding: 16px; font-size: var(--texto-tabela) }
 
 /* O painel sem nada: os primeiros passos, o principal antes. */
 .painel-vazio-acoes { display: flex; flex-wrap: wrap; gap: 8px }

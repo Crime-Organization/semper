@@ -27,6 +27,8 @@
   --grafico-principal: var(--grafico-entrada); --grafico-vencido: #C43B5C;
   /* Painéis (#401): a largura máxima, o tamanho dos números do alto (no computador e no celular) e o vão entre as partes */
   --largura-do-painel: 1200px; --numero-do-painel: 40px; --numero-do-painel-estreito: 30px; --vao-do-painel: 16px;
+  /* Um campo curto dentro de um cartão do painel (um número de dias), que não estica pela linha inteira do cartão largo */
+  --campo-curto-do-painel: 320px;
   /* O valor em reais no número do painel (#403): o "R$" e os centavos menores que o número, e o teto do número pela largura do cartão
      (assim "R$ 1.234.567,89" cabe nos dois números lado a lado do celular) */
   --parte-menor-do-valor: .5em; --valor-pela-largura: 16cqi;
@@ -272,7 +274,7 @@
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
     --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
     --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
-    --grafico-vencido: #D35A8C;
+    --grafico-vencido: #D65C9A;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
     --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
@@ -287,7 +289,7 @@
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
   --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
   --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
-  --grafico-vencido: #D35A8C;
+  --grafico-vencido: #D65C9A;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
   --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
@@ -1715,14 +1717,15 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .grafico-alvo { fill: transparent }
 .grafico-rotulo { fill: var(--text); font-size: 12px; font-weight: 700; font-family: var(--font); font-variant-numeric: tabular-nums }
 .grafico-empilhadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
-.grafico-empilhadas li { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 13px }
-.grafico-empilhada-nome { color: var(--text); overflow-wrap: anywhere; display: flex; flex-direction: column }
-.grafico-empilhada-nome small { color: var(--muted) }
-.grafico-empilhada-trilho { min-width: 0 }
-/* Entre as partes, 2px da cor do fundo, para cada uma se ver separada. */
-.grafico-empilhada-barra { display: flex; gap: 2px; height: 14px; min-width: 4px }
-.grafico-empilhada-parte { min-width: 2px; border-radius: 3px }
-.grafico-empilhada-total { color: var(--ink); font-weight: 700; white-space: nowrap }
+/* As empilhadas têm o desenho das deitadas (abaixo): as mesmas colunas, o trilho fino e redondo e o número em 900. */
+.grafico-empilhadas li { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr) auto; align-items: center; gap: 12px; font-size: var(--texto-tabela) }
+.grafico-empilhada-nome { color: var(--text); overflow-wrap: anywhere; line-height: 1.3; display: flex; flex-direction: column }
+.grafico-empilhada-nome small { color: var(--muted); font-size: var(--texto-miudo) }
+.grafico-empilhada-trilho { min-width: 0; height: 8px; border-radius: 999px; background: var(--line) }
+/* Entre as partes, 2px da cor do fundo, para cada uma se ver separada; as pontas da barra inteira, redondas. */
+.grafico-empilhada-barra { display: flex; gap: 2px; height: 100%; min-width: 4px; border-radius: 999px; overflow: hidden; background: var(--superficie) }
+.grafico-empilhada-parte { min-width: 2px }
+.grafico-empilhada-total { color: var(--ink); font-weight: 900; white-space: nowrap }
 @container (max-width: 420px) { .grafico-empilhadas li { grid-template-columns: 1fr auto; } .grafico-empilhada-trilho { grid-column: 1 / -1; grid-row: 2 } }
 
 /* A dica do gráfico (ui/Graficos.tsx): o número em destaque, a série com o traço da cor dela. Encosta na borda perto dela. */
@@ -1811,7 +1814,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
   .painel-cartao.terco { grid-column: span 2 }
   .painel-cartao.dois-tercos { grid-column: span 4 }
 }
-.painel-cartao-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px }
+.painel-cartao-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px;
+  /* A altura da linha do título (19px na entrelinha 1,5 do corpo): a cabeça de todos os cartões tem essa altura, com ou sem ação. */
+  --altura-do-titulo-do-cartao: calc(var(--texto-titulo-1) * 1.5) }
+/* Os segmentos (ex.: 7 dias / 30 dias do Ritmo) são mais altos que o título: sem crescer a cabeça, a nota do cartão fica na mesma
+   altura da nota do cartão ao lado. */
+.painel-cartao-cabeca > .segmentos { margin-block: calc((var(--altura-do-titulo-do-cartao) - var(--alvo-de-toque)) / 2) }
 .painel-cartao h2.secao { font-size: var(--texto-titulo-1) }
 /* O título com o número ao lado (quantos itens a lista tem) e, à direita, o "Ver todos" que leva à página do módulo (#402) */
 .painel-cartao-titulo { display: flex; align-items: center; gap: 8px; min-width: 0 }
@@ -1841,5 +1849,7 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .painel-cartao .indicador-valor { font-size: var(--texto-titulo-1); color: var(--ink) }
 /* Na dica do gráfico, o número que não vira barra (o resultado do mês) vem depois de um fio. */
 .grafico-dica-extra { margin-top: 4px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--texto-sobre-escuro) 20%, transparent) }
+/* A lista vazia de um cartão do painel: o pontilhado de sempre, mais justo, no tamanho do texto das listas. */
+.painel-cartao .vazio { padding: 16px; font-size: var(--texto-tabela) }
 .vazio .painel-vazio-titulo { margin: 0 0 6px; font-size: 17px; font-weight: 900; color: var(--ink) }
 .vazio p { margin: 0 0 16px }
