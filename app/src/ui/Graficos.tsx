@@ -4,6 +4,7 @@
 // "Ver os números"), para que nada dependa só da cor. As cores vêm das variáveis --grafico-* de estilo.css.
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router';
+import { topoDaEscala } from '../regras/escalaDosGraficos';
 
 /** "contorno": a cor da borda de uma série clara demais para o fundo (ex.: o que falta receber). */
 export interface Serie { chave: string; nome: string; cor: string; contorno?: string }
@@ -95,7 +96,8 @@ export function BarrasPorMes<T extends ItemDoGrafico>({ rotulo, itens, series, v
   const [ativo, setAtivo] = useState<number | null>(null);
   const idDaDica = useId();
   const maiorValor = Math.max(1, ...itens.flatMap(i => series.map(s => valor(i, s.chave))));
-  const maior = escalaInteira ? Math.ceil(maiorValor / LINHAS_DA_GRADE) * LINHAS_DA_GRADE : maiorValor;
+  // As linhas da grade em números redondos (inteiros, nas contagens), com o topo logo acima do maior valor.
+  const maior = topoDaEscala(maiorValor, LINHAS_DA_GRADE, escalaInteira);
   const marcas = Array.from({ length: LINHAS_DA_GRADE + 1 }, (_, i) => (maior / LINHAS_DA_GRADE) * i);
   const eixoY = Math.max(EIXO_Y_MINIMO, Math.ceil(Math.max(...marcas.map(v => formatarCurto(v).length)) * LARGURA_DA_LETRA) + AFASTAMENTO_DO_EIXO * 2);
   const topo = TOPO + (rotulos ? ESPACO_DO_ROTULO : 0);
