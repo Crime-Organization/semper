@@ -142,10 +142,13 @@ test.describe('Página pública', () => {
 
   for (const endereco of ['/?primeiro-acesso', '/?token_hash=abc&type=invite', '/#access_token=abc&type=invite']) {
     test(`quando alguém chega por um link do sistema (${endereco}), então vai direto para a entrada, com o link inteiro`, async ({ page }) => {
+      // Então (escutado antes de abrir: no banco fictício já há sessão, e a entrada segue logo para o Início, às vezes
+      // antes de a conferência do endereço olhar; escutando a troca de endereço, a passagem pela entrada não escapa)
+      const naEntrada = page.waitForURL(new RegExp('/entrar/' + endereco.slice(1).replace(/[?.*+^$()|[\]\\]/g, '\\$&') + '$'), { waitUntil: 'commit' });
       // Quando
       await page.goto(endereco);
       // Então
-      await expect(page).toHaveURL(new RegExp('/entrar/' + endereco.slice(1).replace(/[?.*+^$()|[\]\\]/g, '\\$&') + '$'));
+      await naEntrada;
     });
   }
 });

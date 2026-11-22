@@ -466,6 +466,9 @@ test.describe('A descrição no topo do cartão (#385)', () => {
   test('dado quem usa só o teclado, quando chega à descrição com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
     // Dado: o foco no último botão dos dados (as datas e o tempo), logo acima da descrição (#397; desde a #399, sem os botões rápidos)
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // O tempo da tarefa chega depois do cartão: enquanto ele carrega, o último botão é o do prazo e, quando chega, o "Ajustar meu tempo"
+    // entra entre o prazo e a descrição. Espera o tempo chegar, como quem olha o cartão pronto antes de teclar.
+    await expect(cartao.getByRole('group', { name: 'Tempo', exact: true }).getByRole('button', { name: 'Ajustar meu tempo' })).toBeVisible();
     await ultimoDosDados(cartao).focus();
     // Quando
     await page.keyboard.press('Tab');
