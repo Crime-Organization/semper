@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
+  nomeDaCategoria, paraCentavos, partesDoDinheiro, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
   CONTA_COM_LANCAMENTOS, CONTA_COM_REPASSES, CONTA_NAO_ARQUIVADA, motivoParaNaoExcluirConta, type FormDoLancamento } from './caixa';
 import { normal } from './texto';
 
@@ -371,5 +371,15 @@ describe('Excluir uma conta (#347)', () => {
   it('quando a arquivada só tem repasses ligados, então explica os repasses', () => {
     // Dado / Quando / Então
     expect(motivoParaNaoExcluirConta({ ...ARQUIVADA_VAZIA, temRepasses: true })).toBe(CONTA_COM_REPASSES);
+  });
+});
+
+describe('O valor em partes', () => {
+  it('dado um valor, quando separa, então o "R$", o número e os centavos são os do valor escrito de sempre', () => {
+    // Quando
+    const p = partesDoDinheiro(123456789);
+    // Então
+    expect(p).toMatchObject({ sinal: '', moeda: 'R$', inteiro: '1.234.567', decimais: ',89' });
+    expect(partesDoDinheiro(-5050)).toMatchObject({ sinal: '-', moeda: 'R$', inteiro: '50', decimais: ',50' });
   });
 });
