@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, ContatoParaConferir, MotivoParaConferir, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, Sala, OcupacaoDaSala, DadosSala, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -41,6 +41,7 @@ import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHi
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
+import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
 import { COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas } from '../regras/colunasPadrao';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
@@ -52,7 +53,7 @@ import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
-import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, ITENS_DO_COMPROMISSO, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
+import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, ITENS_DO_COMPROMISSO, PROCESSOS_PARA_LIGAR, TAMANHO_SALA, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
@@ -204,6 +205,8 @@ interface Banco {
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
   /** Tarefas, demandas e contratos ligados aos compromissos (compromisso_ligacoes no banco, #306). */
   compromissoLigacoes?: { compromisso_id: string; modulo: ModuloDoCompromisso; item_id: string; criado_em: string }[];
+  /** As salas do escritório (salas no banco, #308). */
+  salas?: Sala[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
   contasFinanceiras?: ContaFinanceira[];
@@ -587,6 +590,7 @@ if (!bd.colunas.some(c => c.modulo === 'compromissos')) {
 }
 bd.historicoCompromissos ??= [];
 bd.compromissoLigacoes ??= [];
+bd.salas ??= [];
 // Compromissos de exemplo: a audiência do processo de JOSÉ DA SILVA TESTE, amanhã, e a reunião de equipe de hoje, na Agenda geral.
 bd.compromissos ??= (() => {
   const coluna = bd.colunas.find(c => c.modulo === 'compromissos' && c.nome === 'Agendado')?.id ?? null;
@@ -1479,11 +1483,12 @@ const processoDoCompromisso = (c: CompromissoGuardado) => bd.processos!.find(p =
 const compromissoLista = (c: CompromissoGuardado): CompromissoLista => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, modalidade: c.modalidade, local: c.local, geral: c.geral, responsavel_id: c.responsavel_id,
   participantes: c.participantes, grupos: c.grupos ?? [], pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_codigo: c.processo_codigo, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero,
+  sala_id: c.sala_id ?? null,
   etapa_id: c.etapa_id, etapa_ordem: c.etapa_ordem, arquivado_em: c.arquivado_em, criado_por: c.criado_por, criado_em: c.criado_em, atualizado_em: c.atualizado_em
 });
 const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
-  return { ...c, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
+  return { ...c, sala_id: c.sala_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
@@ -1499,6 +1504,7 @@ function filtrarCompromissos(f: FiltroCompromissos = {}) {
   return bd.compromissos!.filter(c => vejoNoModulo('compromissos', c.id) && (f.situacao === 'arquivados' ? c.arquivado_em : !c.arquivado_em)
     && (!f.pessoa || c.responsavel_id === f.pessoa || c.participantes.includes(f.pessoa))
     && (!f.tipo || c.tipo === f.tipo)
+    && (!f.sala || c.sala_id === f.sala)
     && (!f.etiqueta || temEtiqueta('compromissos', c.id, f.etiqueta))
     && (!t || buscaCompromisso(c).includes(t)));
 }
@@ -1561,8 +1567,36 @@ function prepararCompromisso(dados: DadosCompromisso, atual?: CompromissoGuardad
   const invalido = !fica.data || (tipo.doProcesso && !fica.modalidade) || (!tipo.doProcesso && (!fica.titulo || !!fica.resultado)) || (tipo.exigeHora && !fica.hora)
     || (!!fica.hora_fim && (!fica.hora || fica.hora_fim <= fica.hora));
   if (invalido) throw new Error(FORMATO_INVALIDO);
+  conferirSalaNoFalso(fica, atual);
   return d;
 }
+// ---------- salas do escritório (como supabase/migrations/20261122132438_salas_do_escritorio.sql, #308) ----------
+/** Os compromissos ativos e não cancelados que ocupam a sala no dia, fora um, pela hora (como privado.ocupacoes_da_sala). */
+const ocupacoesNoFalso = (salaId: string, data: string, fora: string | null | undefined) => bd.compromissos!
+  .filter(c => c.sala_id === salaId && c.data === data && c.id !== fora && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id)))
+  .sort((a, b) => (a.hora ?? '').localeCompare(b.hora ?? '') || a.codigo.localeCompare(b.codigo));
+/** Como o gatilho conferir_sala: a sala existe, a escolhida agora está ativa, e está livre no horário (o arquivado e o cancelado não ocupam). */
+function conferirSalaNoFalso(fica: Pick<CompromissoGuardado, 'sala_id' | 'data' | 'hora' | 'hora_fim' | 'etapa_id' | 'arquivado_em'> & { id?: string }, atual?: Pick<CompromissoGuardado, 'id' | 'sala_id'>) {
+  if (!fica.sala_id) return;
+  const s = bd.salas!.find(x => x.id === fica.sala_id);
+  if (!s) throw new Error('Sala não encontrada neste escritório.');
+  if (!s.ativa && (!atual || atual.sala_id !== fica.sala_id)) throw new Error(`A sala ${s.nome} está desativada. Escolha outra sala.`);
+  if (fica.arquivado_em || colunaCancelada(nomeDaColuna(fica.etapa_id))) return;
+  const conflito = conflitoNaSala({ hora: fica.hora, horaFim: fica.hora_fim }, ocupacoesNoFalso(s.id, fica.data, atual?.id ?? fica.id));
+  if (conflito) throw new Error(`A sala ${s.nome} já está ocupada ${horarioNaSala(conflito)} pelo compromisso ${conflito.codigo}. Escolha outro horário ou outra sala.`);
+}
+/** Como o gatilho preparar e as regras da tabela: o nome limpo, até TAMANHO_SALA, sem repetir (maiúsculas e acentos não contam), e a capacidade de 1 a 999. */
+function prepararSala(dados: Partial<DadosSala>, id?: string): Partial<DadosSala> {
+  const d = { ...dados };
+  if (d.nome !== undefined) {
+    d.nome = d.nome.trim();
+    if (!d.nome || d.nome.length > TAMANHO_SALA.nome) throw new Error(FORMATO_INVALIDO);
+    if (bd.salas!.some(s => s.id !== id && normal(s.nome) === normal(d.nome))) throw new Error(SALA_REPETIDA);
+  }
+  if (d.capacidade !== undefined && !(Number.isInteger(d.capacidade) && d.capacidade >= 1 && d.capacidade <= TAMANHO_SALA.capacidadeMaxima)) throw new Error(FORMATO_INVALIDO);
+  return d;
+}
+
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico. */
 function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unknown>) {
   const atual = c as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
@@ -1570,6 +1604,7 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
   const numeroDoProcesso = (id: unknown) => bd.processos!.find(p => p.id === id)?.numero ?? null;
   const CONVERTE: Record<string, [string, (v: unknown) => unknown]> = {
     etapa_id: ['etapa', v => nomeDaColuna(v as string | null)], responsavel_id: ['responsavel_id', nomeNaEquipe], processo_id: ['processo', numeroDoProcesso],
+    sala_id: ['sala', v => bd.salas!.find(s => s.id === v)?.nome ?? null],
     participantes: ['participantes', v => (v as string[]).map(nomeNaEquipe).join(', ')], grupos: ['grupos', nomesDosGrupos], pessoas: ['pessoas', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
   Object.entries(dados).forEach(([campo, v]) => {
@@ -3535,6 +3570,8 @@ export const SD: Dados = {
   async compromissosArquivar(ids, arquivar = true) {
     ids.forEach(id => {
       const c = bd.compromissos!.find(x => x.id === id); if (!c) return;
+      // Desarquivar confere a sala de novo, como o gatilho do banco.
+      if (!arquivar) conferirSalaNoFalso({ ...c, arquivado_em: null }, c);
       historicoCompromisso(c, { arquivado_em: arquivar ? agora() : null });
       Object.assign(c, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
     });
@@ -3553,6 +3590,8 @@ export const SD: Dados = {
   async compromissoMover(id, etapaId, ordem) {
     const c = acharCompromisso(id);
     conferirQuadroDoCompromisso(etapaId);
+    // Sair da coluna "Cancelado" confere a sala de novo, como o gatilho do banco.
+    conferirSalaNoFalso({ ...c, etapa_id: etapaId }, c);
     historicoCompromisso(c, { etapa_id: etapaId });
     Object.assign(c, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
@@ -3561,6 +3600,23 @@ export const SD: Dados = {
     .filter(c => c.papeis.length).sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
   compromissosDoProcesso: processoId => espera(bd.compromissos!.filter(c => c.processo_id === processoId).map(c => compromissoLigado(c, []))
     .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
+  salasListar: () => espera([...bd.salas!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
+  async salaCriar(dados) {
+    if (!souAdmin()) return erro(SEM_PERMISSAO);
+    const d = prepararSala(dados) as DadosSala;
+    const s: Sala = { ...d, id: novoId(), ativa: true, criado_em: agora() };
+    bd.salas!.push(s); gravar();
+    return espera({ ...s });
+  },
+  async salaAtualizar(id, dados) {
+    const s = bd.salas!.find(x => x.id === id);
+    if (!s || !souAdmin()) return erro(SEM_PERMISSAO);
+    Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); gravar();
+  },
+  salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId)
+    ? ocupacoesNoFalso(salaId, data, fora).map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim,
+      titulo: vejoNoModulo('compromissos', c.id) ? c.titulo : null }))
+    : []),
   compromissosDoItem: (modulo, itemId) => espera(bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId)
     .flatMap(l => { const c = bd.compromissos!.find(x => x.id === l.compromisso_id && vejoNoModulo('compromissos', x.id)); return c ? [compromissoLigado(c, [])] : []; })
     .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),

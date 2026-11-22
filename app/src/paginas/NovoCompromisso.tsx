@@ -4,7 +4,8 @@
 // compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília. Vindo do "+ Novo…" de uma anotação
 // (?anotacao=, #376), ele nasce ligado a ela (com a pessoa única da anotação, por ?pessoa=) e, ao salvar, volta à anotação. Vindo do
 // "+ Novo compromisso" de uma tarefa, demanda ou contrato (?tarefa=, ?demanda=, ?contrato=, #306), ele começa com as pessoas do item,
-// nasce ligado a ele e, ao salvar, volta ao cartão dele.
+// nasce ligado a ele e, ao salvar, volta ao cartão dele. A sala do escritório (#308), se escolhida, é conferida antes de seguir da etapa
+// "Onde" e antes de salvar: ocupada no horário, o cadastro diz com qual compromisso e não salva (o banco também recusa).
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
@@ -35,6 +36,9 @@ import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useAtrasado, useTitulo } from '../ui/util';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
+import { useSalas } from './agenda/useSalas';
+import { avisoDoConflito, conflitoNaSala, nomeDaSala, salasParaEscolher } from '../regras/sala';
+import { lerData } from '../regras/pessoa';
 import { origemDoCompromissoNoEndereco } from '../regras/nascerLigado';
 import './Contratos.css';
 import './Demandas.css';
@@ -71,6 +75,11 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   // Os erros de uma etapa aparecem depois da primeira tentativa de seguir e, daí em diante, acompanham o que se digita.
   const [conferidas, setConferidas] = useState<ReadonlySet<EtapaCompromisso>>(new Set());
   const [ocupado, setOcupado] = useState(false);
+  // As salas do escritório e o aviso de quando a escolhida está ocupada no horário (#308).
+  const salas = useSalas();
+  const [erroSala, setErroSala] = useState('');
+  // Enquanto confere a sala, o Próxima espera (dois cliques não pulam a etapa).
+  const [conferindo, setConferindo] = useState(false);
   // A pessoa escolhida em cada linha (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
@@ -91,7 +100,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     setC(x => ({ ...x, titulo: edicao.titulo ?? '' }));
   }
 
-  const mudar = (campos: Partial<CamposCompromisso>) => setC(atual => ({ ...atual, ...campos }));
+  // Mudou o compromisso (a sala, a data, a hora…): o aviso da sala ocupada sai, e a conferência é feita de novo ao seguir ou salvar.
+  const mudar = (campos: Partial<CamposCompromisso>) => { setC(atual => ({ ...atual, ...campos })); setErroSala(''); };
   // As pessoas de uma vez (ao abrir um compromisso salvo, ou ao escolher um processo com clientes).
   const porPessoas = useCallback((lista: PessoaResumida[]) => {
     setPessoas(lista.length ? lista : [null]);
@@ -157,11 +167,32 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   }
   const focarErro = () => requestAnimationFrame(() =>
     document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
-  function avancar() {
+  async function avancar() {
     if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
     if (Object.keys(errosDaEtapaCompromisso(etapa.id, c)).length) { focarErro(); return; }
+    if (etapa.id === 'onde') {
+      if (conferindo) return;
+      setConferindo(true);
+      const livre = await salaLivre().finally(() => setConferindo(false));
+      if (!livre) { focarErro(); return; }
+    }
     if (ultimo) void salvar(); else irPara(passo + 1);
+  }
+  /**
+   * A sala escolhida está livre no horário? Lê quem a ocupa no dia (fora este compromisso, ao mudar um) e, ocupada, mostra com qual
+   * compromisso (a regra fica em regras/sala.ts). Sem sala, com a data ainda inválida ou sem conseguir ler, segue: o banco confere de novo.
+   */
+  async function salaLivre() {
+    const sala = salas.find(s => s.id === c.salaId);
+    if (!sala) return true;
+    let data: string | null;
+    try { data = lerData(c.data); } catch { return true; }
+    if (!data) return true;
+    const ocupacoes = await SD.salaOcupacao(sala.id, data, alvo?.id ?? null).catch(() => []);
+    const conflito = conflitoNaSala({ hora: c.hora, horaFim: c.horaFim }, ocupacoes);
+    setErroSala(conflito ? avisoDoConflito(sala.nome, conflito) : '');
+    return !conflito;
   }
   // Enter: vai para o próximo campo da etapa ou para a próxima etapa. A busca de pessoa trata o Enter dela.
   function teclar(e: KeyboardEvent<HTMLFormElement>) {
@@ -170,7 +201,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     e.preventDefault();
     const campos = [...document.querySelectorAll<HTMLElement>(CAMPOS_DA_ETAPA)].filter(x => x.offsetParent !== null && !x.hasAttribute('disabled'));
     const i = campos.indexOf(el);
-    if (i >= 0 && i < campos.length - 1) campos[i + 1].focus(); else avancar();
+    if (i >= 0 && i < campos.length - 1) campos[i + 1].focus(); else void avancar();
   }
 
   // ---------- pessoas ----------
@@ -232,6 +263,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     const dados = noLapis(dadosDoCompromisso(c));
     setOcupado(true);
     try {
+      // A sala ocupada no horário não deixa salvar: volta à etapa dela, com o aviso.
+      if (!await salaLivre()) {
+        if (!edicao) irPara(ETAPAS_COMPROMISSO.findIndex(e => e.id === 'onde'));
+        focarErro();
+        setOcupado(false);
+        return;
+      }
       if (alvo) {
         // Para desfazer: o compromisso como estava, no mesmo formato que o cadastro grava.
         const antes = noLapis(dadosDoCompromisso(camposDoCompromisso(edicao ? { ...alvo, titulo: edicao.titulo } : alvo)));
@@ -307,6 +345,12 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           <CampoComSugestoes id="processo" aria-describedby="processo-dica" placeholder="Buscar processo…" valor={buscaProcesso} aoMudar={digitarProcesso}
             sugestoes={processos.map(p => ({ valor: rotuloDoProcesso(p) }))} />
         </Campo>}
+      {(salas.length > 0 || !!c.salaId) && <Campo rotulo="Sala" para="salaId" erro={erroSala || undefined} dica="Uma sala do escritório. Se ela estiver ocupada no horário, o SEMPER avisa e não salva.">
+        <select {...propsDoCampo('salaId', { dica: true, erro: erroSala || undefined })} value={c.salaId} onChange={e => mudar({ salaId: e.target.value })}>
+          <option value="">Nenhuma sala</option>
+          {salasParaEscolher(salas, alvo?.sala_id).map(s => <option key={s.id} value={s.id}>{nomeDaSala(s)}</option>)}
+        </select>
+      </Campo>}
       <Escolhas rotulo="Modalidade" obrigatorio={doProcesso} erro={erros.modalidade}>
         {Object.entries(MODALIDADES).map(([v, nome]) => <label key={v}><input type="radio" name="modalidade" checked={c.modalidade === v} onChange={() => mudar({ modalidade: v as CamposCompromisso['modalidade'] })} />{nome}</label>)}
       </Escolhas>
@@ -387,7 +431,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
 
         <div className="navegar">
           <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>
-          <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado} onClick={avancar}>
+          <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado || conferindo} onClick={() => void avancar()}>
             {ocupado ? 'Salvando…' : ultimo ? (alvo ? 'Salvar alterações' : 'Salvar compromisso') : 'Próxima'}
           </button>
         </div>

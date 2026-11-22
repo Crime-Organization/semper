@@ -4,6 +4,7 @@
 import { INICIO_VAZIO } from '../regras/dataDeInicio';
 import { recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
+import { SALA_REPETIDA } from '../regras/sala';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
@@ -40,6 +41,7 @@ const REPETIDO: Regra[] = [
   { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
   { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
   { padrao: /anotacao_pastas_nome_unico/, mensagem: PASTA_REPETIDA },
+  { padrao: /salas_nome_unico/, mensagem: SALA_REPETIDA },
   { mensagem: 'Esse registro já existe.' }
 ];
 

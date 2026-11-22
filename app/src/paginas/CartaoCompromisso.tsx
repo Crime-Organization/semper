@@ -39,6 +39,8 @@ import { dataCurta, relativo } from '../ui/util';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ItensDoCompromisso } from './ItensDoCompromisso';
+import { useSalas } from './agenda/useSalas';
+import { nomeDaSala, salaDoCompromisso } from '../regras/sala';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
@@ -63,6 +65,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // O título em edição no próprio lugar (#346).
   const noLugar = useEdicaoNoLugar();
+  // As salas do escritório, para o nome da sala do compromisso (#308), mesmo desativada.
+  const salas = useSalas();
 
   const carregar = useCallback(() => SD.compromissoObter(id).then(x => { setC(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -83,6 +87,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!c.arquivado_em && (c.criado_por === eu || ctx.ehAdmin);
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
+  const sala = salaDoCompromisso(salas, c), linhas = linhasDoCompromisso(c, sala ? nomeDaSala(sala) : '');
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome, detalhe: 'Ligada', selo: p.arquivado_em ? 'Arquivada' : undefined });
 
   async function arquivar() {
@@ -171,8 +176,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {c.arquivado_em && <FaixaDoArquivado modulo="compromissos" podeExcluir={podeExcluir} aoDesarquivar={podeMudar ? arquivar : undefined} />}
 
-    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhasDoCompromisso(c).map(([, v]) => v))}>
-      <dl className="dados">{linhasDoCompromisso(c).map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhas.map(([, v]) => v))}>
+      <dl className="dados">{linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
     </Recolhivel>
 
     {doProcesso && <Recolhivel titulo="Resultado" icone="check" preferencia="compromissos.cartao.resultado" contador={c.resultado ? 1 : 0}>

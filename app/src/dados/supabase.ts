@@ -18,7 +18,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, OcupacaoDaSala, TarefaParaEscolher } from './tipos';
 import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -389,12 +389,13 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
 // ---------- compromissos ----------
 /** Quem só lê a Agenda geral não muda: o banco devolve zero linhas, sem erro. Sem isto, a tela diria que mudou. */
 const NAO_MUDOU = 'Você não tem permissão para fazer isso.';
-const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // O processo vem pelas regras de leitura dele: quem não pode abri-lo recebe null (e fica só o código e o número).
-const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
+const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
 type CompromissoLido = Omit<Compromisso, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const compromissoComPessoas = ({ ligadas, ...c }: CompromissoLido): Compromisso => ({ ...c, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
@@ -415,6 +416,7 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
   if (f.tipo) q = q.eq('tipo', f.tipo);
+  if (f.sala) q = q.eq('sala_id', f.sala);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -1210,6 +1212,22 @@ export const SD: Dados = {
     // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
     const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
     conferirQueMudou((await rodar(sb.from('compromisso_ligacoes').delete().eq('compromisso_id', id).eq(coluna, itemId).select('id').maybeSingle())).data);
+  },
+  // ---------- salas do escritório (supabase/migrations/20261122132438_salas_do_escritorio.sql) ----------
+  async salasListar() {
+    const { data } = await rodar(sb.from('salas').select(CAMPOS_SALA).order('nome'));
+    return data;
+  },
+  async salaCriar(dados) {
+    const { data } = await rodar(sb.from('salas').insert({ ...dados, criado_por: uid() }).select(CAMPOS_SALA).single());
+    return data;
+  },
+  async salaAtualizar(id, dados) {
+    // A regra do banco não muda a sala de quem não é administrador: nenhuma linha volta, e a tela precisa saber.
+    conferirQueMudou((await rodar(sb.from('salas').update(dados).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async salaOcupacao(salaId, data, fora = null) {
+    return rpc('ocupacao_da_sala', { p_sala: salaId, p_data: data, p_fora: fora }) as Promise<OcupacaoDaSala[]>;
   },
   async prazosDoPeriodo(de, ate, f = {}) {
     // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem. Eles saem no próprio pedido, antes do corte em

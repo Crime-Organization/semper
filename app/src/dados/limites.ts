@@ -194,6 +194,8 @@ export const HISTORICO_DO_COMPROMISSO = 100;
 export const COMPROMISSOS_LIGADOS = 200;
 /** A quantas tarefas, demandas e contratos, somados, um compromisso pode ser ligado (exigido pelo banco: 20261122130038_ligacoes_dos_compromissos.sql). */
 export const ITENS_DO_COMPROMISSO = 30;
+/** O nome e a capacidade (em pessoas) de uma sala do escritório (exigidos pelo banco: 20261122132438_salas_do_escritorio.sql). */
+export const TAMANHO_SALA = { nome: 80, capacidadeMaxima: 999 };
 /** Quantos compromissos, e quantos prazos de cada módulo, a agenda lê de um período (um mês tem bem menos que isso). */
 export const ITENS_DA_AGENDA = 500;
 /** Quantos processos (os ativos mais recentes que combinam com a busca) a busca de processo oferece para ligar. */

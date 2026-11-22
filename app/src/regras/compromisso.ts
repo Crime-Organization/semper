@@ -43,6 +43,8 @@ export interface CamposCompromisso {
   modalidade: ModalidadeCompromisso | '';
   local: string;
   processoId: string;
+  /** A sala do escritório (#308), ou vazio. */
+  salaId: string;
   responsavelId: string;
   participantes: string[];
   /** Uma por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
@@ -52,7 +54,7 @@ export interface CamposCompromisso {
   observacoes: string;
 }
 export const compromissoVazio = (tipo: TipoCompromisso = 'reuniao'): CamposCompromisso => ({
-  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, resultado: '', observacoes: ''
+  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', salaId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, resultado: '', observacoes: ''
 });
 
 type Conferencia = (c: CamposCompromisso) => string | null;
@@ -110,7 +112,7 @@ export function dadosDoCompromisso(c: CamposCompromisso): DadosCompromisso & Pic
     tipo: c.tipo, titulo: textoOuNulo(c.titulo), data: lerData(c.data)!, hora: c.hora || null, hora_fim: c.horaFim || null, modalidade: c.modalidade || null,
     local: textoOuNulo(c.local), resultado: doTipo(c).doProcesso ? textoOuNulo(c.resultado) : null, observacoes: textoOuNulo(c.observacoes), geral: c.geral,
     responsavel_id: c.responsavelId, participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
-    pessoas: [...new Set(escolhidos(c.pessoas))], processo_id: c.processoId || null
+    pessoas: [...new Set(escolhidos(c.pessoas))], processo_id: c.processoId || null, sala_id: c.salaId || null
   };
 }
 
@@ -120,7 +122,7 @@ export const fmtHora = (hora: string | null | undefined) => hora ? hora.slice(0,
 /** Campos do formulário a partir de um compromisso salvo (para atualizar). */
 export const camposDoCompromisso = (c: Compromisso): CamposCompromisso => ({
   tipo: c.tipo, titulo: c.titulo || '', data: fmtData(c.data), hora: fmtHora(c.hora), horaFim: fmtHora(c.hora_fim), modalidade: c.modalidade || '', local: c.local || '',
-  processoId: c.processo_id || '', responsavelId: c.responsavel_id, participantes: [...c.participantes], pessoas: c.pessoas.length ? c.pessoas.map(p => p.id) : [''],
+  processoId: c.processo_id || '', salaId: c.sala_id || '', responsavelId: c.responsavel_id, participantes: [...c.participantes], pessoas: c.pessoas.length ? c.pessoas.map(p => p.id) : [''],
   geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || ''
 });
 
@@ -147,7 +149,7 @@ export interface DefinicaoEtapaCompromisso { id: EtapaCompromisso; titulo: strin
 /** As etapas do cadastro, na ordem, como nos cadastros de pessoa, de demanda e de processo. */
 export const ETAPAS_COMPROMISSO: DefinicaoEtapaCompromisso[] = [
   { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim'] },
-  { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade.', campos: ['processoId', 'modalidade', 'local'] },
+  { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade. A sala do escritório, se houver, fica livre só para ele no horário.', campos: ['processoId', 'salaId', 'modalidade', 'local'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem da equipe vai, quem ajuda e, se houver, as pessoas do cadastro ligadas ao compromisso.', campos: ['pessoas', 'responsavelId', 'participantes', 'geral'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.', campos: ['resultado', 'observacoes'] }
 ];
@@ -183,7 +185,7 @@ export const quandoDoCompromisso = (c: Pick<Compromisso, 'data' | 'hora' | 'hora
 export const CAMPOS_COMPROMISSO: Record<string, string> = {
   tipo: 'Tipo', titulo: 'Título', data: 'Data', hora: 'Hora', hora_fim: 'Fim', modalidade: 'Modalidade', local: 'Local', resultado: 'Resultado', observacoes: 'Observações', geral: 'Agenda geral',
   responsavel_id: 'Responsável', participantes: 'Participantes', pessoas: 'Pessoas', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
-  ligacao: 'Ligado a'
+  ligacao: 'Ligado a', sala: 'Sala'
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
@@ -196,10 +198,13 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
 export const valorLegivelCompromisso = (campo: string, v: unknown) =>
   v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
 
-/** Os dados do cartão, só os preenchidos. A data e o horário ficam no grupo das datas, no topo do cartão (#361), e não se repetem aqui. */
-export const linhasDoCompromisso = (c: Compromisso): [string, string][] => ([
+/**
+ * Os dados do cartão, só os preenchidos. A data e o horário ficam no grupo das datas, no topo do cartão (#361), e não se repetem aqui.
+ * `sala`: o nome da sala do escritório (#308), como regras/sala.ts o mostra.
+ */
+export const linhasDoCompromisso = (c: Compromisso, sala = ''): [string, string][] => ([
   ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome],
-  ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
+  ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Sala', sala], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
 ] as [string, string][]).filter(([, valor]) => valor);
 
 // ---------- tarefas, demandas e contratos ligados (#306) ----------

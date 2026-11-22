@@ -319,3 +319,28 @@ describe('Tarefas, demandas e contratos ligados ao compromisso (#306)', () => {
     expect(valorLegivelCompromisso('ligacao', 'Demanda D1')).toBe('Demanda D1');
   });
 });
+
+describe('A sala do compromisso (#308)', () => {
+  it('dado o cadastro com uma sala, quando vai para o banco e volta, então a sala vai e volta; sem sala, vai vazia', () => {
+    // Dado / Quando / Então
+    expect(dadosDoCompromisso(preenchido({ salaId: 's1' })).sala_id).toBe('s1');
+    expect(dadosDoCompromisso(preenchido()).sala_id).toBeNull();
+    expect(camposDoCompromisso(salvo({ sala_id: 's1' })).salaId).toBe('s1');
+    expect(camposDoCompromisso(salvo()).salaId).toBe('');
+  });
+
+  it('dado o cadastro, quando a pessoa está na etapa "Onde", então a sala é um dos campos dela', () => {
+    // Dado / Quando / Então
+    expect(ETAPAS_COMPROMISSO.find(e => e.id === 'onde')?.campos).toContain('salaId');
+  });
+
+  it('dado um compromisso numa sala, quando o cartão mostra os dados, então a sala aparece depois da modalidade', () => {
+    // Dado / Quando
+    const rotulos = linhasDoCompromisso(salvo({ modalidade: 'presencial' }), 'Sala 1 (6 pessoas)');
+    // Então
+    expect(rotulos.map(([r]) => r).slice(0, 3)).toEqual(['Tipo', 'Modalidade', 'Sala']);
+    expect(Object.fromEntries(rotulos).Sala).toBe('Sala 1 (6 pessoas)');
+    expect(linhasDoCompromisso(salvo()).map(([r]) => r)).not.toContain('Sala');
+    expect(CAMPOS_COMPROMISSO.sala).toBe('Sala');
+  });
+});

@@ -20,6 +20,7 @@ describe('Erros do banco em português', () => {
       ['etiquetas_texto_unico', 'Já existe uma etiqueta com esse texto.'],
       ['etiquetas_cor_unica', 'Já existe uma etiqueta só de cor nessa cor.'],
       ['anotacao_pastas_nome_unico', 'Já existe uma pasta com esse nome aqui.'],
+      ['salas_nome_unico', 'Já existe uma sala com esse nome.'],
       ['outra_restricao', 'Esse registro já existe.']
     ])('quando a restrição é %s, então a mensagem é "%s"', (restricao, esperada) => {
       // Quando

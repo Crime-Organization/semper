@@ -13,6 +13,7 @@ import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limi
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
+import { SALA_REPETIDA } from '../regras/sala';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -1951,6 +1952,71 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           for (const t of tarefas.slice(0, ITENS_DO_COMPROMISSO)) await SD.compromissoLigar(id, 'tarefas', t.id);
           // Quando / Então
           await expect(SD.compromissoLigar(id, 'tarefas', tarefas[ITENS_DO_COMPROMISSO].id)).rejects.toThrow(`no máximo ${ITENS_DO_COMPROMISSO} itens`);
+        });
+      });
+
+      describe('nas salas do escritório (#308)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        const DIA_DA_SALA = '2031-05-20';
+        const naSala = (sala_id: string, hora: string, hora_fim: string | null = null) => reuniao({ data: DIA_DA_SALA, hora, hora_fim, sala_id });
+
+        it('quando o administrador cadastra salas, então elas vêm por nome; o nome repetido é recusado; quem não é administrador não cadastra', async () => {
+          // Dado
+          const nome = marca();
+          // Quando
+          const b = await SD.salaCriar({ nome: `  ${nome} B `, capacidade: 4 });
+          const a = await SD.salaCriar({ nome: `${nome} A`, capacidade: 8 });
+          // Então
+          expect(b).toMatchObject({ nome: `${nome} B`, capacidade: 4, ativa: true });
+          const minhas = (await SD.salasListar()).filter(s => s.nome.startsWith(nome));
+          expect(minhas.map(s => s.id)).toEqual([a.id, b.id]);
+          await expect(SD.salaCriar({ nome: `${nome.toLowerCase()} a`, capacidade: 2 })).rejects.toThrow(SALA_REPETIDA);
+          entrarComo('u-bruno');
+          await expect(SD.salaCriar({ nome: marca(), capacidade: 2 })).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.salaAtualizar(a.id, { ativa: false })).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('dada a sala ocupada das 14h às 15h, quando se marca outro às 14h30, então é recusado; às 15h, vale; e a ocupação mostra os dois', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const primeiro = await naSala(sala.id, '14:00', '15:00');
+          // Quando / Então
+          await expect(naSala(sala.id, '14:30')).rejects.toThrow(`A sala ${sala.nome} já está ocupada das 14:00 às 15:00 pelo compromisso ${primeiro.codigo}.`);
+          const segundo = await naSala(sala.id, '15:00');
+          expect((await SD.salaOcupacao(sala.id, DIA_DA_SALA)).map(o => o.id)).toEqual([primeiro.id, segundo.id]);
+          expect((await SD.salaOcupacao(sala.id, DIA_DA_SALA, primeiro.id)).map(o => o.id)).toEqual([segundo.id]);
+          // Mudar a hora também confere
+          await expect(SD.compromissoAtualizar(segundo.id, { hora: '14:30' })).rejects.toThrow('já está ocupada');
+          // E a agenda filtra pela sala
+          expect((await SD.compromissosDoPeriodo(DIA_DA_SALA, DIA_DA_SALA, { sala: sala.id })).map(c => c.id)).toEqual([primeiro.id, segundo.id]);
+        });
+
+        it('dado o compromisso arquivado, quando outro ocupa o horário, então vale; e desarquivar o primeiro é recusado', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const primeiro = await naSala(sala.id, '09:00', '10:00');
+          await SD.compromissosArquivar([primeiro.id]);
+          // Quando
+          await naSala(sala.id, '09:30');
+          // Então
+          await expect(SD.compromissosArquivar([primeiro.id], false)).rejects.toThrow('já está ocupada');
+        });
+
+        it('dada a sala desativada, quando se marca um compromisso novo nela, então é recusado; o antigo continua com ela e é mudado', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const antigo = await naSala(sala.id, '11:00');
+          // Quando
+          await SD.salaAtualizar(sala.id, { ativa: false });
+          // Então
+          expect((await SD.salasListar()).find(s => s.id === sala.id)?.ativa).toBe(false);
+          await expect(naSala(sala.id, '16:00')).rejects.toThrow(`A sala ${sala.nome} está desativada. Escolha outra sala.`);
+          await SD.compromissoAtualizar(antigo.id, { titulo: marca() });
+          expect((await SD.compromissoObter(antigo.id))?.sala_id).toBe(sala.id);
+          // E o histórico mostra a sala pelo nome
+          await SD.compromissoAtualizar(antigo.id, { sala_id: null });
+          expect((await SD.compromissoHistorico(antigo.id))[0].alteracoes.sala).toEqual({ de: sala.nome, para: null });
         });
       });
 
