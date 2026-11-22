@@ -14,6 +14,9 @@
 .agenda-item small { font-size: 12px; color: var(--muted) }
 .agenda-item b { font-size: 13px; font-weight: 700; line-height: 1.35 }
 .agenda-item.prazo { border-left-color: var(--line2); background: var(--soft) }
+/* Cada tipo com cor própria tem a faixa da esquerda dele (#306); os outros ficam no verde. */
+.agenda-item[data-tipo="atendimento"] { border-left-color: var(--agenda-atendimento) }
+.agenda-item[data-tipo="atendimento"]:hover { border-color: var(--agenda-atendimento) }
 .agenda-item-mais { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 13px; color: var(--muted) }
 
 .agenda-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px }

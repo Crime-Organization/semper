@@ -29,17 +29,17 @@ export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir }: P
   const [data, setData] = useState(hojeNaAgenda);
   const [itens, setItens] = useState<ItemDaAgenda[] | string | null>(null);
   const { de, ate } = VISOES_DE_DATA[visao].periodo(data);
-  const { termo, pessoa, tipo, etiqueta } = filtro;
+  const { termo, pessoa, tipo, sala, etiqueta } = filtro;
 
   useEffect(() => {
     let vivo = true;
-    // Filtrando por tipo ou etiqueta, os prazos saem: eles não têm nem um nem outro.
-    const comPrazos = !tipo && !etiqueta;
-    Promise.all([SD.compromissosDoPeriodo(de, ate, { termo, pessoa, tipo, etiqueta }), comPrazos ? SD.prazosDoPeriodo(de, ate, { termo, pessoa }) : Promise.resolve([])])
+    // Filtrando por tipo, sala ou etiqueta, os prazos saem: eles não têm nenhum dos três.
+    const comPrazos = !tipo && !sala && !etiqueta;
+    Promise.all([SD.compromissosDoPeriodo(de, ate, { termo, pessoa, tipo, sala, etiqueta }), comPrazos ? SD.prazosDoPeriodo(de, ate, { termo, pessoa }) : Promise.resolve([])])
       .then(([compromissos, prazos]) => { if (vivo) setItens(itensDaAgenda(compromissos, prazos)); })
       .catch(e => { if (vivo) setItens((e as Error).message); });
     return () => { vivo = false; };
-  }, [de, ate, termo, pessoa, tipo, etiqueta, recarga]);
+  }, [de, ate, termo, pessoa, tipo, sala, etiqueta, recarga]);
 
   function trocarVisao(v: VisaoDeData) {
     setVisao(v);
@@ -130,7 +130,8 @@ function Item({ item, completo, situacao, endereco, aoAbrir }: { item: ItemDaAge
     </Link>;
   }
   const para = endereco(c!.id);
-  return <a className="agenda-item" href={para} {...cliquesQueAbrem(para, () => aoAbrir(c!.id))}>
+  // O tipo vai no item (a cor da faixa, em Compromissos.css) e na dica, para quem não distingue a cor.
+  return <a className="agenda-item" data-tipo={c!.tipo} title={TIPOS_COMPROMISSO[c!.tipo].nome} href={para} {...cliquesQueAbrem(para, () => aoAbrir(c!.id))}>
     <small>{horarioDoCompromisso(c!)}</small>
     <b>{item.titulo}</b>
     {completo && <span className="agenda-item-mais">

@@ -1383,7 +1383,7 @@ export interface DadosMensagens {
 }
 
 // ---------- compromissos (agenda) ----------
-export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'outro';
+export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'atendimento' | 'outro';
 export type ModalidadeCompromisso = 'presencial' | 'virtual';
 /** O que o compromisso traz do processo ligado: para mostrá-lo e saber quem o vê (quem vê o processo vê o compromisso). */
 export type ProcessoDoCompromisso = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
@@ -1412,6 +1412,8 @@ export interface Compromisso {
   /** Os nomes das pessoas juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
   pessoa_nome: string;
   processo_id: string | null;
+  /** A sala do escritório em que o compromisso acontece (#308). Ausente ou null: nenhuma. A sala desativada continua aqui, com o nome. */
+  sala_id?: string | null;
   /** O código e o número do processo, que aparecem mesmo para quem não pode abri-lo. */
   processo_codigo: string | null;
   processo_numero: string | null;
@@ -1429,10 +1431,10 @@ export interface Compromisso {
 }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
-  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de compromissos (tabela, quadro e agenda). */
 export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes' | 'grupos'
-  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 /** A ordem da tabela de compromissos: as de sempre e a data do compromisso. No quadro, cada coluna tem a sua (Ordem). */
 export type OrdemCompromisso = Ordem | 'data' | 'data_desc';
 export interface FiltroCompromissos {
@@ -1440,6 +1442,8 @@ export interface FiltroCompromissos {
   /** Um usuário da equipe: os compromissos em que ele é o responsável ou um participante. */
   pessoa?: string;
   tipo?: TipoCompromisso | '';
+  /** Só os compromissos desta sala (#308). */
+  sala?: string;
   etiqueta?: string;
   situacao?: 'ativos' | 'arquivados';
   ordem?: OrdemCompromisso;
@@ -1450,6 +1454,10 @@ export interface FiltroCompromissos {
 export type PapelNoCompromisso = 'pessoa' | 'responsavel' | 'participante';
 /** Compromisso como aparece em outro cartão (da pessoa ou do processo), com o papel da pessoa nele. */
 export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em'> { papeis: PapelNoCompromisso[] }
+/** Os módulos a que um compromisso se liga, de muitos para muitos, além das pessoas e do processo (#306). */
+export type ModuloDoCompromisso = Extract<Modulo, 'tarefas' | 'demandas' | 'contratos'>;
+/** Um item ligado ao compromisso, como aparece no cartão dele (o mesmo formato dos itens da anotação). */
+export type ItemDoCompromisso = Omit<ItemDaAnotacao, 'modulo' | 'tipo'> & { modulo: ModuloDoCompromisso };
 /** O prazo de uma demanda ou de uma tarefa, como aparece na agenda (só para consultar; abre o cartão de origem). */
 export interface PrazoNaAgenda {
   origem: 'demandas' | 'tarefas'; id: string; codigo: string; titulo: string; prazo: string; responsavel_id: string;
@@ -1475,10 +1483,45 @@ export interface DadosCompromissos {
   /** Compromissos em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também os em que é responsável ou participante. */
   compromissosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<CompromissoLigado[]>;
   compromissosDoProcesso(processoId: string): Promise<CompromissoLigado[]>;
+  /** Os compromissos ligados a uma tarefa, a uma demanda ou a um contrato (#306), que quem lê vê. */
+  compromissosDoItem(modulo: ModuloDoCompromisso, itemId: string): Promise<CompromissoLigado[]>;
+  /** Os itens ligados ao compromisso: os que quem lê vê, e quantos ele não vê. */
+  compromissoItens(id: string): Promise<{ visiveis: ItemDoCompromisso[]; ocultos: number }>;
+  /** Liga o compromisso a um item (quem muda o compromisso ativo e vê o item); o item já ligado não muda nada e devolve false. */
+  compromissoLigar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<boolean>;
+  compromissoDesligar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<void>;
   /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
   prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */
   processosParaLigar(termo?: string): Promise<ProcessoParaLigar[]>;
+}
+
+// ---------- salas do escritório (#308) ----------
+/**
+ * Sala do escritório, para marcar compromissos nela. Só administradores cadastram, mudam e desativam; todos veem. Sala não se
+ * exclui: desativada, ela some das opções novas, e os compromissos antigos continuam mostrando o nome dela.
+ */
+export interface Sala {
+  id: string;
+  nome: string;
+  /** Quantas pessoas cabem. */
+  capacidade: number;
+  ativa: boolean;
+  criado_em: string;
+}
+/** O que o cadastro de sala grava. */
+export type DadosSala = Pick<Sala, 'nome' | 'capacidade'>;
+/** Um compromisso que ocupa a sala num dia. Sem título (null): quem lê não vê esse compromisso, e fica só o código e o horário. */
+export interface OcupacaoDaSala { id: string; codigo: string; tipo: TipoCompromisso; hora: string | null; hora_fim: string | null; titulo: string | null }
+/** Salas (supabase/migrations/20261122132438_salas_do_escritorio.sql). */
+export interface DadosSalas {
+  /** Todas as salas do escritório, ativas e desativadas, por nome. */
+  salasListar(): Promise<Sala[]>;
+  salaCriar(dados: DadosSala): Promise<Sala>;
+  /** Muda o nome e a capacidade, ou desativa e reativa (só administradores). */
+  salaAtualizar(id: string, dados: Partial<DadosSala & Pick<Sala, 'ativa'>>): Promise<void>;
+  /** Os compromissos ativos (não cancelados) que ocupam a sala no dia, fora um (o que está sendo mudado), pela hora. */
+  salaOcupacao(salaId: string, data: string, fora?: string | null): Promise<OcupacaoDaSala[]>;
 }
 
 // ---------- anotações (módulo Documentos, #303) ----------
@@ -2073,4 +2116,4 @@ export interface DadosGrupos {
   itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
-export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosAnotacoes, DadosPastas, DadosParaLigar {}

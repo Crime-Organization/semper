@@ -3,7 +3,7 @@
 // e nada foi gravado (a tela então avisa sem Desfazer, que apagaria a ligação feita por outra pessoa). O Desfazer também lê antes
 // e tira só o que esta ligação pôs. As regras de cada passo estão em regras/ligarExistente.ts. O que as regras recusam vem como
 // RecusaDaLigacao: tentar de novo pelo cartão daria a mesma recusa (#376).
-import { SD, type Tarefa } from '../dados';
+import { SD, type ModuloDoCompromisso, type Tarefa } from '../dados';
 import {
   acrescentar, desfazerTarefaEmMaisUmaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, RecusaDaLigacao, semOId,
   TAREFA_DE_OUTRO_PROCESSO, tarefaEmMaisUmaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
@@ -165,6 +165,13 @@ export async function ligarContratoNoProcesso(processoId: string, contratoId: st
   if ((await SD.contratosDoProcesso(processoId)).visiveis.some(k => k.id === contratoId)) return null;
   if (!await SD.contratoProcessoLigar(contratoId, processoId)) return null;
   return () => SD.contratoProcessoDesligar(contratoId, processoId);
+}
+
+/** Liga o compromisso à tarefa, à demanda ou ao contrato (#306), a mesma ligação do cartão do compromisso. */
+export async function ligarCompromissoNoItem(modulo: ModuloDoCompromisso, itemId: string, compromissoId: string): Promise<Desfazer | null> {
+  // Outra pessoa ligou entre a busca e o clique: a ligação é dela, e não há Desfazer que a apague.
+  if (!await SD.compromissoLigar(compromissoId, modulo, itemId)) return null;
+  return () => SD.compromissoDesligar(compromissoId, modulo, itemId);
 }
 
 // ---------- o aviso ----------

@@ -1,0 +1,5 @@
+{
+  "titulo": "Compromissos ligados a tarefas, demandas e contratos, e o tipo Atendimento",
+  "texto": "Um compromisso pode ser ligado a várias tarefas, demandas e contratos: ele aparece na seção Compromissos do cartão de cada um, com o número, e o cartão do compromisso mostra todos em \"Ligado a\". Criado pelo cartão de uma demanda, de um contrato ou de uma tarefa, ele já nasce ligado. E há o tipo Atendimento, na primeira etapa do cadastro, com cor própria na agenda.",
+  "ondeAchar": "Cartão da tarefa, da demanda ou do contrato: seção Compromissos (+ Novo compromisso ou Ligar compromisso existente). Cartão do compromisso: seção Ligado a."
+}

@@ -11,9 +11,10 @@ import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
 import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
-import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
+import { SALA_REPETIDA } from '../regras/sala';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -1872,6 +1873,153 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const r = await SD.compromissosDoProcesso(processo.id);
         // Então
         expect(r.map(c => c.id)).toEqual([id]);
+      });
+
+      it('quando um atendimento é criado com título e hora, então ele volta com o tipo; sem hora, é recusado', async () => {
+        // Dado / Quando
+        const { id } = await SD.compromissoCriar({ tipo: 'atendimento', titulo: marca(), data: DIA_A, hora: '09:00', responsavel_id: 'u-ana' });
+        // Então
+        expect((await SD.compromissoObter(id))?.tipo).toBe('atendimento');
+        await expect(SD.compromissoCriar({ tipo: 'atendimento', titulo: marca(), data: DIA_A, responsavel_id: 'u-ana' })).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      describe('ligado a tarefas, demandas e contratos (#306)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        const itens = async () => {
+          const { id: cliente } = await criar(marca());
+          const demanda = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+          const tarefa = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+          const contrato = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+          return { demanda, tarefa, contrato };
+        };
+
+        it('quando o compromisso é ligado a uma demanda, uma tarefa e um contrato, então aparece no de cada um, e o dele mostra os três', async () => {
+          // Dado
+          const { id } = await reuniao(), { demanda, tarefa, contrato } = await itens();
+          // Quando
+          const novas = [await SD.compromissoLigar(id, 'demandas', demanda.id), await SD.compromissoLigar(id, 'tarefas', tarefa.id), await SD.compromissoLigar(id, 'contratos', contrato.id)];
+          const deNovo = await SD.compromissoLigar(id, 'demandas', demanda.id);
+          // Então
+          expect(novas).toEqual([true, true, true]);
+          expect(deNovo).toBe(false);
+          for (const [modulo, item] of [['demandas', demanda], ['tarefas', tarefa], ['contratos', contrato]] as const)
+            expect((await SD.compromissosDoItem(modulo, item.id)).map(c => c.id)).toEqual([id]);
+          const r = await SD.compromissoItens(id);
+          expect(r.visiveis.map(i => [i.modulo, i.id])).toEqual([['demandas', demanda.id], ['tarefas', tarefa.id], ['contratos', contrato.id]]);
+          expect(r.ocultos).toBe(0);
+          expect((await SD.compromissoHistorico(id))[0].alteracoes.ligacao).toEqual({ de: null, para: `Contrato ${contrato.codigo}` });
+        });
+
+        it('quando a ligação é desfeita, então o compromisso sai do cartão do item, e o histórico registra', async () => {
+          // Dado
+          const { id } = await reuniao(), { demanda } = await itens();
+          await SD.compromissoLigar(id, 'demandas', demanda.id);
+          // Quando
+          await SD.compromissoDesligar(id, 'demandas', demanda.id);
+          // Então
+          expect(await SD.compromissosDoItem('demandas', demanda.id)).toEqual([]);
+          expect((await SD.compromissoItens(id)).visiveis).toEqual([]);
+          expect((await SD.compromissoHistorico(id))[0].alteracoes.ligacao).toEqual({ de: `Demanda ${demanda.codigo}`, para: null });
+        });
+
+        it('quando o item é excluído, então a ligação sai junto, e o histórico do compromisso diz qual item era', async () => {
+          // Dado
+          const { id } = await reuniao(), { tarefa } = await itens();
+          await SD.compromissoLigar(id, 'tarefas', tarefa.id);
+          // Quando
+          await SD.tarefasArquivar([tarefa.id]);
+          await SD.tarefasExcluir([tarefa.id]);
+          // Então
+          expect((await SD.compromissoItens(id)).visiveis).toEqual([]);
+          expect((await SD.compromissoHistorico(id))[0].alteracoes.ligacao).toEqual({ de: `Tarefa ${tarefa.codigo}`, para: null });
+        });
+
+        it('quando quem não muda o compromisso, ou o compromisso arquivado, tenta ligar ou desligar, então é recusado', async () => {
+          // Dado: a reunião é só da Ana; a outra está arquivada
+          const { id } = await reuniao(), { id: arquivada } = await reuniao({ responsavel_id: 'u-master' }), { demanda } = await itens();
+          await SD.compromissoLigar(id, 'demandas', demanda.id);
+          await SD.compromissosArquivar([arquivada]);
+          // Quando / Então
+          await expect(SD.compromissoLigar(arquivada, 'demandas', demanda.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+          entrarComo('u-bruno');
+          await expect(SD.compromissoLigar(id, 'demandas', demanda.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.compromissoDesligar(id, 'demandas', demanda.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('quando o compromisso chega a 30 itens, então o próximo é recusado', async () => {
+          // Dado
+          const { id } = await reuniao();
+          const tarefas = await Promise.all(Array.from({ length: ITENS_DO_COMPROMISSO + 1 }, () => SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master' })));
+          for (const t of tarefas.slice(0, ITENS_DO_COMPROMISSO)) await SD.compromissoLigar(id, 'tarefas', t.id);
+          // Quando / Então
+          await expect(SD.compromissoLigar(id, 'tarefas', tarefas[ITENS_DO_COMPROMISSO].id)).rejects.toThrow(`no máximo ${ITENS_DO_COMPROMISSO} itens`);
+        });
+      });
+
+      describe('nas salas do escritório (#308)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        const DIA_DA_SALA = '2031-05-20';
+        const naSala = (sala_id: string, hora: string, hora_fim: string | null = null) => reuniao({ data: DIA_DA_SALA, hora, hora_fim, sala_id });
+
+        it('quando o administrador cadastra salas, então elas vêm por nome; o nome repetido é recusado; quem não é administrador não cadastra', async () => {
+          // Dado
+          const nome = marca();
+          // Quando
+          const b = await SD.salaCriar({ nome: `  ${nome} B `, capacidade: 4 });
+          const a = await SD.salaCriar({ nome: `${nome} A`, capacidade: 8 });
+          // Então
+          expect(b).toMatchObject({ nome: `${nome} B`, capacidade: 4, ativa: true });
+          const minhas = (await SD.salasListar()).filter(s => s.nome.startsWith(nome));
+          expect(minhas.map(s => s.id)).toEqual([a.id, b.id]);
+          await expect(SD.salaCriar({ nome: `${nome.toLowerCase()} a`, capacidade: 2 })).rejects.toThrow(SALA_REPETIDA);
+          entrarComo('u-bruno');
+          await expect(SD.salaCriar({ nome: marca(), capacidade: 2 })).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.salaAtualizar(a.id, { ativa: false })).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('dada a sala ocupada das 14h às 15h, quando se marca outro às 14h30, então é recusado; às 15h, vale; e a ocupação mostra os dois', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const primeiro = await naSala(sala.id, '14:00', '15:00');
+          // Quando / Então
+          await expect(naSala(sala.id, '14:30')).rejects.toThrow(`A sala ${sala.nome} já está ocupada das 14:00 às 15:00 pelo compromisso ${primeiro.codigo}.`);
+          const segundo = await naSala(sala.id, '15:00');
+          expect((await SD.salaOcupacao(sala.id, DIA_DA_SALA)).map(o => o.id)).toEqual([primeiro.id, segundo.id]);
+          expect((await SD.salaOcupacao(sala.id, DIA_DA_SALA, primeiro.id)).map(o => o.id)).toEqual([segundo.id]);
+          // Mudar a hora também confere
+          await expect(SD.compromissoAtualizar(segundo.id, { hora: '14:30' })).rejects.toThrow('já está ocupada');
+          // E a agenda filtra pela sala
+          expect((await SD.compromissosDoPeriodo(DIA_DA_SALA, DIA_DA_SALA, { sala: sala.id })).map(c => c.id)).toEqual([primeiro.id, segundo.id]);
+        });
+
+        it('dado o compromisso arquivado, quando outro ocupa o horário, então vale; e desarquivar o primeiro é recusado', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const primeiro = await naSala(sala.id, '09:00', '10:00');
+          await SD.compromissosArquivar([primeiro.id]);
+          // Quando
+          await naSala(sala.id, '09:30');
+          // Então
+          await expect(SD.compromissosArquivar([primeiro.id], false)).rejects.toThrow('já está ocupada');
+        });
+
+        it('dada a sala desativada, quando se marca um compromisso novo nela, então é recusado; o antigo continua com ela e é mudado', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const antigo = await naSala(sala.id, '11:00');
+          // Quando
+          await SD.salaAtualizar(sala.id, { ativa: false });
+          // Então
+          expect((await SD.salasListar()).find(s => s.id === sala.id)?.ativa).toBe(false);
+          await expect(naSala(sala.id, '16:00')).rejects.toThrow(`A sala ${sala.nome} está desativada. Escolha outra sala.`);
+          await SD.compromissoAtualizar(antigo.id, { titulo: marca() });
+          expect((await SD.compromissoObter(antigo.id))?.sala_id).toBe(sala.id);
+          // E o histórico mostra a sala pelo nome
+          await SD.compromissoAtualizar(antigo.id, { sala_id: null });
+          expect((await SD.compromissoHistorico(antigo.id))[0].alteracoes.sala).toEqual({ de: sala.nome, para: null });
+        });
       });
 
       it('quando o processo é excluído, então as audiências saem e os outros compromissos ficam sem a ligação', async () => {

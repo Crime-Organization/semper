@@ -20,6 +20,7 @@ import { AvisoDaEdicaoNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/E
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
+import { CompromissosDoItem } from './CompromissosDoItem';
 import { CartoesLigados } from './CartoesLigados';
 import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao } from './ProcessosDoCartao';
@@ -330,6 +331,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este contrato.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
     </Recolhivel>}
+
+    {/* Os compromissos ligados ao contrato (#306), com o + Novo compromisso já ligado. */}
+    <CompromissosDoItem modulo="contratos" id={k.id} podeLigar={podeLigar} versao={versaoHist} />
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
         histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}

@@ -1,0 +1,5 @@
+{
+  "titulo": "Salas do escritório na agenda, sem horário duplicado",
+  "texto": "Os administradores cadastram as salas do escritório, com nome e capacidade. No cadastro do compromisso, escolha a sala: se ela já estiver ocupada no horário, o SEMPER mostra com qual compromisso e não salva. A agenda filtra por sala. Sala desativada some das opções novas, e os compromissos antigos continuam com o nome dela.",
+  "ondeAchar": "Configurações > Salas (Nova sala, Desativar). No Novo compromisso, a etapa \"Onde e de qual processo\". Na Agenda, Filtros > Sala."
+}

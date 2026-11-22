@@ -22,6 +22,8 @@
   /* Gráficos do Financeiro: entrada e saída (par que se distingue também para quem não vê vermelho e verde) e, nas
      barras de contratos, o recebido (a cor da entrada) e o que falta receber (o mesmo verde, claro). */
   --grafico-entrada: #2E6B1C; --grafico-saida: #C77A2E; --grafico-aberto: #C5E0B6;
+  /* O atendimento no calendário da agenda (#306): a faixa da esquerda em azul, para não se confundir com o verde dos outros compromissos. */
+  --agenda-atendimento: #2F6FB0;
   --on-accent: #FFFFFF;
   --dark: #1A1916;
   --card: #2C2A26;
@@ -262,6 +264,7 @@
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
     --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
     --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+    --agenda-atendimento: #6FA8E0;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
     --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
@@ -276,6 +279,7 @@
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
   --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
   --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+  --agenda-atendimento: #6FA8E0;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
   --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;

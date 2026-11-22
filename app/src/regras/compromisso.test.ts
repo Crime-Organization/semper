@@ -1,8 +1,9 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import type { Compromisso, Membro } from '../dados/tipos';
+import type { Compromisso, ItemDoCompromisso, Membro } from '../dados/tipos';
+import { ITENS_DO_COMPROMISSO } from '../dados/limites';
 import {
-  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, detalheDoLigado, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, fmtHora, horarioDoCompromisso, linhasDoCompromisso, mencaoNegadaNoCompromisso,
+  CAMPOS_COMPROMISSO, camposDoCompromisso, compromissoVazio, itensPorModulo, MODULOS_DO_COMPROMISSO, motivoSemMaisItens, continuaPeloProcesso, dadosDoCompromisso, detalheDoLigado, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, fmtHora, horarioDoCompromisso, linhasDoCompromisso, mencaoNegadaNoCompromisso,
   motivoSemMencaoNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, podeMudarCompromisso, primeiraEtapaComErroCompromisso, quandoDoCompromisso, semSairDoCompromisso, soLeNaLista, TIPOS,
   TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, valorLegivelCompromisso, veOCompromisso, type CamposCompromisso
 } from './compromisso';
@@ -273,5 +274,73 @@ describe('O título no lápis do cartão (#346)', () => {
   ] as const)('dado %s, quando o lápis abre, então ele só pede o título se o tipo exige um e não há nenhum gravado', (_caso, tipo, titulo, pede) => {
     // Quando / Então
     expect(tituloNoLapis(tipo, titulo)).toBe(pede);
+  });
+});
+
+describe('O tipo Atendimento (#306)', () => {
+  it('dado o cadastro, quando a pessoa escolhe o tipo, então "Atendimento" está ao lado de reunião e audiência', () => {
+    // Dado / Quando / Então
+    expect(TIPOS.map(t => TIPOS_COMPROMISSO[t].nome)).toEqual(['Audiência', 'Perícia', 'Reunião', 'Atendimento', 'Outro']);
+  });
+
+  it('dado um atendimento, quando falta o título ou a hora, então o cadastro pede os dois; ele não exige processo', () => {
+    // Dado
+    const semNada = preenchido({ tipo: 'atendimento', titulo: '', hora: '' });
+    // Quando
+    const erros = validarCompromisso(semNada);
+    // Então
+    expect(erros).toEqual({ titulo: 'Dê um título ao compromisso.', hora: 'Informe a hora.' });
+    expect(validarCompromisso(preenchido({ tipo: 'atendimento' }))).toEqual({});
+  });
+});
+
+describe('Tarefas, demandas e contratos ligados ao compromisso (#306)', () => {
+  const item = (modulo: ItemDoCompromisso['modulo'], id: string): ItemDoCompromisso => ({ modulo, id, codigo: id.toUpperCase(), nome: 'Item ' + id, arquivado_em: null });
+
+  it('dados itens de vários módulos, quando o cartão os mostra, então vêm por módulo (tarefas, demandas, contratos), cada um na ordem em que veio', () => {
+    // Dado
+    const itens = [item('contratos', 'k1'), item('tarefas', 't1'), item('demandas', 'd1'), item('tarefas', 't2')];
+    // Quando
+    const grupos = itensPorModulo(itens);
+    // Então
+    expect(grupos.map(g => [g.modulo, g.itens.map(i => i.id)])).toEqual([['tarefas', ['t1', 't2']], ['demandas', ['d1']], ['contratos', ['k1']]]);
+    expect(MODULOS_DO_COMPROMISSO).toEqual(['tarefas', 'demandas', 'contratos']);
+  });
+
+  it('dado um compromisso com o máximo de itens, quando a pessoa quer ligar mais um, então o cartão diz que está cheio', () => {
+    // Dado / Quando / Então
+    expect(motivoSemMaisItens(ITENS_DO_COMPROMISSO - 1)).toBe('');
+    expect(motivoSemMaisItens(ITENS_DO_COMPROMISSO)).toBe(`O compromisso já está ligado a ${ITENS_DO_COMPROMISSO} itens, o máximo.`);
+  });
+
+  it('dada uma ligação no histórico, quando ele é mostrado, então o campo se chama "Ligado a"', () => {
+    // Dado / Quando / Então
+    expect(CAMPOS_COMPROMISSO.ligacao).toBe('Ligado a');
+    expect(valorLegivelCompromisso('ligacao', 'Demanda D1')).toBe('Demanda D1');
+  });
+});
+
+describe('A sala do compromisso (#308)', () => {
+  it('dado o cadastro com uma sala, quando vai para o banco e volta, então a sala vai e volta; sem sala, vai vazia', () => {
+    // Dado / Quando / Então
+    expect(dadosDoCompromisso(preenchido({ salaId: 's1' })).sala_id).toBe('s1');
+    expect(dadosDoCompromisso(preenchido()).sala_id).toBeNull();
+    expect(camposDoCompromisso(salvo({ sala_id: 's1' })).salaId).toBe('s1');
+    expect(camposDoCompromisso(salvo()).salaId).toBe('');
+  });
+
+  it('dado o cadastro, quando a pessoa está na etapa "Onde", então a sala é um dos campos dela', () => {
+    // Dado / Quando / Então
+    expect(ETAPAS_COMPROMISSO.find(e => e.id === 'onde')?.campos).toContain('salaId');
+  });
+
+  it('dado um compromisso numa sala, quando o cartão mostra os dados, então a sala aparece depois da modalidade', () => {
+    // Dado / Quando
+    const rotulos = linhasDoCompromisso(salvo({ modalidade: 'presencial' }), 'Sala 1 (6 pessoas)');
+    // Então
+    expect(rotulos.map(([r]) => r).slice(0, 3)).toEqual(['Tipo', 'Modalidade', 'Sala']);
+    expect(Object.fromEntries(rotulos).Sala).toBe('Sala 1 (6 pessoas)');
+    expect(linhasDoCompromisso(salvo()).map(([r]) => r)).not.toContain('Sala');
+    expect(CAMPOS_COMPROMISSO.sala).toBe('Sala');
   });
 });

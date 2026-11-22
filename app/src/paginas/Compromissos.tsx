@@ -1,6 +1,6 @@
 // Compromissos: a agenda do escritório. Três formas de ver os mesmos compromissos: por data (dia, semana e mês), tabela com
 // ações em lote e quadro por situação, além do cartão de cada um. A estrutura da página vem de <PaginaModulo>; o modelo é o
-// módulo Pessoas.
+// módulo Pessoas. Com salas cadastradas nas Configurações (#308), a agenda filtra também pela sala.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
@@ -33,6 +33,7 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { numero, useTitulo } from '../ui/util';
 import { VisaoPorData } from './agenda/VisaoPorData';
+import { useSalas } from './agenda/useSalas';
 import { CartaoCompromisso } from './CartaoCompromisso';
 import './Contratos.css';
 import './Demandas.css';
@@ -53,6 +54,7 @@ export default function Compromissos() {
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const quadro = useColunas('compromissos', ctx, SEM_SITUACAO_COMPROMISSO);
+  const salas = useSalas();
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
@@ -97,8 +99,8 @@ export default function Compromissos() {
   }, [visao, f, ordem, recarga]);
 
   // Os campos do filtro que mudam as contagens (a página da tabela não muda).
-  const { termo, pessoa, tipo, etiqueta } = f;
-  const filtroDasContagens = useMemo(() => ({ termo, pessoa, tipo, etiqueta }), [termo, pessoa, tipo, etiqueta]);
+  const { termo, pessoa, tipo, sala, etiqueta } = f;
+  const filtroDasContagens = useMemo(() => ({ termo, pessoa, tipo, sala, etiqueta }), [termo, pessoa, tipo, sala, etiqueta]);
 
   // Fora da tabela, o total vem de uma contagem à parte (o quadro e a agenda mostram só um pedaço da lista).
   const [totalAtivos, setTotalAtivos] = useState<number | null>(null);
@@ -119,7 +121,7 @@ export default function Compromissos() {
   }, [visao, filtroDasContagens, recarga]);
   const arquivados = (pagina: number, porPagina: number) => SD.compromissosListar({ ...f, situacao: 'arquivados', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.tipo || f.etiqueta);
+  const filtrado = !!(f.termo || f.pessoa || f.tipo || f.sala || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroCompromissos>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -152,7 +154,7 @@ export default function Compromissos() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.tipo, f.etiqueta].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.tipo, f.sala, f.etiqueta].join('|');
   const total = visao === 'tabela' ? tabela?.total ?? null : totalAtivos;
   const contador = total === null ? null : plural(total, 'ativo', 'ativos');
 
@@ -165,6 +167,9 @@ export default function Compromissos() {
           opcoes: [['', 'Todos os compromissos'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'tipo', rotulo: 'Tipo', valor: f.tipo || '', aoMudar: t => mudarFiltro({ tipo: t as TipoCompromisso | '' }),
           opcoes: [['', 'Todos os tipos'], ...TIPOS.map(t => [t, TIPOS_COMPROMISSO[t].nome] as [string, string])] },
+        // Só com salas cadastradas; as desativadas também, para achar os compromissos antigos delas.
+        ...(salas.length ? [{ id: 'sala', rotulo: 'Sala', valor: f.sala || '', aoMudar: (s: string) => mudarFiltro({ sala: s }),
+          opcoes: [['', 'Todas as salas'] as [string, string], ...salas.map(s => [s.id, s.ativa ? s.nome : `${s.nome} (desativada)`] as [string, string])] }] : []),
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, e => mudarFiltro({ etiqueta: e })),
         ...(visao === 'tabela' ? [{ id: 'ordem', rotulo: 'Ordenar', valor: ordem, aoMudar: (o: string) => mudarOrdem(o as OrdemCompromisso), opcoes: ORDENS_DA_TABELA }] : [])
       ]}
