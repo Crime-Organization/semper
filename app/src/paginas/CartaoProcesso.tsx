@@ -34,6 +34,8 @@ import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
+import { LIGAR_PARTE_NO_TITULO, PartesDoProcesso } from './PartesDoProcesso';
+import { novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
@@ -98,6 +100,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     contratos: useLista(() => SD.contratosDoProcesso(id).then(x => [x]), chave, !!modulos?.contratos)?.[0],
     historico: useQuantos(() => SD.processoHistorico(id), chave)
   };
+  // As pessoas com papel e os processos ligados (#316): lidos aqui, para o número no título e a lista da seção.
+  const partes = useLista(() => SD.processoPartes(id), chave);
+  const relacionados = useLista(() => SD.processosRelacionados(id), chave);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (p === undefined) return <Carregando />;
@@ -215,6 +220,18 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).titulo} atalho="ligacao">
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
       {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).embaixo} />}
+    </Recolhivel>
+
+    {/* As outras pessoas do processo, com o papel de cada uma (#316). O "+" do título abre o formulário de baixo. */}
+    <Recolhivel titulo="Pessoas do processo" icone="pessoas" preferencia="processos.cartao.partes" contador={partes?.length}
+      novo={podeLigar ? { rotulo: LIGAR_PARTE_NO_TITULO } : undefined}>
+      <PartesDoProcesso processoId={p.id} partes={partes} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
+    </Recolhivel>
+
+    {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos. */}
+    <Recolhivel titulo="Recursos e incidentais" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
+      novo={podeLigar ? novoDerivado(p.id) : undefined}>
+      <ProcessosRelacionados lista={relacionados} processoId={p.id} />
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}

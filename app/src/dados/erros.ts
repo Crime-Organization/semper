@@ -7,6 +7,7 @@ import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
 import { CONTRATOS_DA_TAREFA_CHEIA, DEMANDAS_DA_TAREFA_CHEIA } from '../regras/tarefa';
 import { SALA_REPETIDA } from '../regras/sala';
+import { PAPEL_REPETIDO } from '../regras/processo';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
@@ -39,6 +40,7 @@ const REPETIDO: Regra[] = [
   { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },
   { padrao: /processo_opcoes_unica/, mensagem: 'Essa opção já está na lista.' },
   { padrao: /processo_campos_nome_unico/, mensagem: 'Já existe um campo com esse nome.' },
+  { padrao: /processo_partes_processo_id_pessoa_id_papel_key/, mensagem: PAPEL_REPETIDO },
   { padrao: /financeiro_contas_nome_unico/, mensagem: 'Já existe uma conta com esse nome.' },
   { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
   { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
@@ -54,7 +56,7 @@ const ERROS: Regra[] = [
   { codigo: '23503', padrao: /demanda_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em demandas e não pode ser excluída.' },
   { codigo: '23503', padrao: /tarefa_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em tarefas e não pode ser excluída.' },
   { codigo: '23503', padrao: /compromisso_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em compromissos e não pode ser excluída.' },
-  { codigo: '23503', padrao: /processo_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em processos e não pode ser excluída.' },
+  { codigo: '23503', padrao: /processo_(clientes|partes)_pessoa_id_fkey/, mensagem: 'Esta pessoa está em processos e não pode ser excluída.' },
   { codigo: '23503', padrao: /anotacao_ligacoes_pessoa_id_fkey/, mensagem: 'Esta pessoa está ligada a anotações e não pode ser excluída.' },
   // Apagar a pasta com subpastas ou anotações (mesmo as que quem apaga não vê): as chaves das duas recusam (#342).
   { codigo: '23503', padrao: /update or delete on table "anotacao_pastas" violates foreign key constraint "(anotacao_pastas_mae_fkey|anotacoes_pasta_fkey)"/, mensagem: PASTA_COM_CONTEUDO },

@@ -122,6 +122,8 @@ export function Casca({ children }: { children: ReactNode }) {
           {ctx.escritorio?.modulos?.processos && <SubmenuLateral id="processos" icone="processos" rotulo="Processos" caminhos={['/processos']} para="/processos/">
             <NavLink to="/processos/administrativo/"><span>Administrativo</span></NavLink>
             <NavLink to="/processos/judicial/"><span>Judicial</span></NavLink>
+            <NavLink to="/processos/extrajudicial/"><span>Extrajudicial</span></NavLink>
+            <NavLink to="/processos/investigacao/"><span>Investigação</span></NavLink>
           </SubmenuLateral>}
           <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}>
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
