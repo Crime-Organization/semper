@@ -15,6 +15,7 @@ import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LI
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
+import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -4698,6 +4699,39 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect((await SD.tarefaObter(id))?.etapa_id).toBeNull();
         expect((await SD.tarefasDaEtapa(null)).linhas.map(t => t.id)).toContain(id);
+      });
+    });
+
+    describe('Tarefa: diligência, solicitante e funções dos participantes (#313)', () => {
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        SD.tarefaCriar({ titulo: 'Protocolar ' + marca(), responsavel_id: 'u-ana', ...extra });
+
+      it('quando a tarefa é marcada como diligência sem motivo, então é recusada; com o motivo, ele fica limpo e aparece na lista', async () => {
+        // Quando
+        const semMotivo = await novaTarefa({ diligencia: true, diligencia_motivo: '   ' }).catch((e: Error) => e.message);
+        const { id } = await novaTarefa({ diligencia: true, diligencia_motivo: '  Protocolar no cartório  ' });
+        // Então
+        expect(semMotivo).toBe(SEM_MOTIVO_DA_DILIGENCIA);
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: true, diligencia_motivo: 'Protocolar no cartório' });
+        expect((await SD.tarefasListar({ porPagina: 500 })).linhas.find(t => t.id === id)?.diligencia).toBe(true);
+      });
+
+      it('quando a tarefa deixa de ser diligência, então o motivo sai junto e o histórico registra a troca', async () => {
+        // Dado
+        const { id } = await novaTarefa({ diligencia: true, diligencia_motivo: 'Ir ao fórum' });
+        // Quando
+        await SD.tarefaAtualizar(id, { diligencia: false });
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: false, diligencia_motivo: null });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.diligencia).toEqual({ de: true, para: false });
+      });
+
+      it('quando uma tarefa comum é criada, então ela não é diligência', async () => {
+        // Quando
+        const { id } = await novaTarefa();
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: false, diligencia_motivo: null });
       });
     });
 

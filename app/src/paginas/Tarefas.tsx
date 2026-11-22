@@ -14,7 +14,7 @@ import { SEM_SITUACAO_TAREFA, soLeATarefaNaLista } from '../regras/tarefa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
 import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
@@ -224,6 +224,7 @@ function CartaoKanban({ t, ordem, concluido, circulo }: { t: TarefaLista; ordem:
     <div className="kt">{circulo}<span>{t.titulo}</span></div>
     <div className="km">
       <LigacoesNoQuadro codigo={t.codigo} ligacoes={ligacoes(t)} />
+      {t.diligencia && <Selo tipo="pend">Diligência</Selo>}
       {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
       <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -275,7 +276,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLe(ctx, t)} />
           <div className="titulo-com-circulo">{circulo(ctx, colunas, t, t.etapa_id, t.etapa_ordem)}<NomeDaLinha>{t.titulo}</NomeDaLinha></div>
-          <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoesPorExtenso(ligacoes(t)) ? ' · ' + ligacoesPorExtenso(ligacoes(t)) : ''}</div></td>
+          <div className="sub">{t.diligencia && <><Selo tipo="pend">Diligência</Selo> </>}<span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoesPorExtenso(ligacoes(t)) ? ' · ' + ligacoesPorExtenso(ligacoes(t)) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} />

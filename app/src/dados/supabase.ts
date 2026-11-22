@@ -608,7 +608,7 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 // ---------- tarefas ----------
 // Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
 const EQUIPE_DA_DEMANDA = 'criado_por, responsavel_id, colaboradores, grupos';
-const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_codigo, contrato_codigo, '
+const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, diligencia, pessoa_nome, demanda_codigo, contrato_codigo, '
   + `etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, demanda_ids, equipe_da_demanda:demandas(${EQUIPE_DA_DEMANDA})`;
 type EquipeDaDemanda = NonNullable<TarefaLista['equipe_da_demanda']>;
 /**
@@ -627,7 +627,7 @@ async function comAsOutrasDemandas(linhas: (Omit<TarefaLista, 'equipes_das_outra
 // A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
 const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
 const CONTRATO_DA_TAREFA = `codigo, servico, ${EQUIPE_DO_CONTRATO}`;
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, demanda_ids, contrato_ids, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'codigos_das_demandas:tarefa_demandas(demanda_id, codigo), codigos_dos_contratos:tarefa_contratos(contrato_id, codigo), '

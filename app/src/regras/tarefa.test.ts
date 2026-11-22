@@ -4,9 +4,10 @@ import type { Membro, Tarefa } from '../dados/tipos';
 import {
   CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, comMaisUm, continuaPelaDemanda, CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, dadosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA,
   demandasDaTarefa, demandasQueAbre, errosDaEtapaTarefa, estaNaTarefa, ETAPAS_TAREFA, ligadasDaTarefa, motivoSemMencaoNaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
-  papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, soLeATarefaNaLista, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
+  papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, soLeATarefaNaLista, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa,
+  diligenciaAoGravar, MOTIVO_DA_DILIGENCIA_LONGO, SEM_MOTIVO_DA_DILIGENCIA
 } from './tarefa';
-import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA } from '../dados/limites';
+import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 
 const completa = { ...TAREFA_VAZIA, titulo: 'Emitir a GRU', responsavelId: 'u-ana' };
 const membro = (id: string, papel: Membro['papel'] = 'usuario') => ({ id, nome: id, usuario: id, papel, ativo: true }) as Membro;
@@ -35,7 +36,7 @@ describe('Cadastro de tarefa', () => {
     const dados = dadosDaTarefa({ ...completa, descricao: '  ', prazo: '10/11/2026', participantes: ['u-bruno', 'u-ana', 'u-bruno'], pessoas: ['p1', '', 'p1'] });
     // Então
     expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
-      participantes: ['u-bruno'], pessoas: ['p1'], demanda_ids: [], contrato_ids: [], processo_id: null });
+      participantes: ['u-bruno'], pessoas: ['p1'], demanda_ids: [], contrato_ids: [], processo_id: null, diligencia: false, diligencia_motivo: null });
   });
 
   it('dadas duas demandas e dois contratos (#283), quando a tarefa é salva, então vão as listas inteiras, na ordem e sem repetir', () => {
@@ -120,7 +121,7 @@ describe('Cadastro de tarefa', () => {
     const campos = camposDaTarefa(t);
     // Então
     expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
-      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1' });
+      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '' });
   });
 
   it('dada uma tarefa gravada sem as listas (numa importação), quando volta ao formulário ou ao cartão, então conta a demanda e o contrato principais', () => {
@@ -340,5 +341,52 @@ describe('Demanda com as tarefas concluídas', () => {
   it('quando o quadro não tem coluna concluída, então não oferece', () => {
     // Então
     expect(tarefasDaDemandaConcluidas([{ etapa_id: 'c', arquivado_em: null }], null)).toBe(false);
+  });
+});
+
+describe('A diligência da tarefa (#313)', () => {
+  it('quando a tarefa é marcada como diligência sem motivo, então o cadastro pede o motivo na primeira etapa', () => {
+    // Quando
+    const erros = errosDaEtapaTarefa('tarefa', { ...completa, diligencia: true, motivoDaDiligencia: '  ' });
+    // Então
+    expect(erros).toEqual({ motivoDaDiligencia: SEM_MOTIVO_DA_DILIGENCIA });
+  });
+
+  it('quando a tarefa não é diligência, então o motivo não é pedido e não vai para o banco', () => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, diligencia: false, motivoDaDiligencia: 'sobrou' });
+    // Então
+    expect(validarTarefa({ ...completa, diligencia: false, motivoDaDiligencia: '' })).toEqual({});
+    expect(dados).toMatchObject({ diligencia: false, diligencia_motivo: null });
+  });
+
+  it('quando o motivo é comprido demais, então o cadastro avisa o tamanho', () => {
+    // Quando
+    const erros = validarTarefa({ ...completa, diligencia: true, motivoDaDiligencia: 'a'.repeat(TAMANHO_TAREFA.motivoDaDiligencia + 1) });
+    // Então
+    expect(erros.motivoDaDiligencia).toBe(MOTIVO_DA_DILIGENCIA_LONGO);
+  });
+
+  it('quando a diligência é gravada, então o motivo fica limpo; sem diligência, sem motivo; sem motivo, a recusa', () => {
+    // Então
+    expect(diligenciaAoGravar({ diligencia: true, diligencia_motivo: '  Ir ao fórum ' })).toEqual({ diligencia: true, diligencia_motivo: 'Ir ao fórum' });
+    expect(diligenciaAoGravar({ diligencia: false }, { diligencia: true, diligencia_motivo: 'Ir ao fórum' })).toEqual({ diligencia: false, diligencia_motivo: null });
+    expect(diligenciaAoGravar({ diligencia_motivo: 'Outro' }, { diligencia: true, diligencia_motivo: 'Ir ao fórum' })).toEqual({ diligencia: true, diligencia_motivo: 'Outro' });
+    expect(() => diligenciaAoGravar({ diligencia: true })).toThrow(SEM_MOTIVO_DA_DILIGENCIA);
+  });
+
+  it('quando o histórico mostra a diligência, então ela aparece como Sim ou Não', () => {
+    // Então
+    expect([valorLegivelTarefa('diligencia', true), valorLegivelTarefa('diligencia', false), CAMPOS_TAREFA.diligencia_motivo]).toEqual(['Sim', 'Não', 'Motivo da diligência']);
+  });
+
+  it('quando a tarefa salva é aberta para atualizar, então a diligência e o motivo voltam ao formulário', () => {
+    // Dado
+    const t = { ...dadosDaTarefa(completa), id: 't1', codigo: 'T1', pessoas: [], participantes: [], demanda_id: null, contrato_id: null, processo_id: null,
+      diligencia: true, diligencia_motivo: 'Ir ao cartório' } as unknown as Tarefa;
+    // Quando
+    const c = camposDaTarefa(t);
+    // Então
+    expect([c.diligencia, c.motivoDaDiligencia]).toEqual([true, 'Ir ao cartório']);
   });
 });

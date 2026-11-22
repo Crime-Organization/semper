@@ -241,10 +241,10 @@ describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
     for (const rotulo of ['Prazo', 'Hora', 'Lembrete', 'Data de início']) expect(screen.queryByLabelText(rotulo)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Lembrete/ })).not.toBeInTheDocument();
     // As ligações ficam na primeira etapa do cadastro (#299): no lápis, a seção tem o nome delas.
-    expect(screen.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Diligência, demanda, contrato e processo' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'A tarefa' })).not.toBeInTheDocument();
     // E as pessoas continuam antes das ligações, como antes da #299.
-    expect(screen.getAllByRole('heading', { level: 3 }).map(t => t.textContent)).toEqual(['Pessoas', 'Demanda, contrato e processo']);
+    expect(screen.getAllByRole('heading', { level: 3 }).map(t => t.textContent)).toEqual(['Pessoas', 'Diligência, demanda, contrato e processo']);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então

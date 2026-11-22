@@ -1,0 +1,5 @@
+{
+  "titulo": "Tarefa de diligência, com o motivo",
+  "texto": "A tarefa pode ser marcada como diligência (ir a um cartório, a um fórum, a um órgão). Marcada, o motivo passa a ser obrigatório e aparece no cartão, com o selo \"Diligência\" também no quadro e na tabela.",
+  "ondeAchar": "Tarefas > Nova tarefa ou o lápis do cartão: a caixa \"Esta tarefa é uma diligência\", na primeira etapa."
+}

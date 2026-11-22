@@ -189,6 +189,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
           <span className="codigo">{t.codigo}</span>
           <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
           {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+          {t.diligencia && <Selo tipo="pend" dica={t.diligencia_motivo ?? undefined}>Diligência</Selo>}
         </>}
         equipe={<EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos} mudar={mudaNoLugar ? {
           saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, demandasDaTarefa(t))), peloLigado: continuaPelaDemanda(t, demandasDaTarefa(t)) },
@@ -226,6 +227,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 
     {soLeitura && <Nota>{soLeitura}</Nota>}
+    {/* O motivo da diligência (#313), logo abaixo da cabeça: é o que diz por que a tarefa existe. */}
+    {t.diligencia && t.diligencia_motivo && <Nota><b>Motivo da diligência:</b> {t.diligencia_motivo}</Nota>}
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {t.arquivado_em && <FaixaDoArquivado modulo="tarefas" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 

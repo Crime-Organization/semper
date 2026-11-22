@@ -51,7 +51,13 @@ export const DEMANDAS_LIGADAS = 200;
 /** Quantas demandas relacionadas o cartão de uma demanda mostra (as ligadas há mais tempo primeiro, #310). */
 export const DEMANDAS_RELACIONADAS = 200;
 /** Tarefas: os mesmos do banco (supabase/migrations/20261027000020_tarefas.sql). Os participantes seguem COLABORADORES_MAXIMOS; as pessoas, CLIENTES_MAXIMOS. */
-export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
+export const TAMANHO_TAREFA = {
+  titulo: 300, descricao: 4000,
+  /** O motivo da diligência (#313), exigido pelo banco (supabase/migrations/20261122232657_tarefa_diligencia.sql). */
+  motivoDaDiligencia: 1000
+};
+/** O nome de cada função dos participantes da tarefa (#313), exigido pelo banco (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql). */
+export const TAMANHO_FUNCAO_NA_TAREFA = { nome: 40 };
 /** Quantas demandas e quantos contratos uma tarefa pode ter ligados (#283): exigido pelo banco (supabase/migrations/20261122130410_tarefa_em_varias_demandas_e_contratos.sql). */
 export const DEMANDAS_POR_TAREFA = 10;
 export const CONTRATOS_POR_TAREFA = 10;

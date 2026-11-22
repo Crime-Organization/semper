@@ -36,9 +36,14 @@ export interface CamposTarefa {
   contratos: string[];
   /** Um processo só, ou vazio. */
   processoId: string;
+  /** É uma diligência (#313): marcada, o motivo é obrigatório. */
+  diligencia: boolean;
+  /** Por que a diligência é feita, como digitado. */
+  motivoDaDiligencia: string;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
-  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: ''
+  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: '',
+  diligencia: false, motivoDaDiligencia: ''
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -65,6 +70,10 @@ const CONFERENCIAS: Partial<Record<keyof CamposTarefa, Conferencia[]>> = {
     c => repetido(c.pessoas) ? 'A mesma pessoa aparece duas vezes.' : null,
     c => escolhidos(c.pessoas).length > CLIENTES_MAXIMOS ? `Uma tarefa pode ter até ${CLIENTES_MAXIMOS} pessoas ligadas.` : null
   ],
+  motivoDaDiligencia: [
+    c => c.diligencia && !c.motivoDaDiligencia.trim() ? SEM_MOTIVO_DA_DILIGENCIA : null,
+    c => c.diligencia && c.motivoDaDiligencia.trim().length > TAMANHO_TAREFA.motivoDaDiligencia ? MOTIVO_DA_DILIGENCIA_LONGO : null
+  ],
   demandas: [c => c.demandas.length > DEMANDAS_POR_TAREFA ? DEMANDAS_DA_TAREFA_CHEIA : null],
   contratos: [c => c.contratos.length > CONTRATOS_POR_TAREFA ? CONTRATOS_DA_TAREFA_CHEIA : null]
 };
@@ -86,8 +95,25 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
     titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), ...inicioAoGravar(c), responsavel_id: c.responsavelId,
     participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
     pessoas: [...new Set(escolhidos(c.pessoas))], demanda_ids: [...new Set(c.demandas)], contrato_ids: [...new Set(c.contratos)],
-    processo_id: c.processoId || null
+    processo_id: c.processoId || null, diligencia: c.diligencia, diligencia_motivo: c.diligencia ? c.motivoDaDiligencia.trim() : null
   };
+}
+
+// ---------- a diligência (#313) ----------
+/** A recusa da diligência sem motivo (a mesma do banco). */
+export const SEM_MOTIVO_DA_DILIGENCIA = 'Diga o motivo da diligência.';
+/** A recusa do motivo comprido demais (a mesma do banco). */
+export const MOTIVO_DA_DILIGENCIA_LONGO = `O motivo da diligência pode ter até ${TAMANHO_TAREFA.motivoDaDiligencia} caracteres.`;
+/**
+ * Como o banco grava a diligência: o motivo sem espaços nas pontas; sem diligência, sem motivo; com diligência e sem motivo, a recusa.
+ * Recebe o que muda (undefined: o campo não muda) e o que já está gravado.
+ */
+export function diligenciaAoGravar(novo: { diligencia?: boolean; diligencia_motivo?: string | null }, antes?: { diligencia?: boolean; diligencia_motivo?: string | null }) {
+  const diligencia = novo.diligencia ?? antes?.diligencia ?? false;
+  const motivo = ((novo.diligencia_motivo !== undefined ? novo.diligencia_motivo : antes?.diligencia_motivo) ?? '').trim() || null;
+  if (diligencia && !motivo) throw new Error(SEM_MOTIVO_DA_DILIGENCIA);
+  if (motivo && diligencia && motivo.length > TAMANHO_TAREFA.motivoDaDiligencia) throw new Error(MOTIVO_DA_DILIGENCIA_LONGO);
+  return { diligencia, diligencia_motivo: diligencia ? motivo : null };
 }
 
 // ---------- as demandas e os contratos ligados (#283) ----------
@@ -145,7 +171,8 @@ export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean, a
 export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), ...horaELembreteDoCartao(t), inicio: fmtData(t.data_inicio), responsavelId: t.responsavel_id,
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
-  demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || ''
+  demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || '',
+  diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || ''
 });
 
 // ---------- etapas do cadastro ----------
@@ -162,7 +189,8 @@ export interface DefinicaoEtapaTarefa {
  */
 export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
-    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'demandas', 'contratos', 'processoId'], tituloNoLapis: 'Demanda, contrato e processo' },
+    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'diligencia', 'motivoDaDiligencia', 'demandas', 'contratos', 'processoId'],
+    tituloNoLapis: 'Diligência, demanda, contrato e processo' },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem da equipe ajuda e, se houver, as pessoas do cadastro ligadas a ela.',
     campos: ['responsavelId', 'participantes', 'pessoas'] }
 ];
@@ -234,10 +262,15 @@ export const CAMPOS_TAREFA: Record<string, string> = {
   titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', data_inicio: ROTULO_DO_INICIO, responsavel_id: 'Responsável', participantes: 'Participantes',
   pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', demandas: 'Demandas', contratos: 'Contratos', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
   // Apagar, corrigir e devolver um registro de tempo (#400): o que aconteceu, sem a duração
-  tempo: 'Registro de tempo'
+  tempo: 'Registro de tempo',
+  // A diligência (#313)
+  diligencia: 'Diligência', diligencia_motivo: 'Motivo da diligência'
 };
+/** Os campos só da tarefa, como aparecem no cartão e no histórico (os outros, como os da demanda). */
+const FORMATOS_DA_TAREFA: Record<string, (v: unknown) => string> = { diligencia: v => v ? 'Sim' : 'Não' };
 /** Como cada campo aparece no cartão e no histórico (o prazo como dia/mês/ano, a hora como hh:mm, o lembrete por extenso, vazio como traço), igual às demandas. */
-export const valorLegivelTarefa = valorLegivelDemanda;
+export const valorLegivelTarefa = (campo: string, v: unknown) =>
+  campo in FORMATOS_DA_TAREFA && v !== null && v !== undefined ? FORMATOS_DA_TAREFA[campo](v) : valorLegivelDemanda(campo, v);
 
 // ---------- pessoas da tarefa ----------
 export const PAPEIS_NA_TAREFA: Record<PapelNaTarefa, string> = { pessoa: 'Ligada', responsavel: 'Responsável', participante: 'Participante' };

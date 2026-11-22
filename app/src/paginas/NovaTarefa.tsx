@@ -32,7 +32,7 @@ import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -328,6 +328,15 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         {/* A data de início só ao mudar uma tarefa que já existe: a nova começa no dia em que é criada (#357). */}
         {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
       </>}
+      {/* A diligência (#313): marcada, o motivo passa a ser obrigatório. */}
+      <Escolhas rotulo="Diligência" dica="Ir a um cartório, a um fórum, a um órgão…">
+        <label><input type="checkbox" checked={c.diligencia} onChange={e => mudar({ diligencia: e.target.checked })} />Esta tarefa é uma diligência</label>
+      </Escolhas>
+      {c.diligencia && <Campo rotulo="Motivo da diligência" para="motivoDaDiligencia" obrigatorio erro={erros.motivoDaDiligencia}
+        dica="Por que a diligência é feita. Ex.: protocolar a petição no cartório.">
+        <textarea {...propsDoCampo('motivoDaDiligencia', { dica: true, erro: erros.motivoDaDiligencia })} rows={3} maxLength={TAMANHO_TAREFA.motivoDaDiligencia}
+          value={c.motivoDaDiligencia} onChange={e => mudar({ motivoDaDiligencia: e.target.value })} />
+      </Campo>}
       {/* As ligações, opcionais, na mesma etapa (#299): ligar a demanda traz as pessoas dela para a etapa seguinte. */}
       {ligacoes()}
     </>,

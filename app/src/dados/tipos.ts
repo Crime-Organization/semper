@@ -427,6 +427,10 @@ export interface Tarefa {
   participantes: string[];         // perfis da equipe, sem o responsável
   /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
   grupos?: string[];
+  /** É uma diligência (#313): ir a um cartório, a um fórum, a um órgão... Marcada, o motivo é obrigatório. */
+  diligencia: boolean;
+  /** Por que a diligência é feita (só na diligência; null nas outras). */
+  diligencia_motivo: string | null;
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
   /** A demanda principal: a primeira de demanda_ids (a versão anterior do site só conhece esta). */
@@ -481,9 +485,10 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 }
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
-  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'
+  | 'diligencia' | 'diligencia_motivo'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
-export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome'
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome' | 'diligencia'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
   /**
    * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a

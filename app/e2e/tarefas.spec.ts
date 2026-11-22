@@ -270,7 +270,7 @@ test.describe('Editar no cartão', () => {
     await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toHaveCount(0);
     await expect(edicao.getByRole('heading', { name: 'Pessoas' })).toBeVisible();
-    await expect(edicao.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeVisible();
+    await expect(edicao.getByRole('heading', { name: 'Diligência, demanda, contrato e processo' })).toBeVisible();
     await edicao.getByLabel(/Responsável/).selectOption({ label: 'Bruno Exemplo Souza' });
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
