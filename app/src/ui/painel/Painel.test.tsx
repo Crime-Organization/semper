@@ -58,6 +58,24 @@ describe('Cartões do painel', () => {
     expect(within(cartao).getByRole('link', { name: 'Ver todos' })).toBeInTheDocument();
     expect(within(cartao).getByText('lista')).toBeInTheDocument();
   });
+
+  it('dado um cartão com contador e carregando, quando aparece, então o número fica ao lado do título e a região avisa que está ocupada', () => {
+    // Quando
+    render(<CartaoDoPainel titulo="Tarefas em andamento" contador="12" ocupado><p>lista</p></CartaoDoPainel>);
+    // Então
+    const cartao = screen.getByRole('region', { name: 'Tarefas em andamento' });
+    expect(within(cartao).getByTitle('Quantos há')).toHaveTextContent('12');
+    expect(cartao).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('dado um cartão sem contador e já carregado, quando aparece, então não há número nem aviso de ocupado', () => {
+    // Quando
+    render(<CartaoDoPainel titulo="Ritmo"><p>gráfico</p></CartaoDoPainel>);
+    // Então
+    const cartao = screen.getByRole('region', { name: 'Ritmo' });
+    expect(within(cartao).queryByTitle('Quantos há')).not.toBeInTheDocument();
+    expect(cartao).not.toHaveAttribute('aria-busy');
+  });
 });
 
 describe('Filtro do painel', () => {

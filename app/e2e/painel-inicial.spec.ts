@@ -1,7 +1,9 @@
-// Painel da página inicial (#319): prazos, agenda do dia, tarefas, demandas, processos, anotações, parcelas da semana e Pessoas.
+// Painel da página inicial (#319, #402): os números do dia, os gráficos (tarefas por situação e ritmo), o filtro do administrador e as
+// listas (prazos, agenda do dia, tarefas, demandas, processos, anotações, parcelas da semana e Pessoas).
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Na semente do banco fictício, Mauro (o master) é responsável por "Emitir a GRU" (prazo daqui a 2 dias) e participa de
-// "Renovar a procuração" (venceu ontem); a "Reunião de equipe" de hoje, às 9h, está na Agenda geral.
+// Na semente do banco fictício, Mauro (o master) é responsável por "Emitir a GRU" (prazo daqui a 2 dias, na coluna "Fazendo") e
+// participa de "Renovar a procuração" (venceu ontem, em "Para fazer"); a "Reunião de equipe" de hoje, às 9h, está na Agenda geral.
+// "Pedir documentos ao cliente" (em "Para fazer") e "Organizar a pasta" (concluída) são do Bruno.
 import { expect, test, type Page } from '@playwright/test';
 
 const CHAVE = 'semper-dados-falsos';
@@ -88,17 +90,68 @@ test.describe('Painel da página inicial', () => {
     await expect(bloco(page, 'Parcelas da semana')).toHaveCount(0);
   });
 
-  test('quando é um dia sem nada, então cada bloco diz que não há nada, em vez de sumir', async ({ page }) => {
+  test('quando a pessoa não tem nada em nenhum módulo, então o painel diz por onde começar, e o botão abre o cadastro da tarefa', async ({ page }) => {
     // Dado
     await mudarBanco(page, 'dia vazio');
+    // Então: sem números nem gráficos zerados
+    await expect(page.getByRole('main').getByText('Seu painel começa aqui.')).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Números do dia' })).toHaveCount(0);
+    await expect(bloco(page, 'Ritmo')).toHaveCount(0);
+    // Quando
+    await page.getByRole('main').getByRole('link', { name: 'Criar tarefa' }).click();
     // Então
-    const vazios: [string, string][] = [
-      ['Prazos', 'Nenhum prazo vencido, para hoje ou para os próximos 7 dias.'], ['Agenda de hoje', 'Nenhum compromisso hoje.'],
-      ['Tarefas em andamento', 'Nenhuma tarefa em andamento com você.'], ['Suas demandas', 'Nenhuma demanda em aberto com você.'],
-      ['Seus processos', 'Nenhum processo com você.'], ['Anotações recentes', 'Nenhuma anotação sua ainda.'],
-      ['Parcelas da semana', 'Nenhuma parcela vencida ou a vencer nos próximos 7 dias.']
-    ];
-    for (const [titulo, texto] of vazios) await expect(bloco(page, titulo).getByText(texto)).toBeVisible();
+    await expect(page).toHaveURL(/\/tarefas\/nova\/$/);
+  });
+
+  test('quando a pessoa entra, então vê os números do dia, e o número dos prazos vencidos leva à lista dos prazos', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    const numeros = page.getByRole('group', { name: 'Números do dia' });
+    // Então: "Emitir a GRU" (fazendo) e "Renovar a procuração" (a fazer) são do Mauro; "Renovar a procuração" venceu ontem
+    await expect(numeros.getByRole('link', { name: /Tarefas a fazer\s*2/ })).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /Prazos vencidos\s*1/ })).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /Compromissos de hoje\s*1/ })).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /Mensagens não lidas/ })).toHaveAttribute('href', '/mensagens/');
+    // Quando
+    await numeros.getByRole('link', { name: /Prazos vencidos/ }).click();
+    // Então
+    await expect(page).toHaveURL(/#inicio-prazos$/);
+    await expect(bloco(page, 'Prazos').getByRole('link', { name: /Renovar a procuração/ })).toBeInViewport();
+  });
+
+  test('quando a pessoa passa o mouse numa barra do ritmo, então vê o número exato, e pode trocar para os últimos 30 dias', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    const ritmo = bloco(page, 'Ritmo');
+    await expect(bloco(page, 'Tarefas por situação').getByRole('link', { name: '1 Fazendo' })).toBeVisible();
+    // Quando: o gráfico recebe o foco e a seta leva à última barra (hoje)
+    await ritmo.getByRole('group', { name: /Tarefas concluídas em cada um dos últimos 7 dias/ }).focus();
+    await page.keyboard.press('End');
+    // Então
+    await expect(ritmo.getByRole('status')).toContainText('hoje');
+    // Quando
+    await ritmo.getByRole('button', { name: '30 dias' }).click();
+    // Então: a escolha fica guardada
+    await expect(ritmo.getByText('O que foi feito em cada um dos últimos 30 dias.').or(ritmo.getByText('Nenhuma tarefa concluída nem tempo registrado nos últimos 30 dias.'))).toBeVisible();
+    await page.reload();
+    await expect(bloco(page, 'Ritmo').getByRole('button', { name: '30 dias' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('quando o administrador mostra a equipe toda, então os números e as listas mudam junto, e os links abrem o trabalho de todos', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    const numeros = page.getByRole('group', { name: 'Números do dia' });
+    await expect(numeros.getByRole('link', { name: /Tarefas a fazer\s*2/ })).toBeVisible();
+    // Quando
+    await page.getByRole('combobox', { name: 'Mostrar' }).selectOption('equipe');
+    // Então: entra a tarefa do Bruno em "Para fazer"
+    await expect(page.getByText('O trabalho da equipe toda.')).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /Tarefas a fazer\s*3/ })).toBeVisible();
+    await expect(bloco(page, 'Tarefas em andamento').getByRole('link', { name: /Pedir documentos ao cliente/ })).toBeVisible();
+    // Quando
+    await bloco(page, 'Tarefas em andamento').getByRole('link', { name: 'Ver todas' }).click();
+    // Então
+    await expect(page.getByRole('main').getByText('Pedir documentos ao cliente').first()).toBeVisible();
   });
 
   test('quando a pessoa clica na busca do alto do painel, então a busca geral abre com o foco no campo', async ({ page }) => {

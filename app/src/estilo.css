@@ -1804,6 +1804,9 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 }
 .painel-cartao-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px }
 .painel-cartao h2.secao { font-size: var(--texto-titulo-1) }
+/* O título com o número ao lado (quantos itens a lista tem) e, à direita, o "Ver todos" que leva à página do módulo (#402) */
+.painel-cartao-titulo { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.painel-ver-todos { font-size: var(--texto-apoio); white-space: nowrap }
 .painel-cartao:target { border-color: var(--accent) }
 .painel-subtitulo { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--ink) }
 .painel-subtitulo-numero { margin-left: 4px; font-weight: 400; color: var(--muted) }

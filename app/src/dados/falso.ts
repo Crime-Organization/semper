@@ -3267,6 +3267,19 @@ export const SD: Dados = {
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, TAREFAS_LIGADAS)),
   tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.demanda_id === demandaId))),
   tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.contrato_id === contratoId))),
+  // Como tarefasGraficos do supabase.ts: as tarefas que quem está logado vê (as não arquivadas e as arquivadas concluídas no período)
+  // e o tempo do período, o próprio ou, para o administrador, o de todos (como as regras de leitura de tarefa_tempos).
+  tarefasGraficos({ desde, pessoa }) {
+    const inicio = inicioDoDia(desde);
+    const daPessoaNaTarefa = (t: TarefaGuardada) => !pessoa || t.responsavel_id === pessoa || t.participantes.includes(pessoa);
+    const tarefas = bd.tarefas!.filter(t => vejoNoModulo('tarefas', t.id) && daPessoaNaTarefa(t) && (!t.arquivado_em || (!!t.concluida_em && t.concluida_em >= inicio)));
+    const tempos = bd.tempos!.filter(r => (r.perfil_id === eu || souAdmin()) && vejoATarefaDoTempo(r.tarefa_id) && (!pessoa || r.perfil_id === pessoa)
+      && new Date(r.inicio).toISOString() >= inicio);
+    return espera({
+      tarefas: tarefas.map(t => ({ id: t.id, etapa_id: t.etapa_id, concluida_em: t.concluida_em, arquivado_em: t.arquivado_em })),
+      tempos: tempos.map(r => ({ inicio: r.inicio, segundos: r.segundos }))
+    });
+  },
 
   // ---------- tempo nas tarefas (como supabase/migrations/20261030120000_tempo_nas_tarefas.sql) ----------
   async tempoIniciar(tarefaId, inicio, segundos) {

@@ -4463,6 +4463,55 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Gráficos do painel do Início (#402)', () => {
+      // Quem está logado é o Mauro (administrador): vê as tarefas e o tempo de todos.
+      const HOJE = hojeISO(), ONTEM = hojeISO(new Date(Date.now() - DIA));
+      const novaTarefa = async (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        (await SD.tarefaCriar({ titulo: 'Do painel ' + marca(), responsavel_id: 'u-master', ...extra })).id;
+      const concluir = async (id: string) => {
+        const fim = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')!;
+        await SD.tarefaMover(id, fim.id, 1);
+      };
+
+      it('quando pede os de uma pessoa, então vêm só as tarefas em que ela é responsável ou participante; sem pessoa, as de todos', async () => {
+        // Dado
+        const minha = await novaTarefa(), comigo = await novaTarefa({ responsavel_id: 'u-bruno', participantes: ['u-master'] }), alheia = await novaTarefa({ responsavel_id: 'u-bruno' });
+        // Quando
+        const [meus, todos] = [await SD.tarefasGraficos({ desde: HOJE, pessoa: 'u-master' }), await SD.tarefasGraficos({ desde: HOJE, pessoa: null })];
+        // Então
+        const ids = meus.tarefas.map(t => t.id);
+        expect(ids).toEqual(expect.arrayContaining([minha, comigo]));
+        expect(ids).not.toContain(alheia);
+        expect(todos.tarefas.map(t => t.id)).toContain(alheia);
+      });
+
+      it('quando a tarefa é arquivada, então só continua se foi concluída no período, com a data de conclusão', async () => {
+        // Dado
+        const aberta = await novaTarefa(), concluida = await novaTarefa();
+        await concluir(concluida);
+        await SD.tarefasArquivar([aberta, concluida]);
+        // Quando
+        const g = await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-master' });
+        // Então
+        expect(g.tarefas.map(t => t.id)).not.toContain(aberta);
+        expect(g.tarefas.find(t => t.id === concluida)).toMatchObject({ arquivado_em: expect.any(String), concluida_em: expect.any(String) });
+      });
+
+      it('quando há tempo registrado, então vem o da pessoa no período, sem o de antes dele nem o de outra pessoa', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        const agora = new Date().toISOString();
+        await SD.tempoIniciar(tarefa, agora, 900);
+        await SD.tempoIniciar(tarefa, '2000-01-03T13:00:00.000Z', 600);
+        // Quando
+        const [meu, doBruno] = [await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-master' }), await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-bruno' })];
+        // Então
+        expect(meu.tempos).toContainEqual({ inicio: agora, segundos: 900 });
+        expect(meu.tempos.some(r => r.inicio.startsWith('2000-'))).toBe(false);
+        expect(doBruno.tempos.some(r => r.inicio === agora)).toBe(false);
+      });
+    });
+
     describe('Listas das demandas e das tarefas', () => {
       const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' })).id;
 
