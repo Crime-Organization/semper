@@ -118,7 +118,7 @@ export default function Contratos() {
     try {
       const q = await SD.contratosArquivar(lista, true);
       const quantos = q === 1 ? '1 contrato' : q + ' contratos';
-      feito(`${plural(q, 'contrato arquivado', 'contratos arquivados')}.`, `arquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, false); });
+      feito(`${plural(q, 'contrato arquivado', 'contratos arquivados')}, com as demandas e as tarefas.`, `arquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, false); });
       selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }

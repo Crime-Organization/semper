@@ -138,7 +138,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     const estava = !!k!.arquivado_em;
     try {
       await SD.contratosArquivar([k!.id], !estava);
-      feito(estava ? 'Contrato desarquivado.' : 'Contrato arquivado. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
+      feito(estava ? 'Contrato desarquivado. As demandas e as tarefas arquivadas junto com ele voltaram.'
+        : 'Contrato arquivado, com as demandas e as tarefas dele. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
         async () => { await SD.contratosArquivar([k!.id], estava); });
       aoMudar(); await carregar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }

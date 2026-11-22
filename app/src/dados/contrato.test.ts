@@ -4762,6 +4762,65 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Arquivar o contrato leva junto as demandas e as tarefas (#284)', () => {
+      const novoContrato = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+      };
+      const arquivada = async (modulo: 'demanda' | 'tarefa', id: string) =>
+        !!(modulo === 'demanda' ? await SD.demandaObter(id) : await SD.tarefaObter(id))!.arquivado_em;
+      // Dado um contrato com uma demanda e três tarefas: uma do contrato, uma da demanda e uma também ligada a outro contrato ativo
+      const cenario = async () => {
+        const [k, outro] = [await novoContrato(), await novoContrato()];
+        const d = await SD.demandaCriar({ titulo: 'Do contrato ' + marca(), responsavel_id: 'u-master', contrato_id: k.id });
+        const doContrato = await SD.tarefaCriar({ titulo: 'Do contrato', responsavel_id: 'u-master', contrato_ids: [k.id] });
+        const daDemanda = await SD.tarefaCriar({ titulo: 'Da demanda', responsavel_id: 'u-master', demanda_ids: [d.id] });
+        const comOutro = await SD.tarefaCriar({ titulo: 'Também de outro', responsavel_id: 'u-master', contrato_ids: [k.id, outro.id] });
+        return { k, d, doContrato, daDemanda, comOutro };
+      };
+
+      it('dado um contrato com demandas e tarefas, quando é arquivado, então elas são arquivadas junto, menos a que tem outro contrato ativo', async () => {
+        // Dado
+        const c = await cenario();
+        // Quando
+        await SD.contratosArquivar([c.k.id], true);
+        // Então
+        expect(await arquivada('demanda', c.d.id)).toBe(true);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(true);
+        expect(await arquivada('tarefa', c.daDemanda.id)).toBe(true);
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(false);
+      });
+
+      it('dado um contrato, quando é movido para Encerrado, então nem ele nem o que está ligado a ele é arquivado', async () => {
+        // Dado
+        const c = await cenario();
+        const encerrado = (await SD.colunasListar('contratos')).find(x => x.nome === 'Encerrado')!;
+        // Quando
+        await SD.contratoMover(c.k.id, encerrado.id, 1);
+        // Então
+        expect((await SD.contratoObter(c.k.id))!.arquivado_em).toBeNull();
+        expect(await arquivada('demanda', c.d.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+      });
+
+      it('dado um contrato arquivado, quando é desarquivado, então voltam só as arquivadas junto com ele', async () => {
+        // Dado uma tarefa já arquivada antes e outra que a pessoa desarquivou e arquivou de novo, de propósito
+        const c = await cenario();
+        const antes = await SD.tarefaCriar({ titulo: 'Já arquivada', responsavel_id: 'u-master', contrato_ids: [c.k.id] });
+        await SD.tarefasArquivar([antes.id], true);
+        await SD.contratosArquivar([c.k.id], true);
+        await SD.tarefasArquivar([c.daDemanda.id], false);
+        await SD.tarefasArquivar([c.daDemanda.id], true);
+        // Quando
+        await SD.contratosArquivar([c.k.id], false);
+        // Então
+        expect(await arquivada('demanda', c.d.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+        expect(await arquivada('tarefa', antes.id)).toBe(true);
+        expect(await arquivada('tarefa', c.daDemanda.id)).toBe(true);
+      });
+    });
+
     describe('Meu tempo trabalhado', () => {
       const novaTarefa = async (titulo: string) => (await SD.tarefaCriar({ titulo, responsavel_id: 'u-master' })).id;
 

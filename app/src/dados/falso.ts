@@ -81,6 +81,7 @@ import {
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA } from '../ui/tempos';
+import { arquivadosComOContrato } from '../regras/arquivarContrato';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -242,6 +243,8 @@ interface Banco {
   processoDemandas?: { processo_id: string; demanda_id: string; papel?: PapelDaDemandaNoProcesso }[];
   /** As demandas relacionadas (demandas_relacionadas no banco, #310): as duas em ordem, a menor primeiro. Os números vêm das demandas. */
   demandasRelacionadas?: { demanda_a: string; demanda_b: string }[];
+  /** O que cada contrato arquivou junto (privado.arquivados_com_contrato no banco, #284): o id da demanda ou da tarefa. */
+  arquivadosComContrato?: { contrato_id: string; id: string }[];
   /** Os processos ligados aos contratos (contrato_processos no banco). */
   contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -596,6 +599,7 @@ bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
 bd.demandasRelacionadas ??= [];
+bd.arquivadosComContrato ??= [];
 bd.processoPartes ??= [];
 bd.contratoProcessos ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
@@ -1057,6 +1061,35 @@ const demandaDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id'>) => bd.dem
 /** Todas as demandas ligadas à tarefa (#283), na ordem. */
 const demandasDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id' | 'demanda_ids'>) =>
   demandasDaTarefa(t).flatMap(id => bd.demandas!.filter(d => d.id === id));
+
+/** A demanda ou a tarefa arquivada, desarquivada ou excluída sozinha perde a marca de "arquivada junto com o contrato" (#284). */
+const esquecerArquivadoComContrato = (id: string) => { bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.id !== id); };
+
+/**
+ * Como o gatilho privado.contrato_arquiva_em_cascata (#284): arquivar o contrato arquiva junto as demandas e as tarefas dele
+ * (regras/arquivarContrato.ts), em nome de quem arquivou o contrato; desarquivar traz de volta só as que têm a marca dele.
+ */
+function arquivarEmCascata(contratoId: string, arquivar: boolean) {
+  const campos = () => ({ arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+  const mudar = (ids: ReadonlySet<string>) => {
+    bd.demandas!.filter(d => ids.has(d.id)).forEach(d => { historicoDemanda(d, { arquivado_em: campos().arquivado_em }); Object.assign(d, campos()); });
+    bd.tarefas!.filter(t => ids.has(t.id)).forEach(t => { historicoTarefa(t, { arquivado_em: campos().arquivado_em }); Object.assign(t, campos()); });
+  };
+  if (!arquivar) {
+    mudar(new Set(bd.arquivadosComContrato!.filter(m => m.contrato_id === contratoId).map(m => m.id)));
+    bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.contrato_id !== contratoId);
+    return;
+  }
+  const junto = arquivadosComOContrato(contratoId, {
+    demandas: bd.demandas!,
+    tarefas: bd.tarefas!.map(t => ({ id: t.id, arquivado_em: t.arquivado_em, demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processo_id: t.processo_id })),
+    contratoAtivo: id => bd.contratos!.some(k => k.id === id && !k.arquivado_em),
+    processoAtivo: id => bd.processos!.some(p => p.id === id && !p.arquivado_em)
+  });
+  const ids = [...junto.demandas, ...junto.tarefas];
+  mudar(new Set(ids));
+  ids.forEach(id => bd.arquivadosComContrato!.push({ contrato_id: contratoId, id }));
+}
 /** Como a regra de leitura das demandas: quem está nela e, só para ler, quem está no contrato ligado a ela (#326). */
 const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou(), meusGruposNoFalso());
 /** Como a regra de leitura das tarefas: quem está nela ou numa das demandas e, só para ler, quem está num dos contratos dela ou no de uma das demandas (#326, #283). */
@@ -3218,8 +3251,10 @@ export const SD: Dados = {
   async contratosArquivar(ids, arquivar = true) {
     ids.forEach(id => {
       const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return;
+      const mudou = !k.arquivado_em === arquivar;
       historicoContrato(k, { arquivado_em: arquivar ? agora() : null });
       Object.assign(k, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      if (mudou) arquivarEmCascata(k.id, arquivar);
     });
     gravar(); return espera(ids.length);
   },
@@ -3234,6 +3269,7 @@ export const SD: Dados = {
       bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
+      bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.contrato_id !== id);
       excluirListasDoCartao('contrato_id', id);
       soltarDasAnotacoes('contratos', id);
       soltarDosCompromissos('contratos', id);
@@ -3315,6 +3351,7 @@ export const SD: Dados = {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
       Object.assign(d, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      esquecerArquivadoComContrato(id);
     });
     gravar(); return espera(ids.length);
   },
@@ -3334,6 +3371,7 @@ export const SD: Dados = {
       // Com várias (#283), ela sai só da lista de cada tarefa, e a próxima vira a principal.
       bd.tarefas!.forEach(t => { if (demandasDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ demanda_ids: demandasDaTarefa(t).filter(x => x !== id) }, t)); });
       excluirListasDoCartao('demanda_id', id);
+      esquecerArquivadoComContrato(id);
       auditar('demandas', 'exclusao', d); excluidas++;
     });
     gravar();
@@ -3427,6 +3465,7 @@ export const SD: Dados = {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
       Object.assign(t, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      esquecerArquivadoComContrato(id);
     });
     gravar(); return espera(ids.length);
   },
@@ -3445,6 +3484,7 @@ export const SD: Dados = {
       soltarDasAnotacoes('tarefas', id);
       soltarDosCompromissos('tarefas', id);
       excluirListasDoCartao('tarefa_id', id);
+      esquecerArquivadoComContrato(id);
       auditar('tarefas', 'exclusao', t); excluidas++;
     });
     gravar();

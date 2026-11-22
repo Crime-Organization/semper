@@ -642,6 +642,10 @@ export interface DadosContratos {
   /** O nome das contas do escritório, para escolher a conta de destino do contrato (qualquer um da equipe). */
   contasParaEscolher(): Promise<ContaParaEscolher[]>;
   contratoAtualizar(id: string, dados: DadosContrato): Promise<{ id: string; codigo: string }>;
+  /**
+   * Arquivar leva junto as demandas do contrato e as tarefas dele e delas que não têm outra ligação ativa (#284, regras/arquivarContrato.ts);
+   * desarquivar traz de volta só o que foi arquivado junto. Mover para Encerrado não arquiva nada.
+   */
   contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */
   contratosExcluir(ids: string[]): Promise<Exclusao>;
