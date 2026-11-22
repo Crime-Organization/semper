@@ -4,8 +4,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
 
--- Dado um escritório com Ana (administradora), Bia (colaboradora só da D2) e Caio (participante só do contrato K2), e o Davi,
--- administrador de outro escritório, com a demanda D9 e o contrato K9.
+-- Dado um escritório com Ana (administradora), Bia (colaboradora só da D2), Caio (participante só do contrato K2) e Eva (da equipe,
+-- sem nenhuma ligação), e o Davi, administrador de outro escritório, com a demanda D9 e o contrato K9.
 insert into public.escritorios (id, nome, slug, modulos) values
   ('e0000000-0000-0000-0000-000000000001', 'Escritório de teste', 'teste-varias-ligacoes', '{"pessoas": true, "contratos": true, "demandas": true, "tarefas": true}'),
   ('e0000000-0000-0000-0000-000000000002', 'Outro escritório', 'teste-varias-ligacoes-2', '{"pessoas": true, "contratos": true, "demandas": true, "tarefas": true}');
@@ -13,14 +13,16 @@ insert into public.convites (escritorio_id, email, nome, papel, codigo_hash, lin
   ('e0000000-0000-0000-0000-000000000001', 'ana@exemplo.test', 'Ana', 'master', privado.resumo_codigo('c1'), now()),
   ('e0000000-0000-0000-0000-000000000001', 'bia@exemplo.test', 'Bia', 'usuario', privado.resumo_codigo('c2'), now()),
   ('e0000000-0000-0000-0000-000000000001', 'caio@exemplo.test', 'Caio', 'usuario', privado.resumo_codigo('c3'), now()),
-  ('e0000000-0000-0000-0000-000000000002', 'davi@exemplo.test', 'Davi', 'master', privado.resumo_codigo('c4'), now());
+  ('e0000000-0000-0000-0000-000000000002', 'davi@exemplo.test', 'Davi', 'master', privado.resumo_codigo('c4'), now()),
+  ('e0000000-0000-0000-0000-000000000001', 'eva@exemplo.test', 'Eva', 'usuario', privado.resumo_codigo('c5'), now());
 insert into auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
   ('a0000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@exemplo.test', '{"convite":"c1"}', now(), now()),
   ('a0000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'bia@exemplo.test', '{"convite":"c2"}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'caio@exemplo.test', '{"convite":"c3"}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'davi@exemplo.test', '{"convite":"c4"}', now(), now());
+  ('a0000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'davi@exemplo.test', '{"convite":"c4"}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'eva@exemplo.test', '{"convite":"c5"}', now(), now());
 insert into auth.sessions (id, user_id, created_at, updated_at) select ('50000000-0000-0000-0000-00000000000' || n)::uuid, ('a0000000-0000-0000-0000-00000000000' || n)::uuid, now(), now()
-  from generate_series(1, 4) as n;
+  from generate_series(1, 5) as n;
 
 set local session_replication_role = replica;
 insert into public.pessoas (id, escritorio_id, codigo, tipo, nome, criado_por) values
@@ -115,6 +117,16 @@ select results_eq($$ with x as (update public.tarefas set titulo = 'Do Caio' whe
   $$ values (0::bigint) $$, 'Mas não altera');
 reset role;
 
+-- Quando a Eva, da equipe mas sem nenhuma ligação, procura a tarefa, então não a vê, não vê as ligações dela e não a altera
+select pg_temp.entrar(5); set local role authenticated;
+select is((select count(*) from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), 0::bigint, 'Quem não está em nada não vê a tarefa');
+select is((select count(*) from public.tarefa_demandas where tarefa_id = '70000000-0000-0000-0000-000000000001')
+          + (select count(*) from public.tarefa_contratos where tarefa_id = '70000000-0000-0000-0000-000000000001'), 0::bigint,
+  'Nem as demandas e os contratos ligados a ela');
+select results_eq($$ with x as (update public.tarefas set demanda_ids = '{}' where id = '70000000-0000-0000-0000-000000000001' returning 1) select count(*) from x $$,
+  $$ values (0::bigint) $$, 'Nem tira as ligações dela');
+reset role;
+
 -- ===== Tirar uma ligação =====
 -- Quando a Ana tira a primeira demanda, então a tarefa continua na outra, que passa a ser a principal
 select pg_temp.entrar(1); set local role authenticated;
@@ -151,6 +163,10 @@ select is(pg_temp.tarefa('demanda_id'), '71000000-0000-0000-0000-000000000001', 
 select is((select count(*) from public.tarefa_demandas where demanda_id = '71000000-0000-0000-0000-000000000002'), 0::bigint, 'E a ligação dela some');
 select is((select alteracoes -> 'demandas' ->> 'de' from public.tarefa_historico where tarefa_id = '70000000-0000-0000-0000-000000000001' order by id desc limit 1),
   'D1, demanda excluída', 'O histórico diz que a demanda foi excluída');
+-- E a Bia, que via a tarefa só pela demanda excluída, deixa de vê-la
+select pg_temp.entrar(2); set local role authenticated;
+select is((select count(*) from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), 0::bigint, 'Quem estava só na demanda excluída deixa de ver a tarefa');
+reset role;
 
 -- ===== Dois escritórios =====
 select pg_temp.entrar(1); set local role authenticated;
@@ -168,11 +184,29 @@ reset role;
 select pg_temp.entrar(4); set local role authenticated;
 select is((select count(*) from public.tarefa_demandas), 0::bigint, 'Outro escritório não vê as demandas ligadas');
 select is((select count(*) from public.tarefa_contratos), 0::bigint, 'Outro escritório não vê os contratos ligados');
+-- E não vê nem altera a tarefa do outro escritório (nem para pô-la na demanda dele)
+select is((select count(*) from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), 0::bigint, 'Outro escritório não vê a tarefa');
+select results_eq($$ with x as (update public.tarefas set demanda_ids = '{71000000-0000-0000-0000-000000000009}' where id = '70000000-0000-0000-0000-000000000001' returning 1)
+  select count(*) from x $$, $$ values (0::bigint) $$, 'Nem a liga à demanda dele');
+-- E a tarefa dele não nasce ligada à demanda ou ao contrato do outro escritório, pela lista ou pela coluna da versão anterior
+select throws_ok($$ insert into public.tarefas (titulo, responsavel_id, demanda_ids, criado_por) values ('De fora', 'a0000000-0000-0000-0000-000000000004',
+  '{71000000-0000-0000-0000-000000000001}', 'a0000000-0000-0000-0000-000000000004') $$,
+  'P0001', 'Demanda não encontrada neste escritório.', 'Não cria tarefa na demanda de outro escritório');
+select throws_ok($$ insert into public.tarefas (titulo, responsavel_id, contrato_ids, criado_por) values ('De fora', 'a0000000-0000-0000-0000-000000000004',
+  '{c0000000-0000-0000-0000-000000000002}', 'a0000000-0000-0000-0000-000000000004') $$,
+  'P0001', 'Contrato não encontrado neste escritório.', 'Não cria tarefa no contrato de outro escritório');
+select throws_ok($$ insert into public.tarefas (titulo, responsavel_id, demanda_id, criado_por) values ('De fora', 'a0000000-0000-0000-0000-000000000004',
+  '71000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004') $$,
+  'P0001', 'Demanda não encontrada neste escritório.', 'Nem pela coluna da versão anterior');
 reset role;
 
 -- ===== Por dentro =====
 select ok((select relrowsecurity from pg_class where oid = 'public.tarefa_demandas'::regclass)
           and (select relrowsecurity from pg_class where oid = 'public.tarefa_contratos'::regclass), 'As tabelas de ligação têm RLS');
+-- Sem chave estrangeira para demandas e contratos: com ela, o PostgREST recusaria a leitura "demanda:demandas(...)" da versão anterior (PGRST201).
+select is((select count(*) from pg_constraint where contype = 'f' and conrelid in ('public.tarefa_demandas'::regclass, 'public.tarefa_contratos'::regclass)
+           and confrelid in ('public.demandas'::regclass, 'public.contratos'::regclass)), 0::bigint,
+  'As tabelas de ligação não têm chave estrangeira para demandas e contratos');
 select is((select count(*) from pg_policies where coalesce(qual, '') || coalesce(with_check, '') ~ 'estou_na_tarefa\('), 0::bigint,
   'Nenhuma regra confere a tarefa só pela demanda principal');
 select is((select array_agg(p.proname::text order by 1) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
