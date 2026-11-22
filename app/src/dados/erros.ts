@@ -3,6 +3,7 @@
 // Uma regra casa quando o código (se houver) e o padrão da mensagem (se houver) batem os dois.
 import { INICIO_VAZIO } from '../regras/dataDeInicio';
 import { recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
+import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
@@ -62,6 +63,7 @@ const ERROS: Regra[] = [
   // O nome da pasta vazio ou longo demais: as mesmas mensagens do banco fictício (#342).
   { codigo: '23514', padrao: /anotacao_pastas_nome_preenchido/, mensagem: PASTA_SEM_NOME },
   { codigo: '23514', padrao: /anotacao_pastas_nome_tamanho/, mensagem: PASTA_NOME_LONGO },
+  { codigo: '23514', padrao: /demandas_relacionadas_em_ordem/, mensagem: MESMA_DEMANDA },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: SEM_PERMISSAO },
   { padrao: /permission denied|row-level security/i, mensagem: SEM_PERMISSAO },

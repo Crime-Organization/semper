@@ -13,6 +13,7 @@ import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limi
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
+import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -2533,7 +2534,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const mesma = SD.demandaRelacionar(d.id, d.id);
         const comArquivada = SD.demandaRelacionar(d.id, arquivada.id);
         // Então
-        await expect(mesma).rejects.toThrow();
+        await expect(mesma).rejects.toThrow(MESMA_DEMANDA);
         await expect(comArquivada).rejects.toThrow('Você não tem permissão para fazer isso.');
         expect(await SD.demandasRelacionadas(d.id)).toEqual([]);
       });

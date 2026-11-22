@@ -10,6 +10,8 @@ export interface LinhaDaRelacao<T> {
 /** A outra demanda de uma ligação, vista do cartão de uma delas: o id e o número sempre; o conteúdo, só para quem pode vê-la. */
 export interface OutraDaRelacao<T> { id: string; codigo: string; demanda: T | null }
 
+/** A recusa de relacionar a demanda a ela mesma (a regra demandas_relacionadas_em_ordem do banco). */
+export const MESMA_DEMANDA = 'Uma demanda não se relaciona com ela mesma.';
 /** O texto no lugar do título, para quem não pode abrir a demanda relacionada. */
 export const RELACIONADA_SEM_ACESSO = 'Demanda relacionada';
 /** O detalhe, embaixo, para quem não pode abrir a demanda relacionada. */

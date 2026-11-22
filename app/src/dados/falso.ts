@@ -29,7 +29,7 @@ import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
-import { outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
+import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
@@ -3224,8 +3224,9 @@ export const SD: Dados = {
     return espera(linhas.map(l => outraDaRelacao({ ...l, codigo_a: codigoDe(l.demanda_a), codigo_b: codigoDe(l.demanda_b), a: ponta(l.demanda_a), b: ponta(l.demanda_b) }, demandaId)));
   },
   async demandaRelacionar(demandaId, outraId) {
-    // Como a regra "incluir": quem está nas duas, com as duas ativas; e nunca a demanda com ela mesma.
-    if (demandaId === outraId || ![demandaId, outraId].every(id => estouNaDemandaDoId(id, true))) return erro(SEM_PERMISSAO);
+    // Como a regra "incluir": quem está nas duas, com as duas ativas; e nunca a demanda com ela mesma (a regra de ordem do banco).
+    if (demandaId === outraId) return erro(MESMA_DEMANDA);
+    if (![demandaId, outraId].every(id => estouNaDemandaDoId(id, true))) return erro(SEM_PERMISSAO);
     const [demanda_a, demanda_b] = parDaRelacao(demandaId, outraId);
     const nova = !bd.demandasRelacionadas!.some(l => l.demanda_a === demanda_a && l.demanda_b === demanda_b);
     if (nova) bd.demandasRelacionadas!.push({ demanda_a, demanda_b });
