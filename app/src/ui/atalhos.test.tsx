@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Os atalhos de teclado da página de módulo (#86). Padrão Dado / Quando / Então: veja app/TESTES.md.
+// Os atalhos de teclado da página de módulo (#86) e a ajuda da tela (#85). Padrão Dado / Quando / Então: veja app/TESTES.md.
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -16,9 +16,12 @@ function Endereco() {
 
 const NOVA_PESSOA: AcaoPrincipal = { rotulo: 'Nova pessoa', para: '/pessoas/nova/' };
 
-function montar({ comNovo = true, comBusca = true, porCima = false, acao = NOVA_PESSOA }: { comNovo?: boolean; comBusca?: boolean; porCima?: boolean; acao?: AcaoPrincipal } = {}) {
+/** A explicação da tela, como as de regras/ajuda.ts. */
+const AJUDA_DE_TESTE = ['Aqui ficam as pessoas.', 'Clique no nome para abrir o cartão.', 'Arraste no Kanban.'];
+
+function montar({ comNovo = true, comBusca = true, porCima = false, acao = NOVA_PESSOA, ajuda }: { comNovo?: boolean; comBusca?: boolean; porCima?: boolean; acao?: AcaoPrincipal; ajuda?: readonly string[] } = {}) {
   render(<MemoryRouter initialEntries={['/pessoas/']}>
-    <PaginaModulo titulo="Pessoas" acao={comNovo ? acao : undefined}
+    <PaginaModulo titulo="Pessoas" ajuda={ajuda} acao={comNovo ? acao : undefined}
       busca={comBusca ? { placeholder: 'Buscar nome', aoBuscar: vi.fn() } : undefined}>
       <input type="checkbox" aria-label="Marcar a linha" />
       <textarea aria-label="Comentário" />
@@ -120,7 +123,7 @@ describe('Página de módulo: os atalhos do teclado', () => {
     expect(endereco()).toHaveTextContent(/^\/pessoas\/$/);
     const lista = await screen.findByRole('dialog', { name: 'Atalhos do teclado' });
     expect(lista).not.toHaveTextContent('Ir para a busca desta página');
-    expect(lista).toHaveTextContent('Mostrar esta lista de atalhos');
+    expect(lista).toHaveTextContent('Mostrar esta ajuda');
     await fecharALista(lista);
   });
 
@@ -200,5 +203,85 @@ describe('Página de módulo: os atalhos do teclado', () => {
     // Então
     expect(endereco()).toHaveTextContent(/^\/pessoas\/$/);
     expect(screen.getByRole('link', { name: 'Nova pessoa' })).toHaveAttribute('title', 'Nova pessoa');
+  });
+});
+
+describe('Página de módulo: a ajuda da tela (#85)', () => {
+  afterEach(() => { ligarAtalhos(true); });
+
+  it('dada a página sem texto de ajuda, quando ela abre, então não há botão "?" no cabeçalho', () => {
+    // Quando
+    montar();
+    // Então
+    expect(screen.queryByRole('button', { name: 'Ajuda desta tela' })).not.toBeInTheDocument();
+  });
+
+  it('dada a página com o texto de ajuda, quando a pessoa clica no "?", então abre a explicação da tela em cima e os atalhos embaixo', async () => {
+    // Dado
+    montar({ ajuda: AJUDA_DE_TESTE });
+    const botao = screen.getByRole('button', { name: 'Ajuda desta tela' });
+    expect(botao).toHaveAttribute('title', 'Ajuda desta tela (?)');
+    expect(botao).toHaveAttribute('aria-keyshortcuts', '?');
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    const ajuda = await screen.findByRole('dialog', { name: 'Ajuda: Pessoas' });
+    AJUDA_DE_TESTE.forEach(t => expect(within(ajuda).getByText(t)).toBeVisible());
+    const atalhos = within(ajuda).getByRole('region', { name: 'Atalhos do teclado' });
+    expect(within(atalhos).getByRole('region', { name: 'Nesta página' })).toHaveTextContent('Nova pessoa');
+    expect(within(atalhos).getByRole('heading', { level: 4, name: 'Em todo o SEMPER' })).toBeVisible();
+    // A explicação vem antes dos atalhos.
+    expect(within(ajuda).getByText(AJUDA_DE_TESTE[0]).compareDocumentPosition(atalhos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await fecharALista(ajuda);
+  });
+
+  it('dada a página com o texto de ajuda, quando a pessoa aperta "?", então abre a mesma janela do botão', async () => {
+    // Dado
+    montar({ ajuda: AJUDA_DE_TESTE });
+    // Quando
+    await userEvent.keyboard('?');
+    // Então
+    const ajuda = await screen.findByRole('dialog', { name: 'Ajuda: Pessoas' });
+    expect(ajuda).toHaveTextContent(AJUDA_DE_TESTE[1]);
+    expect(ajuda).toHaveTextContent('Mostrar esta ajuda');
+    await fecharALista(ajuda);
+  });
+
+  it('dada a ajuda aberta, quando a pessoa aperta Esc, então ela fecha', async () => {
+    // Dado
+    montar({ ajuda: AJUDA_DE_TESTE });
+    await userEvent.click(screen.getByRole('button', { name: 'Ajuda desta tela' }));
+    const ajuda = await screen.findByRole('dialog', { name: 'Ajuda: Pessoas' });
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(ajuda).not.toBeInTheDocument();
+  });
+
+  it('dada a ajuda aberta, quando a pessoa clica fora dela, então ela fecha', async () => {
+    // Dado
+    montar({ ajuda: AJUDA_DE_TESTE });
+    await userEvent.click(screen.getByRole('button', { name: 'Ajuda desta tela' }));
+    const ajuda = await screen.findByRole('dialog', { name: 'Ajuda: Pessoas' });
+    // Quando: o clique cai no véu escuro em volta da janela
+    await userEvent.click(ajuda.parentElement!);
+    // Então
+    expect(ajuda).not.toBeInTheDocument();
+  });
+
+  it('dados os atalhos de uma tecla desligados, quando a pessoa clica no "?", então a ajuda abre mesmo assim (e o "?" do teclado não)', async () => {
+    // Dado
+    ligarAtalhos(false);
+    montar({ ajuda: AJUDA_DE_TESTE });
+    await userEvent.keyboard('?');
+    expect(screen.queryByRole('dialog', { name: 'Ajuda: Pessoas' })).not.toBeInTheDocument();
+    const botao = screen.getByRole('button', { name: 'Ajuda desta tela' });
+    expect(botao).not.toHaveAttribute('aria-keyshortcuts');
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    const ajuda = await screen.findByRole('dialog', { name: 'Ajuda: Pessoas' });
+    expect(within(ajuda).getByRole('checkbox', { name: /Atalhos de uma tecla só/ })).not.toBeChecked();
+    await fecharALista(ajuda);
   });
 });

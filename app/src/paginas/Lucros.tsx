@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type ContaFinanceira, type MovimentoDoLucro, type Socio } from '../dados';
 import { TAMANHO_FINANCEIRO } from '../dados/limites';
+import { AJUDA } from '../regras/ajuda';
 import { fmtCentavos } from '../regras/caixa';
 import { anosDoLucro, avisoDaRetirada, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, MESES_DO_ANO, retiradaNova, rotuloDoEmAberto, totalDasLinhas, type FormDaRetirada, type LinhaDoLucro } from '../regras/lucro';
 import { fmtData } from '../regras/pessoa';
@@ -117,7 +118,7 @@ export default function Lucros() {
   useMudancas(() => { setPagando(false); recarregar(); });
 
   if (!pode) return <Navigate to="/inicio/" replace />;
-  const cabecalho = { titulo: 'Lucro dos sócios', visoes: [] };
+  const cabecalho = { titulo: 'Lucro dos sócios', visoes: [], ajuda: AJUDA.lucros };
   if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
   if (!dados) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 

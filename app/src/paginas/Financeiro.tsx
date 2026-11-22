@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento, type Socio } from '../dados';
+import { AJUDA } from '../regras/ajuda';
 import { CAMPOS_DO_LANCAMENTO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, textoDosAjustes, transferenciaNova, valorNoAjuste, valorNoHistorico } from '../regras/caixa';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
@@ -76,7 +77,7 @@ export default function Financeiro() {
   useMudancas(() => { setAberto(null); recarregar(); });
 
   if (!pode) return <Navigate to="/inicio/" replace />;
-  const cabecalho = { titulo: 'Caixa', visoes: [] };
+  const cabecalho = { titulo: 'Caixa', visoes: [], ajuda: AJUDA.caixa };
   if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
   if (contas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 

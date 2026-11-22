@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroProcessos, type Ordem, type Pagina, type ProcessoLista, type TipoProcesso } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
+import { AJUDA } from '../regras/ajuda';
 import { clientesPorExtenso } from '../regras/contrato';
 import { SEM_FASE } from '../regras/painelProcessos';
 import { soLeOCartao } from '../regras/equipeVeTudo';
@@ -157,7 +158,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
   const orgaosDoFiltro = f.orgao && !orgaos.includes(f.orgao) ? [...orgaos, f.orgao] : orgaos;
 
   return <>
-    <PaginaModulo titulo={titulo} contador={contador} acao={{ rotulo: 'Novo processo', para: cadastro }}
+    <PaginaModulo titulo={titulo} ajuda={AJUDA.processos} contador={contador} acao={{ rotulo: 'Novo processo', para: cadastro }}
       busca={{ placeholder: 'Buscar número, cliente, nome, comarca, código…', aoBuscar: t => mudarFiltro({ termo: t }) }}
       filtros={[
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',

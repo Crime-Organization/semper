@@ -2,6 +2,8 @@
 // cabeçalho numa linha só (título, contador, busca, Filtros, menu ⋯, troca Tabela/Kanban e a ação principal),
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
+// Com "ajuda" (os textos de regras/ajuda.ts), o cabeçalho ganha o botão "?" ao lado do título (#85), que abre a mesma janela da
+// tecla "?": a explicação da tela em cima e os atalhos de teclado embaixo.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { OrdemComPrazo } from '../dados';
@@ -13,6 +15,9 @@ import { BotaoLink, estiloBotao } from './base';
 import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
+
+/** O tamanho do "?" dentro do botão de ajuda, em pixels: o do ícone das abas, para combinar com a barra. */
+const TAMANHO_DO_ICONE_DA_AJUDA = 15;
 
 export type Visao = 'tabela' | 'kanban' | 'agenda';
 const VISOES: Record<Visao, { rotulo: string; icone: NomeIcone }> = {
@@ -57,10 +62,12 @@ interface Props {
   aoTrocarVisao?: (v: Visao) => void;
   /** Barra de ações em lote (aparece presa ao pé da tela quando há itens selecionados). */
   lote?: ReactNode;
+  /** A explicação curta da tela (regras/ajuda.ts, como AJUDA.pessoas): com ela, aparece o botão "?" no cabeçalho (#85). */
+  ajuda?: readonly string[];
   children: ReactNode;
 }
 
-export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lote, children }: Props) {
+export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lote, ajuda, children }: Props) {
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [painel, setPainel] = useState<HTMLElement | null>(null);
   // A busca pode chegar pelo endereço (/pessoas/?busca=maria): é o "Ver todos em …" da busca geral (#321). Ela entra no
@@ -90,7 +97,8 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
   // Os atalhos de teclado (#86): "/" vai à busca, "N" faz o mesmo que a ação principal e "?" mostra a lista.
   const campoDaBusca = useRef<HTMLInputElement>(null);
   const navegar = useNavigate();
-  useAtalhosDaPagina({
+  const abrirAjuda = useAtalhosDaPagina({
+    tela: ajuda ? { titulo, textos: ajuda } : undefined,
     buscar: busca ? () => { campoDaBusca.current?.focus(); campoDaBusca.current?.select(); } : undefined,
     novo: acao ? { rotulo: acao.rotulo, abrir: 'para' in acao ? () => { void navegar(acao.para); } : acao.aoClicar } : undefined
   });
@@ -104,6 +112,8 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
     <header className="cabeca">
       <div className="cabeca-titulo">
         <h1 className="titulo">{titulo}<span className="ponto">.</span></h1>
+        {ajuda && <button type="button" className="botao-ajuda" aria-label="Ajuda desta tela" aria-haspopup="dialog"
+          {...dicaDoAtalho('Ajuda desta tela', 'atalhos')} onClick={abrirAjuda}><Icone nome="ajuda" tam={TAMANHO_DO_ICONE_DA_AJUDA} /></button>}
         {contador && <span className="contador">{contador}</span>}
       </div>
       <div className="barra-ferr" role="search">

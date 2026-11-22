@@ -3,6 +3,7 @@
 // módulo Pessoas. Com salas cadastradas nas Configurações (#308), a agenda filtra também pela sala.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { AJUDA } from '../regras/ajuda';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
 import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type CompromissoLista, type FiltroCompromissos, type Ordem, type OrdemCompromisso, type Pagina, type TipoCompromisso } from '../dados';
@@ -159,7 +160,7 @@ export default function Compromissos() {
   const contador = total === null ? null : plural(total, 'ativo', 'ativos');
 
   return <>
-    <PaginaModulo titulo="Agenda" contador={contador} acao={{ rotulo: 'Novo compromisso', para: CADASTRO }}
+    <PaginaModulo titulo="Agenda" ajuda={AJUDA.agenda} contador={contador} acao={{ rotulo: 'Novo compromisso', para: CADASTRO }}
       busca={{ placeholder: 'Buscar título, pessoa, local, processo, código…', aoBuscar: t => mudarFiltro({ termo: t }) }}
       filtros={[
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',

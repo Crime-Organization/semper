@@ -1,5 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Atalhos de teclado das páginas de módulo (#86): "/" vai à busca, "N" abre o "Novo" do módulo e "?" lista os atalhos.
+// Atalhos de teclado das páginas de módulo (#86): "/" vai à busca, "N" abre o "Novo" do módulo e "?" abre a ajuda da tela, com
+// os atalhos embaixo (#85; o Financeiro, que não é página de módulo, mostra só os atalhos).
 // Valem em todos os módulos com página de módulo; aqui, Pessoas e Tarefas.
 import { expect, test } from '@playwright/test';
 
@@ -28,14 +29,14 @@ test.describe('Atalhos de teclado em Pessoas', () => {
     await expect(page.getByText('Pessoa física', { exact: true })).toBeVisible();
   });
 
-  test('quando a pessoa aperta "?", então a janela lista os atalhos da página e os de todo o SEMPER, e o Esc a fecha', async ({ page }) => {
+  test('quando a pessoa aperta "?", então a ajuda lista os atalhos da página e os de todo o SEMPER, e o Esc a fecha', async ({ page }) => {
     // Dado
     await page.goto('/pessoas/');
     await expect(page.getByRole('heading', { name: 'Pessoas' })).toBeVisible();
     // Quando
     await page.keyboard.press('?');
     // Então
-    const lista = page.getByRole('dialog', { name: 'Atalhos do teclado' });
+    const lista = page.getByRole('dialog', { name: 'Ajuda: Pessoas' }).getByRole('region', { name: 'Atalhos do teclado' });
     await expect(lista.getByRole('region', { name: 'Nesta página' })).toContainText('Ir para a busca desta página');
     await expect(lista.getByRole('region', { name: 'Nesta página' })).toContainText('Nova pessoa');
     await expect(lista.getByRole('region', { name: 'Em todo o SEMPER' })).toContainText('Desfazer a última ação');
@@ -105,7 +106,7 @@ test.describe('Desligar os atalhos de uma tecla só', () => {
     await page.keyboard.press('?');
     // Então
     await expect(page).toHaveURL(/\/pessoas\/$/);
-    await expect(page.getByRole('dialog', { name: 'Atalhos do teclado' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Ajuda: Pessoas' })).toBeHidden();
     // Quando: no cartão da tarefa, o T também não liga o cronômetro
     await page.goto('/tarefas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
@@ -149,7 +150,7 @@ test.describe('Atalhos de teclado em Tarefas', () => {
     await page.keyboard.type('n?');
     // Então
     await expect(page.getByRole('searchbox')).toHaveValue('n?');
-    await expect(page.getByRole('dialog', { name: 'Atalhos do teclado' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Ajuda: Tarefas' })).toBeHidden();
     await expect(page).toHaveURL(/\/tarefas\/$/);
   });
 });

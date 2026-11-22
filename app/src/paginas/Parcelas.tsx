@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type ContaFinanceira, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../dados';
+import { AJUDA } from '../regras/ajuda';
 import { anoAceito, dataExiste } from '../regras/calendario';
 import { diasDoMes, fmtCentavos, mesDe, mesValido } from '../regras/caixa';
 import { resumoDasParcelas, SITUACOES_DA_PARCELA } from '../regras/parcelas';
@@ -117,7 +118,7 @@ export default function Parcelas() {
   useMudancas(recarregar);
 
   if (!pode) return <Navigate to="/inicio/" replace />;
-  const cabecalho = { titulo: 'Parcelas', visoes: [] };
+  const cabecalho = { titulo: 'Parcelas', visoes: [], ajuda: AJUDA.parcelas };
   const atual = lido?.chave === mes ? lido : null;
   const dados = atual && 'parcelas' in atual ? atual : null;
   const resumo = dados ? resumoDasParcelas(dados.parcelas, hoje) : null;

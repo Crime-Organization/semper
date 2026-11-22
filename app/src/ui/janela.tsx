@@ -103,11 +103,13 @@ function JanelaAberta({ p }: { p: Pedido }) {
   useEffect(() => {
     const anterior = document.activeElement as HTMLElement | null;
     const el = veu.current!;
-    const campo = el.querySelector<HTMLInputElement>('input, textarea, select');
+    // A janela larga é um texto para ler (as Novidades, a ajuda da tela): o foco vai ao botão, e não a um campo do meio do texto,
+    // que faria o corpo rolar e esconder o começo (como a caixa de desligar os atalhos, no pé da ajuda).
+    const campo = p.larga ? null : el.querySelector<HTMLInputElement>('input, textarea, select');
     if (campo) { campo.focus(); campo.select?.(); }
     else (el.querySelector<HTMLElement>('.btn.pri') || el.querySelector<HTMLElement>('.btn'))?.focus();
     return () => { anterior?.focus?.(); };
-  }, []);
+  }, [p.larga]);
   const escolher = (a: AcaoJanela<unknown>) =>
     fechar(p.id, typeof a.valor === 'function' ? (a.valor as (campos: FormData) => unknown)(new FormData(formulario.current!)) : a.valor);
   return <div className="veu-janela" ref={veu} onClick={e => { if (e.target === e.currentTarget) fechar(p.id, null); }}
