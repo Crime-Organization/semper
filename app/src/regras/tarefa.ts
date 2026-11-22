@@ -258,11 +258,13 @@ type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colabo
 type DemandasVistas<D> = D | readonly D[] | null;
 const emLista = <D>(d: DemandasVistas<D>): readonly D[] => d === null ? [] : Array.isArray(d) ? d as readonly D[] : [d as D];
 /**
- * Na lista: a tarefa está aí só para ler? Altera quem está nela ou na demanda ligada (`equipe_da_demanda`, que vem quando quem lê
- * pode ver a demanda). Quem a vê só pelo contrato, o dela ou o da demanda, só lê (#326), como no cartão.
+ * Na lista: a tarefa está aí só para ler? Altera quem está nela ou em qualquer uma das demandas ligadas (`equipe_da_demanda`, a
+ * principal, e `equipes_das_outras_demandas`, #283, que vêm quando quem lê pode ver cada demanda). Quem a vê só pelo contrato, o dela
+ * ou o da demanda, só lê (#326), como no cartão.
  */
-export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: QuemEstaNaDemanda | null }, m: Pick<Membro, 'id' | 'papel'>, meusGrupos: readonly string[] = []) =>
-  !estaNaTarefa(t, m as Membro, t.equipe_da_demanda, meusGrupos);
+export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: QuemEstaNaDemanda | null; equipes_das_outras_demandas?: readonly QuemEstaNaDemanda[] },
+  m: Pick<Membro, 'id' | 'papel'>, meusGrupos: readonly string[] = []) =>
+  !estaNaTarefa(t, m as Membro, [...(t.equipe_da_demanda ? [t.equipe_da_demanda] : []), ...(t.equipes_das_outras_demandas ?? [])], meusGrupos);
 /**
  * Quem está na tarefa (como privado.estou_na_tarefa, sem a fase de adaptação): os administradores, quem criou, o responsável, os
  * participantes, quem está num grupo da equipe posto nela (`meusGrupos`, #378) e quem está em qualquer uma das demandas ligadas a

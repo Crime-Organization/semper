@@ -16,9 +16,9 @@ import { normal } from '../regras/texto';
 import { gruposDoFiltro, meusGrupos } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
-import { PARCELAS_DA_PESSOA } from './limites';
+import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, TarefaParaEscolher } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, TarefaLista, TarefaParaEscolher } from './tipos';
 import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -587,8 +587,22 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 
 // ---------- tarefas ----------
 // Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
+const EQUIPE_DA_DEMANDA = 'criado_por, responsavel_id, colaboradores, grupos';
 const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_codigo, contrato_codigo, '
-  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores, grupos)';
+  + `etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, demanda_ids, equipe_da_demanda:demandas(${EQUIPE_DA_DEMANDA})`;
+type EquipeDaDemanda = NonNullable<TarefaLista['equipe_da_demanda']>;
+/**
+ * As linhas da lista com quem está em cada uma das outras demandas ligadas (#283), além da principal (que vem na própria leitura): numa
+ * leitura a mais, só quando alguma linha tem mais de uma, pelas regras de leitura (a demanda que quem lê não vê não vem).
+ */
+async function comAsOutrasDemandas(linhas: (Omit<TarefaLista, 'equipes_das_outras_demandas'> & { demanda_ids: string[] })[]): Promise<TarefaLista[]> {
+  const outras = [...new Set(linhas.flatMap(t => t.demanda_ids.slice(1)))];
+  const lotes = Array.from({ length: Math.ceil(outras.length / IDS_POR_LEITURA) }, (_, i) => outras.slice(i * IDS_POR_LEITURA, (i + 1) * IDS_POR_LEITURA));
+  const lidas = (await Promise.all(lotes.map(ids => rodar(sb.from('demandas').select('id, ' + EQUIPE_DA_DEMANDA).in('id', ids)))))
+    .flatMap(r => r.data as unknown as ({ id: string } & EquipeDaDemanda)[]);
+  return linhas.map(({ demanda_ids, ...t }) => ({ ...t,
+    equipes_das_outras_demandas: demanda_ids.slice(1).flatMap(id => lidas.filter(d => d.id === id).map(({ id: _id, ...equipe }) => equipe)) }));
+}
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 // A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
 const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
@@ -1828,13 +1842,13 @@ export const SD: Dados = {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     const q = filtrarTarefas(deTarefas(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), f), f);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
-    return { linhas: data, total: count || 0 };
+    return { linhas: await comAsOutrasDemandas(data), total: count || 0 };
   },
   async tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     let q = filtrarTarefas(deTarefas(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), f), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
-    return { linhas: data, total: count || 0 };
+    return { linhas: await comAsOutrasDemandas(data), total: count || 0 };
   },
   async tarefaObter(id) {
     const { data } = await rodar(sb.from('tarefas').select(CAMPOS_TAREFA).eq('id', id).maybeSingle());

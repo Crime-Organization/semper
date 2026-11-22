@@ -4296,6 +4296,67 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Tarefa em mais de uma demanda e de um contrato (#283)', () => {
+      // Quem está logado é o Mauro (administrador). O Bruno colabora só na segunda demanda.
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const novoContrato = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+      };
+      const duasDemandas = async () => Promise.all([
+        SD.demandaCriar({ titulo: 'Primeira ' + marca(), responsavel_id: 'u-master' }),
+        SD.demandaCriar({ titulo: 'Segunda ' + marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] })
+      ]);
+
+      it('dada uma tarefa com duas demandas e dois contratos, quando é lida, então a principal é a primeira, cada uma vem com o código e ela aparece em todas', async () => {
+        // Dado
+        const [d1, d2] = await duasDemandas();
+        const [k1, k2] = [await novoContrato(), await novoContrato()];
+        // Quando
+        const { id } = await SD.tarefaCriar({ titulo: 'Em várias', responsavel_id: 'u-ana', demanda_ids: [d1.id, d2.id], contrato_ids: [k1.id, k2.id] });
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d1.id, demanda_codigo: d1.codigo, demanda_ids: [d1.id, d2.id], contrato_id: k1.id,
+          demandas_ligadas: [{ id: d1.id, codigo: d1.codigo, item: { id: d1.id } }, { id: d2.id, codigo: d2.codigo, item: { id: d2.id } }],
+          contratos_ligados: [{ id: k1.id, codigo: k1.codigo }, { id: k2.id, codigo: k2.codigo }] });
+        expect((await SD.tarefasDaDemanda(d2.id)).map(t => t.id)).toEqual([id]);
+        expect((await SD.tarefasDoContrato(k2.id)).map(t => t.id)).toEqual([id]);
+      });
+
+      it('dada uma tarefa em duas demandas, quando a versão anterior do site grava só demanda_id, então troca só a principal', async () => {
+        // Dado
+        const [d1, d2] = await duasDemandas();
+        const { id: d3 } = await SD.demandaCriar({ titulo: 'Terceira ' + marca(), responsavel_id: 'u-master' });
+        const { id } = await SD.tarefaCriar({ titulo: 'Em várias', responsavel_id: 'u-ana', demanda_ids: [d1.id, d2.id] });
+        // Quando
+        await SD.tarefaAtualizar(id, { demanda_id: d3 });
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d3, demanda_ids: [d3, d2.id] });
+      });
+
+      it('dada uma tarefa em duas demandas, quando a principal é excluída, então a tarefa fica na outra, que vira a principal', async () => {
+        // Dado
+        const [d1, d2] = await duasDemandas();
+        const { id } = await SD.tarefaCriar({ titulo: 'Em várias', responsavel_id: 'u-ana', demanda_ids: [d1.id, d2.id] });
+        // Quando
+        await SD.demandasArquivar([d1.id]);
+        await SD.demandasExcluir([d1.id]);
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d2.id, demanda_codigo: d2.codigo, demanda_ids: [d2.id] });
+      });
+
+      it('dada uma tarefa em duas demandas, quando quem colabora só na segunda vê a lista, então a lista traz quem está nela (ele altera a tarefa)', async () => {
+        // Dado
+        const [d1, d2] = await duasDemandas();
+        const { id } = await SD.tarefaCriar({ titulo: 'Em várias', responsavel_id: 'u-ana', demanda_ids: [d1.id, d2.id] });
+        // Quando
+        entrarComo('u-bruno');
+        const naLista = (await SD.tarefasListar({ porPagina: 100 })).linhas.find(t => t.id === id);
+        // Então
+        expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [] }]);
+      });
+    });
+
     describe('Meu tempo trabalhado', () => {
       const novaTarefa = async (titulo: string) => (await SD.tarefaCriar({ titulo, responsavel_id: 'u-master' })).id;
 

@@ -481,6 +481,11 @@ export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'p
    * demanda só pelo contrato dela lê as tarefas dela, mas não as altera (#326).
    */
   equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> | null;
+  /**
+   * Quem está em cada uma das outras demandas ligadas (#283), além da principal, das que quem lê pode ver: quem está em qualquer uma
+   * delas também altera a tarefa, como no banco e no cartão.
+   */
+  equipes_das_outras_demandas?: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>[];
 };
 export interface FiltroTarefas {
   termo?: string;

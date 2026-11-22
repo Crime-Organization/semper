@@ -1345,6 +1345,7 @@ const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
     contratos_ligados: contratosDaTarefa(t).map(id => ({ id, codigo: bd.contratos!.find(k => k.id === id)?.codigo ?? '', item: contratoDoCartao(id) })),
     processo: processoDaTarefa(t.processo_id) };
 };
+const equipeNaLista = (d: DemandaGuardada) => ({ criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] });
 const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   // Como o banco, quem está na demanda ligada (as listagens do banco fictício não filtram quem vê, e quem não vê a demanda não está nela).
   const d = demandaDaTarefaNoFalso(t);
@@ -1352,7 +1353,9 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
     id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, data_inicio: t.data_inicio, responsavel_id: t.responsavel_id, participantes: t.participantes,
     grupos: t.grupos ?? [], pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
     etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em,
-    equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] } : null
+    equipe_da_demanda: d ? equipeNaLista(d) : null,
+    // As outras demandas ligadas (#283), como o banco as lê numa leitura a mais: só as que quem lê vê, na ordem da lista.
+    equipes_das_outras_demandas: demandasDaTarefa(t).slice(1).flatMap(id => bd.demandas!.filter(x => x.id === id && vejoDemanda(x)).map(equipeNaLista))
   };
 };
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));

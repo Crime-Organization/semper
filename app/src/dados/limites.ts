@@ -53,6 +53,8 @@ export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
 /** Quantas demandas e quantos contratos uma tarefa pode ter ligados (#283): exigido pelo banco (supabase/migrations/20261122130410_tarefa_em_varias_demandas_e_contratos.sql). */
 export const DEMANDAS_POR_TAREFA = 10;
 export const CONTRATOS_POR_TAREFA = 10;
+/** Quantos ids vão numa leitura "id em (...)" (o filtro vai no endereço, que não pode crescer sem fim): mais que isso, em várias leituras. */
+export const IDS_POR_LEITURA = 100;
 /** Quantas tarefas o cartão de uma pessoa, de uma demanda ou de um contrato mostra. */
 export const TAREFAS_LIGADAS = 200;
 /** Quantas demandas (as ativas mais recentes) o cadastro de tarefa oferece para ligar. */

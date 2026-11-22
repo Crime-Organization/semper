@@ -4,7 +4,7 @@ import type { Membro, Tarefa } from '../dados/tipos';
 import {
   CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, comMaisUm, continuaPelaDemanda, CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, dadosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA,
   demandasDaTarefa, demandasQueAbre, errosDaEtapaTarefa, estaNaTarefa, ETAPAS_TAREFA, ligadasDaTarefa, motivoSemMencaoNaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
-  papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
+  papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, soLeATarefaNaLista, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
 } from './tarefa';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA } from '../dados/limites';
 
@@ -259,6 +259,16 @@ describe('Quem está na tarefa e quem a vê', () => {
     expect(estaNaTarefa(tarefa, membro('u-eva'), [demanda, outra])).toBe(true);
     expect(veATarefa(tarefa, membro('u-davi'), [demanda, outra])).toBe(true);
     expect(estaNaTarefa(tarefa, membro('u-fora'), [demanda, outra])).toBe(false);
+  });
+
+  it('dada na lista uma tarefa ligada a duas demandas (#283), quando quem está só na segunda olha, então a altera; quem não está em nenhuma só lê', () => {
+    // Dado
+    const naLista = { ...tarefa, equipe_da_demanda: demanda, equipes_das_outras_demandas: [{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-eva'] }] };
+    // Então
+    expect(soLeATarefaNaLista(naLista, membro('u-eva'))).toBe(false);
+    expect(soLeATarefaNaLista(naLista, membro('u-davi'))).toBe(false);
+    expect(soLeATarefaNaLista(naLista, membro('u-fora'))).toBe(true);
+    expect(soLeATarefaNaLista({ ...tarefa, equipe_da_demanda: null }, membro('u-eva'))).toBe(true);
   });
 
   it('dada uma tarefa ligada a dois contratos (#283), quando quem está só no segundo pergunta, então a vê, só para ler', () => {
