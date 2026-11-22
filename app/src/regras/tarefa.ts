@@ -1,9 +1,9 @@
 // Regras da tarefa (módulo Tarefas): o cadastro por etapas, os papéis de cada pessoa, quem vê a tarefa, quem pode ser
 // mencionado nos comentários e quando oferecer concluir a demanda. Tudo puro, sem tela nem banco.
-import type { DadosTarefa, Demanda, EquipeDoContrato, Lembrete, Membro, PapelNaTarefa, Tarefa } from '../dados/tipos';
+import type { ContratoDoCartao, DadosTarefa, Demanda, DemandaDaTarefa, EquipeDoContrato, Lembrete, LigadoNaTarefa, Membro, PapelNaTarefa, Tarefa } from '../dados/tipos';
 import { contratosEmQueEsta } from './contrato';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_TAREFA } from '../dados/limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 import { doContratoEmQueEsta, estaNaDemanda, valorLegivelDemanda } from './demanda';
 import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao } from './lembrete';
@@ -30,13 +30,15 @@ export interface CamposTarefa {
   participantes: string[];
   /** Uma por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
   pessoas: string[];
-  demandaId: string;
-  contratoId: string;
+  /** As demandas ligadas, na ordem (#283): a primeira é a principal. */
+  demandas: string[];
+  /** Os contratos ligados, na ordem (#283): o primeiro é o principal. */
+  contratos: string[];
   /** Um processo só, ou vazio. */
   processoId: string;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
-  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandaId: '', contratoId: '', processoId: ''
+  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: ''
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -62,7 +64,9 @@ const CONFERENCIAS: Partial<Record<keyof CamposTarefa, Conferencia[]>> = {
   pessoas: [
     c => repetido(c.pessoas) ? 'A mesma pessoa aparece duas vezes.' : null,
     c => escolhidos(c.pessoas).length > CLIENTES_MAXIMOS ? `Uma tarefa pode ter até ${CLIENTES_MAXIMOS} pessoas ligadas.` : null
-  ]
+  ],
+  demandas: [c => c.demandas.length > DEMANDAS_POR_TAREFA ? DEMANDAS_DA_TAREFA_CHEIA : null],
+  contratos: [c => c.contratos.length > CONTRATOS_POR_TAREFA ? CONTRATOS_DA_TAREFA_CHEIA : null]
 };
 
 /** Erros do cadastro, por campo. Vazio: pode salvar. */
@@ -81,17 +85,50 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
   return {
     titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), ...inicioAoGravar(c), responsavel_id: c.responsavelId,
     participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
-    pessoas: [...new Set(escolhidos(c.pessoas))], demanda_id: c.demandaId || null, contrato_id: c.contratoId || null,
+    pessoas: [...new Set(escolhidos(c.pessoas))], demanda_ids: [...new Set(c.demandas)], contrato_ids: [...new Set(c.contratos)],
     processo_id: c.processoId || null
   };
 }
 
+// ---------- as demandas e os contratos ligados (#283) ----------
+/** A recusa da lista cheia de demandas (o mesmo máximo do banco). */
+export const DEMANDAS_DA_TAREFA_CHEIA = `Uma tarefa pode ter até ${DEMANDAS_POR_TAREFA} demandas ligadas.`;
+/** A recusa da lista cheia de contratos (o mesmo máximo do banco). */
+export const CONTRATOS_DA_TAREFA_CHEIA = `Uma tarefa pode ter até ${CONTRATOS_POR_TAREFA} contratos ligados.`;
+/** A lista gravada ou, na tarefa gravada sem ela (numa importação), a principal sozinha (como o banco conta). */
+const listaOuPrincipal = (lista: readonly string[] | undefined, principal: string | null | undefined) =>
+  lista?.length ? [...lista] : principal ? [principal] : [];
+/** As demandas ligadas à tarefa, na ordem (a primeira é a principal). */
+export const demandasDaTarefa = (t: Pick<Tarefa, 'demanda_id'> & { demanda_ids?: readonly string[] }) => listaOuPrincipal(t.demanda_ids, t.demanda_id);
+/** Os contratos ligados à tarefa, na ordem (o primeiro é o principal). */
+export const contratosDaTarefa = (t: Pick<Tarefa, 'contrato_id'> & { contrato_ids?: readonly string[] }) => listaOuPrincipal(t.contrato_ids, t.contrato_id);
+/** O que quem lê pode abrir das ligadas; sem a lista (a tarefa lida sem ela), o principal. */
+const abertosDaLista = <T>(lista: readonly LigadoNaTarefa<T>[] | undefined, principal: T | null): T[] =>
+  lista?.length ? lista.flatMap(l => l.item ? [l.item] : []) : principal ? [principal] : [];
+/** As demandas ligadas que quem lê pode abrir (as outras vêm sem a demanda, só com o código). */
+export const demandasQueAbre = (t: Pick<Tarefa, 'demanda'> & { demandas_ligadas?: readonly LigadoNaTarefa<DemandaDaTarefa>[] }) =>
+  abertosDaLista(t.demandas_ligadas, t.demanda);
+/** Os contratos ligados que quem lê pode abrir. */
+export const contratosQueAbre = (t: Pick<Tarefa, 'contrato'> & { contratos_ligados?: readonly LigadoNaTarefa<ContratoDoCartao>[] }) =>
+  abertosDaLista(t.contratos_ligados, t.contrato);
 /**
- * Depois de gravar, a pessoa continua vendo a tarefa pela demanda ligada? A demanda que já estava ligada só vem na tarefa
+ * As demandas (ou os contratos) ligados, como o cartão os mostra: o código sempre e o item, se quem lê pode abri-lo. Sem a lista (a
+ * tarefa lida sem ela), o principal, pela coluna de antes.
+ */
+export const ligadasDaTarefa = (t: Pick<Tarefa, 'demanda_id' | 'demanda_codigo' | 'demanda'> & { demandas_ligadas?: readonly LigadoNaTarefa<DemandaDaTarefa>[] }) =>
+  t.demandas_ligadas?.length ? [...t.demandas_ligadas] : t.demanda_id ? [{ id: t.demanda_id, codigo: t.demanda_codigo ?? '', item: t.demanda }] : [];
+export const ligadosDaTarefa = (t: Pick<Tarefa, 'contrato_id' | 'contrato_codigo' | 'contrato'> & { contratos_ligados?: readonly LigadoNaTarefa<ContratoDoCartao>[] }) =>
+  t.contratos_ligados?.length ? [...t.contratos_ligados] : t.contrato_id ? [{ id: t.contrato_id, codigo: t.contrato_codigo ?? '', item: t.contrato }] : [];
+
+/**
+ * Depois de gravar, a pessoa continua vendo a tarefa por uma das demandas ligadas? A demanda que já estava ligada só vem na tarefa
  * para quem pode abri-la; a escolhida agora veio da lista de quem a vê.
  */
-export const continuaPelaDemanda = (alvo: Pick<Tarefa, 'demanda_id' | 'demanda'>, demandaDepois: string | null | undefined) =>
-  !!demandaDepois && (demandaDepois !== alvo.demanda_id || !!alvo.demanda);
+export const continuaPelaDemanda = (alvo: Pick<Tarefa, 'demanda_id' | 'demanda'> & Partial<Pick<Tarefa, 'demanda_ids' | 'demandas_ligadas'>>,
+  demandasDepois: readonly string[] | undefined) => {
+  const antes = demandasDaTarefa(alvo), abertas = new Set(demandasQueAbre(alvo).map(d => d.id));
+  return (demandasDepois ?? []).some(id => !antes.includes(id) || abertas.has(id));
+};
 
 /**
  * Quem não é administrador, não criou a tarefa e não vê a demanda ligada só a vê enquanto participa, e o banco recusa a
@@ -108,7 +145,7 @@ export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean, a
 export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), ...horaELembreteDoCartao(t), inicio: fmtData(t.data_inicio), responsavelId: t.responsavel_id,
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
-  demandaId: t.demanda_id || '', contratoId: t.contrato_id || '', processoId: t.processo_id || ''
+  demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || ''
 });
 
 // ---------- etapas do cadastro ----------
@@ -125,7 +162,7 @@ export interface DefinicaoEtapaTarefa {
  */
 export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
-    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'demandaId', 'contratoId', 'processoId'], tituloNoLapis: 'Demanda, contrato e processo' },
+    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'demandas', 'contratos', 'processoId'], tituloNoLapis: 'Demanda, contrato e processo' },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem da equipe ajuda e, se houver, as pessoas do cadastro ligadas a ela.',
     campos: ['responsavelId', 'participantes', 'pessoas'] }
 ];
@@ -138,39 +175,45 @@ export const ORDEM_NO_LAPIS_TAREFA: Record<EtapaTarefa, number> = { pessoas: 1, 
 export const naOrdemDoLapisTarefa = <E extends { id: EtapaTarefa }>(etapas: readonly E[]) =>
   etapas.toSorted((a, b) => ORDEM_NO_LAPIS_TAREFA[a.id] - ORDEM_NO_LAPIS_TAREFA[b.id]);
 
-// ---------- a demanda ligada no cadastro ----------
+// ---------- as demandas ligadas no cadastro ----------
 /** A demanda que se liga à tarefa, como chega do banco: os clientes e o contrato dela. */
 export interface DemandaParaLigar { id: string; clientes: string[]; contratoId: string | null }
-/** O que a demanda ligada trouxe para a tarefa (as pessoas e o contrato que estavam vazios), para desfazer ao tirá-la. */
+/** O que uma demanda ligada trouxe para a tarefa (as pessoas, se estavam vazias, e o contrato dela), para tirar junto com ela. */
 export interface TrazidoDaDemanda { demandaId: string; pessoas: string[]; contratoId: string }
+/** Acrescenta a demanda (ou o contrato) no fim da lista do cadastro, sem repetir e até o máximo do banco. */
+export const comMaisUm = (lista: readonly string[], id: string, maximo: number) =>
+  lista.includes(id) || lista.length >= maximo ? [...lista] : [...lista, id];
 /**
- * Ao ligar a demanda (com a resposta do banco): os clientes dela entram nas pessoas, e o contrato dela no contrato, só se a tarefa
- * ainda não tem. Decide com os campos de agora, e não com os de quando a demanda foi escolhida: a pessoa pode ter escolhido alguém
- * ou um contrato enquanto a resposta vinha. Se a demanda já foi tirada ou trocada nesse meio-tempo, a resposta não vale (null).
+ * Ao ligar mais uma demanda (com a resposta do banco): os clientes dela entram nas pessoas, só se a tarefa ainda não tem nenhuma; o
+ * contrato dela entra nos contratos, se ainda não está lá (#283: a tarefa pode ter vários). Decide com os campos de agora, e não com os
+ * de quando a demanda foi escolhida: a pessoa pode ter escolhido alguém enquanto a resposta vinha. Se a demanda já foi tirada nesse
+ * meio-tempo, a resposta não vale (null).
  */
 export function oQueADemandaTraz(c: CamposTarefa, d: DemandaParaLigar): { mudancas: Partial<CamposTarefa>; trazido: TrazidoDaDemanda } | null {
-  if (c.demandaId !== d.id) return null;
+  if (!c.demandas.includes(d.id)) return null;
   const pessoas = !c.pessoas.some(Boolean) && d.clientes.length ? d.clientes : [];
-  const contratoId = !c.contratoId && d.contratoId ? d.contratoId : '';
+  const contratos = d.contratoId ? comMaisUm(c.contratos, d.contratoId, CONTRATOS_POR_TAREFA) : c.contratos;
+  const contratoId = contratos.length > c.contratos.length ? d.contratoId ?? '' : '';
   return {
-    mudancas: { ...(pessoas.length ? { pessoas } : {}), ...(contratoId ? { contratoId } : {}) },
+    mudancas: { ...(pessoas.length ? { pessoas } : {}), ...(contratoId ? { contratos } : {}) },
     trazido: { demandaId: d.id, pessoas, contratoId }
   };
 }
 /**
- * Ao tirar a demanda: sai também o que ela trouxe e a pessoa não mudou (os clientes dela que continuam nas pessoas, o contrato dela
- * se ainda é o mesmo). Assim, a próxima demanda ligada traz os dela, e a tarefa não fica com os clientes de uma e a demanda de outra.
- * `ficam` diz, linha a linha das pessoas, quais continuam (para a tela acompanhar os nomes).
+ * Ao tirar uma das demandas: sai também o que ela trouxe e a pessoa não mudou (os clientes dela que continuam nas pessoas, o contrato
+ * dela se ainda está lá). As outras demandas e o que elas trouxeram ficam. `ficam` diz, linha a linha das pessoas, quais continuam
+ * (para a tela acompanhar os nomes).
  */
-export function semADemanda(c: CamposTarefa, trazido: TrazidoDaDemanda | null): { mudancas: Partial<CamposTarefa>; ficam: boolean[] } {
-  const daDemanda = trazido && trazido.demandaId === c.demandaId ? trazido : null;
+export function semADemanda(c: CamposTarefa, demandaId: string, trazidos: readonly TrazidoDaDemanda[]): { mudancas: Partial<CamposTarefa>; ficam: boolean[] } {
+  const daDemanda = trazidos.find(t => t.demandaId === demandaId) ?? null;
   const ficam = c.pessoas.map(p => !daDemanda || !p || !daDemanda.pessoas.includes(p));
   const pessoas = c.pessoas.filter((_, i) => ficam[i]);
+  const contrato = daDemanda?.contratoId && c.contratos.includes(daDemanda.contratoId) ? daDemanda.contratoId : '';
   return {
     mudancas: {
-      demandaId: '',
+      demandas: c.demandas.filter(id => id !== demandaId),
       ...(ficam.includes(false) ? { pessoas: pessoas.length ? pessoas : [''] } : {}),
-      ...(daDemanda?.contratoId && c.contratoId === daDemanda.contratoId ? { contratoId: '' } : {})
+      ...(contrato ? { contratos: c.contratos.filter(id => id !== contrato) } : {})
     },
     ficam
   };
@@ -189,7 +232,7 @@ export const primeiraEtapaComErroTarefa = (c: CamposTarefa) =>
 /** Nome de cada campo no histórico de alterações da tarefa. */
 export const CAMPOS_TAREFA: Record<string, string> = {
   titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', data_inicio: ROTULO_DO_INICIO, responsavel_id: 'Responsável', participantes: 'Participantes',
-  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
+  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', demandas: 'Demandas', contratos: 'Contratos', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
   // Apagar, corrigir e devolver um registro de tempo (#400): o que aconteceu, sem a duração
   tempo: 'Registro de tempo'
 };
@@ -211,6 +254,9 @@ export const papeisNaTarefa = (t: PessoasDaTarefa, pessoaId: string, perfilId: s
 
 type QuemEstaNaTarefa = Pick<Tarefa, 'criado_por' | 'responsavel_id' | 'participantes' | 'grupos'>;
 type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
+/** As demandas ligadas que quem pergunta pode ver: uma (a principal), várias (#283) ou nenhuma. */
+type DemandasVistas<D> = D | readonly D[] | null;
+const emLista = <D>(d: DemandasVistas<D>): readonly D[] => d === null ? [] : Array.isArray(d) ? d as readonly D[] : [d as D];
 /**
  * Na lista: a tarefa está aí só para ler? Altera quem está nela ou na demanda ligada (`equipe_da_demanda`, que vem quando quem lê
  * pode ver a demanda). Quem a vê só pelo contrato, o dela ou o da demanda, só lê (#326), como no cartão.
@@ -219,28 +265,33 @@ export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: Qu
   !estaNaTarefa(t, m as Membro, t.equipe_da_demanda, meusGrupos);
 /**
  * Quem está na tarefa (como privado.estou_na_tarefa, sem a fase de adaptação): os administradores, quem criou, o responsável, os
- * participantes, quem está num grupo da equipe posto nela (`meusGrupos`, #378) e quem está na demanda ligada a ela (a demanda vem
- * quando está ligada e quem pergunta pode vê-la; também pelos grupos dela). É quem altera a tarefa.
+ * participantes, quem está num grupo da equipe posto nela (`meusGrupos`, #378) e quem está em qualquer uma das demandas ligadas a
+ * ela (#283; as demandas vêm quando estão ligadas e quem pergunta pode vê-las; também pelos grupos delas). É quem altera a tarefa.
  */
-export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null, meusGrupos: readonly string[] = []) =>
+export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demandas: DemandasVistas<QuemEstaNaDemanda> = null, meusGrupos: readonly string[] = []) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === t.criado_por || m.id === t.responsavel_id || t.participantes.includes(m.id)
-  || estaPeloGrupo(t.grupos, meusGrupos) || (!!demanda && estaNaDemanda(demanda, m, meusGrupos));
+  || estaPeloGrupo(t.grupos, meusGrupos) || emLista(demandas).some(d => estaNaDemanda(d, m, meusGrupos));
 /**
- * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato da tarefa ou no
- * contrato da demanda ligada a ela (`contratosEmQueEsta`, como em veADemanda).
+ * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está em qualquer um dos contratos da
+ * tarefa ou no contrato de qualquer uma das demandas ligadas a ela (`contratosEmQueEsta`, como em veADemanda).
  */
-export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null }, m: Membro,
-  demanda: (QuemEstaNaDemanda & { contrato_id?: string | null }) | null = null, contratosDaPessoa: readonly string[] = [], meusGrupos: readonly string[] = []) =>
-  estaNaTarefa(t, m, demanda, meusGrupos) || doContratoEmQueEsta(t.contrato_id, contratosDaPessoa) || doContratoEmQueEsta(demanda?.contrato_id, contratosDaPessoa);
-/** O cartão com o contrato que veio com quem está nele (null: quem lê não pode abrir o contrato, e não se sabe quem está nele). */
+export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null; contrato_ids?: readonly string[] }, m: Membro,
+  demandas: DemandasVistas<QuemEstaNaDemanda & { contrato_id?: string | null }> = null, contratosDaPessoa: readonly string[] = [], meusGrupos: readonly string[] = []) =>
+  estaNaTarefa(t, m, demandas, meusGrupos) || contratosDaTarefa({ contrato_id: t.contrato_id ?? null, contrato_ids: t.contrato_ids }).some(k => doContratoEmQueEsta(k, contratosDaPessoa))
+  || emLista(demandas).some(d => doContratoEmQueEsta(d.contrato_id, contratosDaPessoa));
+/** O cartão com os contratos que vieram com quem está neles (null: quem lê não pode abrir o contrato, e não se sabe quem está nele). */
 type ComAEquipeDoContrato = { contrato_id?: string | null; contrato?: EquipeDoContrato | null };
+type ComOsContratosLigados = ComAEquipeDoContrato & { contrato_ids?: readonly string[]; contratos_ligados?: readonly { item: EquipeDoContrato | null }[] };
 /**
- * Por que o membro não pode ser mencionado na tarefa (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está no
- * contrato dela ou no da demanda ligada). Os contratos contam quando vêm com quem está neles, isto é, quando quem comenta pode
- * abri-los; senão, conta só quem está na tarefa e na demanda (o banco ainda aceita quem está no contrato, se a menção for escrita à mão).
+ * Por que o membro não pode ser mencionado na tarefa (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está num
+ * dos contratos dela ou no de uma das demandas ligadas). Os contratos contam quando vêm com quem está neles, isto é, quando quem comenta
+ * pode abri-los; senão, conta só quem está na tarefa e nas demandas (o banco ainda aceita quem está no contrato, se a menção for escrita à mão).
  */
-export const motivoSemMencaoNaTarefa = (t: QuemEstaNaTarefa & ComAEquipeDoContrato, demanda: (QuemEstaNaDemanda & ComAEquipeDoContrato) | null = null) =>
-  (m: Membro) => veATarefa(t, m, demanda, contratosEmQueEsta([t.contrato, demanda?.contrato], m)) ? null : 'não participa; inclua como participante';
+export const motivoSemMencaoNaTarefa = (t: QuemEstaNaTarefa & ComOsContratosLigados, demandas: DemandasVistas<QuemEstaNaDemanda & ComAEquipeDoContrato> = null) =>
+  (m: Membro) => {
+    const contratos = [t.contrato, ...(t.contratos_ligados ?? []).map(l => l.item), ...emLista(demandas).map(d => d.contrato)];
+    return veATarefa(t, m, demandas, contratosEmQueEsta(contratos, m)) ? null : 'não participa; inclua como participante';
+  };
 /** A mensagem de quando alguém que não vê a tarefa aparece num comentário dela (a mesma do banco). */
 export const mencaoNegadaNaTarefa = (nome: string) => `Não é possível mencionar ${nome} nesta tarefa: inclua essa pessoa como participante antes.`;
 

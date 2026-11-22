@@ -170,9 +170,9 @@ test.describe('Ligar, no cartão de um item, outro que já existe (#341)', () =>
     // Quando
     const contrato = await secao(cartao, 'Contrato');
     await ligar(contrato, { botao: 'Ligar contrato existente', campo: 'Buscar contrato para ligar', lista: 'Contratos para ligar', texto: 'cobrança', achado: /Ação de cobrança/ });
-    // Então: com o contrato, não há como ligar outro
+    // Então: com o contrato, a tarefa ainda liga mais um (#283)
     await expect(contrato.getByRole('link', { name: /Ação de cobrança/ })).toBeVisible();
-    await expect(contrato.getByRole('button', { name: 'Ligar contrato existente' })).toHaveCount(0);
+    await expect(contrato.getByRole('button', { name: 'Ligar mais um contrato' })).toBeVisible();
     // E a pessoa já ligada não é oferecida de novo
     cartao = await abrirCartao(page, 'tarefas', id, 'Renovar a procuração');
     pessoas = await secao(cartao, 'Pessoas');

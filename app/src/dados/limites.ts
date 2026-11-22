@@ -50,6 +50,9 @@ export const COLABORADORES_MAXIMOS = 20;
 export const DEMANDAS_LIGADAS = 200;
 /** Tarefas: os mesmos do banco (supabase/migrations/20261027000020_tarefas.sql). Os participantes seguem COLABORADORES_MAXIMOS; as pessoas, CLIENTES_MAXIMOS. */
 export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
+/** Quantas demandas e quantos contratos uma tarefa pode ter ligados (#283): exigido pelo banco (supabase/migrations/20261122130410_tarefa_em_varias_demandas_e_contratos.sql). */
+export const DEMANDAS_POR_TAREFA = 10;
+export const CONTRATOS_POR_TAREFA = 10;
 /** Quantas tarefas o cartão de uma pessoa, de uma demanda ou de um contrato mostra. */
 export const TAREFAS_LIGADAS = 200;
 /** Quantas demandas (as ativas mais recentes) o cadastro de tarefa oferece para ligar. */

@@ -420,12 +420,18 @@ export interface Tarefa {
   grupos?: string[];
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
+  /** A demanda principal: a primeira de demanda_ids (a versão anterior do site só conhece esta). */
   demanda_id: string | null;
   /** O código da demanda, que aparece mesmo para quem não pode abrir a demanda. */
   demanda_codigo: string | null;
+  /** O contrato principal: o primeiro de contrato_ids. */
   contrato_id: string | null;
   /** O número do contrato, que aparece mesmo para quem não pode abrir o contrato. */
   contrato_codigo: string | null;
+  /** Todas as demandas ligadas, na ordem em que foram ligadas (#283). Vazia na tarefa gravada sem a lista: aí conta demanda_id. */
+  demanda_ids: string[];
+  /** Todos os contratos ligados, na ordem (#283). Vazia na tarefa gravada sem a lista: aí conta contrato_id. */
+  contrato_ids: string[];
   etapa_id: string | null;
   etapa_ordem: number | null;
   arquivado_em: string | null;
@@ -441,6 +447,10 @@ export interface Tarefa {
   demanda: DemandaDaTarefa | null;
   /** O contrato, se quem vê a tarefa também pode abri-lo; senão null (e fica só o número). */
   contrato: ContratoDoCartao | null;
+  /** Cada demanda ligada (#283), na ordem: o código sempre, a demanda só para quem pode abri-la. */
+  demandas_ligadas: LigadoNaTarefa<DemandaDaTarefa>[];
+  /** Cada contrato ligado (#283), na ordem: o número sempre, o contrato só para quem pode abri-lo. */
+  contratos_ligados: LigadoNaTarefa<ContratoDoCartao>[];
   /** O processo da tarefa: nasce com ela (de uma intimação ou de um prazo) ou é ligado depois, no cadastro ou no cartão. */
   processo_id: string | null;
   /** O processo, se quem vê a tarefa também pode abri-lo; senão null. */
@@ -452,6 +462,8 @@ export interface Tarefa {
  */
 export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'contrato_id'>
   & { contrato: EquipeDoContrato | null };
+/** Uma demanda ou um contrato ligado à tarefa (#283): o id e o código sempre; o item, se quem lê pode abri-lo (senão null). */
+export interface LigadoNaTarefa<T> { id: string; codigo: string; item: T | null }
 /** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
 /** Tarefa como aparece em outro cartão (da pessoa, da demanda ou do contrato), com o papel da pessoa nela. */
@@ -460,7 +472,7 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 }
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
-  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {

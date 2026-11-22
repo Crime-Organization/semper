@@ -72,7 +72,7 @@ describe('Demanda nascida no cartão de uma tarefa (#376)', () => {
     // Então
     await screen.findByText('Cartão da tarefa');
     expect(criar).toHaveBeenCalledWith(expect.objectContaining({ titulo: 'Renovar o mandato', clientes: ['p1'], contrato_id: 'k1' }));
-    expect(ligar).toHaveBeenCalledWith('t1', { demanda_id: 'd-nova' });
+    expect(ligar).toHaveBeenCalledWith('t1', { demanda_ids: ['d-nova'] });
     expect(roteador.state.location.search).toBe('?id=t1');
     expect(avisar).not.toHaveBeenCalled();
   });
@@ -128,19 +128,19 @@ describe('Demanda nascida no cartão de uma tarefa (#376)', () => {
     expect(roteador.state.location.search).toBe('?id=d-nova');
   });
 
-  it('dada uma tarefa que outra pessoa pôs noutra demanda com o cadastro aberto, quando a demanda é criada, então ela fica gravada uma vez, avisa que a tarefa não foi ligada e abre o cartão da demanda nova (no da tarefa, ela não estaria)', async () => {
+  it('dada uma tarefa que outra pessoa pôs noutra demanda com o cadastro aberto, quando a demanda é criada, então a tarefa fica nas duas (#283) e a tela volta ao cartão dela', async () => {
     // Dado
-    vi.spyOn(SD, 'tarefaObter').mockResolvedValueOnce(tarefa()).mockResolvedValue(tarefa({ demanda_id: 'd-outra' }));
+    vi.spyOn(SD, 'tarefaObter').mockResolvedValueOnce(tarefa()).mockResolvedValue(tarefa({ demanda_id: 'd-outra', demanda_ids: ['d-outra'] }));
     vi.spyOn(SD, 'demandaObter').mockResolvedValue(demandaNova);
     const ligar = vi.spyOn(SD, 'tarefaAtualizar').mockResolvedValue({ id: 't1', codigo: 'T1' });
     const { criar } = await abrirPela('tarefa=t1');
     // Quando
     await salvar();
     // Então
-    await screen.findByText('Cartão da demanda nova');
+    await screen.findByText('Cartão da tarefa');
     expect(criar).toHaveBeenCalledTimes(1);
-    expect(ligar).not.toHaveBeenCalled();
-    expect(avisar).toHaveBeenCalledWith('Não foi possível ligar a tarefa T1 à demanda nova: Esta tarefa já está em outra demanda.', 'erro');
+    expect(ligar).toHaveBeenCalledWith('t1', { demanda_ids: ['d-outra', 'd-nova'] });
+    expect(avisar).not.toHaveBeenCalled();
   });
 });
 

@@ -18,7 +18,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, TarefaParaEscolher } from './tipos';
 import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -33,7 +33,7 @@ import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
-import { papeisNaTarefa } from '../regras/tarefa';
+import { contratosDaTarefa, demandasDaTarefa, papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
 import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ContatoParaConferir, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
@@ -590,18 +590,53 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_codigo, contrato_codigo, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores, grupos)';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
+// A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
+const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
+const CONTRATO_DA_TAREFA = `codigo, servico, ${EQUIPE_DO_CONTRATO}`;
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_id, demanda_codigo, '
-  + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
+  + 'contrato_id, contrato_codigo, demanda_ids, contrato_ids, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + `demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})), `
-  + `contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO}), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)`;
-type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato'> & {
+  + 'codigos_das_demandas:tarefa_demandas(demanda_id, codigo), codigos_dos_contratos:tarefa_contratos(contrato_id, codigo), '
+  + `demanda:demandas(${DEMANDA_DA_TAREFA}), `
+  + `contrato:contratos(${CONTRATO_DA_TAREFA}), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)`;
+type DemandaDaTarefaLida = Omit<DemandaDaTarefa, 'contrato'> & { contrato: EquipeLida<EquipeDoContrato> | null };
+type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato' | 'demandas_ligadas' | 'contratos_ligados'> & {
   ligadas: { ordem: number; pessoa: PessoaResumida }[];
-  demanda: (Omit<DemandaDaTarefa, 'contrato'> & { contrato: EquipeLida<EquipeDoContrato> | null }) | null;
+  codigos_das_demandas: { demanda_id: string; codigo: string }[];
+  codigos_dos_contratos: { contrato_id: string; codigo: string }[];
+  demanda: DemandaDaTarefaLida | null;
   contrato: EquipeLida<ContratoDoCartao> | null;
 };
-const comPessoas = ({ ligadas, demanda, contrato, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa),
-  demanda: demanda && { ...demanda, contrato: comAEquipe(demanda.contrato) }, contrato: comAEquipe(contrato) });
+const demandaDaTarefaLida = (d: DemandaDaTarefaLida): DemandaDaTarefa => ({ ...d, contrato: comAEquipe(d.contrato) });
+/**
+ * Cada demanda (ou contrato) ligada, na ordem da lista: o código pela tabela de ligação (o principal, pela coluna, na tarefa gravada
+ * sem ela) e o item, se quem lê pode abri-lo (`abertos`, lidos pelas regras de leitura).
+ */
+function ligadosNaOrdem<T extends { id: string }>(ids: string[], codigos: Record<string, string>, abertos: T[]): LigadoNaTarefa<T>[] {
+  return ids.map(id => ({ id, codigo: codigos[id] ?? '', item: abertos.find(x => x.id === id) ?? null }));
+}
+/**
+ * A tarefa como a tela usa. A demanda e o contrato principais vêm na própria leitura; os outros ligados (#283), só quando há mais de
+ * um, numa leitura a mais de cada tabela (pelas regras de leitura: quem não pode abrir recebe só o código).
+ */
+async function tarefaCompleta({ ligadas, codigos_das_demandas, codigos_dos_contratos, demanda, contrato, ...t }: TarefaLida): Promise<Tarefa> {
+  const demandaIds = demandasDaTarefa(t), contratoIds = contratosDaTarefa(t);
+  const [demandas, contratos] = await Promise.all([
+    demandaIds.length > 1
+      ? rodar(sb.from('demandas').select(DEMANDA_DA_TAREFA).in('id', demandaIds)).then(r => (r.data as DemandaDaTarefaLida[]).map(demandaDaTarefaLida))
+      : Promise.resolve(demanda ? [demandaDaTarefaLida(demanda)] : []),
+    contratoIds.length > 1
+      ? rodar(sb.from('contratos').select(CONTRATO_DA_TAREFA).in('id', contratoIds)).then(r => (r.data as EquipeLida<ContratoDoCartao>[]).map(k => comAEquipe(k)!))
+      : Promise.resolve(contrato ? [comAEquipe(contrato)!] : [])
+  ]);
+  const codigosD = Object.fromEntries([...(t.demanda_id && t.demanda_codigo ? [[t.demanda_id, t.demanda_codigo]] : []), ...codigos_das_demandas.map(l => [l.demanda_id, l.codigo])]);
+  const codigosK = Object.fromEntries([...(t.contrato_id && t.contrato_codigo ? [[t.contrato_id, t.contrato_codigo]] : []), ...codigos_dos_contratos.map(l => [l.contrato_id, l.codigo])]);
+  return {
+    ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa),
+    demanda: demanda && demandaDaTarefaLida(demanda), contrato: comAEquipe(contrato),
+    demandas_ligadas: ligadosNaOrdem(demandaIds, codigosD, demandas), contratos_ligados: ligadosNaOrdem(contratoIds, codigosK, contratos)
+  };
+}
 /**
  * De onde vêm as tarefas da lista e do quadro. Com o filtro "Grupo da equipe" (#378), de public.tarefas_dos_grupos, que traz também
  * as tarefas das demandas do grupo (a tarefa vista pelo grupo da demanda não some com o filtro), pelas regras de leitura.
@@ -1803,7 +1838,7 @@ export const SD: Dados = {
   },
   async tarefaObter(id) {
     const { data } = await rodar(sb.from('tarefas').select(CAMPOS_TAREFA).eq('id', id).maybeSingle());
-    return data ? comPessoas(data) : null;
+    return data ? tarefaCompleta(data) : null;
   },
   // O código é dado pelo banco ao gravar.
   async tarefaCriar(dados) {
@@ -1840,12 +1875,13 @@ export const SD: Dados = {
       .order('criado_em', { ascending: false }).limit(TAREFAS_LIGADAS));
     return (data as TarefaParaLigar[]).map(tarefaLigada(pessoaId, perfilId));
   },
+  // As tarefas ligadas a esta demanda (ou contrato) como uma das várias (#283): pela lista e, na tarefa gravada sem ela, pelo principal.
   async tarefasDaDemanda(demandaId) {
-    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('demanda_id', demandaId)));
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).or(`demanda_id.eq.${demandaId},demanda_ids.cs.{${demandaId}}`)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
   async tarefasDoContrato(contratoId) {
-    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('contrato_id', contratoId)));
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).or(`contrato_id.eq.${contratoId},contrato_ids.cs.{${contratoId}}`)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
 
