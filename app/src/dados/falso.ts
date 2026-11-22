@@ -29,6 +29,8 @@ import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
+import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
+import { DEMANDAS_RELACIONADAS } from './limites';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
@@ -223,6 +225,8 @@ interface Banco {
   historicoParcelas?: (Historico & { contrato_id: string })[];
   /** As demandas ligadas aos processos (processo_demandas no banco). */
   processoDemandas?: { processo_id: string; demanda_id: string; papel?: PapelDaDemandaNoProcesso }[];
+  /** As demandas relacionadas (demandas_relacionadas no banco, #310): as duas em ordem, a menor primeiro. Os números vêm das demandas. */
+  demandasRelacionadas?: { demanda_a: string; demanda_b: string }[];
   /** Os processos ligados aos contratos (contrato_processos no banco). */
   contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -561,6 +565,7 @@ bd.retiradas ??= [];
 bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(k => k.id);
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
+bd.demandasRelacionadas ??= [];
 bd.contratoProcessos ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
@@ -1958,6 +1963,11 @@ const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnot
 // ---------- ligar a um cartão um item que já existe (#341, etapa 2; como em supabase.ts) ----------
 /** Como a regra de alterar do banco nas buscas para ligar: quem está no item e, na fase de adaptação, toda a equipe. */
 const alteroNoFalso = (estaNele: boolean) => !!bd.equipeEditaTudo || estaNele;
+/** Como privado.estou_na_demanda_do_id (#310): quem está logado altera a demanda; com `ativa`, só se ela não está arquivada. */
+const estouNaDemandaDoId = (id: string, ativa: boolean) => {
+  const d = bd.demandas!.find(x => x.id === id);
+  return !!d && (!ativa || !d.arquivado_em) && alteroNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()));
+};
 /** O que cada busca para ligar sabe do seu módulo: quem altera, o texto da busca, a lista de pessoas e as ligações de um só. */
 interface ModuloParaLigar<T> { altero: (x: T) => boolean; busca: (x: T) => string; pessoas?: (x: T) => string[]; sem?: Partial<Record<LigacaoDeUmSo, (x: T) => string | null>> }
 /** Como paraLigar, em supabase.ts: só os ativos que quem lê altera, pela busca, fora os já ligados e os que já têm a pessoa, os mais novos primeiro. */
@@ -3164,6 +3174,7 @@ export const SD: Dados = {
       if (!d || !d.arquivado_em) return;
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
+      bd.demandasRelacionadas = bd.demandasRelacionadas!.filter(l => l.demanda_a !== id && l.demanda_b !== id);
       soltarDasAnotacoes('demandas', id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
@@ -3198,6 +3209,39 @@ export const SD: Dados = {
     const d = demandaDoObjeto(k, doContrato, Date.now() / 1000);
     auditar('demandas', 'inclusao', d); gravar();
     return espera({ id: d.id, codigo: d.codigo });
+  },
+
+  // ---------- demandas relacionadas (como supabase/migrations/20261122125913_demandas_relacionadas.sql, #310) ----------
+  demandasRelacionadas(demandaId) {
+    // Como a regra de leitura da ligação: quem vê uma das duas demandas vê a ligação.
+    const linhas = bd.demandasRelacionadas!.filter(l => (demandaId === l.demanda_a || demandaId === l.demanda_b)
+      && (vejoNoModulo('demandas', l.demanda_a) || vejoNoModulo('demandas', l.demanda_b))).slice(0, DEMANDAS_RELACIONADAS);
+    // Cada ponta como a regra de leitura das demandas: a que quem lê não vê fica só com o número.
+    const ponta = (id: string) => {
+      const d = bd.demandas!.find(x => x.id === id);
+      return d && vejoNoModulo('demandas', id) ? { titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em } : null;
+    };
+    const codigoDe = (id: string) => bd.demandas!.find(x => x.id === id)?.codigo ?? '';
+    return espera(linhas.map(l => outraDaRelacao({ ...l, codigo_a: codigoDe(l.demanda_a), codigo_b: codigoDe(l.demanda_b), a: ponta(l.demanda_a), b: ponta(l.demanda_b) }, demandaId)));
+  },
+  async demandaRelacionar(demandaId, outraId) {
+    // Como a regra "incluir": quem está nas duas, com as duas ativas; e nunca a demanda com ela mesma (a regra de ordem do banco).
+    if (demandaId === outraId) return erro(MESMA_DEMANDA);
+    if (![demandaId, outraId].every(id => estouNaDemandaDoId(id, true))) return erro(SEM_PERMISSAO);
+    const [demanda_a, demanda_b] = parDaRelacao(demandaId, outraId);
+    const nova = !bd.demandasRelacionadas!.some(l => l.demanda_a === demanda_a && l.demanda_b === demanda_b);
+    if (nova) bd.demandasRelacionadas!.push({ demanda_a, demanda_b });
+    gravar();
+    return espera(nova);
+  },
+  async demandaDesrelacionar(demandaId, outraId) {
+    // Como a regra "apagar": quem está numa das duas, mesmo arquivada.
+    const [demanda_a, demanda_b] = parDaRelacao(demandaId, outraId);
+    const ligada = bd.demandasRelacionadas!.some(l => l.demanda_a === demanda_a && l.demanda_b === demanda_b);
+    if (!ligada || ![demanda_a, demanda_b].some(id => estouNaDemandaDoId(id, false))) return erro(SEM_PERMISSAO);
+    bd.demandasRelacionadas = bd.demandasRelacionadas!.filter(l => !(l.demanda_a === demanda_a && l.demanda_b === demanda_b));
+    gravar();
+    return espera(undefined);
   },
 
   // ---------- tarefas (como supabase/migrations/20261027000020_tarefas.sql) ----------

@@ -13,6 +13,7 @@ import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limi
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
+import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -2503,6 +2504,83 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Então
           expect(mudado).toMatchObject({ tipo: 'intimacao', categoria: null });
         });
+      });
+    });
+
+    describe('Demandas relacionadas (#310)', () => {
+      const novaDemanda = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const ids = async (demandaId: string) => (await SD.demandasRelacionadas(demandaId)).map(r => r.id);
+
+      it('quando liga uma à outra, então cada uma mostra a outra com o número; ligar de novo, no outro sentido, não repete', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        // Quando
+        const nova = await SD.demandaRelacionar(d.id, e.id);
+        const deNovo = await SD.demandaRelacionar(e.id, d.id);
+        // Então
+        expect([nova, deNovo]).toEqual([true, false]);
+        expect(await SD.demandasRelacionadas(d.id)).toEqual([expect.objectContaining({ id: e.id, codigo: e.codigo, demanda: expect.objectContaining({ arquivado_em: null }) })]);
+        expect((await SD.demandasRelacionadas(e.id))[0]).toMatchObject({ id: d.id, codigo: d.codigo });
+      });
+
+      it('quando tenta ligar a demanda a ela mesma, ou a uma arquivada, então é recusado', async () => {
+        // Dado
+        const [d, arquivada] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandasArquivar([arquivada.id], true);
+        // Quando
+        const mesma = SD.demandaRelacionar(d.id, d.id);
+        const comArquivada = SD.demandaRelacionar(d.id, arquivada.id);
+        // Então
+        await expect(mesma).rejects.toThrow(MESMA_DEMANDA);
+        await expect(comArquivada).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect(await SD.demandasRelacionadas(d.id)).toEqual([]);
+      });
+
+      it('quando desfaz a ligação num dos lados, então ela some dos dois, e as outras ficam', async () => {
+        // Dado
+        const [d, e, f] = [await novaDemanda(), await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        await SD.demandaRelacionar(d.id, f.id);
+        // Quando
+        await SD.demandaDesrelacionar(e.id, d.id);
+        // Então
+        expect(await ids(d.id)).toEqual([f.id]);
+        expect(await ids(e.id)).toEqual([]);
+      });
+
+      it('quando desfaz o que não está ligado, então é recusado', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        // Quando
+        const desfazer = SD.demandaDesrelacionar(d.id, e.id);
+        // Então
+        await expect(desfazer).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando uma das duas é arquivada depois de ligada, então a ligação continua e ainda se desfaz', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        // Então
+        expect((await SD.demandasRelacionadas(d.id))[0].demanda?.arquivado_em).toBeTruthy();
+        await SD.demandaDesrelacionar(d.id, e.id);
+        expect(await ids(d.id)).toEqual([]);
+      });
+
+      it('quando uma das duas é excluída, então a ligação sai junto', async () => {
+        // Dado
+        const [d, e] = [await novaDemanda(), await novaDemanda()];
+        await SD.demandaRelacionar(d.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        await SD.demandasExcluir([e.id]);
+        // Então
+        expect(await ids(d.id)).toEqual([]);
       });
     });
 
@@ -8019,6 +8097,50 @@ describe('Menções sem revelar o item a quem não o vê (banco fictício, #365)
     const comentario = await SD.comentarioCriar('demandas', demanda.id, 'Veja, @ana.lima');
     // Então
     expect(comentario.mencoes).toEqual(['u-ana']);
+  });
+});
+
+// Como a regra de leitura de supabase/migrations/20261122125913_demandas_relacionadas.sql, provada no banco em
+// supabase/tests/demandas_relacionadas.test.sql.
+describe('Demandas relacionadas com quem vê só uma das duas (banco fictício, #310)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const demanda = (responsavel_id: string) => SD.demandaCriar({ titulo: 'Demanda relacionada ' + responsavel_id, responsavel_id });
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    falso().entrarComo('u-master');
+  });
+  afterEach(() => { falso().fecharVisibilidade(false); falso().entrarComo('u-master'); });
+
+  it('dada a demanda do Bruno ligada a outra que ele não vê, quando ele lê as relacionadas pelos dois lados, então vê a ligação nos dois, e o conteúdo só da dele', async () => {
+    // Dado
+    const [doBruno, sigilosa] = [await demanda('u-bruno'), await demanda('u-ana')];
+    await SD.demandaRelacionar(doBruno.id, sigilosa.id);
+    falso().fecharVisibilidade(true);
+    // Quando
+    falso().entrarComo('u-bruno');
+    const pelaDele = await SD.demandasRelacionadas(doBruno.id);
+    const pelaOutra = await SD.demandasRelacionadas(sigilosa.id);
+    // Então
+    expect(pelaDele).toEqual([{ id: sigilosa.id, codigo: sigilosa.codigo, demanda: null }]);
+    expect(pelaOutra).toEqual([expect.objectContaining({ id: doBruno.id, codigo: doBruno.codigo, demanda: expect.objectContaining({ titulo: 'Demanda relacionada u-bruno' }) })]);
+  });
+
+  it('dada a mesma ligação, quando o Bruno a desfaz, então ela sai, e ele não consegue refazê-la, porque não está na outra', async () => {
+    // Dado
+    const [doBruno, sigilosa] = [await demanda('u-bruno'), await demanda('u-ana')];
+    await SD.demandaRelacionar(doBruno.id, sigilosa.id);
+    falso().fecharVisibilidade(true);
+    falso().entrarComo('u-bruno');
+    // Quando
+    await SD.demandaDesrelacionar(doBruno.id, sigilosa.id);
+    // Então
+    expect(await SD.demandasRelacionadas(doBruno.id)).toEqual([]);
+    await expect(SD.demandaRelacionar(doBruno.id, sigilosa.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
   });
 });
 

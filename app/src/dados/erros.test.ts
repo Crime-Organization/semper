@@ -54,6 +54,8 @@ describe('Erros do banco em português', () => {
       'O nome da pasta pode ter até 80 caracteres.'],
     ['pessoa que está em contratos', { code: '23503', message: 'violates foreign key constraint "contratos_cliente_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
     ['pessoa que participa de contratos', { code: '23503', message: 'violates foreign key constraint "contrato_participantes_pessoa_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
+    ['demanda relacionada a ela mesma', { code: '23514', message: 'new row for relation "demandas_relacionadas" violates check constraint "demandas_relacionadas_em_ordem"' },
+      'Uma demanda não se relaciona com ela mesma.'],
     ['formato inválido', { code: '23514', message: 'violates check constraint' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],
     ['sem permissão (código)', { code: '42501', message: 'x' }, 'Você não tem permissão para fazer isso.'],
     ['sem permissão (RLS)', { message: 'new row violates row-level security policy' }, 'Você não tem permissão para fazer isso.'],

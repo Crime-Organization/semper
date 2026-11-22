@@ -368,6 +368,14 @@ export type PapelNaDemanda = 'cliente' | 'responsavel' | 'colaborador';
 export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   papeis: PapelNaDemanda[];
 }
+/**
+ * Uma demanda relacionada a outra (#310), vista do cartão de uma delas: o id e o número sempre; o conteúdo (demanda), só para quem
+ * pode ver a relacionada (null: quem lê não a vê, e sabe só que ela existe e o número dela).
+ */
+export interface DemandaRelacionada {
+  id: string; codigo: string;
+  demanda: Pick<Demanda, 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em'> | null;
+}
 /** Campos que o cadastro de demanda grava. */
 export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'colaboradores' | 'grupos' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
@@ -650,6 +658,18 @@ export interface DadosDemandas {
    * e a demanda criada assim não se repete quando o contrato for assinado.
    */
   contratoCriarDemanda(contratoId: string, objeto: string): Promise<{ id: string; codigo: string }>;
+  /**
+   * As demandas relacionadas a esta (#310), nos dois sentidos, na ordem em que foram ligadas, até DEMANDAS_RELACIONADAS. Quem vê
+   * esta demanda vê todas, com o número; o conteúdo, só das que ele também pode ver.
+   */
+  demandasRelacionadas(demandaId: string): Promise<DemandaRelacionada[]>;
+  /**
+   * Liga uma demanda à outra (supabase/migrations/20261122125913_demandas_relacionadas.sql): quem está nas duas (quem altera cada
+   * uma), com as duas ativas. Ligar de novo, em qualquer sentido, não muda nada. Devolve se a ligação é nova (false: já existia).
+   */
+  demandaRelacionar(demandaId: string, outraId: string): Promise<boolean>;
+  /** Desfaz a ligação, que some das duas: quem está numa delas (mesmo arquivada, ou sem ver a outra). */
+  demandaDesrelacionar(demandaId: string, outraId: string): Promise<void>;
 }
 
 /** Tarefas. Na ordem "nome", a lista vai pelo título. */
