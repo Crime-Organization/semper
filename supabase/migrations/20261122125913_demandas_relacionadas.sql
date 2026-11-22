@@ -27,7 +27,8 @@ create table public.demandas_relacionadas (
 );
 create index demandas_relacionadas_pela_b on public.demandas_relacionadas (demanda_b);
 
--- Antes de gravar: as duas em ordem, e o código de cada uma. As duas precisam ser do escritório da linha.
+-- Antes de gravar: as duas em ordem, e o código de cada uma. As duas precisam ser do escritório da linha. A recusa é a mesma de
+-- quem não tem permissão (42501), para não contar a ninguém se um id de outro escritório existe.
 create function privado.preparar_demanda_relacionada() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare v_troca uuid;
@@ -37,7 +38,7 @@ begin
   end if;
   select codigo into new.codigo_a from public.demandas where id = new.demanda_a and escritorio_id = new.escritorio_id;
   select codigo into new.codigo_b from public.demandas where id = new.demanda_b and escritorio_id = new.escritorio_id;
-  if new.codigo_a is null or new.codigo_b is null then raise exception 'Demanda não encontrada neste escritório.'; end if;
+  if new.codigo_a is null or new.codigo_b is null then raise exception 'Demanda não encontrada neste escritório.' using errcode = '42501'; end if;
   return new;
 end $$;
 revoke execute on function privado.preparar_demanda_relacionada() from public, anon, authenticated;

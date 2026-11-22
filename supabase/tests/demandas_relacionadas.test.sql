@@ -41,6 +41,12 @@ $$;
 create function pg_temp.ligacoes(p_demanda uuid) returns bigint language sql as $$
   select count(*) from public.demandas_relacionadas where p_demanda in (demanda_a, demanda_b)
 $$;
+-- Liga como o site (supabase.ts, demandaRelacionar): o upsert que ignora a repetida, e quantas linhas novas voltam.
+create function pg_temp.ligar_como_o_site(p_a uuid, p_b uuid, p_quem uuid) returns bigint language sql as $$
+  with r as (insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values (least(p_a, p_b), greatest(p_a, p_b), p_quem)
+             on conflict (demanda_a, demanda_b) do nothing returning demanda_a)
+  select count(*) from r
+$$;
 
 -- Quando a Bia liga a D2 à D1 (a maior primeiro),
 select pg_temp.entrar(2); set local role authenticated;
@@ -60,7 +66,16 @@ select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda
 select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
   ('71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000002') $$, '42501', null, 'A demanda arquivada não se liga');
 select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
-  ('71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000002') $$, 'P0001', 'Demanda não encontrada neste escritório.', 'A demanda de outro escritório não se liga');
+  ('71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000002') $$, '42501', null, 'A demanda de outro escritório não se liga');
+select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
+  ('71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-0000000000ff', 'a0000000-0000-0000-0000-000000000002') $$, '42501', null,
+  'O id que não existe dá a mesma recusa do id de outro escritório (ninguém descobre se um id existe)');
+select throws_ok($$ insert into public.demandas_relacionadas (escritorio_id, demanda_a, demanda_b, criado_por) values
+  ('e0000000-0000-0000-0000-000000000002', '71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000002') $$, '42501', null,
+  'Ninguém grava a ligação em nome de outro escritório');
+-- Quando liga de novo como o site liga (o upsert que ignora a repetida), então nada volta: a ligação não é nova.
+select is(pg_temp.ligar_como_o_site('71000000-0000-0000-0000-000000000002', '71000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002'),
+  0::bigint, 'Ligar de novo como o site liga não devolve linha nova');
 select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
   ('71000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002') $$, '23514', null, 'A demanda não se liga a ela mesma');
 select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
@@ -87,7 +102,13 @@ reset role;
 select is((select count(*) from public.demandas_relacionadas), 2::bigint, 'Quem não está em nenhuma das duas não desfaz a ligação');
 select pg_temp.entrar(4); set local role authenticated;
 select is((select count(*) from public.demandas_relacionadas), 0::bigint, 'Outro escritório não vê as ligações');
+-- Quando o Davi (administrador do outro escritório) tenta desfazer ou ligar a demanda dele a uma deste, então nada muda.
+delete from public.demandas_relacionadas;
+select throws_ok($$ insert into public.demandas_relacionadas (demanda_a, demanda_b, criado_por) values
+  ('71000000-0000-0000-0000-000000000009', '71000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004') $$, '42501', null,
+  'O outro escritório não liga a demanda dele a uma deste');
 reset role;
+select is((select count(*) from public.demandas_relacionadas), 2::bigint, 'O outro escritório não desfaz as ligações deste');
 
 -- Quando a Bia desfaz, pela D1, a ligação com a D3 (que ela não vê),
 select pg_temp.entrar(2); set local role authenticated;

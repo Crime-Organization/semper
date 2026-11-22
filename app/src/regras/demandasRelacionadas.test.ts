@@ -1,6 +1,6 @@
 // Regras das demandas relacionadas (#310). Padrão Dado / Quando / Então: app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { foraDaBuscaDeRelacionadas, outraDaRelacao, parDaRelacao, type LinhaDaRelacao } from './demandasRelacionadas';
+import { foraDaBuscaDeRelacionadas, outraDaRelacao, parDaRelacao, refazALigacao, type LinhaDaRelacao } from './demandasRelacionadas';
 
 const linha: LinhaDaRelacao<{ titulo: string }> = { demanda_a: 'd1', demanda_b: 'd2', codigo_a: 'A1', codigo_b: 'B2', a: { titulo: 'Primeira' }, b: null };
 
@@ -28,5 +28,18 @@ describe('A busca para ligar', () => {
   it('dada uma demanda com relacionadas, quando a busca abre, então deixa de fora a própria demanda e as já relacionadas', () => {
     // Dado / Quando / Então
     expect(foraDaBuscaDeRelacionadas('d1', [{ id: 'd2' }, { id: 'd3' }])).toEqual(['d1', 'd2', 'd3']);
+  });
+});
+
+describe('O Desfazer depois de desfazer a ligação', () => {
+  it('dada a outra demanda visível e ativa, quando a ligação é desfeita, então o aviso oferece refazê-la', () => {
+    // Dado / Quando / Então
+    expect(refazALigacao({ id: 'd2', codigo: 'B2', demanda: { arquivado_em: null } })).toBe(true);
+  });
+
+  it('dada a outra demanda arquivada, ou que quem desfaz não vê, quando a ligação é desfeita, então o aviso sai sem refazer', () => {
+    // Dado / Quando / Então
+    expect(refazALigacao({ id: 'd2', codigo: 'B2', demanda: { arquivado_em: '2026-11-22T10:00:00Z' } })).toBe(false);
+    expect(refazALigacao({ id: 'd3', codigo: 'C3', demanda: null })).toBe(false);
   });
 });

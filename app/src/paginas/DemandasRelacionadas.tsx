@@ -4,7 +4,7 @@
 // com a busca) e desfaz pelo "X", com o Desfazer no pé da tela, como os processos ligados (ProcessosDoCartao).
 import { SD, type Coluna, type DemandaRelacionada } from '../dados';
 import { rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA } from '../regras/demanda';
-import { DETALHE_SEM_ACESSO, foraDaBuscaDeRelacionadas, RELACIONADA_SEM_ACESSO } from '../regras/demandasRelacionadas';
+import { DETALHE_SEM_ACESSO, foraDaBuscaDeRelacionadas, refazALigacao, RELACIONADA_SEM_ACESSO } from '../regras/demandasRelacionadas';
 import { colunaComMarco, situacaoDoItem } from '../regras/quadro';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Carregando } from '../ui/base';
@@ -14,6 +14,8 @@ import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { hojeISO } from '../ui/util';
 import { ligarEAvisar, relacionarDemandas } from './ligarNoCartao';
 
+/** O tamanho do X que desfaz a ligação (o mesmo dos processos e dos itens ligados). */
+const ICONE_DO_DESFAZER = 14;
 /** O que a seção explica enquanto a busca está aberta: quem passa a ver o quê. */
 export const AVISO_AO_RELACIONAR = 'A ligação aparece nas duas demandas. Quem está só numa delas vê o número da outra, sem o conteúdo.';
 
@@ -36,8 +38,8 @@ export function DemandasRelacionadas({ demandaId, relacionadas, colunas, somente
   async function desfazer(r: DemandaRelacionada) {
     try {
       await SD.demandaDesrelacionar(demandaId, r.id);
-      // Religar pede estar nas duas: sem ver a outra, a ligação desfeita não volta pelo Desfazer.
-      if (r.demanda) feito(`Ligação desfeita com a demanda ${r.codigo}.`, 'ligação desfeita', async () => { await SD.demandaRelacionar(demandaId, r.id); });
+      // Religar pede as duas ativas e estar nelas: sem ver a outra, ou com ela arquivada, a ligação desfeita não volta pelo Desfazer.
+      if (refazALigacao(r)) feito(`Ligação desfeita com a demanda ${r.codigo}.`, 'ligação desfeita', async () => { await SD.demandaRelacionar(demandaId, r.id); });
       else avisar(`Ligação desfeita com a demanda ${r.codigo}.`);
       aoMudar();
     } catch (e) { falha(e); }
@@ -54,7 +56,7 @@ export function DemandasRelacionadas({ demandaId, relacionadas, colunas, somente
       : { titulo: RELACIONADA_SEM_ACESSO, detalhe: DETALHE_SEM_ACESSO }),
     acao: somenteLer ? undefined
       : <button type="button" className="icone-btn" title="Desfazer a ligação" aria-label={`Desfazer a ligação com a demanda ${r.codigo}`} onClick={() => desfazer(r)}>
-        <Icone nome="fechar" tam={14} />
+        <Icone nome="fechar" tam={ICONE_DO_DESFAZER} />
       </button>
   });
 

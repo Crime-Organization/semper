@@ -8100,6 +8100,50 @@ describe('Menções sem revelar o item a quem não o vê (banco fictício, #365)
   });
 });
 
+// Como a regra de leitura de supabase/migrations/20261122125913_demandas_relacionadas.sql, provada no banco em
+// supabase/tests/demandas_relacionadas.test.sql.
+describe('Demandas relacionadas com quem vê só uma das duas (banco fictício, #310)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const demanda = (responsavel_id: string) => SD.demandaCriar({ titulo: 'Demanda relacionada ' + responsavel_id, responsavel_id });
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    falso().entrarComo('u-master');
+  });
+  afterEach(() => { falso().fecharVisibilidade(false); falso().entrarComo('u-master'); });
+
+  it('dada a demanda do Bruno ligada a outra que ele não vê, quando ele lê as relacionadas pelos dois lados, então vê a ligação nos dois, e o conteúdo só da dele', async () => {
+    // Dado
+    const [doBruno, sigilosa] = [await demanda('u-bruno'), await demanda('u-ana')];
+    await SD.demandaRelacionar(doBruno.id, sigilosa.id);
+    falso().fecharVisibilidade(true);
+    // Quando
+    falso().entrarComo('u-bruno');
+    const pelaDele = await SD.demandasRelacionadas(doBruno.id);
+    const pelaOutra = await SD.demandasRelacionadas(sigilosa.id);
+    // Então
+    expect(pelaDele).toEqual([{ id: sigilosa.id, codigo: sigilosa.codigo, demanda: null }]);
+    expect(pelaOutra).toEqual([expect.objectContaining({ id: doBruno.id, codigo: doBruno.codigo, demanda: expect.objectContaining({ titulo: 'Demanda relacionada u-bruno' }) })]);
+  });
+
+  it('dada a mesma ligação, quando o Bruno a desfaz, então ela sai, e ele não consegue refazê-la, porque não está na outra', async () => {
+    // Dado
+    const [doBruno, sigilosa] = [await demanda('u-bruno'), await demanda('u-ana')];
+    await SD.demandaRelacionar(doBruno.id, sigilosa.id);
+    falso().fecharVisibilidade(true);
+    falso().entrarComo('u-bruno');
+    // Quando
+    await SD.demandaDesrelacionar(doBruno.id, sigilosa.id);
+    // Então
+    expect(await SD.demandasRelacionadas(doBruno.id)).toEqual([]);
+    await expect(SD.demandaRelacionar(doBruno.id, sigilosa.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+  });
+});
+
 describe('Aviso ao ser incluído num item (banco fictício, #377)', () => {
   let SD: Dados;
   type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };

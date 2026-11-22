@@ -3213,8 +3213,9 @@ export const SD: Dados = {
 
   // ---------- demandas relacionadas (como supabase/migrations/20261122125913_demandas_relacionadas.sql, #310) ----------
   demandasRelacionadas(demandaId) {
-    if (!vejoNoModulo('demandas', demandaId)) return espera([]);
-    const linhas = bd.demandasRelacionadas!.filter(l => demandaId === l.demanda_a || demandaId === l.demanda_b).slice(0, DEMANDAS_RELACIONADAS);
+    // Como a regra de leitura da ligação: quem vê uma das duas demandas vê a ligação.
+    const linhas = bd.demandasRelacionadas!.filter(l => (demandaId === l.demanda_a || demandaId === l.demanda_b)
+      && (vejoNoModulo('demandas', l.demanda_a) || vejoNoModulo('demandas', l.demanda_b))).slice(0, DEMANDAS_RELACIONADAS);
     // Cada ponta como a regra de leitura das demandas: a que quem lê não vê fica só com o número.
     const ponta = (id: string) => {
       const d = bd.demandas!.find(x => x.id === id);

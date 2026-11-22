@@ -27,3 +27,9 @@ export function outraDaRelacao<T>(l: LinhaDaRelacao<T>, demandaId: string): Outr
 
 /** O que a busca de "Ligar demanda existente" deixa de fora: a própria demanda e as que já estão relacionadas a ela. */
 export const foraDaBuscaDeRelacionadas = (demandaId: string, relacionadas: readonly { id: string }[]) => [demandaId, ...relacionadas.map(r => r.id)];
+
+/**
+ * Depois de desfazer a ligação, o Desfazer no pé da tela a refaz? Refazer pede as duas ativas e quem está nelas: sem ver a outra,
+ * ou com ela arquivada, o religar seria recusado, e o aviso sai sem o botão.
+ */
+export const refazALigacao = (outra: OutraDaRelacao<{ arquivado_em: string | null }>) => !!outra.demanda && !outra.demanda.arquivado_em;
