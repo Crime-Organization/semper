@@ -89,6 +89,9 @@ export function ativosPorTipo(processos: readonly ProcessoNosGraficos[], colunas
   })) as Record<TipoProcesso, number>;
 }
 
+/** Todos os processos ativos, somados os de cada tipo (o número do alto). */
+export const totalDeAtivos = (ativos: Record<TipoProcesso, number>) => TIPOS.reduce((soma, t) => soma + ativos[t], 0);
+
 /** Quantos processos não arquivados há em cada coluna de cada quadro (como as fases do painel, para fasesDoTipo). */
 export function fasesDosProcessos(processos: readonly ProcessoNosGraficos[]): FaseNoPainel[] {
   const fases = new Map<string, FaseNoPainel>();
@@ -120,7 +123,10 @@ export function painelDaPessoa(painel: PainelDeProcessos, pessoa: string, hoje: 
 }
 
 /** Os processos ativos de um tipo, por extenso, no número do alto ("1 judicial", "18 judiciais"). */
-const NOME_NO_NUMERO: Record<TipoProcesso, [um: string, varios: string]> = { judicial: ['judicial', 'judiciais'], administrativo: ['administrativo', 'administrativos'] };
+const NOME_NO_NUMERO: Record<TipoProcesso, [um: string, varios: string]> = {
+  judicial: ['judicial', 'judiciais'], administrativo: ['administrativo', 'administrativos'],
+  extrajudicial: ['extrajudicial', 'extrajudiciais'], investigacao: ['investigação', 'investigações']
+};
 export const ativosPorExtenso = (tipo: TipoProcesso, n: number) => `${n.toLocaleString('pt-BR')} ${NOME_NO_NUMERO[tipo][n === 1 ? 0 : 1]}`;
 
 /** A lista dos processos de um tipo, só com os da pessoa (null: todos). Abre em tabela, como as fases (enderecoDaFase). */

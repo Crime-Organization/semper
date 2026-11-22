@@ -1,4 +1,4 @@
-// Painel de Processos, ao clicar em "Processos" no menu (#401): o trabalho de quem está logado, judicial e administrativo. No alto,
+// Painel de Processos, ao clicar em "Processos" no menu (#401): o trabalho de quem está logado, em todos os tipos de processo. No alto,
 // os números (ativos, prazos vencidos e desta semana, audiências e perícias, intimações a tratar, parados), cada um levando à lista
 // dele; depois, os gráficos (prazos das próximas semanas, o movimento dos últimos meses e os processos em cada fase); embaixo, as
 // listas de sempre. Só o administrador tem o filtro para ver a equipe toda ou uma pessoa da equipe. Este painel é o modelo dos
@@ -9,7 +9,7 @@ import { DIAS_PARADO } from '../dados/limites';
 import { nomeDoAndamento, quandoDoAndamento, tarefaDaIntimacao } from '../regras/andamentos';
 import { FRASE_DO_ALCANCE, type AlcanceDoPainel } from '../regras/filtroDoPainel';
 import {
-  ativosPorExtenso, ativosPorTipo, enderecoDoTipo, fasesDosProcessos, movimentoPorMes, painelDaPessoa, prazosPorSemana, SEMANAS_DE_PRAZOS, MESES_DO_MOVIMENTO,
+  ativosPorExtenso, ativosPorTipo, enderecoDoTipo, fasesDosProcessos, movimentoPorMes, painelDaPessoa, prazosPorSemana, SEMANAS_DE_PRAZOS, totalDeAtivos, MESES_DO_MOVIMENTO,
   type BarraDePrazos, type ColunasDosQuadros, type MesDoMovimento
 } from '../regras/graficosDeProcessos';
 import { DIAS_DE_MARCADOS, enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, ITENS_POR_LISTA, linhaDoProcesso, processoParaTarefa, rotuloNoPainel, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
@@ -133,7 +133,7 @@ export default function PainelProcessos() {
     {cabecalho}
 
     <NumerosDoPainel rotulo="Números do painel">
-      <NumeroDoPainel rotulo="Processos ativos" valor={ativos.judicial + ativos.administrativo} tom="neutro"
+      <NumeroDoPainel rotulo="Processos ativos" valor={totalDeAtivos(ativos)} tom="neutro"
         partes={TIPOS.map(t => ({ chave: t, texto: ativosPorExtenso(t, ativos[t]), para: enderecoDoTipo(t, alcance.pessoa) }))} />
       <NumeroDoPainel rotulo="Prazos vencidos" valor={vencidos.n} tom={vencidos.n ? 'erro' : 'neutro'} para={'#' + LISTA.prazos}
         detalhe={vencidos.n ? 'o último dia já passou' : 'nenhum prazo atrasado'} />
