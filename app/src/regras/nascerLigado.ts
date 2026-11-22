@@ -3,7 +3,7 @@
 // à origem e volta ao cartão de onde a pessoa partiu. Aqui, o que o cadastro herda, os textos dos avisos e para onde se volta; as
 // gravações ficam nas telas.
 import { CLIENTES_MAXIMOS, ITENS_DA_ANOTACAO } from '../dados/limites';
-import type { TipoProcesso } from '../dados/tipos';
+import type { ModuloDoCompromisso, TipoProcesso } from '../dados/tipos';
 import { enderecoDoCartao } from './buscaGeral';
 import { motivoDeContratoDiferente, RecusaDaLigacao } from './ligarExistente';
 import { enderecoDoProcesso } from './painelProcessos';
@@ -22,7 +22,8 @@ export function clientesDaOrigem<P extends { id: string }>(pessoas: readonly P[]
 
 // ---------- a origem ----------
 /** O item que nasce e o cartão de onde ele nasce. Cada origem nova é uma entrada nova em TEXTOS_DA_ORIGEM. */
-export type Nascimento = 'demanda da tarefa' | 'demanda do processo' | 'contrato da demanda' | 'contrato do processo' | `${QueNasceNaAnotacao} da anotação`;
+export type Nascimento = 'demanda da tarefa' | 'demanda do processo' | 'contrato da demanda' | 'contrato do processo' | `${QueNasceNaAnotacao} da anotação`
+  | 'compromisso da tarefa' | 'compromisso da demanda' | 'compromisso do contrato';
 /** O que nasce já ligado à anotação, pelo "+ Novo…" da seção "Ligada a" (a pessoa nova tem o cadastro dela: regras/origemDaPessoa.ts). */
 export type QueNasceNaAnotacao = 'tarefa' | 'demanda' | 'compromisso' | 'contrato';
 /**
@@ -58,7 +59,14 @@ const TEXTOS_DA_ORIGEM: Record<Nascimento, TextosDaOrigem> = {
   'tarefa da anotação': daAnotacao('Esta tarefa', 'a tarefa nova', 'ligada'),
   'demanda da anotação': daAnotacao('Esta demanda', 'a demanda nova', 'ligada'),
   'compromisso da anotação': daAnotacao('Este compromisso', 'o compromisso novo', 'ligado'),
-  'contrato da anotação': daAnotacao('Este contrato', 'o contrato novo', 'ligado')
+  'contrato da anotação': daAnotacao('Este contrato', 'o contrato novo', 'ligado'),
+  // O compromisso que nasce na seção Compromissos de uma tarefa, de uma demanda ou de um contrato (#306).
+  'compromisso da tarefa': { nasce: ['Este compromisso nasce da tarefa', ' e fica ligado a ela.'],
+    arquivada: ['A tarefa', ' está arquivada: o compromisso novo não leva nada dela nem fica ligado a ela.'] },
+  'compromisso da demanda': { nasce: ['Este compromisso nasce da demanda', ' e fica ligado a ela.'],
+    arquivada: ['A demanda', ' está arquivada: o compromisso novo não leva nada dela nem fica ligado a ela.'] },
+  'compromisso do contrato': { nasce: ['Este compromisso nasce do contrato', ' e fica ligado a ele.'],
+    arquivada: ['O contrato', ' está arquivado: o compromisso novo não leva nada dele nem fica ligado a ele.'] }
 };
 const estadoDaOrigem = (o: OrigemDoItem): EstadoDaOrigem => RECUSAS.find(r => o[r]) ?? 'nasce';
 /** A origem não aceita o item novo (arquivada, sem acesso ou cheia): o aviso do topo diz isso, e o item nasce sem a ligação. */
@@ -83,6 +91,23 @@ export const origemDoProcesso = (
   p: Arquivavel & { tipo: TipoProcesso; numero: string; titulo: string | null; cliente_nome: string }, nasce: 'demanda' | 'contrato'
 ): OrigemDoItem => ({
   nascimento: `${nasce} do processo`, id: p.id, codigo: p.codigo, nome: nomeDoProcesso(p), cartao: enderecoDoProcesso(p), arquivada: !!p.arquivado_em
+});
+
+/** De onde nasce o compromisso novo, por módulo: o "+ Novo compromisso" da seção Compromissos de cada cartão (#306). */
+export const NASCIMENTO_DO_COMPROMISSO: Record<ModuloDoCompromisso, Nascimento> = {
+  tarefas: 'compromisso da tarefa', demandas: 'compromisso da demanda', contratos: 'compromisso do contrato'
+};
+/** O parâmetro do endereço do cadastro de compromisso que traz a origem: /agenda/novo/?demanda=… */
+export const PARAMETRO_DA_ORIGEM_DO_COMPROMISSO: Record<ModuloDoCompromisso, string> = { tarefas: 'tarefa', demandas: 'demanda', contratos: 'contrato' };
+/** A origem do compromisso novo no endereço do cadastro; ao atualizar um compromisso, nenhuma. */
+export function origemDoCompromissoNoEndereco(params: Pick<URLSearchParams, 'get'>, atualizando: boolean): { modulo: ModuloDoCompromisso; id: string } | null {
+  if (atualizando) return null;
+  const modulo = (Object.keys(PARAMETRO_DA_ORIGEM_DO_COMPROMISSO) as ModuloDoCompromisso[]).find(m => params.get(PARAMETRO_DA_ORIGEM_DO_COMPROMISSO[m]));
+  return modulo ? { modulo, id: params.get(PARAMETRO_DA_ORIGEM_DO_COMPROMISSO[modulo])! } : null;
+}
+/** A tarefa, a demanda ou o contrato como origem do compromisso novo (o nome é o do cartão: o título ou, no contrato, o serviço). */
+export const origemDoCompromisso = (modulo: ModuloDoCompromisso, x: Arquivavel & { nome: string }): OrigemDoItem => ({
+  nascimento: NASCIMENTO_DO_COMPROMISSO[modulo], id: x.id, codigo: x.codigo, nome: x.nome, cartao: enderecoDoCartao(modulo, x.id), arquivada: !!x.arquivado_em
 });
 
 /**
@@ -136,7 +161,8 @@ export const OBJETOS_AINDA_VIRAM_DEMANDAS = 'Quando este contrato for assinado, 
 
 // ---------- a ligação que falhou depois de gravar ----------
 /** O que nasce de cada origem e o que se liga a ela, nos textos dos avisos. */
-export type LigacaoDaOrigem = 'tarefa na demanda' | 'demanda no contrato' | 'processo no contrato' | 'processo na demanda' | `anotação: ${QueNasceNaAnotacao}`;
+export type LigacaoDaOrigem = 'tarefa na demanda' | 'demanda no contrato' | 'processo no contrato' | 'processo na demanda' | `anotação: ${QueNasceNaAnotacao}`
+  | `compromisso: ${ModuloDoCompromisso}`;
 const TEXTO_DA_LIGACAO: Record<LigacaoDaOrigem, (codigo: string) => string> = {
   'tarefa na demanda': codigo => `Não foi possível ligar a tarefa ${codigo} à demanda nova`,
   'demanda no contrato': codigo => `Não foi possível ligar a demanda ${codigo} ao contrato novo`,
@@ -145,7 +171,10 @@ const TEXTO_DA_LIGACAO: Record<LigacaoDaOrigem, (codigo: string) => string> = {
   'anotação: tarefa': codigo => `Não foi possível ligar a anotação ${codigo} à tarefa nova`,
   'anotação: demanda': codigo => `Não foi possível ligar a anotação ${codigo} à demanda nova`,
   'anotação: compromisso': codigo => `Não foi possível ligar a anotação ${codigo} ao compromisso novo`,
-  'anotação: contrato': codigo => `Não foi possível ligar a anotação ${codigo} ao contrato novo`
+  'anotação: contrato': codigo => `Não foi possível ligar a anotação ${codigo} ao contrato novo`,
+  'compromisso: tarefas': codigo => `Não foi possível ligar o compromisso novo à tarefa ${codigo}`,
+  'compromisso: demandas': codigo => `Não foi possível ligar o compromisso novo à demanda ${codigo}`,
+  'compromisso: contratos': codigo => `Não foi possível ligar o compromisso novo ao contrato ${codigo}`
 };
 /**
  * O aviso de quando o item novo já foi gravado, mas a ligação com a origem falhou: o item continua (salvar de novo o duplicaria),

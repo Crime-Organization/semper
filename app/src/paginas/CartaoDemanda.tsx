@@ -39,6 +39,7 @@ import { relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
 import { concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
+import { CompromissosDoItem } from './CompromissosDoItem';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { novoProcessoDaDemanda, ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
@@ -246,6 +247,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
     </Recolhivel>
+
+    {/* Os compromissos ligados à demanda (#306), com o + Novo compromisso já ligado. */}
+    <CompromissosDoItem modulo="demandas" id={d.id} podeLigar={podeLigar} versao={versaoHist} />
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
         histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}

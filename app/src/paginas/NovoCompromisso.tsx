@@ -2,7 +2,9 @@
 // hora), onde e de qual processo, as pessoas e os detalhes. Vindo do cartão de uma pessoa (?pessoa=) ou de um processo
 // (?processo=, que já começa como audiência), ele já vem escolhido. Ao escolher o processo, os clientes dele entram no
 // compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília. Vindo do "+ Novo…" de uma anotação
-// (?anotacao=, #376), ele nasce ligado a ela (com a pessoa única da anotação, por ?pessoa=) e, ao salvar, volta à anotação.
+// (?anotacao=, #376), ele nasce ligado a ela (com a pessoa única da anotação, por ?pessoa=) e, ao salvar, volta à anotação. Vindo do
+// "+ Novo compromisso" de uma tarefa, demanda ou contrato (?tarefa=, ?demanda=, ?contrato=, #306), ele começa com as pessoas do item,
+// nasce ligado a ele e, ao salvar, volta ao cartão dele.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
@@ -32,6 +34,8 @@ import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useAtrasado, useTitulo } from '../ui/util';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
+import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
+import { origemDoCompromissoNoEndereco } from '../regras/nascerLigado';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -56,6 +60,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const tipoInicial: TipoCompromisso = processoInicial ? 'audiencia' : 'reuniao';
   // A anotação de onde o compromisso nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada ao compromisso novo.
   const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'compromisso');
+  // A tarefa, a demanda ou o contrato de onde o compromisso nasce (#306): ele fica ligado ao compromisso novo.
+  const doItem = useOrigemDoCompromisso(origemDoCompromissoNoEndereco(params, !!idAtualizar));
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
@@ -126,6 +132,12 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     if (pessoaInicial) SD.pessoaObter(pessoaInicial).then(p => { if (p) { setPessoas([p]); setC(x => ({ ...x, pessoas: [p.id] })); } }).catch(falha);
     if (processoInicial) void ligarProcesso(processoInicial);
   }, [idAtualizar, pessoaInicial, processoInicial, porPessoas, ligarProcesso]);
+  // As pessoas da origem entram no compromisso, se ele ainda não tem nenhuma.
+  useEffect(() => {
+    if (!doItem?.pessoas.length || camposAgora.current.pessoas.some(Boolean)) return;
+    porPessoas(doItem.pessoas);
+    setC(atual => ({ ...atual, pessoas: doItem.pessoas.map(p => p.id) }));
+  }, [doItem, porPessoas]);
   // A cada etapa, o foco vai para o primeiro campo dela.
   useEffect(() => {
     const t = setTimeout(() => document.querySelector<HTMLElement>(CAMPOS_DA_ETAPA)?.focus({ preventScroll: true }), 0);
@@ -250,8 +262,10 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           return { tipo: 'compromissoCriado', id: r.id };
         });
         saidaLiberada.current = true;
-        // Vindo de uma anotação, liga o compromisso a ela e volta à anotação, no lugar do cadastro.
-        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, ENDERECO + '?id=' + r.id), { replace: !!daAnotacao });
+        // Vindo de uma anotação (ou de uma tarefa, demanda ou contrato), liga o compromisso a ela e volta ao cartão dela, no lugar do cadastro.
+        const doCriado = ENDERECO + '?id=' + r.id;
+        navegar(daAnotacao ? await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, doCriado) : await depoisDeCriarNoItem(doItem, r.id, doCriado),
+          { replace: !!daAnotacao || !!doItem });
       }
     } catch (err) {
       falha(err);
@@ -359,6 +373,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando o compromisso <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
     <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
+    <AvisoDaAnotacaoDeOrigem origem={doItem?.origem ?? null} />
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Passo {passo + 1} de {total}</span>

@@ -1,8 +1,10 @@
 // Regras do compromisso (módulo Compromissos, a agenda): os tipos, o cadastro por etapas, o que aparece no cartão, os papéis
 // de cada pessoa e quem vê. Tudo puro, sem tela nem banco. As contas de data da agenda ficam em regras/agenda.ts.
-import type { Compromisso, CompromissoLigado, DadosCompromisso, Membro, ModalidadeCompromisso, PapelNoCompromisso, ProcessoDoCompromisso, TipoCompromisso } from '../dados/tipos';
+import type {
+  Compromisso, CompromissoLigado, DadosCompromisso, ItemDoCompromisso, Membro, ModalidadeCompromisso, ModuloDoCompromisso, PapelNoCompromisso, ProcessoDoCompromisso, TipoCompromisso
+} from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, ITENS_DO_COMPROMISSO, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { clientesPorExtenso } from './contrato';
 import { fmtData, lerData } from './pessoa';
 import { estaPeloGrupo } from './gruposDaEquipe';
@@ -21,6 +23,8 @@ export const TIPOS_COMPROMISSO: Record<TipoCompromisso, { nome: string; doProces
   audiencia: { nome: 'Audiência', doProcesso: true, exigeHora: true },
   pericia: { nome: 'Perícia', doProcesso: true, exigeHora: true },
   reuniao: { nome: 'Reunião', doProcesso: false, exigeHora: true },
+  // O atendimento a um cliente (#306): como a reunião, com título e hora, e cor própria no calendário (--agenda-atendimento).
+  atendimento: { nome: 'Atendimento', doProcesso: false, exigeHora: true },
   outro: { nome: 'Outro', doProcesso: false, exigeHora: false }
 };
 export const TIPOS = Object.keys(TIPOS_COMPROMISSO) as TipoCompromisso[];
@@ -178,7 +182,8 @@ export const quandoDoCompromisso = (c: Pick<Compromisso, 'data' | 'hora' | 'hora
 /** Nome de cada campo no histórico de alterações. */
 export const CAMPOS_COMPROMISSO: Record<string, string> = {
   tipo: 'Tipo', titulo: 'Título', data: 'Data', hora: 'Hora', hora_fim: 'Fim', modalidade: 'Modalidade', local: 'Local', resultado: 'Resultado', observacoes: 'Observações', geral: 'Agenda geral',
-  responsavel_id: 'Responsável', participantes: 'Participantes', pessoas: 'Pessoas', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento'
+  responsavel_id: 'Responsável', participantes: 'Participantes', pessoas: 'Pessoas', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
+  ligacao: 'Ligado a'
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
@@ -196,6 +201,16 @@ export const linhasDoCompromisso = (c: Compromisso): [string, string][] => ([
   ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome],
   ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
 ] as [string, string][]).filter(([, valor]) => valor);
+
+// ---------- tarefas, demandas e contratos ligados (#306) ----------
+/** Os módulos a que o compromisso se liga, além das pessoas e do processo, na ordem do cartão. */
+export const MODULOS_DO_COMPROMISSO: readonly ModuloDoCompromisso[] = ['tarefas', 'demandas', 'contratos'];
+/** Os itens ligados, separados por módulo, na ordem de MODULOS_DO_COMPROMISSO (cada módulo na ordem em que veio). */
+export const itensPorModulo = <I extends Pick<ItemDoCompromisso, 'modulo'>>(itens: readonly I[]) =>
+  MODULOS_DO_COMPROMISSO.map(modulo => ({ modulo, itens: itens.filter(i => i.modulo === modulo) })).filter(g => g.itens.length > 0);
+/** Por que o compromisso não aceita mais um item ('' = aceita): já tem ITENS_DO_COMPROMISSO, o máximo do banco. */
+export const motivoSemMaisItens = (total: number) =>
+  total >= ITENS_DO_COMPROMISSO ? `O compromisso já está ligado a ${ITENS_DO_COMPROMISSO} itens, o máximo.` : '';
 
 // ---------- pessoas do compromisso ----------
 export const PAPEIS_NO_COMPROMISSO: Record<PapelNoCompromisso, string> = { pessoa: 'Ligada', responsavel: 'Responsável', participante: 'Participante' };

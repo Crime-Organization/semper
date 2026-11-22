@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, ContatoParaConferir, MotivoParaConferir, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -52,7 +52,7 @@ import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
-import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
+import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, ITENS_DO_COMPROMISSO, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
@@ -66,7 +66,7 @@ import { avisoDaMudanca, mudancasDaEquipe, type EquipeDoItem, type SequenciaDeMu
 import { AVISO_DESFEITO } from '../ui/tempos';
 import { juntarAsCaixas } from '../regras/mensagens';
 import {
-  ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, mencaoNegadaNaAnotacao, modulosLigados, motivoSemMencaoNaAnotacao, veAAnotacao, type ChavesDaEquipe
+  ABRE_A_ANOTACAO, alteraAAnotacao, ITEM_DA_ANOTACAO, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, mencaoNegadaNaAnotacao, modulosLigados, motivoSemMencaoNaAnotacao, veAAnotacao, type ChavesDaEquipe
 } from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
@@ -202,6 +202,8 @@ interface Banco {
   historicoProcessos?: (Historico & { processo_id: string })[];
   compromissos?: CompromissoGuardado[];
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
+  /** Tarefas, demandas e contratos ligados aos compromissos (compromisso_ligacoes no banco, #306). */
+  compromissoLigacoes?: { compromisso_id: string; modulo: ModuloDoCompromisso; item_id: string; criado_em: string }[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
   contasFinanceiras?: ContaFinanceira[];
@@ -584,6 +586,7 @@ if (!bd.colunas.some(c => c.modulo === 'compromissos')) {
     marco: nome === 'Agendado' ? 'inicio' as const : nome === 'Realizado' ? 'concluido' as const : null })));
 }
 bd.historicoCompromissos ??= [];
+bd.compromissoLigacoes ??= [];
 // Compromissos de exemplo: a audiência do processo de JOSÉ DA SILVA TESTE, amanhã, e a reunião de equipe de hoje, na Agenda geral.
 bd.compromissos ??= (() => {
   const coluna = bd.colunas.find(c => c.modulo === 'compromissos' && c.nome === 'Agendado')?.id ?? null;
@@ -1583,6 +1586,7 @@ function apagarCompromisso(c: CompromissoGuardado) {
   bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'compromissos' && a.cartao_id === c.id));
   bd.comentarios = bd.comentarios!.filter(x => !(x.modulo === 'compromissos' && x.cartao_id === c.id));
   soltarDasAnotacoes('compromissos', c.id);
+  bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => l.compromisso_id !== c.id);
   auditar('compromissos', 'exclusao', { id: c.id, codigo: c.codigo });
 }
 /** Como o gatilho audiencias_saem_junto e o on delete set null: as audiências e perícias saem; os outros ficam sem a ligação. */
@@ -1592,6 +1596,23 @@ function compromissosDoProcessoExcluido(processoId: string) {
     historicoCompromisso(c, { processo_id: null });
     Object.assign(c, { processo_id: null, processo_codigo: null, processo_numero: null });
   }
+}
+// ---------- tarefas, demandas e contratos ligados (como supabase/migrations/20261122130038_ligacoes_dos_compromissos.sql, #306) ----------
+const ligacoesDoCompromisso = (id: string) => bd.compromissoLigacoes!.filter(l => l.compromisso_id === id);
+/** Como privado.altero_o_compromisso: o compromisso ativo, por quem o muda (a regra "alterar" dele). */
+const alteroCompromisso = (c: CompromissoGuardado) =>
+  !c.arquivado_em && (!!bd.equipeEditaTudo || participaDoCompromisso(c, membroLogado(), processoDoCompromisso(c), meusGruposNoFalso()));
+/** Como o gatilho do banco: ligar e desligar entram no histórico do compromisso, com o código do item. */
+function historicoDaLigacao(compromissoId: string, modulo: ModuloDoCompromisso, itemId: string, ligou: boolean) {
+  const item = `${ITEM_DA_ANOTACAO[modulo].rotulo} ${ITEM_NO_FALSO[modulo](itemId)?.item.codigo ?? ''}`;
+  bd.historicoCompromissos!.unshift({ id: Date.now() + Math.random(), compromisso_id: compromissoId, feito_por: eu, em: agora(),
+    alteracoes: { ligacao: ligou ? { de: null, para: item } : { de: item, para: null } } });
+}
+/** Como o on delete cascade das ligações: o item excluído sai dos compromissos (e o histórico de cada um registra). */
+function soltarDosCompromissos(modulo: ModuloDoCompromisso, itemId: string) {
+  const saem = bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId);
+  saem.forEach(l => historicoDaLigacao(l.compromisso_id, modulo, itemId, false));
+  bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => !saem.includes(l));
 }
 // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
 // Aqui a regra de quem vê e quem altera vale de verdade (regras/anotacao.ts), e a visibilidade de cada item ligado segue as
@@ -3077,6 +3098,7 @@ export const SD: Dados = {
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
       excluirListasDoCartao('contrato_id', id);
       soltarDasAnotacoes('contratos', id);
+      soltarDosCompromissos('contratos', id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       bd.tarefas!.forEach(t => { if (t.contrato_id === id) Object.assign(t, { contrato_id: null, contrato_codigo: null }); });
@@ -3165,6 +3187,7 @@ export const SD: Dados = {
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
       soltarDasAnotacoes('demandas', id);
+      soltarDosCompromissos('demandas', id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
@@ -3246,6 +3269,7 @@ export const SD: Dados = {
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
       soltarDasAnotacoes('tarefas', id);
+      soltarDosCompromissos('tarefas', id);
       excluirListasDoCartao('tarefa_id', id);
       auditar('tarefas', 'exclusao', t); excluidas++;
     });
@@ -3537,6 +3561,35 @@ export const SD: Dados = {
     .filter(c => c.papeis.length).sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
   compromissosDoProcesso: processoId => espera(bd.compromissos!.filter(c => c.processo_id === processoId).map(c => compromissoLigado(c, []))
     .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
+  compromissosDoItem: (modulo, itemId) => espera(bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId)
+    .flatMap(l => { const c = bd.compromissos!.find(x => x.id === l.compromisso_id && vejoNoModulo('compromissos', x.id)); return c ? [compromissoLigado(c, [])] : []; })
+    .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
+  compromissoItens(id) {
+    const ligacoes = bd.compromissos!.some(c => c.id === id && vejoNoModulo('compromissos', c.id)) ? ligacoesDoCompromisso(id) : [];
+    const visiveis = ligacoes.flatMap(l => vejoOItem(l.modulo, l.item_id) ? [{ ...ITEM_NO_FALSO[l.modulo](l.item_id)!.item, modulo: l.modulo }] : []);
+    return espera({ visiveis, ocultos: ligacoes.length - visiveis.length });
+  },
+  // Como o gatilho e as regras de ligar do banco, na mesma ordem: o item existe; repetido não faz nada; até ITENS_DO_COMPROMISSO; e quem
+  // liga muda o compromisso ativo e vê o item.
+  async compromissoLigar(id, modulo, itemId) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c) return erro(SEM_PERMISSAO);
+    if (!ITEM_NO_FALSO[modulo](itemId)) throw new Error('Item não encontrado neste escritório.');
+    const pode = alteroCompromisso(c), ligacoes = ligacoesDoCompromisso(id);
+    if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return espera(false);
+    if (ligacoes.length >= ITENS_DO_COMPROMISSO) throw new Error(`Um compromisso pode ser ligado a no máximo ${ITENS_DO_COMPROMISSO} itens.`);
+    if (!pode || !vejoOItem(modulo, itemId)) return erro(SEM_PERMISSAO);
+    bd.compromissoLigacoes!.push({ compromisso_id: id, modulo, item_id: itemId, criado_em: agora() });
+    historicoDaLigacao(id, modulo, itemId, true); gravar();
+    return espera(true);
+  },
+  async compromissoDesligar(id, modulo, itemId) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    const ligacao = c && alteroCompromisso(c) ? ligacoesDoCompromisso(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
+    if (!ligacao) return erro(SEM_PERMISSAO);
+    bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => l !== ligacao);
+    historicoDaLigacao(id, modulo, itemId, false); gravar();
+  },
   prazosDoPeriodo(de, ate, f = {}) {
     const concluida = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
     const noPeriodo = (x: { prazo: string | null; etapa_id: string | null }) => !!x.prazo && x.prazo >= de && x.prazo <= ate && !concluida(x.etapa_id);

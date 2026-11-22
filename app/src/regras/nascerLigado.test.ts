@@ -4,7 +4,7 @@ import { CLIENTES_MAXIMOS, ITENS_DA_ANOTACAO } from '../dados/limites';
 import { RecusaDaLigacao } from './ligarExistente';
 import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, CONTRATO_FORA_DA_TAREFA, motivoDasTarefasParaOContratoNovo, motivoDoContratoDaTarefa,
-  origemDaAnotacao, origemDaDemanda, origemDaTarefa, origemDoProcesso, origemRecusada, processoDeOrigemLigado, TAREFA_DA_DEMANDA_EM_CONTRATO,
+  origemDaAnotacao, origemDaDemanda, origemDaTarefa, origemDoCompromisso, origemDoCompromissoNoEndereco, origemDoProcesso, origemRecusada, PARAMETRO_DA_ORIGEM_DO_COMPROMISSO, processoDeOrigemLigado, TAREFA_DA_DEMANDA_EM_CONTRATO,
   textoDaOrigem
 } from './nascerLigado';
 describe('Os clientes que o item novo herda da origem', () => {
@@ -214,5 +214,41 @@ describe('A anotação como origem do item novo (o "+ Novo…" da seção "Ligad
     const aviso = avisoDaLigacaoQueFalhou('anotação: compromisso', 'AN-0001', undefined);
     // Então
     expect(aviso).toBe('Não foi possível ligar a anotação AN-0001 ao compromisso novo. Ligue pelo cartão.');
+  });
+});
+
+describe('A tarefa, a demanda ou o contrato como origem do compromisso novo (#306)', () => {
+  const endereco = (texto: string) => new URLSearchParams(texto);
+
+  it('dado o cadastro aberto pelo "+ Novo compromisso" de uma demanda, quando ele lê o endereço, então acha a demanda; ao atualizar, nenhuma origem', () => {
+    // Dado / Quando / Então
+    expect(origemDoCompromissoNoEndereco(endereco('demanda=d1'), false)).toEqual({ modulo: 'demandas', id: 'd1' });
+    expect(origemDoCompromissoNoEndereco(endereco('contrato=k1'), false)).toEqual({ modulo: 'contratos', id: 'k1' });
+    expect(origemDoCompromissoNoEndereco(endereco('tarefa=t1'), false)).toEqual({ modulo: 'tarefas', id: 't1' });
+    expect(origemDoCompromissoNoEndereco(endereco('demanda=d1'), true)).toBeNull();
+    expect(origemDoCompromissoNoEndereco(endereco('pessoa=p1'), false)).toBeNull();
+    expect(PARAMETRO_DA_ORIGEM_DO_COMPROMISSO).toEqual({ tarefas: 'tarefa', demandas: 'demanda', contratos: 'contrato' });
+  });
+
+  it('dada uma demanda ativa, quando o compromisso nasce dela, então o aviso diz que ele fica ligado, e ao salvar volta ao cartão dela', () => {
+    // Dado
+    const o = origemDoCompromisso('demandas', { id: 'd1', codigo: 'D1', nome: 'Inventário', arquivado_em: null });
+    // Quando / Então
+    expect(textoDaOrigem(o)).toEqual(['Este compromisso nasce da demanda', ' e fica ligado a ela.']);
+    expect(aoSalvarPelaOrigem(o, '', '/agenda/?id=c1')).toEqual({ liga: true, volta: '/demandas/?id=d1' });
+  });
+
+  it('dado um contrato arquivado, quando o compromisso nasce dele, então o aviso diz que ele não fica ligado, e ao salvar abre o compromisso', () => {
+    // Dado
+    const o = origemDoCompromisso('contratos', { id: 'k1', codigo: 'K1', nome: 'Registro de marca', arquivado_em: '2026-11-01T10:00:00Z' });
+    // Quando / Então
+    expect(origemRecusada(o)).toBe(true);
+    expect(textoDaOrigem(o)).toEqual(['O contrato', ' está arquivado: o compromisso novo não leva nada dele nem fica ligado a ele.']);
+    expect(aoSalvarPelaOrigem(o, '', '/agenda/?id=c1')).toEqual({ liga: false, volta: '/agenda/?id=c1' });
+  });
+
+  it('dada a ligação que falhou depois de gravar, quando o aviso aparece, então diz qual item ficou sem o compromisso', () => {
+    // Dado / Quando / Então
+    expect(avisoDaLigacaoQueFalhou('compromisso: tarefas', 'T1', new Error('Sem rede.'))).toBe('Não foi possível ligar o compromisso novo à tarefa T1: Sem rede. Ligue pelo cartão.');
   });
 });

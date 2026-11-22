@@ -130,7 +130,8 @@ function Item({ item, completo, situacao, endereco, aoAbrir }: { item: ItemDaAge
     </Link>;
   }
   const para = endereco(c!.id);
-  return <a className="agenda-item" href={para} {...cliquesQueAbrem(para, () => aoAbrir(c!.id))}>
+  // O tipo vai no item (a cor da faixa, em Compromissos.css) e na dica, para quem não distingue a cor.
+  return <a className="agenda-item" data-tipo={c!.tipo} title={TIPOS_COMPROMISSO[c!.tipo].nome} href={para} {...cliquesQueAbrem(para, () => aoAbrir(c!.id))}>
     <small>{horarioDoCompromisso(c!)}</small>
     <b>{item.titulo}</b>
     {completo && <span className="agenda-item-mais">

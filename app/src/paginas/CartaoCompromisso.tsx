@@ -38,6 +38,7 @@ import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { ItensDoCompromisso } from './ItensDoCompromisso';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
@@ -192,6 +193,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer).embaixo}
         depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
+
+    {/* As tarefas, as demandas e os contratos ligados (#306). */}
+    <ItensDoCompromisso id={c.id} somenteLer={somenteLer} versao={versaoHist} aoMudar={() => { aoMudar(); setVersaoHist(v => v + 1); }} />
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
         histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}

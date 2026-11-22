@@ -1346,7 +1346,7 @@ export interface DadosMensagens {
 }
 
 // ---------- compromissos (agenda) ----------
-export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'outro';
+export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'atendimento' | 'outro';
 export type ModalidadeCompromisso = 'presencial' | 'virtual';
 /** O que o compromisso traz do processo ligado: para mostrá-lo e saber quem o vê (quem vê o processo vê o compromisso). */
 export type ProcessoDoCompromisso = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
@@ -1413,6 +1413,10 @@ export interface FiltroCompromissos {
 export type PapelNoCompromisso = 'pessoa' | 'responsavel' | 'participante';
 /** Compromisso como aparece em outro cartão (da pessoa ou do processo), com o papel da pessoa nele. */
 export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em'> { papeis: PapelNoCompromisso[] }
+/** Os módulos a que um compromisso se liga, de muitos para muitos, além das pessoas e do processo (#306). */
+export type ModuloDoCompromisso = Extract<Modulo, 'tarefas' | 'demandas' | 'contratos'>;
+/** Um item ligado ao compromisso, como aparece no cartão dele (o mesmo formato dos itens da anotação). */
+export type ItemDoCompromisso = Omit<ItemDaAnotacao, 'modulo' | 'tipo'> & { modulo: ModuloDoCompromisso };
 /** O prazo de uma demanda ou de uma tarefa, como aparece na agenda (só para consultar; abre o cartão de origem). */
 export interface PrazoNaAgenda {
   origem: 'demandas' | 'tarefas'; id: string; codigo: string; titulo: string; prazo: string; responsavel_id: string;
@@ -1438,6 +1442,13 @@ export interface DadosCompromissos {
   /** Compromissos em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também os em que é responsável ou participante. */
   compromissosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<CompromissoLigado[]>;
   compromissosDoProcesso(processoId: string): Promise<CompromissoLigado[]>;
+  /** Os compromissos ligados a uma tarefa, a uma demanda ou a um contrato (#306), que quem lê vê. */
+  compromissosDoItem(modulo: ModuloDoCompromisso, itemId: string): Promise<CompromissoLigado[]>;
+  /** Os itens ligados ao compromisso: os que quem lê vê, e quantos ele não vê. */
+  compromissoItens(id: string): Promise<{ visiveis: ItemDoCompromisso[]; ocultos: number }>;
+  /** Liga o compromisso a um item (quem muda o compromisso ativo e vê o item); o item já ligado não muda nada e devolve false. */
+  compromissoLigar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<boolean>;
+  compromissoDesligar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<void>;
   /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
   prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */

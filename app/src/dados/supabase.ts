@@ -28,7 +28,7 @@ import { arvoreDoModelo, itensDaArvore, planoDoChecklist } from '../regras/grupo
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
-import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
+import { fmtHora, MODULOS_DO_COMPROMISSO, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
 import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
@@ -1173,6 +1173,43 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO_LIGADO).eq('processo_id', processoId)
       .order('data', { ascending: false }).order('hora', { ascending: false }).limit(COMPROMISSOS_LIGADOS));
     return data.map(({ pessoas: _pessoas, responsavel_id: _responsavel, participantes: _participantes, ...c }: Livre) => ({ ...c, papeis: [] }));
+  },
+  // Pela ligação (supabase/migrations/20261122130038_ligacoes_dos_compromissos.sql): a regra de leitura dos compromissos deixa só os que
+  // quem lê vê, e a das ligações, só as desses compromissos.
+  async compromissosDoItem(modulo, itemId) {
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    const { data } = await rodar(sb.from('compromissos').select(`${CAMPOS_COMPROMISSO_LIGADO}, filtro:compromisso_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
+      .order('data', { ascending: false }).order('hora', { ascending: false }).limit(COMPROMISSOS_LIGADOS));
+    return data.map(({ pessoas: _pessoas, responsavel_id: _responsavel, participantes: _participantes, filtro: _filtro, ...c }: Livre) => ({ ...c, papeis: [] }));
+  },
+  async compromissoItens(id) {
+    // Um compromisso tem no máximo ITENS_DO_COMPROMISSO ligações: cabem numa leitura. Cada item é lido pela tabela do módulo dele, e
+    // o que a pessoa não vê não volta (fica só a contagem).
+    const colunas = MODULOS_DO_COMPROMISSO.map(m => LIGACAO_DA_ANOTACAO[m].coluna);
+    const { data } = await rodar(sb.from('compromisso_ligacoes').select(colunas.join(', ')).eq('compromisso_id', id).order('criado_em').order('id'));
+    const ligacoes = (data as Record<string, string | null>[]).flatMap(l => MODULOS_DO_COMPROMISSO.filter(m => l[LIGACAO_DA_ANOTACAO[m].coluna])
+      .map(modulo => ({ modulo, id: l[LIGACAO_DA_ANOTACAO[modulo].coluna]! })));
+    const lidos = await Promise.all(MODULOS_DO_COMPROMISSO.map(async modulo => {
+      const ids = ligacoes.filter(l => l.modulo === modulo).map(l => l.id);
+      if (!ids.length) return [];
+      const { tabela, campos } = LIGACAO_DA_ANOTACAO[modulo];
+      const { data: itens } = await rodar(sb.from(tabela).select(campos).in('id', ids));
+      return (itens as Livre[]).map(x => ({ ...itemDaAnotacao(modulo, x), modulo }));
+    }));
+    const porId = new Map(lidos.flat().map(i => [`${i.modulo}:${i.id}`, i]));
+    const visiveis = ligacoes.flatMap(l => porId.get(`${l.modulo}:${l.id}`) ?? []);
+    return { visiveis, ocultos: ligacoes.length - visiveis.length };
+  },
+  async compromissoLigar(id, modulo, itemId) {
+    // O mesmo item de novo não faz nada: o banco descarta a linha repetida, e ela não volta na resposta.
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    const { data } = await rodar(sb.from('compromisso_ligacoes').upsert({ compromisso_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `compromisso_id,${coluna}`, ignoreDuplicates: true }).select('id'));
+    return data.length > 0;
+  },
+  async compromissoDesligar(id, modulo, itemId) {
+    // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    conferirQueMudou((await rodar(sb.from('compromisso_ligacoes').delete().eq('compromisso_id', id).eq(coluna, itemId).select('id').maybeSingle())).data);
   },
   async prazosDoPeriodo(de, ate, f = {}) {
     // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem. Eles saem no próprio pedido, antes do corte em
