@@ -1,0 +1,5 @@
+{
+  "titulo": "Marcar um compromisso direto pelo menu",
+  "texto": "A linha da Agenda, no menu lateral, ganhou o \"+\", como os outros módulos: ele abre o cadastro de compromisso por cima da tela em que você está e, ao salvar, você volta para ela. O número de mensagens não lidas também ficou alinhado com os \"+\".",
+  "ondeAchar": "Menu lateral: o \"+\" ao lado de \"Agenda e calendário\" (no celular, abra o menu pelo botão do topo)."
+}

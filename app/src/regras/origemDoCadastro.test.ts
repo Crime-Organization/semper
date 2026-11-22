@@ -1,7 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  cadastroComVolta, cartaoDeOrigem, depoisDeCriar, linhasDasPessoas, origemNoEndereco, processoDaTarefa, processoDoContrato, recusaDaOrigem, tarefaDoProcesso
+  cadastroComVolta, cartaoDeOrigem, depoisDeCriar, estadoDaVolta, linhasDasPessoas, origemNoEndereco, processoDaTarefa, processoDoContrato, recusaDaOrigem,
+  tarefaDoProcesso, voltaDoMenu
 } from './origemDoCadastro';
 
 const pessoa = (id: string) => ({ id, codigo: id, nome: id, arquivado_em: null }) as never;
@@ -169,5 +170,42 @@ describe('O cartão de onde o cadastro foi aberto', () => {
     const params = doNovo('demanda=d1&cliente=p1');
     // Quando / Então
     expect(cartaoDeOrigem(params, { demanda: () => false, cliente: sempreLigada })).toBe('/pessoas/?id=p1');
+  });
+});
+
+describe('A volta pelo "+" do menu lateral (#404)', () => {
+  const CADASTRO = '/agenda/novo/';
+
+  it('dado o "+" clicado na tela de Tarefas, quando o cadastro grava, então volta para Tarefas, com a busca e o cartão abertos', () => {
+    // Dado
+    const estado = estadoDaVolta('/tarefas/?id=t1#comentarios');
+    // Quando / Então
+    expect(voltaDoMenu(estado, CADASTRO)).toBe('/tarefas/?id=t1#comentarios');
+  });
+
+  it('dado o cadastro aberto sem o "+" do menu (pelo endereço ou por outro botão), quando grava, então não há volta', () => {
+    // Então
+    expect(voltaDoMenu(null, CADASTRO)).toBeNull();
+    expect(voltaDoMenu(undefined, CADASTRO)).toBeNull();
+    expect(voltaDoMenu({ outro: 'x' }, CADASTRO)).toBeNull();
+    expect(voltaDoMenu({ volta: 3 }, CADASTRO)).toBeNull();
+  });
+
+  it('dado um endereço de fora do sistema no estado, quando grava, então não há volta', () => {
+    // Então
+    expect(voltaDoMenu({ volta: '//outro-site.com/' }, CADASTRO)).toBeNull();
+    expect(voltaDoMenu({ volta: 'https://outro-site.com/' }, CADASTRO)).toBeNull();
+    expect(voltaDoMenu({ volta: 'inicio/' }, CADASTRO)).toBeNull();
+  });
+
+  it('dado o "+" clicado já dentro do mesmo cadastro, quando grava, então não volta ao formulário', () => {
+    // Então
+    expect(voltaDoMenu(estadoDaVolta('/agenda/novo/?pessoa=p1'), CADASTRO)).toBeNull();
+    expect(voltaDoMenu(estadoDaVolta('/agenda/novo'), CADASTRO)).toBeNull();
+  });
+
+  it('dado o "+" clicado na própria Agenda, quando grava, então volta para a Agenda', () => {
+    // Então
+    expect(voltaDoMenu(estadoDaVolta('/agenda/'), CADASTRO)).toBe('/agenda/');
   });
 });
