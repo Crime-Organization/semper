@@ -18,7 +18,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, OcupacaoDaSala, TarefaLista, TarefaParaEscolher } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
 import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -1122,6 +1122,12 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('objeto_sugestoes').select('descricao').order('descricao').limit(OBJETOS_SUGERIDOS));
     return data.map((x: { descricao: string }) => x.descricao);
   },
+  // A lista editável e as trocas (supabase/migrations/20261122232558_editar_objetos_de_contrato.sql, #281): o banco troca o texto
+  // nas demandas, nos contratos, na lista e no modelo de lista, numa vez só.
+  objetosDoEscritorio: () => rpc('objetos_do_escritorio') as Promise<ObjetoDoEscritorio[]>,
+  objetoRenomear: (id, nome) => rpc('objeto_renomear', { p_id: id, p_nome: nome }) as Promise<TrocaDeObjetos>,
+  objetosJuntar: (ids, fica) => rpc('objetos_juntar', { p_ids: ids, p_fica: fica }) as Promise<TrocaDeObjetos>,
+  async objetoApagar(id) { await rpc('objeto_apagar', { p_id: id }); },
 
   // ---------- demandas ----------
   async demandasListar(f = {}) {

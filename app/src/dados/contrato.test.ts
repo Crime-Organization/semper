@@ -15,6 +15,7 @@ import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LI
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
+import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -298,6 +299,87 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const lista = await SD.objetosSugeridos();
         expect(lista.filter(o => o.toLowerCase() === objeto.toLowerCase())).toEqual([objeto]);
         expect(lista).toContain('Registro de marca');
+      });
+
+      describe('na lista de objetos do escritório (#281)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        const naLista = async (descricao: string) => (await SD.objetosDoEscritorio()).find(o => o.descricao === descricao);
+
+        it('quando o administrador abre a lista, então vê cada objeto com os contratos ativos, os arquivados e as demandas; quem não é administrador não vê', async () => {
+          // Dado
+          const objeto = 'Objeto ' + marca();
+          const [a, b] = [await novoContrato({ objetos: [objeto] }), await novoContrato({ objetos: [objeto, 'Outro ' + marca()] })];
+          await SD.contratosArquivar([b.id]);
+          await SD.contratoCriarDemanda(a.id, objeto);
+          // Quando
+          const o = await naLista(objeto);
+          // Então
+          expect(o).toMatchObject({ descricao: objeto, contratos_ativos: 1, contratos_arquivados: 1, demandas: 1 });
+          expect((await SD.objetosDoEscritorio()).some(x => x.descricao === 'A definir')).toBe(false);
+          entrarComo('u-bruno');
+          await expect(SD.objetosDoEscritorio()).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.objetoRenomear(o!.id, marca())).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('quando o administrador corrige um nome, então ele muda na lista, nos contratos, nas demandas (e no título igual ao nome antigo) e no modelo de lista', async () => {
+          // Dado
+          const errado = 'Objeto errado ' + marca(), certo = 'Objeto certo ' + marca();
+          const k = await novoContrato({ objetos: [errado, 'A definir'] });
+          const d = await SD.contratoCriarDemanda(k.id, errado);
+          await SD.modeloCriar(errado, arvoreDosItens(['Primeiro passo']));
+          const o = (await naLista(errado))!;
+          // Quando
+          const troca = await SD.objetoRenomear(o.id, `  ${certo} `);
+          // Então
+          expect(troca).toEqual({ contratos: 1, demandas: 1, modelos: 1, contratos_com_duas_demandas: 0 });
+          expect(await naLista(errado)).toBeUndefined();
+          expect(await naLista(certo)).toMatchObject({ id: o.id, contratos_ativos: 1, demandas: 1 });
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([certo, 'A definir']);
+          expect(await SD.demandaObter(d.id)).toMatchObject({ titulo: certo, objeto: certo });
+          expect((await SD.modelosListar()).some(m => m.nome === certo)).toBe(true);
+          expect((await SD.contratoHistorico(k.id))[0].alteracoes.servico).toEqual({ de: `${errado}; A definir`, para: `${certo}; A definir` });
+          // E o nome de outro objeto da lista, ou o "A definir", é recusado
+          const outro = 'Outro ' + marca();
+          await novoContrato({ objetos: [outro] });
+          await expect(SD.objetoRenomear(o.id, outro.toLowerCase())).rejects.toThrow(OBJETO_REPETIDO);
+          await expect(SD.objetoRenomear(o.id, 'a definir')).rejects.toThrow(OBJETO_RESERVADO);
+        });
+
+        it('quando o administrador junta dois objetos, então fica um só em cada contrato, as duas demandas ficam com o que ficou, e o que saiu some da lista', async () => {
+          // Dado
+          const fica = 'Fica ' + marca(), sai = 'Sai ' + marca();
+          const ambos = await novoContrato({ objetos: [sai, fica] });
+          const soSai = await novoContrato({ objetos: [sai] });
+          await SD.contratoCriarDemanda(ambos.id, sai);
+          await SD.contratoCriarDemanda(ambos.id, fica);
+          const [oFica, oSai] = [(await naLista(fica))!, (await naLista(sai))!];
+          // Quando
+          const troca = await SD.objetosJuntar([oSai.id, oFica.id], oFica.id);
+          // Então
+          expect(troca).toEqual({ contratos: 2, demandas: 1, modelos: 0, contratos_com_duas_demandas: 1 });
+          expect((await SD.contratoObter(ambos.id))!.objetos).toEqual([fica]);
+          expect((await SD.contratoObter(soSai.id))!.objetos).toEqual([fica]);
+          expect((await SD.demandasDoContrato(ambos.id)).map(d => d.objeto)).toEqual([fica, fica]);
+          expect(await naLista(sai)).toBeUndefined();
+          expect(await naLista(fica)).toMatchObject({ contratos_ativos: 2, demandas: 2 });
+          expect(await SD.objetosSugeridos()).not.toContain(sai);
+          // Juntar um só é recusado
+          await expect(SD.objetosJuntar([oFica.id], oFica.id)).rejects.toThrow(JUNTAR_SO_UM);
+        });
+
+        it('quando o administrador apaga um objeto em uso, então é recusado com quantos contratos o usam; sem uso, ele some da lista', async () => {
+          // Dado
+          const objeto = 'Apagar ' + marca();
+          const k = await novoContrato({ objetos: [objeto] });
+          const o = (await naLista(objeto))!;
+          // Quando / Então
+          await expect(SD.objetoApagar(o.id)).rejects.toThrow(avisoDoObjetoEmUso(1));
+          await SD.contratoAtualizar(k.id, { objetos: ['Registro de marca'] });
+          await SD.objetoApagar(o.id);
+          expect(await naLista(objeto)).toBeUndefined();
+          expect(await SD.objetosSugeridos()).not.toContain(objeto);
+        });
       });
 
       it('quando o contrato tem vários participantes, então voltam na ordem, com os percentuais', async () => {

@@ -1,0 +1,5 @@
+{
+  "titulo": "Lista de objetos de contrato para corrigir, juntar e apagar",
+  "texto": "Os administradores veem todos os objetos de contrato do escritório, com quantos contratos e demandas usam cada um. Corrigir um nome muda também os contratos, as demandas nascidas dele e o modelo de lista de mesmo nome. Objetos repetidos podem ser juntados num só, e o que nenhum contrato usa pode ser apagado.",
+  "ondeAchar": "Configurações > Objetos de contrato (Corrigir, Apagar; marque dois ou mais para Juntar). A caixa \"Só os parecidos\" mostra os que parecem repetidos."
+}

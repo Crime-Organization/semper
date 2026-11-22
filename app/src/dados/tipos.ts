@@ -650,8 +650,43 @@ export interface DadosContratos {
   contratoHistorico(id: string): Promise<Historico[]>;
   /** Objetos já usados em contratos do escritório, em ordem alfabética, para sugerir no cadastro. */
   objetosSugeridos(): Promise<string[]>;
+  /**
+   * A lista de objetos do escritório (#281), em ordem alfabética, com quantos contratos (ativos e arquivados) e quantas demandas
+   * usam cada um. Só administradores. O objeto que está num contrato e ficou fora da lista entra nela agora.
+   */
+  objetosDoEscritorio(): Promise<ObjetoDoEscritorio[]>;
+  /**
+   * Corrige o nome de um objeto (só administradores): na lista, em todos os contratos que o usam (arquivados também), nas demandas
+   * nascidas dele (e no título delas que ainda é igual ao nome antigo) e no modelo de lista de mesmo nome. Recusa o nome de outro
+   * objeto da lista (para isso, juntar).
+   */
+  objetoRenomear(id: string, nome: string): Promise<TrocaDeObjetos>;
+  /**
+   * Junta objetos repetidos (só administradores): os de `ids` viram o objeto `fica` em todo lugar e saem da lista; o contrato que
+   * tinha os dois fica com um só. As demandas dos dois ficam, ligadas ao que ficou. Não tem desfazer.
+   */
+  objetosJuntar(ids: string[], fica: string): Promise<TrocaDeObjetos>;
+  /** Tira da lista o objeto que nenhum contrato usa (só administradores). O que está em uso é recusado, com quantos contratos o usam. */
+  objetoApagar(id: string): Promise<void>;
   /** Contratos em que a pessoa é cliente, participante ou indicadora; com perfilId (a pessoa é da equipe), também os em que é a responsável. */
   contratosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ContratoDaPessoa[]>;
+}
+
+// ---------- objetos de contrato (#281) ----------
+/** Um objeto da lista do escritório, com quantos contratos e demandas o usam (supabase/migrations/20261122232558_editar_objetos_de_contrato.sql). */
+export interface ObjetoDoEscritorio {
+  id: string;
+  descricao: string;
+  contratos_ativos: number;
+  contratos_arquivados: number;
+  demandas: number;
+}
+/** O que mudou ao corrigir ou juntar objetos: contratos, demandas e modelos de lista trocados, e os contratos com duas demandas do mesmo objeto. */
+export interface TrocaDeObjetos {
+  contratos: number;
+  demandas: number;
+  modelos: number;
+  contratos_com_duas_demandas: number;
 }
 
 /** Demandas. Na ordem "nome", a lista vai pelo título. */
