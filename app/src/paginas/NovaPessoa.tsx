@@ -20,6 +20,7 @@ import {
 } from '../regras/origemDaPessoa';
 import { ligarEAvisar, type Desfazer } from './ligarNoCartao';
 import { lerItemDeOrigem, type ItemDeOrigem } from './novaPessoa/origem';
+import { ESPERA_PARA_FOCAR_A_ETAPA, focarPrimeiroCampo } from './novaPessoa/foco';
 import { enviarParaPlanilhaAntiga, lembrarDeApagarNaPlanilha } from '../improvisos/planilhaAntiga'; // PROVISORIO-219
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
@@ -115,8 +116,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     subirAoCadastro();
   }
   useEffect(() => {
-    const t = setTimeout(() => document.querySelector<HTMLElement>('.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select')
-      ?.focus({ preventScroll: true }), 50);
+    const t = setTimeout(() => focarPrimeiroCampo(document.querySelector('.etapa.ativa')), ESPERA_PARA_FOCAR_A_ETAPA);
     return () => clearTimeout(t);
   }, [passo, pronto]);
 

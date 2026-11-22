@@ -1,0 +1,5 @@
+{
+  "titulo": "O cursor fica onde você clicou no cadastro de pessoa",
+  "texto": "Ao abrir uma etapa do cadastro, o cursor vai ao primeiro campo. Se você já clicou em outro campo, ele não volta mais para o primeiro, e o que você digita fica no campo certo.",
+  "ondeAchar": "Pessoas > Cadastrar pessoa, em qualquer etapa."
+}
