@@ -1658,6 +1658,22 @@ export interface PainelDeProcessos {
   dias_parado: number;
   fases: FaseNoPainel[];
 }
+/** O processo nos gráficos do painel (#401): só o que os números e os gráficos contam. */
+export type ProcessoNosGraficos = Pick<Processo, 'id' | 'tipo' | 'etapa_id' | 'distribuicao' | 'criado_em' | 'arquivado_em'>;
+/**
+ * O que os gráficos do painel de Processos contam (#401), dos processos que quem está logado vê (com "pessoa", só os de que ela é
+ * a responsável ou uma colaboradora). As datas e os períodos vêm de periodoDosGraficos (regras/graficosDeProcessos.ts).
+ */
+export interface GraficosDeProcessos {
+  /** Os processos, inclusive os arquivados (eles contam nos novos e nos encerrados do período). */
+  processos: ProcessoNosGraficos[];
+  /** Os prazos em aberto até o fim das próximas semanas (com todos os vencidos), só dos processos não arquivados. */
+  prazos: { processo_id: string; final: string }[];
+  /** Os andamentos lançados no período, até hoje, sem os excluídos. */
+  andamentos: { processo_id: string; data: string }[];
+  /** As trocas de coluna no período, pelo histórico do processo: o nome das colunas de onde saiu e para onde foi. */
+  mudancas: { processo_id: string; em: string; de: string | null; para: string | null }[];
+}
 /** Andamentos, prazos e tarefas do cartão do processo (supabase/migrations/20261102125539_andamentos_e_prazos.sql).
  *  Quem vê o processo lê; com ele ativo, também lança, muda e apaga. */
 export interface DadosAcompanhamento {
@@ -1700,6 +1716,9 @@ export interface DadosAcompanhamento {
   processosDaDemanda(demandaId: string): Promise<{ visiveis: ProcessoLigado[]; ocultos: number }>;
   /** O painel de Processos. meus: só os processos em que a pessoa é responsável ou colaboradora. */
   processosPainel(f: { hoje: string; meus: boolean }): Promise<PainelDeProcessos>;
+  /** Os números dos gráficos do painel de Processos (#401). pessoa: só os processos em que ela é responsável ou colaboradora;
+   *  null: todos os que quem está logado vê. */
+  processosGraficos(f: { hoje: string; pessoa: string | null }): Promise<GraficosDeProcessos>;
   /** Só administradores. */
   processosDiasParadoSalvar(dias: number): Promise<void>;
 }

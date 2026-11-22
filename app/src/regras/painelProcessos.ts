@@ -33,7 +33,7 @@ export const rotuloNoPainel = (z: Pick<PrazoNoPainel, 'final'>, hoje: string) =>
 export const SEM_FASE = 'sem';
 
 /** Os números de um tipo de processo, na ordem das colunas do quadro. Só as colunas com processo. */
-export function fasesDoTipo(fases: FaseNoPainel[], tipo: TipoProcesso, colunas: Pick<Coluna, 'id' | 'nome'>[], semSituacao: string) {
+export function fasesDoTipo(fases: readonly FaseNoPainel[], tipo: TipoProcesso, colunas: readonly Pick<Coluna, 'id' | 'nome'>[], semSituacao: string) {
   const doTipo = fases.filter(f => f.tipo === tipo);
   const contadas = colunas.flatMap(c => {
     const n = doTipo.find(f => f.etapa_id === c.id)?.n;

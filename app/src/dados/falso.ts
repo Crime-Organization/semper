@@ -24,6 +24,8 @@ import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regr
 import { resumoDaConferencia } from '../regras/conferencia';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
+import { periodoDosGraficos } from '../regras/graficosDeProcessos';
+import { daPessoa } from '../regras/filtroDoPainel';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
@@ -4393,6 +4395,19 @@ export const SD: Dados = {
       parados: parados.slice(0, ITENS_POR_LISTA), total_parados: parados.length,
       dias_parado: bd.diasParado!,
       fases: [...fases.values()]
+    });
+  },
+  // Como processosGraficos do supabase.ts: o que quem está logado vê (com "pessoa", só os processos dela), em qualquer situação.
+  async processosGraficos({ hoje, pessoa }) {
+    const { desde, ate_prazos } = periodoDosGraficos(hoje);
+    const meus = bd.processos!.filter(p => vejoNoModulo('processos', p.id) && (!pessoa || daPessoa(p, pessoa)));
+    const todos = new Set(meus.map(p => p.id)), ativos = new Set(meus.filter(p => !p.arquivado_em).map(p => p.id));
+    return espera({
+      processos: meus.map(p => ({ id: p.id, tipo: p.tipo, etapa_id: p.etapa_id, distribuicao: p.distribuicao, criado_em: p.criado_em, arquivado_em: p.arquivado_em })),
+      prazos: bd.prazos!.filter(z => !z.excluido_em && !z.concluido_em && z.final <= ate_prazos && ativos.has(z.processo_id)).map(z => ({ processo_id: z.processo_id, final: z.final })),
+      andamentos: bd.andamentos!.filter(a => !a.excluido_em && a.data >= desde && a.data <= hoje && todos.has(a.processo_id)).map(a => ({ processo_id: a.processo_id, data: a.data })),
+      mudancas: bd.historicoProcessos!.filter(h => h.em >= desde && 'etapa' in h.alteracoes && todos.has(h.processo_id))
+        .map(h => ({ processo_id: h.processo_id, em: h.em, de: (h.alteracoes.etapa.de as string | null) ?? null, para: (h.alteracoes.etapa.para as string | null) ?? null }))
     });
   },
   async processosDiasParadoSalvar(dias) {
