@@ -92,3 +92,27 @@ export function cartaoDeOrigem(params: { get: (nome: string) => string | null },
   const achada = ligadas.find(o => o.id && o.ficouLigada(o.id));
   return achada ? CARTAO_DA_ORIGEM[achada.origem] + encodeURIComponent(achada.id!) : null;
 }
+
+// ---------- a volta pelo "+" do menu lateral ----------
+// O "+" do menu lateral (#404) abre o cadastro por cima da tela onde a pessoa está e leva, no estado da navegação (que não aparece
+// no endereço), o endereço dessa tela. Depois de gravar, o cadastro volta para lá, em vez de abrir o módulo do item novo.
+
+/** O que o "+" do menu lateral põe no estado da navegação: o endereço da tela de onde a pessoa saiu. */
+export interface EstadoDaVolta { volta: string }
+
+/** O estado da navegação do "+" do menu lateral, com o endereço da tela onde a pessoa está. */
+export const estadoDaVolta = (endereco: string): EstadoDaVolta => ({ volta: endereco });
+
+/** O caminho do endereço, sem a busca, o "#" e a barra do fim ("/agenda/novo/?x=1" → "/agenda/novo"). */
+const soOCaminho = (endereco: string) => endereco.replace(/[?#].*$/, '').replace(/\/+$/, '');
+
+/**
+ * Para onde o cadastro volta depois de gravar, pelo estado da navegação: o endereço que o "+" do menu lateral guardou. Só vale um
+ * endereço de dentro do sistema (começa com uma barra só, não "//outro-site"), e não o do próprio cadastro (a pessoa clicou no "+"
+ * já dentro dele): voltar ali abriria o formulário de novo. Sem isso, null: o cadastro segue para o cartão do item novo.
+ */
+export function voltaDoMenu(estado: unknown, cadastro: string): string | null {
+  const volta = (estado as Partial<EstadoDaVolta> | null)?.volta;
+  if (typeof volta !== 'string' || !/^\/(?!\/)/.test(volta)) return null;
+  return soOCaminho(volta) === soOCaminho(cadastro) ? null : volta;
+}

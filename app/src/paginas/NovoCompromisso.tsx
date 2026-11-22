@@ -4,7 +4,7 @@
 // compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília. Vindo do "+ Novo…" de uma anotação
 // (?anotacao=, #376), ele nasce ligado a ela (com a pessoa única da anotação, por ?pessoa=) e, ao salvar, volta à anotação.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
@@ -14,6 +14,7 @@ import {
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { datasForaDoLapisDoCompromisso, semOsCampos } from '../regras/datasNoCartao';
 import { errosJuntos } from '../regras/campoData';
+import { voltaDoMenu } from '../regras/origemDoCadastro';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -39,6 +40,8 @@ type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 const ENDERECO = '/agenda/';
+/** O endereço deste cadastro (o do "+" do menu lateral). */
+const CADASTRO = '/agenda/novo/';
 /** Como o processo aparece na busca e no campo: número, nome e clientes. */
 const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'cliente_nome'>) =>
   [p.numero, p.titulo, p.cliente_nome && clientesPorExtenso(p.cliente_nome)].filter(Boolean).join(' · ');
@@ -52,6 +55,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
   const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
+  // Aberto pelo "+" do menu lateral (#404): a tela onde a pessoa estava, para voltar a ela depois de gravar.
+  const volta = voltaDoMenu(useLocation().state, CADASTRO);
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), pessoaInicial = params.get('pessoa'), processoInicial = params.get('processo');
   const tipoInicial: TipoCompromisso = processoInicial ? 'audiencia' : 'reuniao';
   // A anotação de onde o compromisso nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada ao compromisso novo.
@@ -250,8 +255,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           return { tipo: 'compromissoCriado', id: r.id };
         });
         saidaLiberada.current = true;
-        // Vindo de uma anotação, liga o compromisso a ela e volta à anotação, no lugar do cadastro.
-        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, ENDERECO + '?id=' + r.id), { replace: !!daAnotacao });
+        // Vindo de uma anotação, liga o compromisso a ela e volta à anotação, no lugar do cadastro. Vindo do "+" do menu lateral, volta
+        // à tela onde a pessoa estava (o aviso no pé da tela diz que foi cadastrado); senão, abre o cartão do compromisso novo na Agenda.
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, volta ?? ENDERECO + '?id=' + r.id), { replace: !!daAnotacao || !!volta });
       }
     } catch (err) {
       falha(err);

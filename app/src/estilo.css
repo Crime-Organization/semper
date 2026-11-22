@@ -137,6 +137,10 @@
      crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
   --caixa-de-marcar: 18px;
   --alvo-de-toque: 44px;
+  /* O menu lateral: o recuo dos itens (da ponta da linha até o ícone e o texto) e o "+" de cada módulo, um círculo desta largura
+     na ponta da linha. O número de mensagens não lidas fica centrado numa coluna da mesma largura, na mesma ponta (#404) */
+  --recuo-do-item-do-menu: 10px;
+  --largura-do-mais-do-menu: 28px;
   /* A logomarca do escritório (#323) no lugar da letra, na barra lateral e na barra do topo do celular: a placa clara nos dois
      temas (a logomarca é feita para fundo claro, como na prévia das Configurações), a altura dela (a da letra, um pouco maior,
      para a logomarca larga dar para ler), a largura máxima (para o nome do escritório caber ao lado) e a folga em volta */
@@ -584,22 +588,25 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .marca-app b { display: block; font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .marca-app small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink) }
 .nav { display: flex; flex-direction: column; gap: 2px }
-.nav a, .nav button { display: flex; align-items: center; gap: 10px; padding: 0 10px; min-height: 36px; border-radius: 6px; color: var(--text); background: none; border: 0; font-size: 14px; cursor: pointer; text-align: left; width: 100% }
+.nav a, .nav button { display: flex; align-items: center; gap: 10px; padding: 0 var(--recuo-do-item-do-menu); min-height: 36px; border-radius: 6px; color: var(--text); background: none; border: 0; font-size: 14px; cursor: pointer; text-align: left; width: 100% }
 .nav a:hover, .nav button:hover { background: var(--line) }
 .nav a[aria-current="page"] { background: var(--line); font-weight: 700; color: var(--ink) }
 .nav svg { flex-shrink: 0 }
 /* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta, e as opções ficam recuadas, alinhadas ao texto do botão. */
 .nav-grupo { display: flex; flex-direction: column; gap: 2px }
-.nav-grupo > button > svg:last-child { margin-left: auto; color: var(--muted) }
+.nav-grupo > button > svg:last-child, .nav-grupo > .nav-linha > button > svg:last-child { margin-left: auto; color: var(--muted) }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 30px }
 .nav-sub[hidden] { display: none }
 .nav-linha { display: flex; align-items: center; gap: 2px }
-.nav-contador { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums }
+.nav-contador { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums }
 /* Ponto de "há o que ver" (Novidades, #353): o sinal verde, sem número. */
 .nav-ponto { margin-left: auto; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--accent) }
-.nav-linha > a:first-child { flex: 1; min-width: 0 }
-.nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
-.nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: #fff }
+.nav-linha > :first-child { flex: 1; min-width: 0 }
+/* A coluna dos "+" na ponta da linha, para o que não é "+" (o número de não lidas de Mensagens): da largura do "+", encostada na
+   ponta (passa por cima do recuo do item), com o conteúdo no meio. Assim, o meio do número fica no eixo dos "+" de baixo. */
+.nav-coluna-do-mais { margin-left: auto; margin-right: calc(-1 * var(--recuo-do-item-do-menu)); flex: 0 0 var(--largura-do-mais-do-menu); display: flex; justify-content: center }
+.nav .nav-mais { width: var(--largura-do-mais-do-menu); min-height: var(--largura-do-mais-do-menu); height: var(--largura-do-mais-do-menu); padding: 0; flex: 0 0 var(--largura-do-mais-do-menu); justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
+.nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
 .side-rodape { margin-top: auto; padding-top: 24px }
 .usuario { display: flex; gap: 10px; align-items: flex-start; padding: 10px; font-size: 13px; color: var(--muted); line-height: 1.4 }
 .usuario b { color: var(--ink); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }

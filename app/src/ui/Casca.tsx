@@ -16,15 +16,13 @@ import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
 import { naoLidas, useConferirNaoLidas } from './mensagens';
+import { MaisDoMenu } from './MaisDoMenu';
 import { MenuFinanceiro } from './MenuFinanceiro';
 import { BotaoNovidades } from './Novidades';
 import { useSessao } from './sessao';
 import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
 import { escritorioNaAba, PAPEIS } from './util';
-
-/** Tamanho do "+" ao lado de cada módulo, que leva ao cadastro. */
-const ICONE_DO_MAIS = 15;
 
 export function Casca({ children }: { children: ReactNode }) {
   const { ctx } = useSessao();
@@ -96,34 +94,36 @@ export function Casca({ children }: { children: ReactNode }) {
           {item('/inicio/', 'inicio', 'Início')}
           <NavLink to="/mensagens/" aria-label={rotuloDoMenu(quantasNaoLidas)}>
             <Icone nome="sino" /><span>Mensagens</span>
-            {quantasNaoLidas > 0 && <span className="nav-contador">{textoDoContador(quantasNaoLidas)}</span>}
+            {/* O número fica na coluna dos "+" dos módulos abaixo, centrado nela (#404). */}
+            {quantasNaoLidas > 0 && <span className="nav-coluna-do-mais"><span className="nav-contador">{textoDoContador(quantasNaoLidas)}</span></span>}
           </NavLink>
           <div className="nav-linha">
             {item('/pessoas/', 'pessoas', 'Pessoas')}
-            <Link className="nav-mais" to="/pessoas/nova/" aria-label="Cadastrar pessoa" title="Cadastrar pessoa"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <MaisDoMenu para="/pessoas/nova/" rotulo="Cadastrar pessoa" />
           </div>
           {/* Cada módulo aparece só no escritório que o tem ligado (o dono da plataforma liga e desliga). */}
           {ctx.escritorio?.modulos?.contratos && <div className="nav-linha">
             {item('/contratos/', 'contratos', 'Contratos')}
-            <Link className="nav-mais" to="/contratos/novo/" aria-label="Cadastrar contrato" title="Cadastrar contrato"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <MaisDoMenu para="/contratos/novo/" rotulo="Cadastrar contrato" />
           </div>}
           {ctx.escritorio?.modulos?.demandas && <div className="nav-linha">
             {item('/demandas/', 'demandas', 'Demandas')}
-            <Link className="nav-mais" to="/demandas/nova/" aria-label="Cadastrar demanda" title="Cadastrar demanda"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <MaisDoMenu para="/demandas/nova/" rotulo="Cadastrar demanda" />
           </div>}
           {ctx.escritorio?.modulos?.tarefas && <div className="nav-linha">
             {item('/tarefas/', 'tarefas', 'Tarefas')}
-            <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <MaisDoMenu para="/tarefas/nova/" rotulo="Cadastrar tarefa" />
           </div>}
           {ctx.escritorio?.modulos?.anotacoes && <div className="nav-linha">
             {item('/documentos/', 'documentos', 'Documentos')}
-            <Link className="nav-mais" to={enderecoDaAnotacaoNova()} aria-label="Cadastrar anotação" title="Cadastrar anotação"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <MaisDoMenu para={enderecoDaAnotacaoNova()} rotulo="Cadastrar anotação" />
           </div>}
           {ctx.escritorio?.modulos?.processos && <SubmenuLateral id="processos" icone="processos" rotulo="Processos" caminhos={['/processos']} para="/processos/">
             <NavLink to="/processos/administrativo/"><span>Administrativo</span></NavLink>
             <NavLink to="/processos/judicial/"><span>Judicial</span></NavLink>
           </SubmenuLateral>}
-          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}>
+          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}
+            mais={ctx.escritorio?.modulos?.compromissos && <MaisDoMenu para="/agenda/novo/" rotulo="Cadastrar compromisso" />}>
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>

@@ -15,10 +15,13 @@ interface Props {
   caminhos: string[];
   /** A tela do próprio item (ex.: o painel de Processos): clicar nele leva a ela, e só recolhe quando já está nela. */
   para?: string;
+  /** O "+" da linha (ex.: o de cadastrar compromisso, #404): ao lado do botão, na coluna dos "+" dos outros módulos, e à vista com
+   *  o submenu aberto ou fechado. */
+  mais?: ReactNode;
   children: ReactNode;
 }
 
-export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: Props) {
+export function SubmenuLateral({ id, icone, rotulo, caminhos, para, mais, children }: Props) {
   const chave = `menu.${id}.aberto`;
   const painel = useId();
   const { pathname } = useLocation();
@@ -38,10 +41,11 @@ export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: 
     salvarPreferencia(chave, !aberto);
   }
 
+  const botao = <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
+    <Icone nome={icone} /><span>{rotulo}</span><Icone nome={aberto ? 'acima' : 'abaixo'} tam={14} />
+  </button>;
   return <div className="nav-grupo">
-    <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
-      <Icone nome={icone} /><span>{rotulo}</span><Icone nome={aberto ? 'acima' : 'abaixo'} tam={14} />
-    </button>
+    {mais ? <div className="nav-linha">{botao}{mais}</div> : botao}
     <div id={painel} className="nav-sub" hidden={!aberto}>{children}</div>
   </div>;
 }

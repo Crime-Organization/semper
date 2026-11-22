@@ -83,3 +83,45 @@ describe('Submenu do menu lateral', () => {
     expect(opcao()).toBeNull();
   });
 });
+
+describe('Submenu do menu lateral com o "+" na linha (#404)', () => {
+  beforeEach(() => iniciarPreferencias({}));
+  const abrirComMais = () => render(<MemoryRouter initialEntries={['/inicio/']}>
+    <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/calendario']}
+      mais={<Link to="/agenda/novo/">Cadastrar compromisso</Link>}>
+      <a href="/calendario/">Feriados e prazos</a>
+    </SubmenuLateral>
+  </MemoryRouter>);
+  const mais = () => screen.queryByRole('link', { name: 'Cadastrar compromisso' });
+
+  it('dado o submenu fechado, quando o menu aparece, então o "+" já está à vista, ao lado do botão', () => {
+    // Quando
+    abrirComMais();
+    // Então
+    expect(botao().getAttribute('aria-expanded')).toBe('false');
+    expect(mais()).not.toBeNull();
+    expect(mais()!.parentElement).toBe(botao().parentElement);
+  });
+
+  it('dado o "+" na linha, quando a pessoa abre e fecha o submenu, então ele continua funcionando e o "+" fica lá', async () => {
+    // Dado
+    abrirComMais();
+    // Quando
+    await userEvent.click(botao());
+    // Então
+    expect(opcao()).not.toBeNull();
+    expect(mais()).not.toBeNull();
+    // Quando
+    await userEvent.click(botao());
+    // Então
+    expect(opcao()).toBeNull();
+    expect(mais()).not.toBeNull();
+  });
+
+  it('dado um submenu sem "+" (como Processos), quando o menu aparece, então não há "+"', () => {
+    // Quando
+    abrir('/inicio/');
+    // Então
+    expect(mais()).toBeNull();
+  });
+});
