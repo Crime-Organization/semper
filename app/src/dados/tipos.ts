@@ -671,6 +671,21 @@ export interface DadosTarefas {
   tarefasDaDemanda(demandaId: string): Promise<TarefaLigada[]>;
   /** Tarefas ligadas ao contrato que quem está logado pode ver. */
   tarefasDoContrato(contratoId: string): Promise<TarefaLigada[]>;
+  /**
+   * Os números dos gráficos do painel do Início (#402), do dia "desde" (aaaa-mm-dd) até hoje. pessoa: só as tarefas em que ela é a
+   * responsável ou uma participante, e só o tempo que ela registrou; null: tudo o que quem está logado vê.
+   */
+  tarefasGraficos(f: { desde: string; pessoa: string | null }): Promise<GraficosDeTarefas>;
+}
+
+/** A tarefa nos gráficos do Início (#402): só o que os números e os gráficos contam. */
+export type TarefaNosGraficos = Pick<Tarefa, 'id' | 'etapa_id' | 'concluida_em' | 'arquivado_em'>;
+/** O que os gráficos do painel do Início contam (#402). */
+export interface GraficosDeTarefas {
+  /** As tarefas não arquivadas e as concluídas desde o começo do período (mesmo as arquivadas depois). */
+  tarefas: TarefaNosGraficos[];
+  /** Os registros de tempo do período: quando cada um começou (o ajuste, quando foi feito) e os segundos (o ajuste pode ser negativo). */
+  tempos: { inicio: string; segundos: number }[];
 }
 
 /** Um registro de tempo de alguém numa tarefa: contado pelo cronômetro, ou ajustado à mão (com motivo). */

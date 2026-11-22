@@ -1,42 +1,16 @@
-/* Início: o painel de quem trabalha no escritório (#319, paginas/Inicio.tsx e paginas/inicio/). Cores e letras vêm das variáveis
-   de estilo.css; as medidas próprias do painel ficam aqui, com nome. A grade segue a largura do próprio painel (container
-   queries): uma coluna no estreito, com os prazos e a agenda primeiro; duas no meio; três no largo, com os prazos ocupando duas. */
-.painel-inicio {
-  /* Até onde o painel se abre: mais largo que as páginas de leitura (.miolo), para caberem três colunas de blocos */
-  --largura-do-painel: 1280px;
-  /* O vão entre os blocos */
-  --vao-dos-blocos: 16px;
-  /* O recuo de dentro de cada bloco: um pouco menor que o do .cartao, para caber mais item */
-  --recuo-do-bloco: 20px;
-  max-width: var(--largura-do-painel);
-  gap: 24px;
-  container-type: inline-size;
-}
+/* Início: o painel de quem trabalha no escritório (#319, #402; paginas/Inicio.tsx e paginas/inicio/). O desenho vem da seção "painéis"
+   do estilo.css, como o painel de Processos; aqui fica só o que é do Início: a busca geral no alto, os grupos dos prazos e o vazio. */
 
-.painel-inicio-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px }
-.painel-inicio-topo .titulo { margin: 0 }
-.painel-inicio-topo .busca-do-painel { flex: 1 1 320px }
+/* No alto, à direita do título, a busca geral e, para o administrador, o filtro; no estreito, eles descem e a busca ocupa a linha. */
+.painel-inicio .painel-topo { align-items: center }
+.painel-inicio .painel-topo-filtro { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 20px; flex: 1 1 320px; min-width: 0 }
+.painel-inicio .painel-topo-filtro .busca-do-painel { flex: 1 1 240px; width: auto; min-width: 0 }
 
-.painel-inicio-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--vao-dos-blocos) }
-/* Duas colunas a partir de 640px de painel e três a partir de 1000px (a condição do @container não aceita variável). */
-@container (min-width: 640px) {
-  .painel-inicio-grade { grid-template-columns: repeat(2, minmax(0, 1fr)) }
-  .bloco-prazos { grid-column: 1 / -1 }
-}
-@container (min-width: 1000px) {
-  .painel-inicio-grade { grid-template-columns: repeat(3, minmax(0, 1fr)) }
-  .bloco-prazos { grid-column: span 2 }
-}
+/* Os grupos dos prazos e das parcelas (em atraso, hoje, próximos dias): um embaixo do outro; no cartão largo, lado a lado. */
+.painel-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 20px; align-items: start }
+.painel-grupos > section { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.painel-inicio .painel-grupo { margin: 0; font-size: inherit }
+.painel-inicio .painel-cartao .vazio { padding: 16px; font-size: var(--texto-tabela) }
 
-.bloco-inicio { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: var(--recuo-do-bloco) }
-.bloco-inicio-topo { display: flex; align-items: center; gap: 8px; min-width: 0 }
-/* O título de cada bloco: menor que o h2.secao das páginas, porque são vários lado a lado (o "##" da escala de títulos) */
-.bloco-inicio-topo h2.secao { font-size: var(--texto-titulo-2); line-height: 1.25 }
-.bloco-inicio-todos { margin-left: auto; font-size: var(--texto-apoio); white-space: nowrap }
-.bloco-inicio .vazio { padding: 16px; font-size: var(--texto-tabela) }
-
-/* Os grupos dos prazos e das parcelas: um embaixo do outro; no bloco largo dos prazos, lado a lado. */
-.bloco-inicio-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 20px; align-items: start }
-.bloco-inicio-grupos > section { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
-.bloco-inicio-grupo { margin: 0; font-size: inherit }
-
+/* O painel sem nada: os primeiros passos, o principal antes. */
+.painel-vazio-acoes { display: flex; flex-wrap: wrap; gap: 8px }

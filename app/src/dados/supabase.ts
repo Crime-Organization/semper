@@ -36,7 +36,7 @@ import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '..
 import { periodoDosGraficos } from '../regras/graficosDeProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { ProcessoNosGraficos, AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ContatoParaConferir, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { ProcessoNosGraficos, TarefaNosGraficos, AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ContatoParaConferir, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -1879,6 +1879,23 @@ export const SD: Dados = {
   async tarefasDoContrato(contratoId) {
     const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('contrato_id', contratoId)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
+  },
+  // Duas leituras de tarefas (as não arquivadas e as arquivadas concluídas no período), juntas sem repetir; o tempo, desde a meia-noite
+  // do primeiro dia. As regras de leitura do banco já deixam só o que quem está logado vê (o tempo dos outros, só o administrador).
+  async tarefasGraficos({ desde, pessoa }) {
+    if (pessoa && !UUID.test(pessoa)) return { tarefas: [], tempos: [] };
+    const inicio = inicioDoDia(desde);
+    const deQuem = (q: Livre) => pessoa ? q.or(`responsavel_id.eq.${pessoa},participantes.cs.{${pessoa}}`) : q;
+    const campos = 'id, etapa_id, concluida_em, arquivado_em';
+    const [abertas, arquivadas, tempos] = await Promise.all([
+      emPartes<TarefaNosGraficos>(() => deQuem(sb.from('tarefas').select(campos)).is('arquivado_em', null).order('id')),
+      emPartes<TarefaNosGraficos>(() => deQuem(sb.from('tarefas').select(campos)).not('arquivado_em', 'is', null).gte('concluida_em', inicio).order('id')),
+      emPartes<{ inicio: string; segundos: number }>(() => {
+        const q = sb.from('tarefa_tempos').select('inicio, segundos').gte('inicio', inicio).order('id');
+        return pessoa ? q.eq('perfil_id', pessoa) : q;
+      })
+    ]);
+    return { tarefas: [...abertas, ...arquivadas], tempos };
   },
 
   // ---------- tempo nas tarefas ----------

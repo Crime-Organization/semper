@@ -5,7 +5,7 @@
 // O desenho vem do estilo.css (seção "painéis") e está descrito no DESIGN.md ("Painéis").
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { Nota, TituloSecao } from '../base';
+import { Contador, Nota, TituloSecao } from '../base';
 import { Icone } from '../Icone';
 
 /** O título do painel, com o ponto verde, a frase de quem é o trabalho e, à direita, o filtro (só para o administrador). */
@@ -76,16 +76,20 @@ export type LarguraDoCartao = 'inteira' | 'metade' | 'terco' | 'dois-tercos';
 
 /**
  * Um cartão do painel: o título (um h2, que dá nome à região), uma nota opcional embaixo dele, um link ou botão à direita do título
- * ("acao") e o conteúdo (um gráfico ou uma lista). Com "id", os números do alto podem levar a ele ("#id").
+ * ("acao") e o conteúdo (um gráfico ou uma lista). Com "id", os números do alto podem levar a ele ("#id"). "contador" é o número ao
+ * lado do título (quantos itens a lista tem, #402); "ocupado", enquanto o conteúdo carrega (o leitor de tela fica sabendo).
  */
-export function CartaoDoPainel({ titulo, id, nota, acao, largura = 'inteira', children }: {
-  titulo: string; id?: string; nota?: ReactNode; acao?: ReactNode; largura?: LarguraDoCartao; children: ReactNode;
+export function CartaoDoPainel({ titulo, id, nota, acao, contador, ocupado, largura = 'inteira', children }: {
+  titulo: string; id?: string; nota?: ReactNode; acao?: ReactNode; contador?: string; ocupado?: boolean; largura?: LarguraDoCartao; children: ReactNode;
 }) {
   const automatico = useId();
   const idDoTitulo = (id ?? automatico) + '-titulo';
-  return <section id={id} className={'cartao painel-cartao ' + largura} aria-labelledby={idDoTitulo}>
+  return <section id={id} className={'cartao painel-cartao ' + largura} aria-labelledby={idDoTitulo} aria-busy={ocupado || undefined}>
     <div className="painel-cartao-cabeca">
-      <TituloSecao id={idDoTitulo}>{titulo}</TituloSecao>
+      <div className="painel-cartao-titulo">
+        <TituloSecao id={idDoTitulo}>{titulo}</TituloSecao>
+        {contador !== undefined && <Contador title="Quantos há">{contador}</Contador>}
+      </div>
       {acao}
     </div>
     {nota && <Nota>{nota}</Nota>}

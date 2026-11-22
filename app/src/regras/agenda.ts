@@ -11,6 +11,9 @@ import { somarDias } from './prazos';
 const FORMATO_ISO = 'en-CA';
 /** Hoje no horário de Brasília, em qualquer aparelho. */
 export const hojeNaAgenda = (agora = new Date()) => new Intl.DateTimeFormat(FORMATO_ISO, { timeZone: FUSO_DA_AGENDA }).format(agora);
+/** A hora agora no horário de Brasília, "hh:mm" (como fmtHora escreve a hora de um compromisso). */
+export const horaNaAgenda = (agora = new Date()) =>
+  new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO_DA_AGENDA, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(agora);
 
 export const DIAS_NA_SEMANA = 7;
 /** Dias da semana até a segunda-feira (a semana começa na segunda, como em Meu tempo). */
