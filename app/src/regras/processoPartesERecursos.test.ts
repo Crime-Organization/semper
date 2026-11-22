@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { PARTES_MAXIMAS } from '../dados/limites';
 import {
-  cabeOutraParte, cadastroDoDerivado, dadosDoProcesso, errosDaEtapaProcesso, ligacaoDoEndereco, origemAoCriar, PAPEIS, PAPEIS_DA_PARTE, papeisPorExtenso, papeisQueFaltam,
+  CAMPOS_PROCESSO, cabeOutraParte, cadastroDoDerivado, dadosDoProcesso, errosDaEtapaProcesso, ligacaoDoEndereco, origemAoCriar, PAPEIS, PAPEIS_DA_PARTE, papeisPorExtenso, papeisQueFaltam,
   processoDoProcesso, processosComPartes, processoVazio, relacaoEntreProcessos, relacionadosDoProcesso, tipoDoEndereco, TIPOS, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from './processo';
 
@@ -133,5 +133,13 @@ describe('Recursos e incidentais', () => {
     // Então
     expect(lista.map(p => [p.id, p.relacao])).toEqual([['o', 'origem'], ['i1', 'incidental'], ['r1', 'recurso']]);
     expect(relacaoEntreProcessos({ id: 'irmao', origem_id: 'o', ligacao: 'recurso' }, aberto)).toBeNull();
+  });
+
+  it('quando o processo de origem é excluído, então o histórico do recurso diz que a origem foi excluída, sem o id dela', () => {
+    // Então
+    expect(CAMPOS_PROCESSO.origem_id).toBe('Processo de origem');
+    expect(valorLegivelProcesso('origem_id', '73160000-0000-0000-0000-000000000002')).toBe('ligado');
+    expect(valorLegivelProcesso('origem_id', null)).toBe('excluído');
+    expect(valorLegivelProcesso('numero', null)).toBe('—');
   });
 });

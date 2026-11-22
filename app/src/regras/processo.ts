@@ -282,8 +282,10 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   polo: 'Polo do cliente', area: 'Área do direito', meio: 'Meio de tramitação', natureza: 'Natureza processual', gratuidade: 'Gratuidade de justiça', comarca: 'Comarca',
   vara: 'Vara', classe: 'Classe', assunto: 'Assunto', juiz: 'Juiz ou relator', distribuicao: 'Distribuição', valor_causa: 'Valor da causa', instancia: 'Instância',
   segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento',
-  partes: 'Pessoas do processo'
+  partes: 'Pessoas do processo', origem_id: 'Processo de origem'
 };
+/** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem só fica vazia quando é excluída (#316). */
+const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'excluído' };
 /** A pessoa com papel como o histórico a guarda (#316): o nome e o papel. */
 const parteNoHistorico = (v: unknown) => {
   const x = v as { nome?: string; papel?: string };
@@ -292,11 +294,13 @@ const parteNoHistorico = (v: unknown) => {
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
   polo: naLista(POLOS), meio: naLista(MEIOS), gratuidade: naLista(GRATUIDADES), distribuicao: v => fmtData(String(v)), arquivado_em: v => fmtData(String(v)),
-  valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não', partes: parteNoHistorico
+  valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não', partes: parteNoHistorico,
+  // O histórico guarda o id da origem: o recurso mostra só que estava ligado (o processo de origem já não existe).
+  origem_id: () => 'ligado'
 };
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelProcesso = (campo: string, v: unknown) =>
-  v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
+  v === null || v === undefined || v === '' ? VAZIO_NO_HISTORICO[campo] ?? '—' : (FORMATOS[campo] ?? String)(v);
 
 /** Os campos da seção de dados do cartão, na ordem. */
 const CAMPOS_NO_CARTAO: (keyof Processo)[] = ['numero', 'orgao', 'sistema', 'meio', 'polo', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valor_causa', 'instancia', 'segredo', 'advogado_contrario', 'observacoes'];

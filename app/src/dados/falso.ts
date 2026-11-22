@@ -4510,7 +4510,11 @@ export const SD: Dados = {
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
       // As pessoas com papel saem junto; os recursos e incidentais dele continuam, só sem a origem (#316).
       bd.processoPartes = bd.processoPartes!.filter(x => x.processo_id !== id);
-      bd.processos!.forEach(x => { if (x.origem_id === id) x.origem_id = null; });
+      // Como a chave origem_id (on delete set null) no banco: a mudança passa pelo histórico e pelo carimbo do recurso.
+      bd.processos!.filter(x => x.origem_id === id).forEach(x => {
+        historicoProcesso(x, { origem_id: null });
+        Object.assign(x, { origem_id: null, atualizado_em: agora(), atualizado_por: eu });
+      });
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'processos' && a.cartao_id === id));
       auditar('processos', 'exclusao', p); excluidas++;

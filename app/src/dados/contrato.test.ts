@@ -2052,6 +2052,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(await SD.processoObter(incidental.id)).toMatchObject({ origem_id: null, ligacao: 'incidental' });
         expect(await SD.processosRelacionados(incidental.id)).toEqual([]);
+        // Como a chave on delete set null no banco: a origem que saiu fica no histórico do incidental.
+        expect((await SD.processoHistorico(incidental.id))[0].alteracoes).toEqual({ origem_id: { de: origem.id, para: null } });
       });
     });
 

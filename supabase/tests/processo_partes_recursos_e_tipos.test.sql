@@ -142,10 +142,36 @@ select throws_ok($$ insert into public.processo_partes (processo_id, pessoa_id, 
   ('73160000-0000-0000-0000-000000000002', '13160000-0000-0000-0000-000000000002', 'autor') $$, '42501', null, 'Quando não está no processo, então é recusado');
 reset role;
 
+-- Dado que a Ana (master) põe o cliente como autor no P2, de que a Bia não participa.
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ insert into public.processo_partes (processo_id, pessoa_id, papel) values
+  ('73160000-0000-0000-0000-000000000002', '13160000-0000-0000-0000-000000000001', 'autor') $$, 'Quando a administradora põe uma pessoa num processo, então é gravado');
+reset role;
+-- Quando a Bia (usuária comum) lê ou tenta tirar as pessoas do P2, então não vê nem tira nada: só as dos processos em que está.
+select pg_temp.entrar(2); set local role authenticated;
+select is((select count(*) from public.processo_partes where processo_id = '73160000-0000-0000-0000-000000000002'), 0::bigint,
+  'Quando quem não está no processo lê, então não vê as pessoas com papel dele');
+select is(pg_temp.apagados($$ delete from public.processo_partes where processo_id = '73160000-0000-0000-0000-000000000002' $$), 0::bigint,
+  'Quando quem não está no processo tenta tirar, então nada sai');
+select is((select count(*) from public.processo_historico where processo_id = '73160000-0000-0000-0000-000000000002'), 0::bigint,
+  'Então ela também não lê o histórico desse processo');
+reset role;
+
 -- Quando o Davi, do outro escritório, lê as pessoas com papel, então não vê nenhuma.
 select pg_temp.entrar(4); set local role authenticated;
 select is((select count(*) from public.processo_partes), 0::bigint, 'Quando o outro escritório lê, então não vê as pessoas com papel');
 select is(pg_temp.apagados($$ delete from public.processo_partes $$), 0::bigint, 'Quando o outro escritório tenta tirar, então nada sai');
+-- Quando ele tenta pôr uma pessoa num processo do outro escritório (no escritório dele ou dizendo ser do outro), então é recusado.
+select throws_ok($$ insert into public.processo_partes (processo_id, pessoa_id, papel) values
+  ('73160000-0000-0000-0000-000000000001', '13160000-0000-0000-0000-000000000009', 'autor') $$, 'P0001', 'Processo não encontrado neste escritório.',
+  'Quando o outro escritório põe a pessoa dele num processo daqui, então é recusado');
+select throws_ok($$ insert into public.processo_partes (escritorio_id, processo_id, pessoa_id, papel) values
+  ('e3160000-0000-0000-0000-000000000001', '73160000-0000-0000-0000-000000000001', '13160000-0000-0000-0000-000000000001', 'autor') $$, '42501', null,
+  'Quando o outro escritório diz ser daqui para pôr uma pessoa, então é recusado');
+-- Quando ele cria um recurso de um processo de outro escritório, então é recusado.
+select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, criado_por, origem_id, ligacao) values
+  ('judicial', '9-REC', auth.uid(), '{13160000-0000-0000-0000-000000000009}', auth.uid(), '73160000-0000-0000-0000-000000000001', 'recurso') $$,
+  'P0001', 'O processo de origem não foi encontrado neste escritório.', 'Quando o outro escritório cria um recurso de um processo daqui, então é recusado');
 reset role;
 
 -- Quem está num processo com papel não pode ser excluída.
@@ -183,6 +209,8 @@ update public.processos set arquivado_em = now() where id = '73160000-0000-0000-
 delete from public.processos where id = '73160000-0000-0000-0000-000000000002';
 select is((select origem_id from public.processos where id = '73160000-0000-0000-0000-000000000022'), null::uuid, 'Então o incidental fica sem a origem');
 select is((select ligacao from public.processos where id = '73160000-0000-0000-0000-000000000022'), 'incidental', 'Então ele continua sendo um incidental');
+select is((select alteracoes from public.processo_historico where processo_id = '73160000-0000-0000-0000-000000000022' order by em desc, id desc limit 1),
+  '{"origem_id": {"de": "73160000-0000-0000-0000-000000000002", "para": null}}'::jsonb, 'Então a saída da origem fica no histórico do incidental');
 
 -- ---------- a parte contrária de antes ----------
 select is((select advogado_contrario from public.processos where id = '73160000-0000-0000-0000-000000000001'), 'Advogado contrário de exemplo',
