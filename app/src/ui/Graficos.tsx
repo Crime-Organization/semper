@@ -72,20 +72,24 @@ const TECLAS_DAS_BARRAS: Record<string, (atual: number | null, quantas: number) 
 
 /** O que cada barra (ou grupo de barras) mostra: o nome do eixo; "curto", quando o nome não cabe; "detalhe", na dica e na tabela. */
 export interface ItemDoGrafico { nome: string; curto?: string; detalhe?: string }
+/** Um número do item que não vira barra, só texto na dica e na tabela (ex.: o resultado do mês). */
+export interface ExtraDoGrafico<T> { chave: string; nome: string; valor: (item: T) => number }
 
 /**
  * Barras em pé: cada item um grupo (um mês, uma semana), uma barra por série, lado a lado, a partir de uma linha de base. "valor" lê
  * o número de um item numa série; "formatar" escreve o valor (dica, tabela e ponta da barra) e "formatarCurto", o do eixo.
  * "corDoItem" troca a cor de um item (ex.: os prazos vencidos em destaque); "rotulos" escreve o número na ponta de cada barra
  * (para poucas barras); "tabelaVisivel" dá a quem vê a tabela dos números ("Ver os números").
- * "escalaInteira" é para contagens: as linhas da grade ficam em números inteiros.
+ * "escalaInteira" é para contagens: as linhas da grade ficam em números inteiros. "extras" são números de cada item que não viram
+ * barra (ex.: o resultado do mês, que pode ser negativo): eles entram na dica e na tabela, depois das séries.
  */
-export function BarrasPorMes<T extends ItemDoGrafico>({ rotulo, itens, series, valor, formatar, formatarCurto, corDoItem, rotulos, tabelaVisivel, escalaInteira }: {
+export function BarrasPorMes<T extends ItemDoGrafico>({ rotulo, itens, series, valor, formatar, formatarCurto, corDoItem, rotulos, tabelaVisivel, escalaInteira, extras = [] }: {
   rotulo: string; itens: T[]; series: Serie[]; valor: (item: T, serie: string) => number;
   formatar: (v: number) => string; formatarCurto: (v: number) => string;
   corDoItem?: (item: T) => string | undefined; rotulos?: boolean; tabelaVisivel?: boolean;
   /** Contagens (processos, prazos): o topo da escala sobe até as linhas da grade caírem em números inteiros. */
   escalaInteira?: boolean;
+  extras?: readonly ExtraDoGrafico<T>[];
 }) {
   const [ref, largura] = useLargura<HTMLDivElement>();
   const [ativo, setAtivo] = useState<number | null>(null);
@@ -150,9 +154,13 @@ export function BarrasPorMes<T extends ItemDoGrafico>({ rotulo, itens, series, v
         {series.map(s => <span key={s.chave} className="grafico-dica-linha">
           <i className="grafico-dica-traco" style={{ background: corDa(item, s) }} aria-hidden="true" /><b className="num">{formatar(valor(item, s.chave))}</b>{s.nome}
         </span>)}
+        {extras.map(x => <span key={x.chave} className="grafico-dica-linha grafico-dica-extra">
+          <b className="num">{formatar(x.valor(item))}</b>{x.nome}
+        </span>)}
       </div>}
     </div>
-    <TabelaDoGrafico rotulo={rotulo} colunas={['', ...series.map(s => s.nome)]} linhas={itens.map(i => [titulo(i), ...series.map(s => formatar(valor(i, s.chave)))])} visivel={tabelaVisivel} />
+    <TabelaDoGrafico rotulo={rotulo} colunas={['', ...series.map(s => s.nome), ...extras.map(x => x.nome)]} visivel={tabelaVisivel}
+      linhas={itens.map(i => [titulo(i), ...series.map(s => formatar(valor(i, s.chave))), ...extras.map(x => formatar(x.valor(i)))])} />
   </figure>;
 }
 
@@ -181,9 +189,10 @@ export function BarrasDeitadas({ rotulo, linhas, cor, maior, formatar = n => n.t
 export interface Empilhado { chave: string; rotulo: string; partes: number[]; total: number; detalhe?: string }
 /**
  * Barras deitadas, uma por grupo, cada uma com as partes empilhadas (ex.: o recebido e o que falta). A barra mais longa
- * é o maior total; ao lado, o total escrito. "series" dá o nome e a cor de cada parte, na ordem.
+ * é o maior total; ao lado, o total escrito. "series" dá o nome e a cor de cada parte, na ordem. "tabelaVisivel" dá a quem vê a
+ * tabela dos números ("Ver os números"), com o valor de cada parte.
  */
-export function BarrasEmpilhadas({ rotulo, grupos, series, formatar }: { rotulo: string; grupos: Empilhado[]; series: Serie[]; formatar: (v: number) => string }) {
+export function BarrasEmpilhadas({ rotulo, grupos, series, formatar, tabelaVisivel }: { rotulo: string; grupos: Empilhado[]; series: Serie[]; formatar: (v: number) => string; tabelaVisivel?: boolean }) {
   const maior = Math.max(1, ...grupos.map(g => g.total));
   return <figure className="grafico" aria-label={rotulo}>
     <Legenda series={series} />
@@ -199,6 +208,6 @@ export function BarrasEmpilhadas({ rotulo, grupos, series, formatar }: { rotulo:
         <span className="grafico-empilhada-total num">{formatar(g.total)}</span>
       </li>)}
     </ul>
-    <TabelaDoGrafico rotulo={rotulo} colunas={['', ...series.map(s => s.nome), 'Total']} linhas={grupos.map(g => [g.rotulo, ...g.partes.map(formatar), formatar(g.total)])} />
+    <TabelaDoGrafico rotulo={rotulo} colunas={['', ...series.map(s => s.nome), 'Total']} linhas={grupos.map(g => [g.rotulo, ...g.partes.map(formatar), formatar(g.total)])} visivel={tabelaVisivel} />
   </figure>;
 }

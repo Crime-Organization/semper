@@ -1,22 +1,25 @@
-// O Financeiro numa página só: o período e os totais no alto e quatro abas. Entradas e Saídas são o que já entrou e saiu das contas;
-// Direitos e Obrigações, o que ainda vai entrar e sair. Clicar em qualquer linha abre a janela flutuante com tudo o que se sabe dela
-// (DetalheFinanceiro.tsx); lançar também abre ali.
-// Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas.
-import { useEffect, useState, type ReactNode } from 'react';
+// O Financeiro numa página só, no padrão dos painéis (#401, #403): no alto, o título, de quem são os números e o período; depois, os
+// números do período, cada um comparado com o de antes, e os gráficos (PainelDoFinanceiro, em Graficos.tsx); embaixo, as quatro
+// abas. Entradas e Saídas são o que já entrou e saiu das contas; Direitos e Obrigações, o que ainda vai entrar e sair. Clicar em
+// qualquer linha abre a janela flutuante com tudo o que se sabe dela (DetalheFinanceiro.tsx); lançar também abre ali.
+// Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas nem o caixa.
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
-import { SD, type ContaFinanceira, type ContratoDaCarteira, type RecebimentoDoPeriodo, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { dicaComAtalho, ATALHOS } from '../../regras/atalhos';
 import { diasDoMes, fmtCentavos } from '../../regras/caixa';
 import {
   FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
-  totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
+  totaisDaCarteira, totalRecebido, type SituacaoNaCarteira
 } from '../../regras/painelFinanceiro';
 import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
+import { useAtalhosDaPagina, useAtalhosLigados } from '../../ui/atalhos';
 import { useMudancas } from '../../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
-import { PaginaModulo } from '../../ui/PaginaModulo';
+import { CabecaDoPainel } from '../../ui/painel/Painel';
 import { PainelCartao } from '../../ui/PainelCartao';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO, useTitulo } from '../../ui/util';
@@ -25,66 +28,115 @@ import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFi
 import { ValoresAPassar } from './APassar';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
-import { GraficosDoFinanceiro } from './Graficos';
-import { indicadoresRealizados } from '../../regras/graficosFinanceiros';
+import { LUGAR_DAS_LISTAS, PainelDoFinanceiro, type CaixaDoPainel, type DadosDoPainel } from './Graficos';
 import '../Financeiro.css';
 
 /** As parcelas de todos os tempos: a carteira olha o contrato inteiro, não só um mês. */
 const TODAS_AS_DATAS = { de: '2000-01-01', ate: '2200-12-31' };
 /** Quantas linhas cada lista mostra de cada vez: o ano inteiro pode ter milhares. */
 const LINHAS_POR_VEZ = 100;
+/** O tamanho do "+" do botão "Nova entrada", como o da ação principal das páginas de módulo. */
+const ICONE_DA_ACAO = 18;
 const ANO_TODO = 'ano';
 const TODAS = 'todas';
 type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento }
   | { o: 'parcela'; parcela: ParcelaDoEscritorio } | { o: 'contrato'; contratoId: string } | null;
-type Caixa = { contas: ContaFinanceira[]; lancamentos: Lancamento[]; saldos: Map<string, number> };
-type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; contratos: ContratoDaCarteira[]; recebimentos: RecebimentoDoPeriodo[]; caixa: Caixa | null } | { ano: number; erro: string };
+/** O que as listas do caixa usam: as contas e os lançamentos. */
+type Caixa = Pick<CaixaDoPainel, 'contas' | 'lancamentos'>;
+type Lido = ({ ano: number } & DadosDoPainel) | { ano: number; erro: string };
+
+/** De quem são os números: o escritório todo (o administrador, com o caixa), um advogado escolhido por ele, ou quem está logado. */
+type DeQuem = 'escritorio' | 'advogado' | 'eu';
+const FRASE_DE_QUEM: Record<DeQuem, (nome: string) => string> = {
+  escritorio: () => 'O caixa e os contratos do escritório todo.',
+  advogado: nome => `Os contratos de ${nome}.`,
+  eu: () => 'Os contratos de que você é responsável.'
+};
+
+/**
+ * Lê o período: as parcelas de todos os tempos, os contratos e, desde o começo do ano anterior (para comparar janeiro com dezembro e
+ * mostrar os últimos 12 meses), os recebimentos e, para o administrador, os lançamentos de cada conta e o saldo de cada conta
+ * ativa no começo desse tempo e hoje.
+ */
+async function lerFinanceiro(ano: number, admin: boolean, hoje: string): Promise<DadosDoPainel> {
+  const base = `${ano - 1}-01-01`, fim = `${ano}-12-31`;
+  const parcelas = SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje);
+  const contratos = SD.financeiroContratosDaCarteira();
+  const recebimentos = SD.financeiroRecebimentosDoPeriodo(base, fim);
+  if (!admin) return { parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: null };
+  const contas = await SD.financeiroContas();
+  const ativas = contas.filter(c => !c.arquivada_em);
+  const saldosEm = (dia: string) => Promise.all(ativas.map(async c => [c.id, await SD.financeiroSaldoAntes(c.id, dia)] as const)).then(pares => new Map(pares));
+  const [listas, saldosNaBase, saldosDeHoje] = await Promise.all([
+    Promise.all(contas.map(c => SD.financeiroLancamentos(c.id, base, fim))), saldosEm(base), saldosEm(somarDias(hoje, 1))
+  ]);
+  return { parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: { contas, lancamentos: listas.flat(), base, saldosNaBase, saldosDeHoje } };
+}
 
 export default function Hub() {
   useTitulo('Financeiro');
   const ctx = useCtx();
-  const aba = abaDoCaminho(useLocation().pathname);
+  const local = useLocation();
+  const aba = abaDoCaminho(local.pathname);
   const admin = ctx.ehAdmin;
   const hoje = hojeISO();
   const [ano, setAno] = useState(Number(hoje.slice(0, 4)));
   const [mes, setMes] = useState<string | null>(hoje.slice(0, 7));
-  // De quem são os indicadores e as listas: o escritório todo (vazio) ou um advogado. Só o administrador escolhe.
+  // De quem são os números e as listas: o escritório todo (vazio) ou um advogado. Só o administrador escolhe.
   const [advogado, setAdvogado] = useState('');
   const [lido, setLido] = useState<Lido | null>(null);
   const [aberto, setAberto] = useState<Aberto>(null);
   const [versao, setVersao] = useState(0);
   const recarregar = () => setVersao(v => v + 1);
   const pode = !!ctx.escritorio?.modulos?.financeiro;
+  const novaEntrada = () => setAberto({ o: 'entrada' });
+  // "Nova entrada" é a ação principal da página: o botão no alto e a tecla N (#86), como o "Novo" dos outros módulos.
+  useAtalhosDaPagina({ novo: pode ? { rotulo: TITULOS.entrada, abrir: novaEntrada } : undefined });
+  const atalhosLigados = useAtalhosLigados();
 
   useEffect(() => {
     if (!pode) return;
     let vivo = true;
-    (async () => {
-      const parcelas = SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje);
-      const contratos = SD.financeiroContratosDaCarteira();
-      const recebimentos = SD.financeiroRecebimentosDoPeriodo(`${ano}-01-01`, `${ano}-12-31`);
-      if (!admin) return { ano, parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: null };
-      const contas = await SD.financeiroContas();
-      const [listas, saldos] = await Promise.all([
-        Promise.all(contas.map(c => SD.financeiroLancamentos(c.id, `${ano}-01-01`, `${ano}-12-31`))),
-        Promise.all(contas.filter(c => !c.arquivada_em).map(async c => [c.id, await SD.financeiroSaldoAntes(c.id, somarDias(hoje, 1))] as const))
-      ]);
-      return { ano, parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
-    })().then(x => { if (vivo) setLido(x); }).catch(e => { if (vivo) setLido({ ano, erro: (e as Error).message }); });
+    lerFinanceiro(ano, admin, hoje).then(x => { if (vivo) setLido({ ano, ...x }); }).catch(e => { if (vivo) setLido({ ano, erro: (e as Error).message }); });
     return () => { vivo = false; };
   }, [ano, admin, pode, hoje, versao]);
   useMudancas(recarregar);
 
+  // Um número do alto que leva a uma lista ("…#financeiro-listas") troca a aba e desce até ela; trocar de aba pelas abas, não.
+  const listas = useRef<HTMLDivElement>(null);
+  const carregado = !!lido;
+  useEffect(() => {
+    if (carregado && local.hash === '#' + LUGAR_DAS_LISTAS) listas.current?.scrollIntoView({ block: 'start' });
+  }, [local.key, local.hash, carregado]);
+
   if (!pode) return <Navigate to="/inicio/" replace />;
   if (aba === 'saidas' && !admin) return <Navigate to="/financeiro/" replace />;
-  const cabecalho = { titulo: 'Financeiro', visoes: [] };
   const atual = lido?.ano === ano ? lido : null;
   const fechar = () => setAberto(null);
   const registrou = () => { recarregar(); };
   const periodo = mes ?? String(ano);
-  const nomeDoPeriodo = mes ? `${MESES_DO_ANO[Number(mes.slice(5)) - 1]}/${ano}` : String(ano);
+  const nomeDoAdvogado = ctx.equipe.find(m => m.id === advogado)?.nome ?? '';
+  const deQuem: DeQuem = !admin ? 'eu' : advogado ? 'advogado' : 'escritorio';
+  // De quem são os números: o advogado escolhido pelo administrador (ou o escritório todo); para os outros, só os seus.
+  const quem = admin ? advogado : ctx.perfil.id;
 
-  const barra = <div className="painel-barra">
+  const cabeca = <CabecaDoPainel titulo="Financeiro" frase={FRASE_DE_QUEM[deQuem](nomeDoAdvogado)}>
+    <div className="financeiro-topo-acoes">
+      {admin && <label className="filtro-do-painel">
+        <span>De quem</span>
+        <select className="filtro" value={advogado} onChange={e => setAdvogado(e.target.value)}>
+          <option value="">Escritório todo</option>
+          {advogadosDaEquipe(ctx.equipe).map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+        </select>
+      </label>}
+      <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={novaEntrada}
+        title={atalhosLigados ? dicaComAtalho(TITULOS.entrada, 'novo') : TITULOS.entrada} aria-keyshortcuts={atalhosLigados ? ATALHOS.novo.nome : undefined}>
+        <Icone nome="mais" tam={ICONE_DA_ACAO} />{TITULOS.entrada}
+      </button>
+    </div>
+  </CabecaDoPainel>;
+
+  const barra = <div className="painel-barra financeiro-periodo">
     <div className="painel-ano" role="group" aria-label="Ano">
       <button type="button" className="icone-btn" aria-label="Ano anterior" onClick={() => { setAno(ano - 1); setMes(null); }}><Icone nome="voltar" tam={16} /></button>
       <b className="num">{ano}</b>
@@ -95,13 +147,9 @@ export default function Hub() {
         const m = mesDoAno(ano, i);
         return { id: m, rotulo: nome, marcado: !!atual && 'caixa' in atual && !!atual.caixa && mesesComLancamento(atual.caixa.lancamentos, ano).has(m) };
       })]} />
-    {admin && <select className="campo financeiro-quem" aria-label="De quem" value={advogado} onChange={e => setAdvogado(e.target.value)}>
-      <option value="">Escritório todo</option>
-      {advogadosDaEquipe(ctx.equipe).map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-    </select>}
   </div>;
 
-  // "Nova entrada" é a ação principal da página (no cabeçalho, como o "Novo" dos outros módulos, e na tecla N, #86); a saída e as contas ficam aqui.
+  // A saída e as contas ficam ao lado das abas.
   const botoes = <div className="financeiro-acoes">
     {admin && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'saida' })}><Icone nome="mais" tam={15} /> Nova saída</button>}
     {/* As contas do escritório (saldo inicial, DAS, ajustes): também quando ainda não há nenhuma. */}
@@ -112,40 +160,22 @@ export default function Hub() {
   if (!atual) corpo = <Carregando />;
   else if ('erro' in atual) corpo = <Aviso tipo="erro">{atual.erro}</Aviso>;
   else {
-    const { parcelas, contratos, recebimentos, caixa } = atual;
-    const doPeriodo = caixa ? filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo }) : [];
-    const t = totaisDoExtrato(doPeriodo);
-    // De quem são os números: o advogado escolhido pelo administrador (ou o escritório todo); para os outros, só os seus.
-    const quem = admin ? advogado : ctx.perfil.id;
-    const real = indicadoresRealizados(parcelas, recebimentos, contratos, periodo, quem);
+    const { parcelas, caixa } = atual;
     const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
       entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
       saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
       direitos: () => <Direitos parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} aoAbrir={id => setAberto({ o: 'contrato', contratoId: id })} />,
       obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
     };
+    const deQuemFor = (p: { responsavel_id: string | null }) => !quem || p.responsavel_id === quem;
+    const semNada = !atual.parcelas.some(deQuemFor) && !atual.recebimentos.some(deQuemFor) && (deQuem !== 'escritorio' || !caixa?.contas.length);
     corpo = <>
-      {caixa && !advogado && <Indicadores rotulo={`Caixa de ${nomeDoPeriodo}`} titulo="Caixa">
-        <>
-          <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.entradas)} />
-          <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.saidas)} />
-          <Indicador tom={t.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(t.resultado)} />
-          <Indicador tom="destaque" rotulo="Saldo hoje nas contas" valor={fmtCentavos([...caixa.saldos.values()].reduce((s, v) => s + v, 0))}
-            detalhe={<Link className="financeiro-link-escuro" to="/financeiro/contas/">{caixa.contas.filter(c => caixa.saldos.has(c.id)).map(c => `${c.nome} ${fmtCentavos(caixa.saldos.get(c.id)!)}`).join(' · ')}</Link>} />
-        </>
-      </Indicadores>}
-      {/* O desempenho (só o que já entrou): de cada advogado, ou do escritório todo. */}
-      <Indicadores rotulo={`Desempenho de ${nomeDoPeriodo}`} titulo="Desempenho">
-        <Indicador tom="entrada" rotulo={`Receita bruta · ${nomeDoPeriodo}`} valor={fmtCentavos(real.bruta)} detalhe="O que os clientes pagaram" />
-        <Indicador tom="destaque" rotulo={`Receita líquida · ${nomeDoPeriodo}`} valor={fmtCentavos(real.liquida)} detalhe={quem ? 'O que ficou com o responsável' : 'O que ficou com os responsáveis'} />
-        <Indicador rotulo={`Contratos assinados · ${nomeDoPeriodo}`} valor={real.contratosAssinados.toLocaleString('pt-BR')} />
-        <Indicador rotulo="Ao escritório" valor={fmtCentavos(real.escritorio)} />
-        <Indicador rotulo="Aos indicadores" valor={fmtCentavos(real.indicadores)} />
-        <Indicador rotulo="Aos participantes" valor={fmtCentavos(real.participantes)} />
-      </Indicadores>
-      {real.temHistoricoSemDivisao && <Nota>Parte da receita deste período veio das planilhas, sem a divisão gravada: ela entra na receita bruta, mas não na líquida nem nos repasses.</Nota>}
-      <GraficosDoFinanceiro ano={ano} periodo={periodo} nomeDoPeriodo={nomeDoPeriodo} caixa={caixa} parcelas={parcelas} recebimentos={recebimentos} contratos={contratos} responsavel={quem} />
-      <div className="financeiro-abas-linha">
+      {semNada ? <Vazio>
+        <p className="painel-vazio-titulo">{deQuem === 'escritorio' ? 'O Financeiro ainda está vazio.' : 'Nenhum contrato com parcelas por aqui.'}</p>
+        <p>Quando houver {deQuem === 'escritorio' ? 'contas, lançamentos e parcelas' : 'parcelas nos contratos'}, o painel mostra as entradas e saídas de cada mês, o que falta receber e a receita por área.</p>
+        {deQuem === 'escritorio' && <BotaoLink to="/financeiro/contas/" variante="principal">Criar as contas do escritório</BotaoLink>}
+      </Vazio> : <PainelDoFinanceiro dados={atual} periodo={periodo} hoje={hoje} quem={quem} nomeDeQuem={deQuem === 'advogado' ? nomeDoAdvogado : ''} />}
+      <div className="financeiro-abas-linha" id={LUGAR_DAS_LISTAS} ref={listas}>
         <AbasDoFinanceiro />
         {botoes}
       </div>
@@ -153,12 +183,13 @@ export default function Hub() {
     </>;
   }
 
-  return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo} acao={{ rotulo: TITULOS.entrada, aoClicar: () => setAberto({ o: 'entrada' }) }}>
+  return <div className="miolo do-painel">
+    {cabeca}
     {barra}
     {corpo}
     {aberto && <PainelCartao aoFechar={fechar} soNoCentro ajustado={aberto.o !== 'entrada'} rotulo={TITULOS[aberto.o]}>
       <header className="cartao-cabeca"><h2>{TITULOS[aberto.o]}</h2></header>
-      {/* O botão do cabeçalho já aparece enquanto as parcelas carregam. */}
+      {/* O botão do alto já aparece enquanto as parcelas carregam. */}
       {aberto.o === 'entrada' && !atual && <Carregando />}
       {aberto.o === 'entrada' && atual && 'parcelas' in atual && <>
         <NovaEntrada parcelas={atual.parcelas} parcelaInicial={aberto.parcela} aoRegistrar={registrou} />
@@ -170,7 +201,7 @@ export default function Hub() {
       {aberto.o === 'parcela' && <DetalheDaParcela key={aberto.parcela.id} parcela={aberto.parcela} />}
       {aberto.o === 'contrato' && <ContratoNoFinanceiro key={aberto.contratoId} contratoId={aberto.contratoId} aoMudar={recarregar} />}
     </PainelCartao>}
-  </PaginaModulo>;
+  </div>;
 }
 
 const TITULOS: Record<NonNullable<Aberto>['o'], string> = { entrada: 'Nova entrada', avulsa: 'Entrada sem contrato', saida: 'Nova saída', mudar: 'Lançamento', parcela: 'Parcela recebida', contrato: 'Contrato' };

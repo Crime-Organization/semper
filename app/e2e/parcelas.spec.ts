@@ -420,8 +420,10 @@ test.describe('O recebimento visto no Financeiro', () => {
     await expect(desempenho.getByRole('region', { name: /^Receita bruta/ })).toContainText(dinheiro('1.000,00'));
     await expect(desempenho.getByRole('region', { name: /^Receita líquida/ })).toBeVisible();
     await expect(desempenho.getByRole('region', { name: 'Ao escritório' })).toBeVisible();
-    await expect(page.getByText('A receber', { exact: true })).toHaveCount(0);
-    await expect(page.getByText('Em atraso', { exact: true })).toHaveCount(0);
+    // A regra mudou em 22/11/2026 (#403): o painel mostra o que falta receber, mas à parte, com o nome dele; no desempenho, nunca.
+    await expect(desempenho).not.toContainText('receber');
+    await expect(desempenho).not.toContainText('atraso');
+    await expect(page.getByRole('group', { name: /^Números de/ }).getByRole('link', { name: /^A receber/ })).toBeVisible();
   });
 
   test('quando recebe uma parcela pela janela do contrato em Direitos, então a linha do contrato passa à parcela seguinte', async ({ page }) => {

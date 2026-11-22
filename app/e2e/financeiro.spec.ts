@@ -536,3 +536,176 @@ test.describe('A janela de cada lançamento', () => {
     await expect(page.getByRole('table', { name: 'Saídas', exact: true })).toContainText('Conta de água');
   });
 });
+
+// O painel do Financeiro (#403): os números do período, comparados com o de antes, e os gráficos, com as contas de sempre.
+test.describe('O painel do Financeiro', () => {
+  /** Hoje, nos testes do painel: 22/11/2026. */
+  const HOJE = new Date('2026-11-22T12:00:00-03:00');
+
+  /**
+   * O caixa e as parcelas de exemplo: a conta PJ com R$ 1.000,00 no começo do ano; em outubro, R$ 3.000,00 de entrada e R$ 1.000,00 de
+   * saída; em novembro, R$ 5.000,00 de entrada, R$ 2.000,00 de saída e um ajuste de R$ 100,00 a mais (que muda o saldo, mas não é
+   * receita). Num contrato da Ana, uma parcela de R$ 400,00 recebida em novembro, uma de R$ 800,00 vencida em 05/11 e uma de
+   * R$ 1.200,00 que vence em 25/11.
+   */
+  async function painelDeExemplo(page: Page) {
+    await page.clock.setFixedTime(HOJE);
+    await page.goto('/inicio/');
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      const contrato = bd.contratos.find((k: { responsavel_id: string; arquivado_em: string | null }) => k.responsavel_id === 'u-ana' && !k.arquivado_em);
+      bd.contasFinanceiras = [{ id: 'c-pj', nome: 'PJ', tem_das: false, saldo_inicial: 100000, saldo_inicial_em: '2026-01-01', arquivada_em: null }];
+      let n = 0;
+      const lancamento = (data: string, tipo: string, categoria: string, valor: number, descricao: string) => ({
+        id: 'l' + (n++), conta_id: 'c-pj', data, tipo, categoria, valor, descricao, par_id: null, origem: null, excluido_em: null, criado_por: 'u-master',
+        criado_em: data + 'T12:00:00Z', atualizado_em: data + 'T12:00:00Z'
+      });
+      bd.lancamentos = [
+        lancamento('2026-10-05', 'entrada', 'outra_entrada', 300000, 'Consultoria de outubro'), lancamento('2026-10-10', 'saida', 'despesa', 100000, 'Aluguel de outubro'),
+        lancamento('2026-11-05', 'entrada', 'outra_entrada', 500000, 'Consultoria de novembro'), lancamento('2026-11-10', 'saida', 'despesa', 200000, 'Aluguel de novembro'),
+        lancamento('2026-11-12', 'entrada', 'ajuste_a_mais', 10000, 'Diferença do extrato')
+      ];
+      const parcela = (numero: number, vencimento: string, valor: number, recebida: boolean) => ({ id: 'px' + numero, contrato_id: contrato.id, numero, vencimento, valor,
+        recebimento_id: null, recebida_em: recebida ? vencimento : null, recebido: recebida ? valor : null, excluido_em: null });
+      bd.parcelas = [parcela(1, '2026-11-03', 40000, true), parcela(2, '2026-11-05', 80000, false), parcela(3, '2026-11-25', 120000, false)];
+      bd.recebimentos = [];
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    await page.goto('/financeiro/');
+    return page.getByRole('group', { name: 'Números de Nov/2026' });
+  }
+
+  test('quando abre, então os números do mês são os do caixa e das parcelas, cada um comparado com o mês anterior', async ({ page }) => {
+    // Quando
+    const numeros = await painelDeExemplo(page);
+    // Então: sem o ajuste nas entradas, mas com ele no saldo
+    await expect(page.getByRole('heading', { level: 1, name: 'Financeiro.' })).toBeVisible();
+    await expect(page.getByText('O caixa e os contratos do escritório todo.')).toBeVisible();
+    await expect(numeros.getByRole('link', { name: /^Entradas · Nov\/2026/ })).toContainText(dinheiro('5.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Entradas · Nov\/2026/ })).toContainText('mil a mais que em Out/2026');
+    await expect(numeros.getByRole('link', { name: /^Saídas · Nov\/2026/ })).toContainText(dinheiro('2.000,00'));
+    await expect(numeros.getByRole('region', { name: 'Resultado · Nov/2026' })).toContainText(dinheiro('3.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toContainText(dinheiro('6.100,00'));
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toContainText('hoje');
+    // Então: o que falta receber fica à parte da receita, e o atraso vem em destaque
+    await expect(numeros.getByRole('link', { name: /^A receber · Nov\/2026/ })).toContainText(dinheiro('2.000,00'));
+    await expect(numeros.getByRole('link', { name: /^A receber · Nov\/2026/ })).toContainText('2 parcelas vencem no período');
+    await expect(numeros.getByRole('link', { name: /^Em atraso hoje/ })).toContainText(dinheiro('800,00'));
+    const desempenho = page.getByRole('group', { name: 'Desempenho de Nov/2026' });
+    await expect(desempenho.getByRole('region', { name: /^Receita bruta/ })).toContainText(dinheiro('400,00'));
+    await expect(desempenho).not.toContainText('A receber');
+  });
+
+  test('quando abre "Ver os números" dos gráficos, então lê em texto as entradas, as saídas e o resultado de cada mês, e o que falta receber de cada semana', async ({ page }) => {
+    // Dado
+    await painelDeExemplo(page);
+    const caixa = page.getByRole('region', { name: 'Entradas e saídas · 12 meses' });
+    const aReceber = page.getByRole('region', { name: 'A receber nas próximas semanas' });
+    // Quando
+    await caixa.getByText('Ver os números').click();
+    await aReceber.getByText('Ver os números').click();
+    // Então
+    const novembro = caixa.getByRole('table').getByRole('row', { name: /novembro de 2026/ });
+    await expect(novembro).toContainText(dinheiro('5.000,00'));
+    await expect(novembro).toContainText(dinheiro('2.000,00'));
+    await expect(novembro).toContainText(dinheiro('3.000,00'));
+    await expect(caixa).toContainText('Resultado no período');
+    await expect(aReceber.getByRole('table').getByRole('row', { name: /Atrasadas · 1 parcela/ })).toContainText(dinheiro('800,00'));
+    await expect(aReceber.getByRole('table').getByRole('row', { name: /De 22\/11 a 28\/11 · 1 parcela/ })).toContainText(dinheiro('1.200,00'));
+  });
+
+  test('quando lê um mês do gráfico pelo teclado, então a dica mostra o valor exato em reais e o resultado do mês', async ({ page }) => {
+    // Dado
+    await painelDeExemplo(page);
+    const grafico = page.getByRole('group', { name: /^Entradas e saídas do caixa em cada mês/ });
+    // Quando: as setas, Home e End passam de um mês ao outro, como o mouse e o toque
+    await grafico.focus();
+    await page.keyboard.press('End');
+    // Então
+    const dica = page.getByRole('status').filter({ hasText: 'novembro de 2026' });
+    await expect(dica).toContainText(dinheiro('5.000,00'));
+    await expect(dica).toContainText(dinheiro('3.000,00'));
+    await expect(dica).toContainText('Resultado');
+  });
+
+  test('quando troca o mês, então os números e os gráficos mudam junto, e o saldo é o do fim daquele mês', async ({ page }) => {
+    // Dado
+    await painelDeExemplo(page);
+    // Quando
+    await page.getByRole('group', { name: 'Mês' }).getByRole('button', { name: 'Out' }).click();
+    // Então
+    const numeros = page.getByRole('group', { name: 'Números de Out/2026' });
+    await expect(numeros.getByRole('link', { name: /^Entradas · Out\/2026/ })).toContainText(dinheiro('3.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toContainText(dinheiro('3.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toContainText('em 31/10/2026');
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toContainText('mil a mais que em Set/2026');
+    await expect(page.getByRole('region', { name: 'Desempenho · Out/2026' })).toBeVisible();
+    await expect(page.getByRole('group', { name: /^Entradas e saídas do caixa em cada mês, de novembro de 2025 a outubro de 2026/ })).toBeVisible();
+  });
+
+  test('quando o administrador escolhe uma advogada, então vê a receita, o que falta receber e o atraso dos contratos dela, sem o caixa', async ({ page }) => {
+    // Dado
+    await painelDeExemplo(page);
+    // Quando
+    await page.getByRole('combobox', { name: 'De quem' }).selectOption({ label: 'Ana Teste Lima' });
+    // Então
+    await expect(page.getByText('Os contratos de Ana Teste Lima.', { exact: true })).toBeVisible();
+    const numeros = page.getByRole('group', { name: 'Números de Nov/2026' });
+    await expect(numeros.getByRole('link', { name: /^Receita bruta · Nov\/2026/ })).toContainText(dinheiro('400,00'));
+    await expect(numeros.getByRole('link', { name: /^A receber · Nov\/2026/ })).toContainText(dinheiro('2.000,00'));
+    await expect(numeros.getByRole('link', { name: /^Em atraso hoje/ })).toContainText(dinheiro('800,00'));
+    await expect(numeros.getByRole('link', { name: /^Saldo nas contas/ })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Receita bruta e líquida · 12 meses' })).toBeVisible();
+  });
+
+  test('quando um número leva a uma lista, então a aba dela abre embaixo, à vista', async ({ page }) => {
+    // Dado
+    const numeros = await painelDeExemplo(page);
+    // Quando
+    await numeros.getByRole('link', { name: /^Saídas · Nov\/2026/ }).click();
+    // Então
+    await expect(page).toHaveURL(/\/financeiro\/saidas\/#financeiro-listas$/);
+    await expect(page.getByRole('table', { name: 'Saídas', exact: true })).toContainText('Aluguel de novembro');
+    await expect(page.getByRole('navigation', { name: 'Abas do financeiro' })).toBeInViewport();
+  });
+
+  test('no celular (375px), quando abre, então nada passa da largura da tela', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 375, height: 812 });
+    // Quando
+    await painelDeExemplo(page);
+    await expect(page.getByRole('region', { name: 'A receber nas próximas semanas' })).toBeVisible();
+    // Então
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+    for (const numero of await page.getByRole('group', { name: 'Números de Nov/2026' }).getByRole('link').all()) {
+      expect(await numero.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    }
+  });
+
+  test('quando quem não é administrador abre, então vê só os contratos de que é responsável, sem o caixa', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo('u-bruno'));
+    // Quando
+    await page.goto('/financeiro/');
+    // Então
+    await expect(page.getByText('Os contratos de que você é responsável.')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'De quem' })).toHaveCount(0);
+    await expect(page.getByText('Saldo nas contas')).toHaveCount(0);
+  });
+
+  test('dado o Financeiro desligado no escritório, quando alguém tenta abrir, então continua sem ver nada', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      bd.escritorio = { ...bd.escritorio, modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, anotacoes: true, financeiro: false } };
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    // Quando
+    await page.goto('/financeiro/');
+    // Então
+    await expect(page).toHaveURL(/\/inicio\/$/);
+    await expect(page.getByRole('group', { name: /^Números de/ })).toHaveCount(0);
+  });
+});
