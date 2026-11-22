@@ -1,0 +1,5 @@
+{
+  "titulo": "Painel de Processos com números e gráficos",
+  "texto": "Processos abre um painel do seu trabalho: no alto, os números (ativos, prazos vencidos e da semana, audiências, intimações e parados), cada um levando à lista; depois, os prazos das próximas 4 semanas, o movimento dos últimos 12 meses e os processos em cada fase. Saiu o \"Todos / Meus\": o administrador escolhe ver o próprio trabalho, a equipe toda ou uma pessoa.",
+  "ondeAchar": "Clique em Processos, no menu. Toque numa barra para ver o número, ou abra \"Ver os números\". O filtro do administrador fica em Mostrar, ao lado do título."
+}

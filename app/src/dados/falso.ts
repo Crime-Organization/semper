@@ -24,6 +24,8 @@ import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regr
 import { resumoDaConferencia } from '../regras/conferencia';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
+import { periodoDosGraficos } from '../regras/graficosDeProcessos';
+import { daPessoa } from '../regras/filtroDoPainel';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
@@ -3461,6 +3463,19 @@ export const SD: Dados = {
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, TAREFAS_LIGADAS)),
   tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => demandasDaTarefa(t).includes(demandaId)))),
   tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => contratosDaTarefa(t).includes(contratoId)))),
+  // Como tarefasGraficos do supabase.ts: as tarefas que quem está logado vê (as não arquivadas e as arquivadas concluídas no período)
+  // e o tempo do período, o próprio ou, para o administrador, o de todos (como as regras de leitura de tarefa_tempos).
+  tarefasGraficos({ desde, pessoa }) {
+    const inicio = inicioDoDia(desde);
+    const daPessoaNaTarefa = (t: TarefaGuardada) => !pessoa || t.responsavel_id === pessoa || t.participantes.includes(pessoa);
+    const tarefas = bd.tarefas!.filter(t => vejoNoModulo('tarefas', t.id) && daPessoaNaTarefa(t) && (!t.arquivado_em || (!!t.concluida_em && t.concluida_em >= inicio)));
+    const tempos = bd.tempos!.filter(r => (r.perfil_id === eu || souAdmin()) && vejoATarefaDoTempo(r.tarefa_id) && (!pessoa || r.perfil_id === pessoa)
+      && new Date(r.inicio).toISOString() >= inicio);
+    return espera({
+      tarefas: tarefas.map(t => ({ id: t.id, etapa_id: t.etapa_id, concluida_em: t.concluida_em, arquivado_em: t.arquivado_em })),
+      tempos: tempos.map(r => ({ inicio: r.inicio, segundos: r.segundos }))
+    });
+  },
 
   // ---------- tempo nas tarefas (como supabase/migrations/20261030120000_tempo_nas_tarefas.sql) ----------
   async tempoIniciar(tarefaId, inicio, segundos) {
@@ -4640,6 +4655,19 @@ export const SD: Dados = {
       parados: parados.slice(0, ITENS_POR_LISTA), total_parados: parados.length,
       dias_parado: bd.diasParado!,
       fases: [...fases.values()]
+    });
+  },
+  // Como processosGraficos do supabase.ts: o que quem está logado vê (com "pessoa", só os processos dela), em qualquer situação.
+  async processosGraficos({ hoje, pessoa }) {
+    const { desde, ate_prazos } = periodoDosGraficos(hoje);
+    const meus = bd.processos!.filter(p => vejoNoModulo('processos', p.id) && (!pessoa || daPessoa(p, pessoa)));
+    const todos = new Set(meus.map(p => p.id)), ativos = new Set(meus.filter(p => !p.arquivado_em).map(p => p.id));
+    return espera({
+      processos: meus.map(p => ({ id: p.id, tipo: p.tipo, etapa_id: p.etapa_id, distribuicao: p.distribuicao, criado_em: p.criado_em, arquivado_em: p.arquivado_em })),
+      prazos: bd.prazos!.filter(z => !z.excluido_em && !z.concluido_em && z.final <= ate_prazos && ativos.has(z.processo_id)).map(z => ({ processo_id: z.processo_id, final: z.final })),
+      andamentos: bd.andamentos!.filter(a => !a.excluido_em && a.data >= desde && a.data <= hoje && todos.has(a.processo_id)).map(a => ({ processo_id: a.processo_id, data: a.data })),
+      mudancas: bd.historicoProcessos!.filter(h => h.em >= desde && 'etapa' in h.alteracoes && todos.has(h.processo_id))
+        .map(h => ({ processo_id: h.processo_id, em: h.em, de: (h.alteracoes.etapa.de as string | null) ?? null, para: (h.alteracoes.etapa.para as string | null) ?? null }))
     });
   },
   async processosDiasParadoSalvar(dias) {

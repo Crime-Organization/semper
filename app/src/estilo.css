@@ -24,6 +24,18 @@
   --grafico-entrada: #2E6B1C; --grafico-saida: #C77A2E; --grafico-aberto: #C5E0B6;
   /* O atendimento no calendário da agenda (#306): a faixa da esquerda em azul, para não se confundir com o verde dos outros compromissos. */
   --agenda-atendimento: #2F6FB0;
+  /* Gráficos dos painéis (#401): a série única (o mesmo verde da entrada) e os prazos vencidos em destaque (um vermelho puxado
+     para o magenta, que se separa do verde também para quem não vê vermelho e verde; conferido com o validador do dataviz) */
+  --grafico-principal: var(--grafico-entrada); --grafico-vencido: #C43B5C;
+  /* Painéis (#401): a largura máxima, o tamanho dos números do alto (no computador e no celular) e o vão entre as partes */
+  --largura-do-painel: 1200px; --numero-do-painel: 40px; --numero-do-painel-estreito: 30px; --vao-do-painel: 16px;
+  /* Um campo curto dentro de um cartão do painel (um número de dias), que não estica pela linha inteira do cartão largo */
+  --campo-curto-do-painel: 320px;
+  /* O valor em reais no número do painel (#403): o "R$" e os centavos menores que o número, e o teto do número pela largura do cartão
+     (assim "R$ 1.234.567,89" cabe nos dois números lado a lado do celular) */
+  --parte-menor-do-valor: .5em; --valor-pela-largura: 16cqi;
+  /* Até onde o número do alto leva: o lugar da lista fica abaixo da barra do topo do celular */
+  --folga-acima-da-lista: 72px;
   --on-accent: #FFFFFF;
   --dark: #1A1916;
   --card: #2C2A26;
@@ -263,7 +275,8 @@
     --erro-forte: #C2412D; --erro-borda: #6E2A22;
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
     --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
-    --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+    --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
+    --grafico-vencido: #D65C9A;
     --agenda-atendimento: #6FA8E0;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -278,7 +291,8 @@
   --erro-forte: #C2412D; --erro-borda: #6E2A22;
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
   --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
-  --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
+  --grafico-entrada: #58A83A; --grafico-saida: #B0592A; --grafico-aberto: #2F4A25;
+  --grafico-vencido: #D65C9A;
   --agenda-atendimento: #6FA8E0;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -1695,21 +1709,151 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .grafico-legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text) }
 .grafico-legenda li { display: inline-flex; align-items: center; gap: 6px }
 .grafico-marca { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0 }
-.grafico-area { width: 100%; min-width: 0 }
+.grafico-area { position: relative; width: 100%; min-width: 0; border-radius: 8px; touch-action: pan-y }
+.grafico-area:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px }
 .grafico-svg { display: block; max-width: 100%; overflow: visible }
 .grafico-grade { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke }
 .grafico-base { stroke: var(--line2); stroke-width: 1; vector-effect: non-scaling-stroke }
 .grafico-eixo { fill: var(--muted); font-size: 11px; font-family: var(--font) }
-.grafico-barra { transition: opacity .15s }
-.grafico-svg:hover .grafico-barra { opacity: .55 }
-.grafico-svg .grafico-barra:hover { opacity: 1 }
+.grafico-barra { transition: opacity .15s ease-out }
+/* A barra (ou o mês) com a dica fica inteira; as outras clareiam. O alvo do mouse e do toque é a faixa toda do item, invisível. */
+.grafico-svg.com-ativo > g:not(.ativo) .grafico-barra { opacity: .4 }
+.grafico-alvo { fill: transparent }
+.grafico-rotulo { fill: var(--text); font-size: 12px; font-weight: 700; font-family: var(--font); font-variant-numeric: tabular-nums }
 .grafico-empilhadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
-.grafico-empilhadas li { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 13px }
-.grafico-empilhada-nome { color: var(--text); overflow-wrap: anywhere; display: flex; flex-direction: column }
-.grafico-empilhada-nome small { color: var(--muted) }
-.grafico-empilhada-trilho { min-width: 0 }
-/* Entre as partes, 2px da cor do fundo, para cada uma se ver separada. */
-.grafico-empilhada-barra { display: flex; gap: 2px; height: 14px; min-width: 4px }
-.grafico-empilhada-parte { min-width: 2px; border-radius: 3px }
-.grafico-empilhada-total { color: var(--ink); font-weight: 700; white-space: nowrap }
+/* As empilhadas têm o desenho das deitadas (abaixo): as mesmas colunas, o trilho fino e redondo e o número em 900. */
+.grafico-empilhadas li { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr) auto; align-items: center; gap: 12px; font-size: var(--texto-tabela) }
+.grafico-empilhada-nome { color: var(--text); overflow-wrap: anywhere; line-height: 1.3; display: flex; flex-direction: column }
+.grafico-empilhada-nome small { color: var(--muted); font-size: var(--texto-miudo) }
+.grafico-empilhada-trilho { min-width: 0; height: 8px; border-radius: 999px; background: var(--line) }
+/* Entre as partes, 2px da cor do fundo, para cada uma se ver separada; as pontas da barra inteira, redondas. */
+.grafico-empilhada-barra { display: flex; gap: 2px; height: 100%; min-width: 4px; border-radius: 999px; overflow: hidden; background: var(--superficie) }
+.grafico-empilhada-parte { min-width: 2px }
+.grafico-empilhada-total { color: var(--ink); font-weight: 900; white-space: nowrap }
 @container (max-width: 420px) { .grafico-empilhadas li { grid-template-columns: 1fr auto; } .grafico-empilhada-trilho { grid-column: 1 / -1; grid-row: 2 } }
+
+/* A dica do gráfico (ui/Graficos.tsx): o número em destaque, a série com o traço da cor dela. Encosta na borda perto dela. */
+.grafico-dica { position: absolute; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 8px;
+  background: var(--dark); color: var(--texto-sobre-escuro); box-shadow: var(--sombra-dica); font-size: 13px; white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 10px)) }
+.grafico-dica.esquerda { transform: translate(-16px, calc(-100% - 10px)) }
+.grafico-dica.direita { transform: translate(calc(-100% + 16px), calc(-100% - 10px)) }
+.grafico-dica-titulo { font-size: var(--texto-miudo); color: var(--gray) }
+.grafico-dica-linha { display: flex; align-items: center; gap: 8px }
+.grafico-dica-linha b { font-size: 15px; font-weight: 900 }
+.grafico-dica-traco { width: 12px; height: 3px; border-radius: 2px; flex-shrink: 0 }
+/* "Ver os números": a tabela do gráfico, aberta por quem pede. */
+.grafico-numeros summary { display: inline-flex; align-items: center; min-height: var(--alvo-de-toque); cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent-ink) }
+.grafico-numeros summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px }
+.grafico-numeros table { width: 100%; border-collapse: collapse; font-size: 13px }
+.grafico-numeros :is(th, td) { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right }
+.grafico-numeros thead th { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+.grafico-numeros tbody th { text-align: left; font-weight: 400; color: var(--text) }
+.grafico-numeros td { color: var(--ink); font-weight: 700 }
+/* Barras deitadas (uma por coluna do quadro): o nome, a barra e o número, que fica no fim da linha. A linha toda é o link. */
+.grafico-deitadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px }
+.grafico-deitadas li > :is(a, span) { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr) auto; grid-template-areas: "nome trilho numero"; align-items: center;
+  gap: 12px; min-height: 36px; padding: 4px 8px; margin: 0 -8px; border-radius: 6px; font-size: 14px }
+.grafico-deitadas li > a { transition: background-color .15s ease-out }
+.grafico-deitadas li > a:hover { background: var(--soft) }
+.grafico-deitadas li > a:focus-visible { outline: 2px solid var(--accent); outline-offset: 0 }
+.grafico-deitada-nome { grid-area: nome; color: var(--text); overflow-wrap: anywhere; line-height: 1.3 }
+.grafico-deitada-trilho { grid-area: trilho; height: 8px; border-radius: 999px; background: var(--line) }
+.grafico-deitada-barra { display: block; height: 100%; min-width: 4px; border-radius: 999px }
+.grafico-deitada-numero { grid-area: numero; min-width: 3ch; text-align: right; font-weight: 900; color: var(--ink) }
+
+/* ---------- painéis (ui/painel, #401): Processos e, depois, Início e Financeiro. Veja "Painéis" no DESIGN.md ---------- */
+.miolo.do-painel { max-width: var(--largura-do-painel); gap: calc(var(--vao-do-painel) * 1.5); container-type: inline-size }
+/* Lendo de novo (trocou o filtro): o painel fica, mais claro, até a resposta chegar, sem pular. */
+.miolo.do-painel :is(.numeros-do-painel, .painel) { transition: opacity .2s ease-out }
+.miolo.do-painel.atualizando :is(.numeros-do-painel, .painel) { opacity: .55 }
+.painel-topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px }
+.painel-topo-texto { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.painel-frase { margin: 0; max-width: 640px; font-size: 15px; color: var(--text2) }
+.filtro-do-painel { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--muted) }
+.filtro-do-painel .filtro { max-width: min(280px, 70vw) }
+
+/* Os números do alto: dois por linha no celular, três no computador. */
+.numeros-do-painel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@container (min-width: 760px) { .numeros-do-painel { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+/* Quatro números: quatro numa linha no computador (em vez de três e um sozinho embaixo). */
+@container (min-width: 900px) { .numeros-do-painel:has(> :nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+.numero-do-painel { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 20px 22px 18px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--superficie); color: inherit }
+.numero-do-painel-rotulo { padding-right: 24px; font-size: var(--texto-miudo); font-weight: 700; letter-spacing: .08em; line-height: 1.35; text-transform: uppercase; color: var(--muted) }
+.numero-do-painel-valor { margin-top: 4px; font-size: var(--numero-do-painel); font-weight: 900; letter-spacing: -.03em; line-height: 1; color: var(--ink) }
+.numero-do-painel.erro .numero-do-painel-valor { color: var(--erro) }
+.numero-do-painel.alerta .numero-do-painel-valor { color: var(--warn-ink) }
+.numero-do-painel.bom .numero-do-painel-valor { color: var(--ok-ink) }
+.numero-do-painel-detalhe { font-size: 13px; color: var(--muted); overflow-wrap: anywhere }
+.numero-do-painel-variacao { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 13px; font-weight: 700; line-height: 1.35 }
+/* A seta fica na primeira linha, quando o texto da comparação quebra em duas (no celular). */
+.numero-do-painel-variacao svg { flex-shrink: 0; margin-top: .15em }
+/* Um pedaço do detalhe que não se quebra no meio (ex.: "PJ R$ 1.234,56", no saldo de cada conta). */
+.numero-do-painel-parte { white-space: nowrap }
+.numero-do-painel-variacao.bom { color: var(--ok-ink) }
+.numero-do-painel-variacao:is(.ruim, .erro) { color: var(--erro) }
+.numero-do-painel-variacao.neutro { color: var(--muted) }
+.numero-do-painel.com-destino { transition: border-color .15s ease-out, background-color .15s ease-out }
+.numero-do-painel.com-destino:hover { border-color: var(--line2); background: var(--soft) }
+.numero-do-painel.com-destino:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.numero-do-painel-seta { position: absolute; top: 18px; right: 18px; display: inline-flex; color: var(--faint); transition: transform .15s ease-out, color .15s ease-out }
+.numero-do-painel.com-destino:hover .numero-do-painel-seta { color: var(--accent-ink); transform: translateX(2px) }
+.numero-do-painel-partes { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px }
+.numero-do-painel-partes a { display: inline-flex; align-items: center; min-height: 28px; font-weight: 700; color: var(--accent-ink); text-decoration: underline; text-decoration-color: transparent;
+  text-underline-offset: 3px; transition: text-decoration-color .15s ease-out }
+.numero-do-painel-partes a:hover, .numero-do-painel-partes a:focus-visible { text-decoration-color: currentColor }
+@container (max-width: 520px) {
+  .numero-do-painel { padding: 16px 16px 14px }
+  .numero-do-painel-valor { font-size: var(--numero-do-painel-estreito) }
+  .numero-do-painel-seta { top: 14px; right: 12px }
+}
+
+/* A grade dos cartões: no computador, cada cartão ocupa a largura que pediu; no celular, a linha inteira. Cada cartão é um container,
+   para o que vai dentro (dois gráficos lado a lado) se arrumar pela largura dele. */
+.painel { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--vao-do-painel) }
+.painel-cartao { grid-column: 1 / -1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; container-type: inline-size; scroll-margin-top: var(--folga-acima-da-lista) }
+@container (min-width: 900px) {
+  .painel-cartao.metade { grid-column: span 3 }
+  .painel-cartao.terco { grid-column: span 2 }
+  .painel-cartao.dois-tercos { grid-column: span 4 }
+}
+.painel-cartao-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px;
+  /* A altura da linha do título (19px na entrelinha 1,5 do corpo): a cabeça de todos os cartões tem essa altura, com ou sem ação. */
+  --altura-do-titulo-do-cartao: calc(var(--texto-titulo-1) * 1.5) }
+/* Os segmentos (ex.: 7 dias / 30 dias do Ritmo) são mais altos que o título: sem crescer a cabeça, a nota do cartão fica na mesma
+   altura da nota do cartão ao lado. */
+.painel-cartao-cabeca > .segmentos { margin-block: calc((var(--altura-do-titulo-do-cartao) - var(--alvo-de-toque)) / 2) }
+.painel-cartao h2.secao { font-size: var(--texto-titulo-1) }
+/* O título com o número ao lado (quantos itens a lista tem) e, à direita, o "Ver todos" que leva à página do módulo (#402) */
+.painel-cartao-titulo { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.painel-ver-todos { font-size: var(--texto-apoio); white-space: nowrap }
+.painel-cartao:target { border-color: var(--accent) }
+.painel-subtitulo { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--ink) }
+.painel-subtitulo-numero { margin-left: 4px; font-weight: 400; color: var(--muted) }
+.painel-dupla { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px }
+@container (min-width: 560px) { .painel-dupla { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px } }
+/* Lado a lado, os gráficos ficam na mesma linha de base, mesmo quando só um deles tem legenda. */
+.painel-dupla > section { display: flex; flex-direction: column; min-width: 0 }
+.painel-dupla > section > .grafico { flex: 1; justify-content: flex-end }
+@media (max-width: 640px) { .painel-cartao { padding: 18px 16px } }
+/* O valor em reais (ValorEmReais): o número grande, o "R$" e os centavos menores, na mesma linha de base. O cartão com dinheiro é um
+   container, para o número diminuir quando o valor é grande e o cartão, estreito (dois por linha no celular). */
+.numero-do-painel:has(.valor-em-reais) { container-type: inline-size }
+.valor-em-reais { font-size: min(1em, var(--valor-pela-largura)); white-space: nowrap; font-variant-numeric: tabular-nums }
+.valor-em-reais small { font-size: var(--parte-menor-do-valor); font-weight: 700; letter-spacing: 0 }
+.valor-em-reais-moeda { margin-right: .3em; color: var(--muted) }
+.numero-do-painel:is(.erro, .alerta, .bom) .valor-em-reais-moeda { color: inherit }
+/* O resumo à direita do título do cartão ("Resultado no período R$ 4.200,00"). */
+.painel-cartao-resumo { font-size: var(--texto-apoio); color: var(--muted) }
+.painel-cartao-resumo b { margin-left: 4px; font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+/* Os indicadores dentro de um cartão do painel (o desempenho do Financeiro): sem cartão dentro do cartão, só uma linha entre eles. */
+.painel-cartao .indicadores { gap: 0 24px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.painel-cartao .indicador { padding: 14px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none }
+.painel-cartao .indicador-valor { font-size: var(--texto-titulo-1); color: var(--ink) }
+/* Na dica do gráfico, o número que não vira barra (o resultado do mês) vem depois de um fio. */
+.grafico-dica-extra { margin-top: 4px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--texto-sobre-escuro) 20%, transparent) }
+/* A lista vazia de um cartão do painel: o pontilhado de sempre, mais justo, no tamanho do texto das listas. */
+.painel-cartao .vazio { padding: 16px; font-size: var(--texto-tabela) }
+.vazio .painel-vazio-titulo { margin: 0 0 6px; font-size: 17px; font-weight: 900; color: var(--ink) }
+.vazio p { margin: 0 0 16px }

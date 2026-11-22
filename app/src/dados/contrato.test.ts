@@ -4352,6 +4352,73 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(depois).toBe(antes + 1);
         expect((await SD.processosListar({ tipo: 'judicial', etapa: coluna.id, situacao: 'ativos' })).total).toBe(depois);
       });
+
+      describe('Gráficos do painel (#401)', () => {
+        const graficos = (pessoa: string | null = null) => SD.processosGraficos({ hoje: HOJE, pessoa });
+
+        it('quando pede os de uma pessoa, então vêm só os processos em que ela é responsável ou colaboradora, com os prazos e andamentos deles', async () => {
+          // Dado
+          const ctx = await SD.contexto();
+          const eu = ctx!.perfil!.id, outro = ctx!.equipe.find(m => m.id !== eu)!.id;
+          const meu = await novoProcesso({ responsavel_id: eu }), comigo = await novoProcesso({ responsavel_id: outro, colaboradores: [eu] }), alheio = await novoProcesso({ responsavel_id: outro });
+          for (const p of [meu, comigo, alheio]) {
+            await SD.processoPrazoCriar(p.id, { ...PRAZO, final: dias(3) });
+            await SD.processoAndamentoCriar(p.id, andamento('andamento', HOJE));
+          }
+          // Quando
+          const [meus, todos] = [await graficos(eu), await graficos()];
+          // Então
+          const ids = (g: { processos: { id: string }[] }) => g.processos.map(p => p.id);
+          expect(ids(meus)).toEqual(expect.arrayContaining([meu.id, comigo.id]));
+          expect(ids(meus)).not.toContain(alheio.id);
+          expect(meus.prazos.map(z => z.processo_id)).not.toContain(alheio.id);
+          expect(meus.andamentos.map(a => a.processo_id)).not.toContain(alheio.id);
+          expect(ids(todos)).toContain(alheio.id);
+        });
+
+        it('quando conta os prazos, então vêm os abertos até o fim da quarta semana, com os vencidos, sem os cumpridos nem os de processo arquivado', async () => {
+          // Dado
+          const { id } = await novoProcesso(), arquivado = await novoProcesso();
+          const [vencido, ultimoDia, depois, cumprido] = [await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-40) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(27) }),
+            await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(28) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(1) })];
+          await SD.processoPrazoAtualizar(cumprido.id, { concluido_em: new Date().toISOString() });
+          await SD.processoPrazoCriar(arquivado.id, { ...PRAZO, final: dias(1) });
+          await SD.processosArquivar([arquivado.id]);
+          // Quando
+          const g = await graficos();
+          // Então
+          const finais = g.prazos.filter(z => z.processo_id === id).map(z => z.final).toSorted();
+          expect(finais).toEqual([vencido.final, ultimoDia.final]);
+          expect(depois.final > finais.at(-1)!).toBe(true);
+          expect(g.prazos.map(z => z.processo_id)).not.toContain(arquivado.id);
+          expect(g.processos.find(p => p.id === arquivado.id)?.arquivado_em).toBeTruthy();
+        });
+
+        it('quando o processo vai para outra coluna, então a troca vem com o nome das duas colunas', async () => {
+          // Dado
+          const colunas = await SD.colunasListar('processos_judiciais');
+          const [primeira, ultima] = [colunas[0], colunas.at(-1)!];
+          const { id } = await novoProcesso({ etapa_id: primeira.id });
+          // Quando
+          await SD.processoAtualizar(id, { etapa_id: ultima.id });
+          // Então
+          const troca = (await graficos()).mudancas.find(m => m.processo_id === id);
+          expect(troca).toMatchObject({ de: primeira.nome, para: ultima.nome });
+        });
+
+        it('quando o andamento é de antes do período ou foi excluído, então não conta', async () => {
+          // Dado
+          const { id } = await novoProcesso();
+          const [velho, excluido, novo] = [await SD.processoAndamentoCriar(id, andamento('andamento', '2000-01-03')), await SD.processoAndamentoCriar(id, andamento('andamento', HOJE)),
+            await SD.processoAndamentoCriar(id, andamento('andamento', HOJE))];
+          await SD.processoAndamentoExcluir(excluido.id);
+          // Quando
+          const datas = (await graficos()).andamentos.filter(a => a.processo_id === id).map(a => a.data);
+          // Então
+          expect(datas).toEqual([novo.data]);
+          expect(datas).not.toContain(velho.data);
+        });
+      });
     });
 
     describe('Campos dos processos', () => {
@@ -4792,6 +4859,55 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.tempoIniciar(b, new Date().toISOString(), 900);
         // Então
         expect(await SD.tempoDaDemanda(demanda)).toBe(1500);
+      });
+    });
+
+    describe('Gráficos do painel do Início (#402)', () => {
+      // Quem está logado é o Mauro (administrador): vê as tarefas e o tempo de todos.
+      const HOJE = hojeISO(), ONTEM = hojeISO(new Date(Date.now() - DIA));
+      const novaTarefa = async (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        (await SD.tarefaCriar({ titulo: 'Do painel ' + marca(), responsavel_id: 'u-master', ...extra })).id;
+      const concluir = async (id: string) => {
+        const fim = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')!;
+        await SD.tarefaMover(id, fim.id, 1);
+      };
+
+      it('quando pede os de uma pessoa, então vêm só as tarefas em que ela é responsável ou participante; sem pessoa, as de todos', async () => {
+        // Dado
+        const minha = await novaTarefa(), comigo = await novaTarefa({ responsavel_id: 'u-bruno', participantes: ['u-master'] }), alheia = await novaTarefa({ responsavel_id: 'u-bruno' });
+        // Quando
+        const [meus, todos] = [await SD.tarefasGraficos({ desde: HOJE, pessoa: 'u-master' }), await SD.tarefasGraficos({ desde: HOJE, pessoa: null })];
+        // Então
+        const ids = meus.tarefas.map(t => t.id);
+        expect(ids).toEqual(expect.arrayContaining([minha, comigo]));
+        expect(ids).not.toContain(alheia);
+        expect(todos.tarefas.map(t => t.id)).toContain(alheia);
+      });
+
+      it('quando a tarefa é arquivada, então só continua se foi concluída no período, com a data de conclusão', async () => {
+        // Dado
+        const aberta = await novaTarefa(), concluida = await novaTarefa();
+        await concluir(concluida);
+        await SD.tarefasArquivar([aberta, concluida]);
+        // Quando
+        const g = await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-master' });
+        // Então
+        expect(g.tarefas.map(t => t.id)).not.toContain(aberta);
+        expect(g.tarefas.find(t => t.id === concluida)).toMatchObject({ arquivado_em: expect.any(String), concluida_em: expect.any(String) });
+      });
+
+      it('quando há tempo registrado, então vem o da pessoa no período, sem o de antes dele nem o de outra pessoa', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        const agora = new Date().toISOString();
+        await SD.tempoIniciar(tarefa, agora, 900);
+        await SD.tempoIniciar(tarefa, '2000-01-03T13:00:00.000Z', 600);
+        // Quando
+        const [meu, doBruno] = [await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-master' }), await SD.tarefasGraficos({ desde: ONTEM, pessoa: 'u-bruno' })];
+        // Então
+        expect(meu.tempos).toContainEqual({ inicio: agora, segundos: 900 });
+        expect(meu.tempos.some(r => r.inicio.startsWith('2000-'))).toBe(false);
+        expect(doBruno.tempos.some(r => r.inicio === agora)).toBe(false);
       });
     });
 

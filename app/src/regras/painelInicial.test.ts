@@ -2,12 +2,14 @@
 import { describe, expect, it } from 'vitest';
 import type { AnotacaoLista, CompromissoLista, ParcelaDoEscritorio, PrazoNaAgenda, PrazoNoPainel, ProcessoNoPainel } from '../dados/tipos';
 import {
-  agendaDoDia, anotacoesRecentes, blocosDoEscritorio, colunasEmAberto, comigo, emAndamentoPeloPrazo, emGrupos, fmtContagem, ITENS_POR_BLOCO, linhaDoEvento, nomeDaColuna, nomeDaParcela, parcelasDaSemana,
-  pessoaDoEndereco, prazosDoPainel, prazosDosProcessosCompletos, processosDoPainel, quandoDoPrazo, SEM_COLUNA, situacaoNoPainel, situacoesEmAberto, totalEmAberto,
+  agendaDoDia, anotacoesRecentes, blocosDoEscritorio, colunasEmAberto, comigo, emAndamentoPeloPrazo, emGrupos, fmtContagem, ITENS_POR_BLOCO, larguraDosBlocos, linhaDoEvento, nomeDaColuna, nomeDaParcela,
+  noAlcance, parcelasDaSemana, pessoaDoEndereco, vazioDoBloco, prazosDoPainel, prazosDosProcessosCompletos, processosDoPainel, quandoDoPrazo, SEM_COLUNA, situacaoNoPainel, situacoesEmAberto, totalEmAberto,
   vazioDasAnotacoes, verTodosDoBloco
 } from './painelInicial';
 
 const HOJE = '2026-11-18';
+/** O painel com o trabalho de quem está logado (u1), o da equipe toda e o de outra pessoa (u2). */
+const MEU = { tipo: 'eu', pessoa: 'u1' } as const, EQUIPE = { tipo: 'equipe', pessoa: null } as const, DA_PESSOA = { tipo: 'pessoa', pessoa: 'u2' } as const;
 /** Um escritório com os módulos das tarefas e das demandas ligados. */
 const MODULOS = { tarefas: true, demandas: true };
 
@@ -40,21 +42,50 @@ describe('Painel da página inicial', () => {
 
     it('quando o escritório não tem a Agenda ligada, então o bloco dos prazos fica sem o "Ver na agenda", que levaria a uma página fora do menu', () => {
       // Quando
-      const semAgenda = verTodosDoBloco('prazos', { tarefas: true });
-      const comAgenda = verTodosDoBloco('prazos', { compromissos: true });
+      const semAgenda = verTodosDoBloco('prazos', { tarefas: true }, MEU);
+      const comAgenda = verTodosDoBloco('prazos', { compromissos: true }, MEU);
       // Então
       expect(semAgenda).toBeNull();
       expect(comAgenda).toMatchObject({ rotulo: 'Ver na agenda', para: '/agenda/?pessoa=eu' });
-      expect(verTodosDoBloco('pessoas', {})).toMatchObject({ para: '/pessoas/' });
+      expect(verTodosDoBloco('pessoas', {}, MEU)).toMatchObject({ para: '/pessoas/' });
+    });
+
+    it.each([
+      [MEU, '/tarefas/?pessoa=eu'],
+      [EQUIPE, '/tarefas/?pessoa=todos'],
+      [DA_PESSOA, '/tarefas/?pessoa=u2']
+    ])('quando o painel mostra o trabalho %j, então o "Ver todas" das tarefas abre %s', (alcance, endereco) => {
+      // Quando / Então
+      expect(verTodosDoBloco('tarefas', { tarefas: true }, alcance)?.para).toBe(endereco);
+      expect(noAlcance('/demandas/', alcance)).toBe(endereco.replace('/tarefas/', '/demandas/'));
+    });
+
+    it('quando o painel mostra o trabalho da equipe, então o bloco vazio não fala "com você"; no próprio trabalho, fala', () => {
+      // Quando / Então
+      expect(vazioDoBloco('tarefas', MEU)).toBe('Nenhuma tarefa em andamento com você.');
+      expect(vazioDoBloco('tarefas', EQUIPE)).toBe('Nenhuma tarefa em andamento.');
+      expect(vazioDoBloco('agenda', DA_PESSOA)).toBe('Nenhum compromisso hoje.');
+    });
+
+    it.each([
+      [['prazos', 'agenda', 'tarefas', 'demandas', 'processos', 'anotacoes', 'parcelas', 'pessoas'],
+        { prazos: 'dois-tercos', agenda: 'terco', tarefas: 'metade', demandas: 'metade', processos: 'metade', anotacoes: 'metade', parcelas: 'metade', pessoas: 'metade' }],
+      [['prazos', 'tarefas', 'demandas', 'pessoas'], { prazos: 'inteira', tarefas: 'metade', demandas: 'metade', pessoas: 'inteira' }]
+    ] as const)('quando o escritório mostra os blocos %j, então as larguras enchem as linhas: %j', (blocos, larguras) => {
+      // Quando / Então
+      expect(larguraDosBlocos(blocos)).toEqual(larguras);
     });
   });
 
   describe('Dado o endereço da página do módulo', () => {
+    // Desde o painel do Início com o filtro do administrador (#402), o endereço também pede o trabalho de todos ou o de uma pessoa
+    // (que a página do módulo confere na equipe).
     it.each([
       ['eu', 'u1'],
       [null, 'u9'],
-      ['outro', 'u9']
-    ])('quando o endereço traz pessoa=%s, então o filtro abre em %s', (doEndereco, esperado) => {
+      ['todos', ''],
+      ['u2', 'u2']
+    ])('quando o endereço traz pessoa=%s, então o filtro abre em "%s"', (doEndereco, esperado) => {
       // Quando
       const pessoa = pessoaDoEndereco(doEndereco, 'u1', 'u9');
       // Então
@@ -160,6 +191,8 @@ describe('Painel da página inicial', () => {
       const agenda = agendaDoDia(lista, 'u1', HOJE);
       // Então
       expect(agenda.map(c => c.id)).toEqual(['f', 'c', 'd', 'a']);
+      // E, com o trabalho da equipe toda, entram todos os de hoje
+      expect(agendaDoDia(lista, null, HOJE).map(c => c.id)).toEqual(['b', 'f', 'c', 'd', 'a']);
     });
   });
 
@@ -233,14 +266,17 @@ describe('Painel da página inicial', () => {
       const minhas = anotacoesRecentes(lista, 'u1');
       // Então
       expect(minhas.map(a => a.id)).toEqual(['c', 'd', 'a']);
+      expect(anotacoesRecentes(lista, null).map(a => a.id)).toEqual(['c', 'd', 'a', 'b']);
     });
 
     it.each([
-      [true, 'Nenhuma anotação sua ainda.'],
-      [false, 'Nenhuma anotação sua entre as alteradas por último.']
-    ])('quando nenhuma das lidas é da pessoa e a leitura chegou ao fim: %s, então o bloco diz "%s"', (completa, texto) => {
+      [true, MEU, 'Nenhuma anotação sua ainda.'],
+      [false, MEU, 'Nenhuma anotação sua entre as alteradas por último.'],
+      [true, EQUIPE, 'Nenhuma anotação ainda.'],
+      [false, DA_PESSOA, 'Nenhuma anotação entre as alteradas por último.']
+    ])('quando nenhuma das lidas é da pessoa e a leitura chegou ao fim: %s, no trabalho %j, então o bloco diz "%s"', (completa, alcance, texto) => {
       // Quando / Então
-      expect(vazioDasAnotacoes(completa)).toBe(texto);
+      expect(vazioDasAnotacoes(completa, alcance)).toBe(texto);
     });
   });
 

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CompromissoLista, PrazoNaAgenda } from '../dados/tipos';
 import { FUSO_DA_AGENDA } from './compromisso';
-import { diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, VISOES_DE_DATA } from './agenda';
+import { diasDoPeriodo, hojeNaAgenda, horaNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, VISOES_DE_DATA } from './agenda';
 
 const compromisso = (id: string, data: string, hora: string | null, titulo = id) =>
   ({ id, tipo: 'reuniao', titulo, data, hora, pessoa_nome: '', processo_numero: null } as CompromissoLista);
@@ -17,6 +17,15 @@ describe('A data da agenda', () => {
   ])('quando o instante é %s, então hoje em Brasília é %s', (instante, dia) => {
     // Quando / Então
     expect(hojeNaAgenda(new Date(instante))).toBe(dia);
+  });
+
+  it.each([
+    ['2026-11-03T01:05:00Z', '22:05'],
+    ['2026-11-03T12:00:00Z', '09:00'],
+    ['2026-11-03T03:00:00Z', '00:00']
+  ])('quando o instante é %s, então a hora em Brasília é %s, como a hora de um compromisso', (instante, hora) => {
+    // Quando / Então
+    expect(horaNaAgenda(new Date(instante))).toBe(hora);
   });
 
   it('quando se pergunta o fuso, então é o de Brasília', () => {

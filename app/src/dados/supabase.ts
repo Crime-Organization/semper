@@ -37,8 +37,9 @@ import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensag
 import { processosComPartes, relacionadosDoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { contratosDaTarefa, demandasDaTarefa, papeisNaTarefa } from '../regras/tarefa';
+import { periodoDosGraficos } from '../regras/graficosDeProcessos';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ContatoParaConferir, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { ProcessoNosGraficos, TarefaNosGraficos, AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ContatoParaConferir, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -87,6 +88,16 @@ async function rodar(promessa: PromiseLike<Resposta>): Promise<{ data: Livre; co
   return { data: r.data, count: r.count ?? null };
 }
 const uid = () => ctx?.usuario?.id;
+/** Todas as linhas de uma consulta, em partes de LINHAS_POR_CONSULTA (o máximo do banco). "montar" faz a consulta já em ordem fixa,
+ *  para uma parte não repetir nem pular linhas da outra. */
+async function emPartes<T>(montar: () => Livre): Promise<T[]> {
+  const todas: T[] = [];
+  for (let de = 0; ; de += LINHAS_POR_CONSULTA) {
+    const { data } = await rodar(montar().range(de, de + LINHAS_POR_CONSULTA - 1));
+    todas.push(...data);
+    if (data.length < LINHAS_POR_CONSULTA) return todas;
+  }
+}
 
 // ---------- pessoas ----------
 const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
@@ -1828,6 +1839,27 @@ export const SD: Dados = {
     return rpc('painel_de_processos', { p_hoje: hoje, p_ate_prazos: ate_prazos, p_ate_marcados: ate_marcados, p_meus: meus, p_limite: ITENS_POR_LISTA, p_ultimos: ULTIMOS_ANDAMENTOS });
   },
   async processosDiasParadoSalvar(dias) { await rpc('dias_processo_parado_salvar', { p_dias: dias }); },
+  // Os gráficos do painel (#401): os processos da pessoa (ou todos os que quem está logado vê), e os prazos, andamentos e trocas de
+  // coluna deles no período. Em partes, porque passam do máximo de uma consulta; os de outros processos ficam de fora aqui.
+  async processosGraficos({ hoje, pessoa }) {
+    if (pessoa && !UUID.test(pessoa)) return { processos: [], prazos: [], andamentos: [], mudancas: [] };
+    const { desde, ate_prazos } = periodoDosGraficos(hoje);
+    const deQuem = (q: Livre) => pessoa ? q.or(`responsavel_id.eq.${pessoa},colaboradores.cs.{${pessoa}}`) : q;
+    const [processos, prazos, andamentos, historico] = await Promise.all([
+      emPartes<ProcessoNosGraficos>(() => deQuem(sb.from('processos').select('id, tipo, etapa_id, distribuicao, criado_em, arquivado_em')).order('id')),
+      emPartes<{ processo_id: string; final: string }>(() => sb.from('processo_prazos').select('processo_id, final').is('excluido_em', null).is('concluido_em', null).lte('final', ate_prazos).order('id')),
+      emPartes<{ processo_id: string; data: string }>(() => sb.from('processo_andamentos').select('processo_id, data').is('excluido_em', null).gte('data', desde).lte('data', hoje).order('id')),
+      emPartes<{ processo_id: string; em: string; etapa: { de: string | null; para: string | null } }>(() => sb.from('processo_historico')
+        .select('processo_id, em, etapa:alteracoes->etapa').gte('em', desde).not('alteracoes->etapa', 'is', null).order('id'))
+    ]);
+    const todos = new Set(processos.map(p => p.id)), ativos = new Set(processos.filter(p => !p.arquivado_em).map(p => p.id));
+    return {
+      processos,
+      prazos: prazos.filter(z => ativos.has(z.processo_id)),
+      andamentos: andamentos.filter(a => todos.has(a.processo_id)),
+      mudancas: historico.filter(h => todos.has(h.processo_id)).map(h => ({ processo_id: h.processo_id, em: h.em, de: h.etapa?.de ?? null, para: h.etapa?.para ?? null }))
+    };
+  },
 
   // ---------- processos ----------
   async processosListar(f) {
@@ -2004,6 +2036,23 @@ export const SD: Dados = {
   async tarefasDoContrato(contratoId) {
     const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).or(`contrato_id.eq.${contratoId},contrato_ids.cs.{${contratoId}}`)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
+  },
+  // Duas leituras de tarefas (as não arquivadas e as arquivadas concluídas no período), juntas sem repetir; o tempo, desde a meia-noite
+  // do primeiro dia. As regras de leitura do banco já deixam só o que quem está logado vê (o tempo dos outros, só o administrador).
+  async tarefasGraficos({ desde, pessoa }) {
+    if (pessoa && !UUID.test(pessoa)) return { tarefas: [], tempos: [] };
+    const inicio = inicioDoDia(desde);
+    const deQuem = (q: Livre) => pessoa ? q.or(`responsavel_id.eq.${pessoa},participantes.cs.{${pessoa}}`) : q;
+    const campos = 'id, etapa_id, concluida_em, arquivado_em';
+    const [abertas, arquivadas, tempos] = await Promise.all([
+      emPartes<TarefaNosGraficos>(() => deQuem(sb.from('tarefas').select(campos)).is('arquivado_em', null).order('id')),
+      emPartes<TarefaNosGraficos>(() => deQuem(sb.from('tarefas').select(campos)).not('arquivado_em', 'is', null).gte('concluida_em', inicio).order('id')),
+      emPartes<{ inicio: string; segundos: number }>(() => {
+        const q = sb.from('tarefa_tempos').select('inicio, segundos').gte('inicio', inicio).order('id');
+        return pessoa ? q.eq('perfil_id', pessoa) : q;
+      })
+    ]);
+    return { tarefas: [...abertas, ...arquivadas], tempos };
   },
 
   // ---------- tempo nas tarefas ----------

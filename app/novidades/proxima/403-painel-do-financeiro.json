@@ -1,0 +1,5 @@
+{
+  "titulo": "Painel do Financeiro com números e gráficos",
+  "texto": "O Financeiro abre um painel, no mesmo desenho do de Processos: no alto, as entradas, as saídas, o resultado, o saldo nas contas, o que falta receber e o que está em atraso, cada um comparado com o mês anterior; depois, as entradas e saídas dos últimos 12 meses, o que falta receber nas próximas semanas e a receita por área. As contas são as mesmas de antes.",
+  "ondeAchar": "Clique em Financeiro, no menu. Troque o mês ou, se for administrador, escolha \"De quem\" ao lado do título. Toque numa barra para ver o valor, ou abra \"Ver os números\"."
+}

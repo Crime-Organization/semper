@@ -942,19 +942,87 @@ test.describe('Painel de Processos', () => {
     await expect(page).toHaveURL(/etapa=.*id=/);
     await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
     await page.keyboard.press('Escape');
-    // Então
-    await expect(page).toHaveURL(/\?etapa=[^&]+$/);
+    // Então: o painel mostra o trabalho de quem está logado (#401), então o filtro da fase vem junto com o dele
+    await expect(page).toHaveURL(/\?etapa=[^&]+&pessoa=u-master$/);
   });
 
-  test('quando escolhe Meus, então a escolha fica guardada', async ({ page }) => {
+  test('dado o administrador, quando escolhe uma pessoa da equipe ou a equipe toda, então o painel acompanha, e a escolha fica guardada (#401)', async ({ page }) => {
     // Dado
     await page.goto('/processos/');
+    const filtro = page.getByRole('combobox', { name: 'Mostrar' });
+    await expect(filtro).toHaveValue('eu');
+    await expect(page.getByText('O seu trabalho:', { exact: false })).toBeVisible();
+    // (sem a escolha antiga entre Todos e Meus)
+    await expect(page.getByRole('radio', { name: 'Meus' })).toHaveCount(0);
+    // Quando: uma pessoa sem processo
+    await filtro.selectOption({ label: 'Ana Teste Lima' });
+    // Então
+    await expect(page.getByText('O trabalho de Ana Teste Lima.')).toBeVisible();
+    await expect(page.getByText('Nenhum processo por aqui.')).toBeVisible();
     // Quando
-    await page.getByRole('group', { name: 'Mostrar' }).getByText('Meus').click();
-    await expect(page.getByRole('radio', { name: 'Meus' })).toBeChecked();
     await page.reload();
     // Então
-    await expect(page.getByRole('radio', { name: 'Meus' })).toBeChecked();
+    await expect(page.getByRole('combobox', { name: 'Mostrar' })).toHaveValue('u-ana');
+    // Quando
+    await page.getByRole('combobox', { name: 'Mostrar' }).selectOption({ label: 'Equipe toda' });
+    // Então
+    await expect(page.getByText('O trabalho da equipe toda.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Processos ativos' })).toContainText('1 judicial');
+  });
+
+  test('dado quem não é administrador, quando abre o painel, então vê só o próprio trabalho, sem o filtro (#401)', async ({ page }) => {
+    // Dado
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await page.goto('/processos/');
+    // Então: o Bruno não está em nenhum processo
+    await expect(page.getByRole('heading', { name: 'Processos', level: 1 })).toBeVisible();
+    await expect(page.getByText('Você ainda não está em nenhum processo.')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Mostrar' })).toHaveCount(0);
+  });
+
+  test('dado um prazo vencido, quando o painel abre, então o número leva à lista, e o gráfico das semanas tem o número exato em texto e na dica (#401)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartaoJudicial(page);
+    await abrirSecao(cartao, 'Prazos');
+    await lancarPrazoDigitado(cartao, 'Prazo atrasado', dias(-2));
+    await lancarPrazoDigitado(cartao, 'Prazo da semana', dias(2));
+    // Quando
+    await page.goto('/processos/');
+    // Então
+    const numeros = page.getByRole('group', { name: 'Números do painel' });
+    const vencidos = numeros.getByRole('link', { name: /Prazos vencidos/ });
+    await expect(vencidos).toContainText('1');
+    await expect(numeros.getByRole('link', { name: /Prazos desta semana/ })).toContainText('1');
+    await expect(numeros.getByRole('region', { name: 'Processos ativos' }).getByRole('link', { name: '1 judicial' })).toHaveAttribute('href', /\/processos\/judicial\/\?pessoa=/);
+    // Quando: o número leva à lista
+    await vencidos.click();
+    // Então
+    await expect(page).toHaveURL(/#painel-prazos$/);
+    await expect(page.getByRole('region', { name: 'Prazos', exact: true })).toBeInViewport();
+    // Quando: os números do gráfico, em texto
+    const semanas = page.getByRole('figure', { name: /Prazos em aberto/ });
+    await semanas.getByText('Ver os números').click();
+    // Então
+    await expect(semanas.getByRole('row', { name: /Vencidos/ })).toContainText('1');
+    // Quando: pelo teclado, a dica de cada barra
+    await semanas.getByRole('group', { name: /Use as setas/ }).focus();
+    await page.keyboard.press('ArrowRight');
+    // Então
+    await expect(semanas.getByRole('status')).toContainText('Vencidos');
+    await expect(semanas.getByRole('status')).toContainText('1Prazos');
+  });
+
+  test('dado o celular, quando o painel abre, então os números, os gráficos e as listas cabem na tela, sem rolar para o lado (#401)', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 375, height: 812 });
+    // Quando
+    await page.goto('/processos/');
+    // Então
+    await expect(page.getByRole('group', { name: 'Números do painel' }).getByRole('link', { name: /Prazos vencidos/ })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Processos por fase' })).toBeAttached();
+    const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
   });
 });
 
