@@ -7,8 +7,9 @@
 --     compromisso, como sempre: os compromissos já ligados a um processo continuam ligados, sem mudar nada.
 --   - Quem vê a ligação: quem vê o compromisso (o cartão do item só mostra os compromissos que a pessoa vê). Quem liga: quem pode
 --     mudar o compromisso ativo (a regra "alterar" dele) e vê o item. Quem desliga: quem pode mudar o compromisso.
---   - Ligar e desligar entram no histórico do compromisso, com o código do item.
---   - Excluir o item tira a ligação; excluir o compromisso também.
+--   - Ligar e desligar entram no histórico do compromisso, com o código do item. A ligação guarda o código ao ligar (item_nome): quando o
+--     item é excluído, ele já não existe no momento em que a ligação sai, e o histórico ainda diz qual era.
+--   - Excluir o item tira a ligação (e o histórico registra o desligamento); excluir o compromisso também.
 --
 --   Só acrescenta: uma tabela, funções, gatilhos e regras novos, e a regra check do tipo mais larga (aceita um tipo a mais). A versão
 --   anterior do site continua funcionando: ela não conhece a tabela nova. Só não sabe mostrar um compromisso do tipo novo, que só o
@@ -27,6 +28,7 @@ create table public.compromisso_ligacoes (
   tarefa_id      uuid references public.tarefas on delete cascade,
   demanda_id     uuid references public.demandas on delete cascade,
   contrato_id    uuid references public.contratos on delete cascade,
+  item_nome      text,                                                             -- "Tarefa T1": dado pelo gatilho, para o histórico
   criado_por     uuid default auth.uid() references auth.users on delete set null,
   criado_em      timestamptz not null default now(),
   constraint compromisso_ligado_a_um_item check (num_nonnulls(tarefa_id, demanda_id, contrato_id) = 1),
@@ -89,13 +91,15 @@ begin
   if (select count(*) from public.compromisso_ligacoes l where l.compromisso_id = new.compromisso_id) >= 30 then
     raise exception 'Um compromisso pode ser ligado a no máximo 30 itens.';
   end if;
+  new.item_nome := privado.codigo_do_item_do_compromisso(new);
   return new;
 end $$;
 revoke execute on function privado.preparar_ligacao_do_compromisso() from public, anon, authenticated;
 create trigger preparar before insert on public.compromisso_ligacoes for each row execute function privado.preparar_ligacao_do_compromisso();
 
 -- Depois de ligar ou desligar: entra no histórico do compromisso ("ligado": de nada para o item; "desligado": do item para nada).
--- Quando o compromisso inteiro sai, as ligações saem junto e não há mais histórico para escrever.
+-- Quando o compromisso inteiro sai, as ligações saem junto e não há mais histórico para escrever. Quando o item é excluído, ele já
+-- saiu quando a ligação sai: vale o código guardado ao ligar.
 create function privado.historico_da_ligacao_do_compromisso() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare l public.compromisso_ligacoes := case when tg_op = 'DELETE' then old else new end; v_item text;
@@ -103,7 +107,7 @@ begin
   if not exists (select 1 from public.compromissos c where c.id = l.compromisso_id) then
     return null;
   end if;
-  v_item := privado.codigo_do_item_do_compromisso(l);
+  v_item := coalesce(privado.codigo_do_item_do_compromisso(l), l.item_nome);
   insert into public.compromisso_historico (escritorio_id, compromisso_id, alteracoes, feito_por)
   values (l.escritorio_id, l.compromisso_id,
           jsonb_build_object('ligacao', case when tg_op = 'DELETE' then jsonb_build_object('de', v_item, 'para', null)
@@ -118,8 +122,10 @@ create trigger historico after insert or delete on public.compromisso_ligacoes
 -- 3. Quem vê e quem muda.
 alter table public.compromisso_ligacoes enable row level security;
 revoke all on public.compromisso_ligacoes from anon;
-revoke update on public.compromisso_ligacoes from authenticated;
-grant select, insert, delete on public.compromisso_ligacoes to authenticated;
+revoke select, update on public.compromisso_ligacoes from authenticated;
+grant insert, delete on public.compromisso_ligacoes to authenticated;
+-- O código guardado (item_nome) é só do histórico: quem vê o compromisso mas não vê o item não o lê por aqui.
+grant select (id, escritorio_id, compromisso_id, tarefa_id, demanda_id, contrato_id, criado_por, criado_em) on public.compromisso_ligacoes to authenticated;
 
 -- Lê quem vê o compromisso. Liga quem pode mudar o compromisso e vê o item (a consulta passa pelas regras da tabela do item; o
 -- contrato, pela view contratos_da_equipe, que já diz quem o alcança). Desliga quem pode mudar o compromisso.

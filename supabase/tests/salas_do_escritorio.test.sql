@@ -57,6 +57,13 @@ select pg_temp.entrar(4);
 select is((select count(*) from public.salas), 0::bigint, 'Outro escritório não vê as salas');
 select throws_ok($$ select pg_temp.reuniao('De fora', '08:00', null, '5a000000-0000-0000-0000-000000000001') $$, 'P0001', 'Sala não encontrada neste escritório.', 'Outro escritório não usa a sala');
 select is((select count(*) from public.ocupacao_da_sala('5a000000-0000-0000-0000-000000000001', '2026-12-01')), 0::bigint, 'Outro escritório não vê quem ocupa a sala');
+-- E, mesmo sendo administrador no escritório dele, não muda a sala do outro nem cadastra sala lá
+update public.salas set nome = 'Tomada', ativa = false where id = '5a000000-0000-0000-0000-000000000001';
+select throws_ok($$ insert into public.salas (escritorio_id, nome, capacidade, criado_por) values ('e0000000-0000-0000-0000-000000000001', 'Sala de fora', 2, auth.uid()) $$,
+                 '42501', null, 'Outro escritório não cadastra sala aqui');
+reset role;
+select is((select nome || ' ' || ativa from public.salas where id = '5a000000-0000-0000-0000-000000000001'), 'Sala 1 true', 'Outro escritório não muda a sala');
+set local role authenticated;
 
 -- ---------- conflito de horário ----------
 -- Dada a sala 1 ocupada das 14h às 15h, quando a Bia marca outro compromisso nela às 14h30, então o banco recusa, dizendo com qual

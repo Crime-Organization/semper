@@ -39,6 +39,9 @@ insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, c
   select ('70000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid, 'e0000000-0000-0000-0000-000000000001', 'T' || i, 'Tarefa ' || i,
          'a0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002'
   from generate_series(1, 31) i;
+-- T99: tarefa do outro escritório, do Davi.
+insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, criado_por) values
+  ('70000000-0000-0000-0000-000000000099', 'e0000000-0000-0000-0000-000000000002', 'T99', 'De fora', 'a0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000004');
 insert into public.contratos (id, escritorio_id, numero, sigla, ano, codigo, cliente_id, cliente_nome, responsavel_id, servico, categoria, criado_por) values
   ('c0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 1, 'AN26', 2026, 'AN26-0001-2026', '10000000-0000-0000-0000-000000000005', 'CLIENTE',
    'a0000000-0000-0000-0000-000000000001', 'Registro de marca', 'pro_labore', 'a0000000-0000-0000-0000-000000000001');
@@ -104,6 +107,18 @@ select throws_ok($$ insert into public.compromisso_ligacoes (compromisso_id, dem
 -- Quando a linha traz dois itens de uma vez, então é recusada
 select throws_ok($$ insert into public.compromisso_ligacoes (compromisso_id, demanda_id, tarefa_id, criado_por)
                     values ('7c000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', auth.uid()) $$, '23514', null, 'Uma ligação liga um item só');
+-- Quando tenta ligar o compromisso dela a uma tarefa de outro escritório (pelo id), então é recusado
+select throws_ok($$ insert into public.compromisso_ligacoes (compromisso_id, tarefa_id, criado_por)
+                    values ('7c000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000099', auth.uid()) $$, 'P0001', 'Item não encontrado neste escritório.',
+                 'Item de outro escritório não se liga');
+-- Quando tenta mandar a ligação para outro escritório, então o escritório fica o do compromisso
+select lives_ok($$ insert into public.compromisso_ligacoes (escritorio_id, compromisso_id, tarefa_id, criado_por)
+                   values ('e0000000-0000-0000-0000-000000000002', '7c000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', auth.uid()) $$, 'Liga a outra tarefa');
+select is((select escritorio_id from public.compromisso_ligacoes where tarefa_id = '70000000-0000-0000-0000-000000000002'), 'e0000000-0000-0000-0000-000000000001'::uuid,
+          'A ligação fica no escritório do compromisso, não no que veio no pedido');
+delete from public.compromisso_ligacoes where tarefa_id = '70000000-0000-0000-0000-000000000002';
+-- E o código guardado para o histórico não se lê pela tabela
+select throws_ok($$ select item_nome from public.compromisso_ligacoes $$, '42501', null, 'O código guardado não se lê pela tabela');
 
 -- Quando a Ana (administradora) liga o contrato e a audiência do processo à demanda, então vale
 select pg_temp.entrar(1);
@@ -149,6 +164,9 @@ select throws_ok($$ insert into public.compromisso_ligacoes (compromisso_id, tar
 -- Quando a demanda é excluída, então a ligação sai junto
 delete from public.demandas where id = '71000000-0000-0000-0000-000000000001';
 select is((select count(*) from public.compromisso_ligacoes where compromisso_id = '7c000000-0000-0000-0000-000000000001' and demanda_id is not null), 0::bigint, 'Excluir o item tira a ligação');
+-- E o histórico do compromisso diz qual item saiu, mesmo com ele já excluído
+select is((select alteracoes -> 'ligacao' ->> 'de' from public.compromisso_historico where compromisso_id = '7c000000-0000-0000-0000-000000000001' order by em desc, id desc limit 1),
+          'Demanda D1', 'O histórico registra o item excluído pelo código guardado');
 -- Quando o compromisso é excluído, então as ligações saem, sem erro no histórico
 select lives_ok($$ delete from public.compromissos where id = '7c000000-0000-0000-0000-000000000002' $$, 'Excluir o compromisso leva as ligações');
 select is((select count(*) from public.compromisso_ligacoes where compromisso_id = '7c000000-0000-0000-0000-000000000002'), 0::bigint, 'Nenhuma ligação fica sem compromisso');

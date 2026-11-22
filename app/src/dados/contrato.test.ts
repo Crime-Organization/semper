@@ -1922,7 +1922,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await SD.compromissoHistorico(id))[0].alteracoes.ligacao).toEqual({ de: `Demanda ${demanda.codigo}`, para: null });
         });
 
-        it('quando o item é excluído, então a ligação sai junto', async () => {
+        it('quando o item é excluído, então a ligação sai junto, e o histórico do compromisso diz qual item era', async () => {
           // Dado
           const { id } = await reuniao(), { tarefa } = await itens();
           await SD.compromissoLigar(id, 'tarefas', tarefa.id);
@@ -1931,6 +1931,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await SD.tarefasExcluir([tarefa.id]);
           // Então
           expect((await SD.compromissoItens(id)).visiveis).toEqual([]);
+          expect((await SD.compromissoHistorico(id))[0].alteracoes.ligacao).toEqual({ de: `Tarefa ${tarefa.codigo}`, para: null });
         });
 
         it('quando quem não muda o compromisso, ou o compromisso arquivado, tenta ligar ou desligar, então é recusado', async () => {

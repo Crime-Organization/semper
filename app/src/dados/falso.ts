@@ -204,7 +204,8 @@ interface Banco {
   compromissos?: CompromissoGuardado[];
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
   /** Tarefas, demandas e contratos ligados aos compromissos (compromisso_ligacoes no banco, #306). */
-  compromissoLigacoes?: { compromisso_id: string; modulo: ModuloDoCompromisso; item_id: string; criado_em: string }[];
+  /** `item_nome`: o item como o histórico mostra ("Tarefa T1"), guardado ao ligar, para o histórico de quando o item é excluído. */
+  compromissoLigacoes?: { compromisso_id: string; modulo: ModuloDoCompromisso; item_id: string; item_nome?: string | null; criado_em: string }[];
   /** As salas do escritório (salas no banco, #308). */
   salas?: Sala[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
@@ -1637,16 +1638,20 @@ const ligacoesDoCompromisso = (id: string) => bd.compromissoLigacoes!.filter(l =
 /** Como privado.altero_o_compromisso: o compromisso ativo, por quem o muda (a regra "alterar" dele). */
 const alteroCompromisso = (c: CompromissoGuardado) =>
   !c.arquivado_em && (!!bd.equipeEditaTudo || participaDoCompromisso(c, membroLogado(), processoDoCompromisso(c), meusGruposNoFalso()));
+/** O item como o histórico mostra ("Tarefa T1"), como privado.codigo_do_item_do_compromisso; o item que já saiu, pelo nome guardado ao ligar. */
+const nomeDoItemDoCompromisso = (modulo: ModuloDoCompromisso, itemId: string, guardado?: string | null) => {
+  const achado = ITEM_NO_FALSO[modulo](itemId);
+  return achado ? `${ITEM_DA_ANOTACAO[modulo].rotulo} ${achado.item.codigo}` : guardado ?? null;
+};
 /** Como o gatilho do banco: ligar e desligar entram no histórico do compromisso, com o código do item. */
-function historicoDaLigacao(compromissoId: string, modulo: ModuloDoCompromisso, itemId: string, ligou: boolean) {
-  const item = `${ITEM_DA_ANOTACAO[modulo].rotulo} ${ITEM_NO_FALSO[modulo](itemId)?.item.codigo ?? ''}`;
+function historicoDaLigacao(compromissoId: string, item: string | null, ligou: boolean) {
   bd.historicoCompromissos!.unshift({ id: Date.now() + Math.random(), compromisso_id: compromissoId, feito_por: eu, em: agora(),
     alteracoes: { ligacao: ligou ? { de: null, para: item } : { de: item, para: null } } });
 }
-/** Como o on delete cascade das ligações: o item excluído sai dos compromissos (e o histórico de cada um registra). */
+/** Como o on delete cascade das ligações: o item excluído sai dos compromissos (e o histórico de cada um registra, pelo nome guardado). */
 function soltarDosCompromissos(modulo: ModuloDoCompromisso, itemId: string) {
   const saem = bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId);
-  saem.forEach(l => historicoDaLigacao(l.compromisso_id, modulo, itemId, false));
+  saem.forEach(l => historicoDaLigacao(l.compromisso_id, nomeDoItemDoCompromisso(modulo, itemId, l.item_nome), false));
   bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => !saem.includes(l));
 }
 // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
@@ -3635,8 +3640,9 @@ export const SD: Dados = {
     if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return espera(false);
     if (ligacoes.length >= ITENS_DO_COMPROMISSO) throw new Error(`Um compromisso pode ser ligado a no máximo ${ITENS_DO_COMPROMISSO} itens.`);
     if (!pode || !vejoOItem(modulo, itemId)) return erro(SEM_PERMISSAO);
-    bd.compromissoLigacoes!.push({ compromisso_id: id, modulo, item_id: itemId, criado_em: agora() });
-    historicoDaLigacao(id, modulo, itemId, true); gravar();
+    const item_nome = nomeDoItemDoCompromisso(modulo, itemId);
+    bd.compromissoLigacoes!.push({ compromisso_id: id, modulo, item_id: itemId, item_nome, criado_em: agora() });
+    historicoDaLigacao(id, item_nome, true); gravar();
     return espera(true);
   },
   async compromissoDesligar(id, modulo, itemId) {
@@ -3644,7 +3650,7 @@ export const SD: Dados = {
     const ligacao = c && alteroCompromisso(c) ? ligacoesDoCompromisso(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
     if (!ligacao) return erro(SEM_PERMISSAO);
     bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => l !== ligacao);
-    historicoDaLigacao(id, modulo, itemId, false); gravar();
+    historicoDaLigacao(id, nomeDoItemDoCompromisso(modulo, itemId, ligacao.item_nome), false); gravar();
   },
   prazosDoPeriodo(de, ate, f = {}) {
     const concluida = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
