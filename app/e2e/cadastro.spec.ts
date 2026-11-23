@@ -310,10 +310,15 @@ test.describe('Validações das etapas', () => {
     await ateEndereco(page);
     await proxima(page);
     await proxima(page);
+    await etapa(page, 'Contato');
     await page.getByRole('textbox', { name: 'Telefone' }).fill('38999990000');
     // Quando
     await page.getByLabel('Base legal para o tratamento dos dados (LGPD)').selectOption({ value: 'consentimento' });
     await page.getByLabel('Data do consentimento').fill('31022026');
+    // A data ficou no campo dela (#159): antes da #405, o cursor podia ser puxado para o Telefone no meio do preenchimento,
+    // a data se perdia e o cadastro era salvo sem ela. Se isso voltar, a falha aponta aqui, e não no aviso lá embaixo.
+    await expect(page.getByLabel('Data do consentimento')).toHaveValue('31/02/2026');
+    await expect(page.getByRole('textbox', { name: 'Telefone' })).toHaveValue('(38) 99999-0000');
     await page.getByRole('button', { name: 'Salvar cadastro' }).click();
     // Então
     await expect(page.getByText('Data inexistente.')).toBeVisible();
