@@ -2033,6 +2033,74 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const hora = (id: string) => SD.compromissoObter(id).then(c => c!.hora?.slice(0, 5));
         const semanal = (vezes: number) => ({ frequencia: 'semana' as const, intervalo: 1, ate: null, vezes });
 
+        it('quando a reunião se repete toda semana, 4 vezes, então nascem as 3 datas seguintes; a sala ocupada fica de fora só na data dela', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const r = await reuniao({ data: dia(2), hora: '10:00', hora_fim: '11:00', sala_id: sala.id });
+          await reuniao({ data: dia(9), hora: '10:30', hora_fim: '11:30', sala_id: sala.id });
+          // Quando
+          const criada = await SD.compromissoRepetir(r.id, semanal(4));
+          // Então
+          const datas = await Promise.all(criada.ids.map(id => SD.compromissoObter(id)));
+          expect(datas.map(c => c!.data)).toEqual([dia(9), dia(16), dia(23)]);
+          expect(criada.semSala).toEqual([dia(9)]);
+          expect(datas.map(c => c!.sala_id ?? null)).toEqual([null, sala.id, sala.id]);
+        });
+
+        it('quando muda só o horário desta e das seguintes, então a anterior fica; mudando a data, a série antiga termina na véspera e nenhuma data se repete', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2), hora: '10:00' });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(6));
+          // Quando: o horário, da segunda data em diante
+          const mudados = await SD.compromissoMudarSeguintes(ids[1], { data: dia(16), hora: '15:00', hora_fim: null });
+          // Então
+          expect(mudados).toBe(4);
+          expect(await hora(ids[0])).toBe('10:00');
+          expect(await Promise.all(ids.slice(1).map(hora))).toEqual(['15:00', '15:00', '15:00', '15:00']);
+          // Quando: a data, da terceira em diante, um dia depois
+          expect(await SD.compromissoMudarSeguintes(ids[2], { data: dia(24), hora: '15:00', hora_fim: null })).toBe(3);
+          // Então: a série antiga termina na véspera, e esta e as seguintes andam um dia, com as vezes que faltavam
+          const antiga = (await SD.compromissoObter(r.id))!.repeticao!;
+          expect([antiga.ate, antiga.vezes]).toEqual([dia(22), null]);
+          const novas = await Promise.all(ids.slice(2).map(id => SD.compromissoObter(id)));
+          expect(novas.map(c => c!.data)).toEqual([dia(24), dia(31), dia(38)]);
+          expect(novas[0]!.repeticao!.vezes).toBe(3);
+          const todas = await Promise.all([r.id, ...ids].map(id => SD.compromissoObter(id)));
+          expect(new Set(todas.map(c => c!.data)).size).toBe(todas.length);
+        });
+
+        it('quando arquiva esta e as seguintes, então a anterior fica e a repetição para', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(4));
+          // Quando
+          const arquivados = await SD.compromissoArquivarSeguintes(ids[1]);
+          // Então
+          expect(arquivados).toBe(2);
+          const [primeira, segunda, terceira] = await Promise.all(ids.map(id => SD.compromissoObter(id)));
+          expect(primeira!.arquivado_em).toBeNull();
+          expect([!!segunda!.arquivado_em, !!terceira!.arquivado_em]).toEqual([true, true]);
+          expect((await SD.compromissoObter(r.id))!.repeticao).toMatchObject({ ate: dia(15), vezes: null });
+        });
+
+        it('dada a série, quando a lista pede só a próxima, então vem uma data por série; realizada a primeira, vem a segunda', async () => {
+          // Dado
+          const titulo = marca();
+          const r = await reuniao({ titulo, data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(3));
+          // Quando
+          const proxima = await SD.compromissosListar({ termo: titulo, soAProxima: true });
+          const todas = await SD.compromissosListar({ termo: titulo });
+          // Então
+          expect(proxima.linhas.map(c => c.id)).toEqual([r.id]);
+          expect(todas.linhas).toHaveLength(3);
+          // Quando a primeira é realizada
+          const realizado = (await SD.colunasListar('compromissos')).find(c => c.marco === 'concluido')!;
+          await SD.compromissoMover(r.id, realizado.id, null);
+          // Então
+          expect((await SD.compromissosListar({ termo: titulo, soAProxima: true })).linhas.map(c => c.id)).toEqual([ids[0]]);
+        });
+
         it('dado o Bruno posto numa data só, quando tenta mudar ou arquivar as seguintes, ou marcar a demanda, então é recusado e a série continua', async () => {
           // Dado
           const r = await reuniao({ data: dia(2), hora: '10:00' });
