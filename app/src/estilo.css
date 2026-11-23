@@ -1400,6 +1400,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .equipe-escolhida .escolhida > span { display: flex; align-items: center; gap: 10px }
 .equipe-escolhida .nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .equipe-escolhida .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
+/* A função de cada participante da tarefa (#313), à direita do nome, antes do "X". */
+.equipe-escolhida .escolhida:has(.funcao-do-participante) > span:first-child { flex: 1 }
+.pergunta .equipe-escolhida .funcao-do-participante { width: auto; flex-shrink: 0; height: calc(var(--botao-redondo) - var(--botao-redondo-vao)); padding: 0 10px; font-size: 14px; border-radius: 999px }
+/* O participante que executa a tarefa (#313): a bolinha com o anel na cor de destaque. */
+.equipe-bolinha.executa { box-shadow: 0 0 0 2px var(--superficie), 0 0 0 4px var(--accent) }
+.equipe-bolinha.executa + .equipe-bolinha { margin-left: 0 }
 .achados .sem-achados { padding: 10px 12px }
 /* Ligar um processo que já existe (LigarProcesso): a mesma busca, por cima do que vem abaixo. No cadastro (EscolhaDeProcessos),
    cada escolhido numa linha, com o nome e, embaixo, o tipo, o número e o código. */
@@ -1865,3 +1871,6 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .painel-cartao .vazio { padding: 16px; font-size: var(--texto-tabela) }
 .vazio .painel-vazio-titulo { margin: 0 0 6px; font-size: 17px; font-weight: 900; color: var(--ink) }
 .vazio p { margin: 0 0 16px }
+/* No menu da bolinha, a marca da função escolhida (#313); nas outras, o mesmo espaço, sem a marca. */
+.marca-da-funcao { display: inline-flex }
+.marca-da-funcao.apagada { visibility: hidden }

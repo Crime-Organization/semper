@@ -9,6 +9,7 @@ import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao } from './lembrete';
 import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
 import { estaPeloGrupo } from './gruposDaEquipe';
+import { SO_LEITURA_FORA_DO_CARTAO } from './equipeVeTudo';
 
 /** Rótulo das tarefas fora das colunas do quadro. */
 export const SEM_SITUACAO_TAREFA = 'Sem situação';
@@ -40,10 +41,14 @@ export interface CamposTarefa {
   diligencia: boolean;
   /** Por que a diligência é feita, como digitado. */
   motivoDaDiligencia: string;
+  /** Quem pediu a tarefa (#313), da equipe, ou vazio. */
+  solicitanteId: string;
+  /** A função de cada participante (#313): o id do participante → o id da função. */
+  funcoes: Record<string, string>;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
   titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: '',
-  diligencia: false, motivoDaDiligencia: ''
+  diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {}
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -91,9 +96,12 @@ export function validarTarefa(c: CamposTarefa): Partial<Record<keyof CamposTaref
 /** O que vai para o banco (só depois de validarTarefa sem erros). O responsável não entra nos participantes. */
 export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
   const prazo = lerData(c.prazo);
+  const participantes = [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId);
   return {
     titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), ...inicioAoGravar(c), responsavel_id: c.responsavelId,
-    participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
+    participantes, solicitante_id: c.solicitanteId || null,
+    // Só as funções de quem é participante; quem ficou sem função ganha a padrão no banco.
+    funcoes: Object.fromEntries(participantes.flatMap(p => c.funcoes[p] ? [[p, c.funcoes[p]]] : [])),
     pessoas: [...new Set(escolhidos(c.pessoas))], demanda_ids: [...new Set(c.demandas)], contrato_ids: [...new Set(c.contratos)],
     processo_id: c.processoId || null, diligencia: c.diligencia, diligencia_motivo: c.diligencia ? c.motivoDaDiligencia.trim() : null
   };
@@ -172,7 +180,7 @@ export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), ...horaELembreteDoCartao(t), inicio: fmtData(t.data_inicio), responsavelId: t.responsavel_id,
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
   demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || '',
-  diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || ''
+  diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || '', solicitanteId: t.solicitante_id ?? '', funcoes: { ...t.funcoes }
 });
 
 // ---------- etapas do cadastro ----------
@@ -191,8 +199,8 @@ export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
     campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'diligencia', 'motivoDaDiligencia', 'demandas', 'contratos', 'processoId'],
     tituloNoLapis: 'Diligência, demanda, contrato e processo' },
-  { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem da equipe ajuda e, se houver, as pessoas do cadastro ligadas a ela.',
-    campos: ['responsavelId', 'participantes', 'pessoas'] }
+  { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem a pediu, quem da equipe participa (e com que função) e, se houver, as pessoas do cadastro ligadas a ela.',
+    campos: ['responsavelId', 'solicitanteId', 'participantes', 'funcoes', 'pessoas'] }
 ];
 /**
  * A ordem das seções no lápis do cartão: as pessoas antes da demanda, do contrato e do processo, como era antes de a #299 juntar as
@@ -264,7 +272,9 @@ export const CAMPOS_TAREFA: Record<string, string> = {
   // Apagar, corrigir e devolver um registro de tempo (#400): o que aconteceu, sem a duração
   tempo: 'Registro de tempo',
   // A diligência (#313)
-  diligencia: 'Diligência', diligencia_motivo: 'Motivo da diligência'
+  diligencia: 'Diligência', diligencia_motivo: 'Motivo da diligência',
+  // O solicitante e as funções dos participantes (#313)
+  solicitante_id: 'Solicitante', funcoes: 'Funções'
 };
 /** Os campos só da tarefa, como aparecem no cartão e no histórico (os outros, como os da demanda). */
 const FORMATOS_DA_TAREFA: Record<string, (v: unknown) => string> = { diligencia: v => v ? 'Sim' : 'Não' };
@@ -307,12 +317,12 @@ export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demandas: DemandasV
   m.papel === 'master' || m.papel === 'admin' || m.id === t.criado_por || m.id === t.responsavel_id || t.participantes.includes(m.id)
   || estaPeloGrupo(t.grupos, meusGrupos) || emLista(demandas).some(d => estaNaDemanda(d, m, meusGrupos));
 /**
- * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está em qualquer um dos contratos da
- * tarefa ou no contrato de qualquer uma das demandas ligadas a ela (`contratosEmQueEsta`, como em veADemanda).
+ * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem a pediu (o solicitante, #313) e quem
+ * está em qualquer um dos contratos da tarefa ou no contrato de qualquer uma das demandas ligadas a ela (`contratosEmQueEsta`, como em veADemanda).
  */
-export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null; contrato_ids?: readonly string[] }, m: Membro,
+export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null; contrato_ids?: readonly string[]; solicitante_id?: string | null }, m: Membro,
   demandas: DemandasVistas<QuemEstaNaDemanda & { contrato_id?: string | null }> = null, contratosDaPessoa: readonly string[] = [], meusGrupos: readonly string[] = []) =>
-  estaNaTarefa(t, m, demandas, meusGrupos) || contratosDaTarefa({ contrato_id: t.contrato_id ?? null, contrato_ids: t.contrato_ids }).some(k => doContratoEmQueEsta(k, contratosDaPessoa))
+  estaNaTarefa(t, m, demandas, meusGrupos) || (!!t.solicitante_id && t.solicitante_id === m.id) || contratosDaTarefa({ contrato_id: t.contrato_id ?? null, contrato_ids: t.contrato_ids }).some(k => doContratoEmQueEsta(k, contratosDaPessoa))
   || emLista(demandas).some(d => doContratoEmQueEsta(d.contrato_id, contratosDaPessoa));
 /** O cartão com os contratos que vieram com quem está neles (null: quem lê não pode abrir o contrato, e não se sabe quem está nele). */
 type ComAEquipeDoContrato = { contrato_id?: string | null; contrato?: EquipeDoContrato | null };
@@ -327,6 +337,11 @@ export const motivoSemMencaoNaTarefa = (t: QuemEstaNaTarefa & ComOsContratosLiga
     const contratos = [t.contrato, ...(t.contratos_ligados ?? []).map(l => l.item), ...emLista(demandas).map(d => d.contrato)];
     return veATarefa(t, m, demandas, contratosEmQueEsta(contratos, m)) ? null : 'não participa; inclua como participante';
   };
+/** O que a tela diz ao solicitante que não está na tarefa (#313): ele a vê, lê e comenta, mas não altera. */
+export const SO_LEITURA_DO_SOLICITANTE = 'Você pediu esta tarefa. Você pode ler e comentar, mas não alterar.';
+/** Por que quem está logado só lê a tarefa: o motivo comum (motivoDeSoLerOCartao) ou, se ele só a pediu, o do solicitante. */
+export const motivoDeSoLerATarefa = (motivo: string | null, t: Pick<Tarefa, 'solicitante_id'>, eu: string) =>
+  motivo === SO_LEITURA_FORA_DO_CARTAO && t.solicitante_id === eu ? SO_LEITURA_DO_SOLICITANTE : motivo;
 /** A mensagem de quando alguém que não vê a tarefa aparece num comentário dela (a mesma do banco). */
 export const mencaoNegadaNaTarefa = (nome: string) => `Não é possível mencionar ${nome} nesta tarefa: inclua essa pessoa como participante antes.`;
 

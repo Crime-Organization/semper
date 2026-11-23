@@ -16,6 +16,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
+import { FUNCAO_REPETIDA, funcaoEmUso } from '../regras/funcoesNaTarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -4732,6 +4733,100 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const { id } = await novaTarefa();
         // Então
         expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: false, diligencia_motivo: null });
+      });
+
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const funcao = async (nome: string) => (await SD.funcoesNaTarefaListar()).find(f => f.nome === nome)!;
+
+      it('dado o escritório, então as funções de fábrica são "Executa" (de execução) e "Acompanha", nessa ordem', async () => {
+        // Quando
+        const lista = await SD.funcoesNaTarefaListar();
+        // Então
+        expect(lista.slice(0, 2).map(f => [f.nome, f.executa])).toEqual([['Executa', true], ['Acompanha', false]]);
+      });
+
+      it('quando a administradora cria uma função, então ela vai para o fim da lista; o nome repetido e quem não é administrador são recusados', async () => {
+        // Dado
+        const nome = 'Revisa ' + marca();
+        // Quando
+        const nova = await SD.funcaoNaTarefaCriar({ nome: '  ' + nome + ' ', executa: false });
+        const repetida = await SD.funcaoNaTarefaCriar({ nome: nome.toLowerCase(), executa: true }).catch((e: Error) => e.message);
+        entrarComo('u-bruno');
+        const deFora = await SD.funcaoNaTarefaCriar({ nome: 'Outra ' + marca(), executa: false }).catch((e: Error) => e.message);
+        // Então
+        expect(nova.nome).toBe(nome);
+        expect((await SD.funcoesNaTarefaListar()).at(-1)?.id).toBe(nova.id);
+        expect(repetida).toBe(FUNCAO_REPETIDA);
+        expect(deFora).toBe('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando a tarefa é criada com a função de um participante, então os outros ficam com a padrão, e a troca de função vai ao histórico', async () => {
+        // Dado
+        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const { id } = await novaTarefa({ participantes: ['u-bruno', 'u-master'], funcoes: { 'u-bruno': executa.id } });
+        // Quando
+        await SD.tarefaAtualizar(id, { funcoes: { 'u-bruno': executa.id, 'u-master': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id, 'u-master': executa.id });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: ' + acompanha.nome, para: 'Mauro Teixeira Duarte: Executa' });
+      });
+
+      it('quando um participante sai, então sai também das funções; quem entra pela lista ganha a padrão', async () => {
+        // Dado
+        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const { id } = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
+        // Quando
+        await SD.tarefaAtualizar(id, { participantes: ['u-master'] });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': acompanha.id });
+      });
+
+      it('quando a função de outro escritório chega, então é recusada', async () => {
+        // Quando
+        const r = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': 'de-outro-escritorio' } }).catch((e: Error) => e.message);
+        // Então
+        expect(r).toBe('Função não encontrada neste escritório.');
+      });
+
+      it('quando a função está em uso, então não é apagada; fora de uso, é', async () => {
+        // Dado
+        const usada = await SD.funcaoNaTarefaCriar({ nome: 'Usada ' + marca(), executa: false });
+        const livre = await SD.funcaoNaTarefaCriar({ nome: 'Livre ' + marca(), executa: false });
+        await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': usada.id } });
+        // Quando
+        const recusa = await SD.funcaoNaTarefaExcluir(usada.id).catch((e: Error) => e.message);
+        await SD.funcaoNaTarefaExcluir(livre.id);
+        // Então
+        expect(recusa).toBe(funcaoEmUso(usada.nome, 1));
+        expect((await SD.funcoesNaTarefaListar()).map(f => f.id)).not.toContain(livre.id);
+      });
+
+      it('quando o filtro pede as tarefas delegadas a alguém, então vêm só as em que ele é participante com a função de execução', async () => {
+        // Dado
+        const executa = await funcao('Executa'), parte = marca();
+        const { id: delegada } = await novaTarefa({ titulo: parte + ' delegada', participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
+        await novaTarefa({ titulo: parte + ' acompanha', participantes: ['u-bruno'] });
+        // Quando
+        const r = await SD.tarefasListar({ termo: parte, funcao: { de: 'u-bruno', ids: [executa.id] } });
+        const nenhuma = await SD.tarefasListar({ termo: parte, funcao: { de: 'u-bruno', ids: [] } });
+        // Então
+        expect(r.linhas.map(t => t.id)).toEqual([delegada]);
+        expect(nenhuma.total).toBe(0);
+      });
+
+      it('quando a tarefa tem solicitante, então ele fica gravado, sem trocar o responsável, e serve de filtro; de fora da equipe é recusado', async () => {
+        // Dado
+        const parte = marca();
+        const { id } = await novaTarefa({ titulo: parte + ' pedida', solicitante_id: 'u-bruno' });
+        await novaTarefa({ titulo: parte + ' outra' });
+        // Quando
+        const r = await SD.tarefasListar({ termo: parte, solicitante: 'u-bruno' });
+        const deFora = await SD.tarefaAtualizar(id, { solicitante_id: 'u-ninguem' }).catch((e: Error) => e.message);
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ solicitante_id: 'u-bruno', responsavel_id: 'u-ana' });
+        expect(r.linhas.map(t => t.id)).toEqual([id]);
+        expect(deFora).toBe('O solicitante precisa ser alguém da equipe do escritório.');
       });
     });
 

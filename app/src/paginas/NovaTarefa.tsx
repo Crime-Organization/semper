@@ -27,6 +27,8 @@ import {
   semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
 } from '../regras/tarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
+import { funcoesAoGravar } from '../regras/funcoesNaTarefa';
+import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
@@ -67,8 +69,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // A anotação de onde a tarefa nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada à tarefa nova.
   const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'tarefa');
 
-  // Quem cadastra já vem como responsável.
-  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id }));
+  // Quem cadastra já vem como responsável e como quem pediu a tarefa (o solicitante, #313).
+  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id, solicitanteId: ctx.perfil.id }));
+  // As funções dos participantes do escritório (#313): quem entra ganha a padrão, e a pessoa troca ao lado do nome.
+  const funcoes = useFuncoesNaTarefa();
   const [alvo, setAlvo] = useState<Tarefa | null>(null);   // tarefa sendo atualizada
   const [pronto, setPronto] = useState(!idAtualizar);
   const [passo, setPasso] = useState(0);
@@ -231,6 +235,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // ---------- equipe ----------
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
+  // Solicitante (#313): qualquer um da equipe ativa, e quem já é o solicitante.
+  const opcoesSolicitante = ctx.equipe.filter(m => m.ativo !== false || m.id === c.solicitanteId);
+  // Os participantes de agora, com a função de cada um (quem entrou ganha a padrão; quem saiu sai das funções).
+  const mudarParticipantes = (participantes: string[]) => mudar({ participantes, funcoes: funcoesAoGravar(participantes, c.funcoes, funcoes, c.funcoes) });
 
   // ---------- demandas e contratos (#283: mais de um de cada) ----------
   // Como cada um aparece: pelo nome da busca, pelo que veio do cartão ou, na tarefa que já existe, pelo código gravado.
@@ -348,8 +356,16 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
-      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la)." adicionar="Adicionar participante"
-        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
+      <Campo rotulo="Solicitante" para="solicitanteId" erro={erros.solicitanteId} dica="Quem pediu a tarefa. Ele passa a vê-la, mas não troca o responsável.">
+        <select {...propsDoCampo('solicitanteId', { dica: true, erro: erros.solicitanteId })} value={c.solicitanteId} onChange={e => mudar({ solicitanteId: e.target.value })}>
+          <option value="">Não informado</option>
+          {opcoesSolicitante.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+        </select>
+      </Campo>
+      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} adicionar="Adicionar participante"
+        dica="Quem da equipe também trabalha na tarefa (e passa a vê-la), com a função de cada um. Ex.: Executa, para quem recebeu a tarefa para fazer."
+        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={mudarParticipantes}
+        funcoes={{ opcoes: funcoes, de: c.funcoes, aoMudar: (id, funcao) => mudar({ funcoes: { ...c.funcoes, [id]: funcao } }) }} />
       <GruposNoLapis ids={alvo?.grupos} />
       <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>

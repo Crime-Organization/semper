@@ -14,8 +14,9 @@ import { colunaComMarco } from '../regras/quadro';
 import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
 import {
   CAMPOS_TAREFA, continuaPelaDemanda, contratosQueAbre, DEMANDAS_DA_TAREFA_CHEIA, CONTRATOS_DA_TAREFA_CHEIA, demandasDaTarefa, demandasQueAbre, ligadasDaTarefa,
-  ligadosDaTarefa, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa
+  ligadosDaTarefa, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa, motivoDeSoLerATarefa
 } from '../regras/tarefa';
+import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { contratosEmQueEsta } from '../regras/contrato';
@@ -77,6 +78,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // O título e a descrição em edição no próprio lugar (#346).
   const noLugar = useEdicaoNoLugar();
+  // As funções dos participantes do escritório (#313).
+  const funcoes = useFuncoesNaTarefa();
 
   const carregar = useCallback(() => SD.tarefaObter(id).then(x => { setT(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -97,8 +100,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
   // Quem está em qualquer uma das demandas altera; quem está em qualquer um dos contratos (ou no de uma das demandas) só lê (#283).
   const demandasAbertas = demandasQueAbre(t), contratosAbertos = contratosQueAbre(t);
-  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, demandasAbertas, meusGrupos(ctx.grupos, m.id)),
-    m => contratosEmQueEsta([...contratosAbertos, ...demandasAbertas.map(d => d.contrato)], m).length > 0);
+  // Quem só pediu a tarefa (o solicitante, #313) também só lê, com o motivo próprio.
+  const soLeitura = motivoDeSoLerATarefa(motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, demandasAbertas, meusGrupos(ctx.grupos, m.id)),
+    m => contratosEmQueEsta([...contratosAbertos, ...demandasAbertas.map(d => d.contrato)], m).length > 0), t, eu);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // Ligar à tarefa um item que já existe (#341): quem altera a tarefa, com ela ativa. Demandas e contratos, mais um a cada vez, até o
   // máximo (#283). Depois, o cartão lê tudo de novo.
@@ -171,6 +175,16 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
   });
 
+  /** Troca a função de um participante (#313), no menu da bolinha: o mesmo aviso do lápis, com Desfazer. */
+  async function trocarFuncao(perfil: string, funcao: string) {
+    const antes = t!.funcoes, id = t!.id;
+    await SD.tarefaAtualizar(id, { funcoes: { ...antes, [perfil]: funcao } });
+    feito(`${nomeDe(perfil)} agora com a função "${funcoes.find(f => f.id === funcao)?.nome ?? ''}".`, 'troca de função', async () => {
+      await SD.tarefaAtualizar(id, { funcoes: antes });
+      return { tipo: 'tarefaAtualizada', id };
+    });
+  }
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
@@ -191,7 +205,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
           {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {t.diligencia && <Selo tipo="pend" dica={t.diligencia_motivo ?? undefined}>Diligência</Selo>}
         </>}
-        equipe={<EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos} mudar={mudaNoLugar ? {
+        equipe={<EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos}
+          funcoes={{ opcoes: funcoes, de: t.funcoes, trocar: trocarFuncao }} mudar={mudaNoLugar ? {
           saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, demandasDaTarefa(t))), peloLigado: continuaPelaDemanda(t, demandasDaTarefa(t)) },
           depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
         } : null} />}
@@ -227,6 +242,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 
     {soLeitura && <Nota>{soLeitura}</Nota>}
+    {/* Quem pediu a tarefa (#313): não troca o responsável; ele a vê, lê e comenta. */}
+    {t.solicitante_id && <Nota>Pedida por <b>{nomeDe(t.solicitante_id)}</b></Nota>}
     {/* O motivo da diligência (#313), logo abaixo da cabeça: é o que diz por que a tarefa existe. */}
     {t.diligencia && t.diligencia_motivo && <Nota><b>Motivo da diligência:</b> {t.diligencia_motivo}</Nota>}
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}

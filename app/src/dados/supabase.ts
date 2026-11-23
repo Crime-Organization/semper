@@ -410,6 +410,7 @@ const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, moda
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
+const CAMPOS_FUNCAO_NA_TAREFA = 'id, nome, executa, ordem';
 const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
 type CompromissoLido = Omit<Compromisso, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const compromissoComPessoas = ({ ligadas, ...c }: CompromissoLido): Compromisso => ({ ...c, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
@@ -627,7 +628,7 @@ async function comAsOutrasDemandas(linhas: (Omit<TarefaLista, 'equipes_das_outra
 // A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
 const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
 const CONTRATO_DA_TAREFA = `codigo, servico, ${EQUIPE_DO_CONTRATO}`;
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, solicitante_id, funcoes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, demanda_ids, contrato_ids, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'codigos_das_demandas:tarefa_demandas(demanda_id, codigo), codigos_dos_contratos:tarefa_contratos(contrato_id, codigo), '
@@ -683,6 +684,9 @@ function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   q = porInicio(porEtiqueta(q, f), f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
+  if (f.solicitante) q = q.eq('solicitante_id', f.solicitante);
+  // A função (#313): pela lista "participante:função" que o banco mantém (participantes_com_funcao); sem função pedida, nenhuma tarefa.
+  if (f.funcao) q = f.funcao.ids.length ? q.overlaps('participantes_com_funcao', f.funcao.ids.map(id => `${f.funcao!.de}:${id}`)) : q.in('id', []);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -1315,6 +1319,22 @@ export const SD: Dados = {
   async salaAtualizar(id, dados) {
     // A regra do banco não muda a sala de quem não é administrador: nenhuma linha volta, e a tela precisa saber.
     conferirQueMudou((await rodar(sb.from('salas').update(dados).eq('id', id).select('id').maybeSingle())).data);
+  },
+  // ---------- funções dos participantes da tarefa (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql) ----------
+  async funcoesNaTarefaListar() {
+    const { data } = await rodar(sb.from('funcoes_na_tarefa').select(CAMPOS_FUNCAO_NA_TAREFA).order('ordem').order('nome'));
+    return data;
+  },
+  async funcaoNaTarefaCriar(dados) {
+    const { data } = await rodar(sb.from('funcoes_na_tarefa').insert({ ...dados, criado_por: uid() }).select(CAMPOS_FUNCAO_NA_TAREFA).single());
+    return data;
+  },
+  async funcaoNaTarefaAtualizar(id, dados) {
+    // A regra do banco não muda a função de quem não é administrador: nenhuma linha volta, e a tela precisa saber.
+    conferirQueMudou((await rodar(sb.from('funcoes_na_tarefa').update(dados).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async funcaoNaTarefaExcluir(id) {
+    conferirQueMudou((await rodar(sb.from('funcoes_na_tarefa').delete().eq('id', id).select('id').maybeSingle())).data);
   },
   async salaOcupacao(salaId, data, fora = null) {
     return rpc('ocupacao_da_sala', { p_sala: salaId, p_data: data, p_fora: fora }) as Promise<OcupacaoDaSala[]>;

@@ -32,6 +32,8 @@ import { filtroQueVale, gruposDoItem, meusGrupos, PARAMETRO_DO_GRUPO } from '../
 import { filtroDeGrupo } from '../ui/filtroDeGrupo';
 import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
+import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
+import { idsDoFiltroDeFuncao, opcoesDoFiltroDeFuncao } from '../regras/funcoesNaTarefa';
 import { colunaDaOrdem, dataDaOrdem, ORDENS_COM_INICIO, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
 import { filtroDoInicio } from '../ui/filtroDoInicio';
 import { limitesDoPeriodo, type PeriodoDoInicio } from '../regras/dataDeInicio';
@@ -80,7 +82,11 @@ export default function Tarefas() {
   // página aberta depois da meia-noite, "Começa hoje" passa a ser o dia novo. É o filtro com os dias (filtro) que vai ao banco.
   const [inicio, setInicio] = useState<PeriodoDoInicio>('');
   const hoje = hojeNaAgenda();
-  const filtro = useMemo<FiltroTarefas>(() => ({ ...f, ...limitesDoPeriodo(inicio, hoje) }), [f, inicio, hoje]);
+  // O filtro "Função" (#313): a função escolhida vale para a pessoa do filtro "Pessoa da equipe" ou, sem ela, para quem está logado.
+  const funcoes = useFuncoesNaTarefa();
+  const [funcao, setFuncao] = useState('');
+  const funcaoDoFiltro = useMemo(() => funcao ? { de: f.pessoa || eu, ids: idsDoFiltroDeFuncao(funcao, funcoes) } : undefined, [funcao, f.pessoa, eu, funcoes]);
+  const filtro = useMemo<FiltroTarefas>(() => ({ ...f, ...limitesDoPeriodo(inicio, hoje), funcao: funcaoDoFiltro }), [f, inicio, hoje, funcaoDoFiltro]);
   const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('tarefas.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
   const ordem = useOrdem('tarefas', 'tabela', [...ORDENS_COM_PRAZO, ...ORDENS_COM_INICIO]);   // e o prazo (#291) e o início (#357)
@@ -113,7 +119,7 @@ export default function Tarefas() {
     SD.tarefasListar({ ...filtro, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcaoDoFiltro, filtro.inicioDesde, filtro.inicioAte, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -123,10 +129,10 @@ export default function Tarefas() {
     SD.tarefasListar({ ...filtro, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcaoDoFiltro, filtro.inicioDesde, filtro.inicioAte, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.tarefasListar({ ...filtro, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || inicio);
+  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || f.solicitante || funcao || inicio);
   const mudarFiltro = (campos: Partial<FiltroTarefas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -155,7 +161,7 @@ export default function Tarefas() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcao, funcaoDoFiltro?.de, filtro.inicioDesde, filtro.inicioAte].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -166,6 +172,11 @@ export default function Tarefas() {
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('tarefas.pessoa', pessoa); },
           opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        // Quem pediu (#313) e a função na tarefa ("Delegadas a mim", #313).
+        { id: 'solicitante', rotulo: 'Solicitante', valor: f.solicitante || '', aoMudar: solicitante => mudarFiltro({ solicitante: solicitante || undefined }),
+          opcoes: [['', 'Qualquer solicitante'], [eu, 'Pedidas por mim'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        ...(funcoes.length ? [{ id: 'funcao', rotulo: 'Função', valor: funcao, aoMudar: (v: string) => { setFuncao(v); mudarFiltro({}); },
+          opcoes: opcoesDoFiltroDeFuncao(funcoes, f.pessoa && f.pessoa !== eu ? ctx.equipe.find(m => m.id === f.pessoa)?.nome ?? null : null) }] : []),
         ...filtroDeGrupo(ctx.grupos, eu, f.grupo, grupo => { mudarFiltro({ grupo: grupo || undefined }); salvarPreferencia('tarefas.grupo', grupo); }),
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })

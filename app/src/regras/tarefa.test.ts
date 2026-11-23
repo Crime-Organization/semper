@@ -5,8 +5,9 @@ import {
   CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, comMaisUm, continuaPelaDemanda, CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, dadosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA,
   demandasDaTarefa, demandasQueAbre, errosDaEtapaTarefa, estaNaTarefa, ETAPAS_TAREFA, ligadasDaTarefa, motivoSemMencaoNaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
   papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, soLeATarefaNaLista, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa,
-  diligenciaAoGravar, MOTIVO_DA_DILIGENCIA_LONGO, SEM_MOTIVO_DA_DILIGENCIA
+  diligenciaAoGravar, MOTIVO_DA_DILIGENCIA_LONGO, SEM_MOTIVO_DA_DILIGENCIA, motivoDeSoLerATarefa, SO_LEITURA_DO_SOLICITANTE
 } from './tarefa';
+import { SO_LEITURA_FORA_DO_CARTAO } from './equipeVeTudo';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 
 const completa = { ...TAREFA_VAZIA, titulo: 'Emitir a GRU', responsavelId: 'u-ana' };
@@ -36,7 +37,8 @@ describe('Cadastro de tarefa', () => {
     const dados = dadosDaTarefa({ ...completa, descricao: '  ', prazo: '10/11/2026', participantes: ['u-bruno', 'u-ana', 'u-bruno'], pessoas: ['p1', '', 'p1'] });
     // Então
     expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
-      participantes: ['u-bruno'], pessoas: ['p1'], demanda_ids: [], contrato_ids: [], processo_id: null, diligencia: false, diligencia_motivo: null });
+      participantes: ['u-bruno'], pessoas: ['p1'], demanda_ids: [], contrato_ids: [], processo_id: null, diligencia: false, diligencia_motivo: null,
+      solicitante_id: null, funcoes: {} });
   });
 
   it('dadas duas demandas e dois contratos (#283), quando a tarefa é salva, então vão as listas inteiras, na ordem e sem repetir', () => {
@@ -121,7 +123,7 @@ describe('Cadastro de tarefa', () => {
     const campos = camposDaTarefa(t);
     // Então
     expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
-      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '' });
+      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {} });
   });
 
   it('dada uma tarefa gravada sem as listas (numa importação), quando volta ao formulário ou ao cartão, então conta a demanda e o contrato principais', () => {
@@ -154,11 +156,11 @@ describe('Cadastro de tarefa', () => {
     expect(daEtapaPessoas).toEqual({});
   });
 
-  it('quando a pessoa percorre o cadastro, então há duas etapas (a tarefa, com o prazo e as ligações, e as pessoas), e a das pessoas é a de antes (#299)', () => {
+  it('quando a pessoa percorre o cadastro, então há duas etapas (a tarefa, com o prazo e as ligações, e as pessoas), e a das pessoas traz também o solicitante e as funções (#299, #313)', () => {
     // Então
     expect(ETAPAS_TAREFA.map(e => e.id)).toEqual(['tarefa', 'pessoas']);
     expect(ETAPAS_TAREFA[0].campos).toEqual(expect.arrayContaining(['titulo', 'prazo', 'hora', 'lembrete', 'demandas', 'contratos', 'processoId']));
-    expect(ETAPAS_TAREFA[1]).toMatchObject({ titulo: 'Pessoas', campos: ['responsavelId', 'participantes', 'pessoas'] });
+    expect(ETAPAS_TAREFA[1]).toMatchObject({ titulo: 'Pessoas', campos: ['responsavelId', 'solicitanteId', 'participantes', 'funcoes', 'pessoas'] });
   });
 
   it('dado o lápis do cartão, quando ele mostra as seções, então as pessoas vêm antes da demanda, do contrato e do processo, como antes da #299', () => {
@@ -388,5 +390,45 @@ describe('A diligência da tarefa (#313)', () => {
     const c = camposDaTarefa(t);
     // Então
     expect([c.diligencia, c.motivoDaDiligencia]).toEqual([true, 'Ir ao cartório']);
+  });
+});
+
+describe('O solicitante e as funções na tarefa (#313)', () => {
+  it('quando a tarefa é salva, então vão o solicitante e só as funções de quem é participante', () => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, participantes: ['u-bia', 'u-ana'], solicitanteId: 'u-eva', funcoes: { 'u-bia': 'f-exe', 'u-ana': 'f-aco', 'u-caio': 'f-aco' } });
+    // Então
+    expect(dados).toMatchObject({ participantes: ['u-bia'], solicitante_id: 'u-eva', funcoes: { 'u-bia': 'f-exe' } });
+  });
+
+  it('quando a tarefa não tem solicitante, então ele vai como nada', () => {
+    // Então
+    expect(dadosDaTarefa(completa).solicitante_id).toBeNull();
+  });
+
+  it('quando o solicitante não está na tarefa, então ele a vê, mas não a altera', () => {
+    // Dado
+    const t = { criado_por: 'u-ana', responsavel_id: 'u-ana', participantes: [], grupos: [], solicitante_id: 'u-eva' };
+    // Então
+    expect(veATarefa(t, membro('u-eva'))).toBe(true);
+    expect(estaNaTarefa(t, membro('u-eva'))).toBe(false);
+    expect(veATarefa(t, membro('u-caio'))).toBe(false);
+  });
+
+  it('quando o solicitante abre a tarefa em que não está, então o cartão diz por que ele só lê', () => {
+    // Então
+    expect(motivoDeSoLerATarefa(SO_LEITURA_FORA_DO_CARTAO, { solicitante_id: 'u-eva' }, 'u-eva')).toBe(SO_LEITURA_DO_SOLICITANTE);
+    expect(motivoDeSoLerATarefa(SO_LEITURA_FORA_DO_CARTAO, { solicitante_id: 'u-eva' }, 'u-caio')).toBe(SO_LEITURA_FORA_DO_CARTAO);
+    expect(motivoDeSoLerATarefa(null, { solicitante_id: 'u-eva' }, 'u-eva')).toBeNull();
+  });
+
+  it('quando a tarefa salva volta ao formulário, então o solicitante e as funções voltam', () => {
+    // Dado
+    const t = { ...dadosDaTarefa(completa), id: 't1', codigo: 'T1', pessoas: [], participantes: ['u-bia'], demanda_id: null, contrato_id: null, processo_id: null,
+      solicitante_id: 'u-eva', funcoes: { 'u-bia': 'f-exe' } } as unknown as Tarefa;
+    // Quando
+    const c = camposDaTarefa(t);
+    // Então
+    expect([c.solicitanteId, c.funcoes]).toEqual(['u-eva', { 'u-bia': 'f-exe' }]);
   });
 });

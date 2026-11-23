@@ -1,0 +1,5 @@
+{
+  "titulo": "Quem pediu a tarefa e a função de cada participante",
+  "texto": "A tarefa ganha o solicitante (quem a pediu), que passa a vê-la sem trocar o responsável. Cada participante tem uma função, como \"Executa\" (em destaque no cartão) ou \"Acompanha\", e a lista filtra pelo solicitante e pelas \"Delegadas a mim\".",
+  "ondeAchar": "Tarefas > Nova tarefa, etapa Pessoas; no cartão, o menu da bolinha de cada participante; na lista, Filtros. As funções ficam em Configurações."
+}

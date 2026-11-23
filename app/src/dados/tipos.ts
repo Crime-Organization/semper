@@ -431,6 +431,13 @@ export interface Tarefa {
   diligencia: boolean;
   /** Por que a diligência é feita (só na diligência; null nas outras). */
   diligencia_motivo: string | null;
+  /** Quem pediu a tarefa (#313): alguém da equipe, que a vê (lê e comenta) sem trocar o responsável. null: não informado. */
+  solicitante_id: string | null;
+  /**
+   * A função de cada participante (#313): o id do participante → o id da função (FuncaoNaTarefa). O banco dá a função padrão a quem
+   * entra sem ela e tira quem sai. A função é só um rótulo: não muda quem vê nem quem altera.
+   */
+  funcoes: Record<string, string>;
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
   /** A demanda principal: a primeira de demanda_ids (a versão anterior do site só conhece esta). */
@@ -486,7 +493,7 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'
-  | 'diligencia' | 'diligencia_motivo'>>;
+  | 'diligencia' | 'diligencia_motivo' | 'solicitante_id' | 'funcoes'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome' | 'diligencia'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
@@ -513,6 +520,10 @@ export interface FiltroTarefas {
   grupo?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
+  /** Um usuário da equipe: as tarefas que ele pediu (#313). */
+  solicitante?: string;
+  /** As tarefas em que o usuário `de` é participante com uma das funções `ids` (#313: "Delegadas a mim"). ids vazio: nenhuma. */
+  funcao?: { de: string; ids: string[] };
   /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
   inicioDesde?: string;
   inicioAte?: string;
@@ -1560,6 +1571,26 @@ export interface Sala {
 export type DadosSala = Pick<Sala, 'nome' | 'capacidade'>;
 /** Um compromisso que ocupa a sala num dia. Sem título (null): quem lê não vê esse compromisso, e fica só o código e o horário. */
 export interface OcupacaoDaSala { id: string; codigo: string; tipo: TipoCompromisso; hora: string | null; hora_fim: string | null; titulo: string | null }
+/** Uma função dos participantes da tarefa (#313): a lista é de cada escritório, nas Configurações. */
+export interface FuncaoNaTarefa {
+  id: string;
+  nome: string;
+  /** Quem tem esta função recebeu a tarefa para fazer ("Delegadas a mim"). */
+  executa: boolean;
+  /** A posição na lista (a da criação, dada pelo banco). */
+  ordem: number;
+}
+/** O que o cadastro de função grava. */
+export type DadosFuncaoNaTarefa = Pick<FuncaoNaTarefa, 'nome' | 'executa'>;
+/** As funções dos participantes (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql). Só administradores mudam a lista. */
+export interface DadosFuncoesNaTarefa {
+  /** As funções do escritório, na ordem da lista. */
+  funcoesNaTarefaListar(): Promise<FuncaoNaTarefa[]>;
+  funcaoNaTarefaCriar(dados: DadosFuncaoNaTarefa): Promise<FuncaoNaTarefa>;
+  funcaoNaTarefaAtualizar(id: string, dados: Partial<DadosFuncaoNaTarefa>): Promise<void>;
+  /** A função em uso numa tarefa é recusada: troca-se antes a função dessas pessoas. */
+  funcaoNaTarefaExcluir(id: string): Promise<void>;
+}
 /** Salas (supabase/migrations/20261122132438_salas_do_escritorio.sql). */
 export interface DadosSalas {
   /** Todas as salas do escritório, ativas e desativadas, por nome. */
@@ -2182,4 +2213,4 @@ export interface DadosGrupos {
   itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
-export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}
