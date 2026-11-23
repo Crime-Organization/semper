@@ -3331,13 +3331,15 @@ export const SD: Dados = {
     return espera({ id, codigo: k.codigo });
   },
   async contratosArquivar(ids, arquivar = true) {
-    ids.forEach(id => {
-      const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return;
+    // Como o banco: um update só, e o gatilho de cada contrato roda depois, com todos os da lista já arquivados (ou desarquivados).
+    const mudaram = ids.flatMap(id => {
+      const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return [];
       const mudou = !k.arquivado_em === arquivar;
       historicoContrato(k, { arquivado_em: arquivar ? agora() : null });
       Object.assign(k, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
-      if (mudou) arquivarEmCascata(k.id, arquivar);
+      return mudou ? [k.id] : [];
     });
+    mudaram.forEach(id => arquivarEmCascata(id, arquivar));
     gravar(); return espera(ids.length);
   },
   contratoExclusaoPrevia(ids) {

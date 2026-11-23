@@ -4892,6 +4892,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await arquivada('tarefa', c.daDemanda.id)).toBe(true);
       });
 
+      it('dado dois contratos com uma tarefa em comum arquivados juntos, quando só o primeiro volta, então a tarefa volta com ele', async () => {
+        // Dado: no banco é um update só, e o gatilho do primeiro já vê o outro arquivado; a tarefa fica marcada com o primeiro
+        const c = await cenario();
+        await SD.contratosArquivar([c.k.id, c.outro.id], true);
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(true);
+        // Quando
+        await SD.contratosArquivar([c.k.id], false);
+        // Então
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+      });
+
       it('dado um contrato arquivado, quando é excluído, então saem as demandas e as tarefas dele; a ligada a outro contrato fica, só com ele', async () => {
         // Dado
         const c = await cenario();

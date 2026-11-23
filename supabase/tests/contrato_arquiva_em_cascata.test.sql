@@ -151,6 +151,32 @@ select is(pg_temp.arquivadas(), 'D2,T2,T4', 'Volta só o que foi arquivado junto
 select is((select arquivado_por from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), null, 'A tarefa que volta fica sem quem arquivou');
 select is((select count(*) from privado.arquivados_com_contrato), 0::bigint, 'Nenhuma marca sobra depois de desarquivar');
 
+-- ===== Dois contratos arquivados no mesmo comando =====
+-- Quando a Ana arquiva o K1 e o K2 de uma vez (a T3 é da D1, do K1, e do K2)
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ update public.contratos set arquivado_em = now(), arquivado_por = 'a0000000-0000-0000-0000-000000000001'
+  where id in ('c0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002') $$, 'A Ana arquiva os dois contratos juntos');
+reset role;
+-- Então a T3 é arquivada (o gatilho de cada contrato roda com os dois já arquivados), com uma marca só, a do K1 (o da D1)
+select is((select count(*) from public.tarefas where id = '70000000-0000-0000-0000-000000000003' and arquivado_em is not null), 1::bigint,
+  'A tarefa dos dois contratos é arquivada');
+select is((select array_agg(contrato_id) from privado.arquivados_com_contrato where tarefa_id = '70000000-0000-0000-0000-000000000003'),
+  '{c0000000-0000-0000-0000-000000000001}'::uuid[], 'Ela fica marcada com o K1');
+-- Quando a Ana desarquiva só o K1
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ update public.contratos set arquivado_em = null, arquivado_por = null where id = 'c0000000-0000-0000-0000-000000000001' $$,
+  'A Ana desarquiva só o K1');
+reset role;
+-- Então a T3 volta com o K1
+select is((select count(*) from public.tarefas where id = '70000000-0000-0000-0000-000000000003' and arquivado_em is null), 1::bigint,
+  'A tarefa volta com o contrato que a marcou');
+-- E, desarquivado também o K2, tudo fica como antes
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ update public.contratos set arquivado_em = null, arquivado_por = null where id = 'c0000000-0000-0000-0000-000000000002' $$,
+  'A Ana desarquiva o K2');
+reset role;
+select is(pg_temp.arquivadas(), 'D2,T2,T4', 'Depois dos dois, tudo como antes');
+
 -- ===== Outro escritório =====
 -- Quando o Davi arquiva o K9 do escritório dele
 select pg_temp.entrar(3); set local role authenticated;
