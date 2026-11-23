@@ -74,7 +74,7 @@ test('dado um contrato com recebimento e repasse pago, quando o administrador pe
   await receber.getByLabel('Valor recebido').fill('1.000,00');
   await receber.getByRole('button', { name: 'Registrar recebimento' }).click();
   await expect(receber).toHaveCount(0);
-  await page.goto('/parcelas/');
+  await page.goto('/financeiro/obrigacoes/');
   await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
   await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
   await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');
@@ -92,9 +92,9 @@ test('dado um contrato com recebimento e repasse pago, quando o administrador pe
   await expect(cartao.getByRole('button', { name: 'Desarquivar', exact: true })).toBeVisible();
 
   // Quando o pagamento é desfeito
-  await page.goto('/parcelas/');
-  await page.getByRole('button', { name: 'Desfazer pagamento' }).click();
-  await page.getByRole('button', { name: 'Confirmar: desfazer' }).click();
+  await page.goto('/financeiro/obrigacoes/');
+  await page.getByRole('table', { name: 'Repasses' }).getByRole('button', { name: 'Desfazer pagamento' }).click();
+  await page.getByRole('table', { name: 'Repasses' }).getByRole('button', { name: 'Confirmar: desfazer' }).click();
   await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('A pagar');
   // E o contrato é excluído
   await abrirTabela(page, 'contratos');
