@@ -1,0 +1,5 @@
+{
+  "titulo": "Filtro de grupo mostra as tarefas avulsas do grupo",
+  "texto": "Ao filtrar Tarefas por um grupo da equipe (ou por \"Dos meus grupos\"), vêm também as tarefas avulsas da demanda contínua do grupo. A nova opção \"Geral\" mostra a contínua de quem não está em grupo nenhum e as tarefas dela. Cada pessoa continua vendo só as tarefas que já via.",
+  "ondeAchar": "Menu Tarefas ou Demandas > botão Filtros > Grupo da equipe."
+}

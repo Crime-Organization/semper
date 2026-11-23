@@ -157,7 +157,7 @@ export const ASSUNTOS: Assunto[] = [
       'Demandas', 'NovaDemanda', 'NovaDemandaPelaOrigem', 'CartaoDemanda', 'DemandasRelacionadas', 'concluirDemanda', 'CartoesLigados',
       'demanda', 'demandaContinua', 'demandasRelacionadas', 'demandaDoCompromisso', 'dataDeInicio', 'ordemPorPrazo', 'filtroDoInicio',
       'demandas', 'demandas-relacionadas', 'demanda-continua',
-      'demanda_continua', 'demandas_continuas_do_escritorio', 'demandas_relacionadas', 'data_de_inicio'
+      'demanda_continua', 'demandas_continuas_do_escritorio', 'grupo_com_demanda_continua', 'demandas_relacionadas', 'data_de_inicio'
     ],
     tabelas: ['demandas', 'demanda_clientes', 'demanda_historico', 'demandas_relacionadas'],
     dados: ['DadosDemandas'],
@@ -167,7 +167,8 @@ export const ASSUNTOS: Assunto[] = [
       'A demanda contínua é criada pelo banco (uma por grupo da equipe e uma geral); não a crie pela tela.',
       'A contínua é especial em todo lugar que lista, liga ou conclui demandas: `ehContinua` em `paginas/concluirDemanda.ts` (nunca se conclui), `regras/ligarExistente.ts` e `paginas/ligarNoCartao.ts` (desfazer a ligação devolve a tarefa a ela) e `demandasParaLigar` em `supabase.ts` (uma por grupo, todas contam). Veja [Ligações entre itens](#ligacoes).',
       'Arquivar ou excluir contrato em cascata não leva a contínua, e a tarefa avulsa ligada ao contrato volta para ela: teste do banco `contrato_cascata_com_a_continua` e `e2e/contrato-arquiva-em-cascata.spec.ts` (veja [Contratos](#contratos)).',
-      'Checklists da demanda estão em [Checklists e modelos](#listas).'
+      'Checklists da demanda estão em [Checklists e modelos](#listas).',
+      'O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migração `grupo_com_demanda_continua`).'
     ],
     testes: ['ligar-existente', 'tarefa-em-varias-ligacoes', 'contrato-arquiva-em-cascata', 'contrato_cascata_com_a_continua', 'ligarExistente']
   },
@@ -207,7 +208,7 @@ export const ASSUNTOS: Assunto[] = [
       'A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).',
       'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.'
     ],
-    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro')]
+    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro'), 'grupo_com_demanda_continua', 'grupos-da-equipe']
   },
   {
     id: 'tempo',

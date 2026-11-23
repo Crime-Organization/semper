@@ -17,42 +17,42 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Pessoas](#pessoas), linhas 97–128: O cadastro de pessoas (clientes, partes, contatos): o cadastro em etapas, o cartão, os vínculos entre pessoas, o sigilo e os responsáveis.
 - [Contratos](#contratos), linhas 129–159: Os contratos de honorários: o cadastro, os clientes e participantes, a numeração por ano, quem vê os valores, e arquivar ou excluir em cascata.
 - [Objetos de contrato](#objetos), linhas 160–179: Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos) e a demanda que nasce de cada objeto.
-- [Demandas](#demandas), linhas 180–208: As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, demandas relacionadas e a demanda contínua, que junta as tarefas avulsas.
-- [Checklists e modelos](#listas), linhas 209–230: Os checklists (no código e no banco, "listas") da demanda, da tarefa e do contrato, com grupos numerados, e os modelos de checklist do escritório.
-- [Tarefas](#tarefas), linhas 231–263: As tarefas: o cadastro, o cartão, as funções dos participantes (executa, acompanha), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.
-- [Tempo nas tarefas](#tempo), linhas 264–285: O cronômetro das tarefas, os registros de tempo (corrigir e apagar) e a página "Meu tempo trabalhado".
-- [Processos](#processos), linhas 286–318: Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.
-- [Propriedade intelectual](#propriedade-intelectual), linhas 319–337: O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
-- [Agenda e compromissos](#agenda), linhas 338–365: Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.
-- [Calendário e prazos](#calendario), linhas 366–385: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
-- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 386–403: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
-- [Documentos e anotações](#documentos), linhas 404–431: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
-- [Financeiro](#financeiro), linhas 432–457: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
-- [Parcelas e recebimentos](#parcelas), linhas 458–480: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
-- [Lucro dos sócios](#lucros), linhas 481–496: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
-- [Meus valores](#meus-valores), linhas 497–509: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
-- [Conferência dos lançamentos](#conferencia), linhas 510–524: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
-- [Equipe, grupos e permissões](#equipe), linhas 525–555: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
-- [Perfil profissional e foto](#perfil), linhas 556–575: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
-- [Configurações e escritório](#configuracoes), linhas 576–592: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
-- [Registro de ações e LGPD](#registro), linhas 593–605: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
-- [Mensagens e avisos](#mensagens), linhas 606–630: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
-- [Comentários e menções](#comentarios), linhas 631–648: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
-- [Etiquetas](#etiquetas), linhas 649–665: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
-- [Ligações entre itens](#ligacoes), linhas 666–687: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
-- [Quadros (kanban) e situação](#quadros), linhas 688–714: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 715–737: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 738–750: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 751–765: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 766–786: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 787–800: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 801–820: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 821–839: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 840–853: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 854–867: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 868–879: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 880–984: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 985–988: nada.
+- [Demandas](#demandas), linhas 180–209: As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, demandas relacionadas e a demanda contínua, que junta as tarefas avulsas.
+- [Checklists e modelos](#listas), linhas 210–231: Os checklists (no código e no banco, "listas") da demanda, da tarefa e do contrato, com grupos numerados, e os modelos de checklist do escritório.
+- [Tarefas](#tarefas), linhas 232–264: As tarefas: o cadastro, o cartão, as funções dos participantes (executa, acompanha), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.
+- [Tempo nas tarefas](#tempo), linhas 265–286: O cronômetro das tarefas, os registros de tempo (corrigir e apagar) e a página "Meu tempo trabalhado".
+- [Processos](#processos), linhas 287–319: Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.
+- [Propriedade intelectual](#propriedade-intelectual), linhas 320–338: O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
+- [Agenda e compromissos](#agenda), linhas 339–366: Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.
+- [Calendário e prazos](#calendario), linhas 367–386: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
+- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 387–404: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
+- [Documentos e anotações](#documentos), linhas 405–432: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
+- [Financeiro](#financeiro), linhas 433–458: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
+- [Parcelas e recebimentos](#parcelas), linhas 459–481: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
+- [Lucro dos sócios](#lucros), linhas 482–497: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
+- [Meus valores](#meus-valores), linhas 498–510: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
+- [Conferência dos lançamentos](#conferencia), linhas 511–525: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
+- [Equipe, grupos e permissões](#equipe), linhas 526–556: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
+- [Perfil profissional e foto](#perfil), linhas 557–576: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
+- [Configurações e escritório](#configuracoes), linhas 577–593: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
+- [Registro de ações e LGPD](#registro), linhas 594–606: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
+- [Mensagens e avisos](#mensagens), linhas 607–631: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
+- [Comentários e menções](#comentarios), linhas 632–649: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
+- [Etiquetas](#etiquetas), linhas 650–666: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
+- [Ligações entre itens](#ligacoes), linhas 667–688: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
+- [Quadros (kanban) e situação](#quadros), linhas 689–715: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
+- [Cartão dos itens](#cartao), linhas 716–738: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 739–751: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 752–766: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 767–787: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 788–801: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 802–821: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google e contatos](#google), linhas 822–840: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+- [Novidades e versão](#novidades), linhas 841–854: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 855–868: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 869–880: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 881–985: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 986–989: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -183,7 +183,7 @@ As funções de dados ficam em `DadosContratos` (veja Contratos).
 As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, demandas relacionadas e a demanda contínua, que junta as tarefas avulsas.
 
 - **Tabelas:** `demandas` (demandas), `demanda_clientes` (demandas), `demanda_historico` (demandas), `demandas_relacionadas` (demandas_relacionadas); entre parênteses, a migração que a cria
-- **Migrações:** (supabase/migrations/) 20261027000017_demandas, 20261109102349_equipe_ve_tudo, 20261110022014_lembretes_dos_prazos, 20261118200000_data_de_inicio, 20261119233811_grupos_da_equipe, 20261122125913_demandas_relacionadas, 20261123003418_demanda_continua, 20261123022647_demandas_continuas_do_escritorio
+- **Migrações:** (supabase/migrations/) 20261027000017_demandas, 20261109102349_equipe_ve_tudo, 20261110022014_lembretes_dos_prazos, 20261118200000_data_de_inicio, 20261119233811_grupos_da_equipe, 20261122125913_demandas_relacionadas, 20261123003418_demanda_continua, 20261123022647_demandas_continuas_do_escritorio, 20261123202316_grupo_com_demanda_continua
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
   - `DadosDemandas`: demandasListar, demandasDaEtapa, demandaObter, demandaCriar, demandaAtualizar, demandasArquivar, demandasExcluir, demandaMover, demandaHistorico, demandasDaPessoa, demandasDoContrato, contratoCriarDemanda, demandaContinua, demandasRelacionadas, demandaRelacionar, demandaDesrelacionar
 - **Regras:** (app/src/regras/)
@@ -196,7 +196,7 @@ As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, d
 - **Telas:** (app/src/paginas/) CartaoDemanda.tsx, CartoesLigados.tsx, Demandas.css, Demandas.tsx, DemandasRelacionadas.tsx, NovaDemanda.tsx, concluirDemanda.ts
 - **Rotas:** `/demandas/`, `/demandas/nova/`
 - **Peças de ui:** (app/src/ui/) filtroDoInicio.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/contrato_cascata_com_a_continua.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/demanda_continua.test.sql supabase/tests/demandas_relacionadas.test.sql`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/contrato_cascata_com_a_continua.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/demanda_continua.test.sql supabase/tests/demandas_relacionadas.test.sql supabase/tests/grupo_com_demanda_continua.test.sql`
 - **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/DemandasRelacionadas.test.tsx src/paginas/NovaDemanda.test.tsx src/paginas/NovaDemandaPelaOrigem.test.tsx src/regras/dataDeInicio.test.ts src/regras/demanda.test.ts src/regras/demandaContinua.test.ts src/regras/demandaDoCompromisso.test.ts src/regras/demandasRelacionadas.test.ts src/regras/ligarExistente.test.ts src/regras/ordemPorPrazo.test.ts src/ui/filtroDoInicio.test.ts`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/contrato-arquiva-em-cascata.spec.ts e2e/demanda-continua.spec.ts e2e/demandas-relacionadas.spec.ts e2e/demandas.spec.ts e2e/ligar-existente.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts`
 - **Armadilhas:**
@@ -205,6 +205,7 @@ As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, d
   - A contínua é especial em todo lugar que lista, liga ou conclui demandas: `ehContinua` em `paginas/concluirDemanda.ts` (nunca se conclui), `regras/ligarExistente.ts` e `paginas/ligarNoCartao.ts` (desfazer a ligação devolve a tarefa a ela) e `demandasParaLigar` em `supabase.ts` (uma por grupo, todas contam). Veja [Ligações entre itens](#ligacoes).
   - Arquivar ou excluir contrato em cascata não leva a contínua, e a tarefa avulsa ligada ao contrato volta para ela: teste do banco `contrato_cascata_com_a_continua` e `e2e/contrato-arquiva-em-cascata.spec.ts` (veja [Contratos](#contratos)).
   - Checklists da demanda estão em [Checklists e modelos](#listas).
+  - O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migração `grupo_com_demanda_continua`).
 
 <a id="listas"></a>
 ## Checklists e modelos
@@ -249,9 +250,9 @@ As tarefas: o cadastro, o cartão, as funções dos participantes (executa, acom
 - **Telas:** (app/src/paginas/) AprovacaoDaTarefa.tsx, CartaoTarefa.tsx, CartoesLigados.tsx, FuncoesDosParticipantes.tsx, NovaTarefa.tsx, Tarefas.tsx, TarefasDaDemanda.tsx, copiarTarefa.tsx, prazoDaTarefa.ts
 - **Rotas:** `/tarefas/`, `/tarefas/nova/`
 - **Peças de ui:** (app/src/ui/) filtroDoInicio.ts, funcoesNaTarefa.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/colunas_de_espera_das_tarefas.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/tarefa_aprovacao.test.sql supabase/tests/tarefa_diligencia.test.sql supabase/tests/tarefa_em_varias_demandas_e_contratos.test.sql supabase/tests/tarefa_solicitante_e_funcoes.test.sql`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/colunas_de_espera_das_tarefas.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/grupo_com_demanda_continua.test.sql supabase/tests/tarefa_aprovacao.test.sql supabase/tests/tarefa_diligencia.test.sql supabase/tests/tarefa_em_varias_demandas_e_contratos.test.sql supabase/tests/tarefa_solicitante_e_funcoes.test.sql`
 - **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/AprovacaoDaTarefa.test.tsx src/paginas/Inicio.test.tsx src/paginas/NovaTarefa.test.tsx src/paginas/TarefasDaDemanda.test.tsx src/paginas/copiarTarefa.test.tsx src/paginas/prazoDaTarefa.test.ts src/regras/aprovacaoDaTarefa.test.ts src/regras/colunasPadrao.test.ts src/regras/copiaDaTarefa.test.ts src/regras/dataDeInicio.test.ts src/regras/funcoesNaTarefa.test.ts src/regras/ordemPorPrazo.test.ts src/regras/prazoDaTarefa.test.ts src/regras/quadro.test.ts src/regras/tarefa.test.ts src/ui/filtroDoInicio.test.ts src/ui/funcoesNaTarefa.test.ts`
-- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/colunas-padrao.spec.ts e2e/copiar-tarefa.spec.ts e2e/demanda-continua.spec.ts e2e/equipe-no-cartao.spec.ts e2e/ligar-processo.spec.ts e2e/prazo-da-tarefa.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/colunas-padrao.spec.ts e2e/copiar-tarefa.spec.ts e2e/demanda-continua.spec.ts e2e/equipe-no-cartao.spec.ts e2e/grupos-da-equipe.spec.ts e2e/ligar-processo.spec.ts e2e/prazo-da-tarefa.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 - **Armadilhas:**
   - Concluir a tarefa que cumpre um prazo pergunta se o prazo foi cumprido (`regras/prazoDaTarefa.ts`, `paginas/situacaoDoItem.tsx`): teste pelos caminhos do ✓ do cartão e do círculo da miniatura.
   - Tarefa sem demanda vai para a demanda contínua (veja [Demandas](#demandas)). O cronômetro e os registros de tempo estão em [Tempo nas tarefas](#tempo).
@@ -980,7 +981,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meu-tempo.spec.ts`
 - `/tarefas/nova/` (FormularioTarefa): [Tarefas](#tarefas)
   - escrevem o endereço: (app/) src/paginas/CartaoContrato.tsx, src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/Inicio.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/Tarefas.tsx, src/regras/novoNaAnotacao.test.ts, src/regras/novoNaAnotacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/LigarDoModulo.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 
 <a id="sem-assunto"></a>
 ## Sem assunto

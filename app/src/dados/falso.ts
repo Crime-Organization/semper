@@ -65,7 +65,7 @@ import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
 import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, TIPO_QUE_FICA, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
 import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
 import { aprovaATarefa, colunaDaDevolucao, comentarioDaDevolucao, conferirMudancaDaAprovacao, esperaAprovacao, etapaComAprovacao, NAO_ESPERA_APROVACAO, SO_QUEM_PEDIU_APROVA } from '../regras/aprovacaoDaTarefa';
-import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
+import { entraNoPedido, estaPeloGrupo, integrantesAtivos, meusGrupos, pedidoDoFiltroDeGrupo, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
@@ -1323,7 +1323,7 @@ const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descr
 function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
   return bd.demandas!.filter(d => vejoNoModulo('demandas', d.id) && (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
-    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa)) && (f.contrato !== 'sem' || !d.contrato_id) && noGrupoDoFiltro(d.grupos, f.grupo)
+    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa)) && (f.contrato !== 'sem' || !d.contrato_id) && noGrupoDoFiltro(d, f.grupo)
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta)) && inicioNosLimites(d.data_inicio, f)
     && (!t || buscaDemanda(d).includes(t)));
 }
@@ -1562,14 +1562,17 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   };
 };
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
-/** O filtro "Grupo da equipe" (#378): o item tem algum dos grupos pedidos (como q.overlaps no banco). */
-const noGrupoDoFiltro = (grupos: string[] | undefined, filtro: string | undefined) => {
-  const pedidos = gruposDoFiltro(filtro, meusGruposNoFalso());
-  return !pedidos || (grupos ?? []).some(g => pedidos.includes(g));
+/**
+ * O filtro "Grupo da equipe" (#378): o item tem algum dos grupos pedidos ou é a contínua de um deles; a Geral, a contínua Geral (#416;
+ * como porGrupo em supabase.ts).
+ */
+const noGrupoDoFiltro = (item: Partial<Pick<DemandaGuardada, 'grupos' | 'continua' | 'continua_grupo_id'>>, filtro: string | undefined) => {
+  const pedido = pedidoDoFiltroDeGrupo(filtro, meusGruposNoFalso());
+  return !pedido || entraNoPedido(pedido, item);
 };
-/** Nas tarefas, também as das demandas do grupo (como public.tarefas_dos_grupos). */
+/** Nas tarefas, também as das demandas do grupo e as da contínua dele (como public.tarefas_do_filtro_de_grupo). */
 const daTarefaNoGrupo = (x: TarefaGuardada, f: FiltroTarefas) =>
-  noGrupoDoFiltro(x.grupos, f.grupo) || (!!f.grupo && demandasDaTarefaNoFalso(x).some(d => noGrupoDoFiltro(d.grupos, f.grupo)));
+  noGrupoDoFiltro({ grupos: x.grupos }, f.grupo) || (!!f.grupo && demandasDaTarefaNoFalso(x).some(d => noGrupoDoFiltro(d, f.grupo)));
 function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
   return bd.tarefas!.filter(x => vejoNoModulo('tarefas', x.id) && (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)

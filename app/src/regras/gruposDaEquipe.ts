@@ -2,7 +2,8 @@
 // As regras de quem vê e altera cada item ficam no banco (supabase/migrations/20261119233811_grupos_da_equipe.sql); estas são as
 // mesmas, para a tela saber o que mostrar e para o banco fictício se comportar igual.
 import { GRUPOS_POR_ITEM } from '../dados/limites';
-import type { GrupoDaEquipe, ItensDoGrupo, Membro, ModuloDoPedido } from '../dados/tipos';
+import type { Demanda, GrupoDaEquipe, ItensDoGrupo, Membro, ModuloDoPedido } from '../dados/tipos';
+import { CONTINUA_GERAL } from './demandaContinua';
 import { normal } from './texto';
 
 /** Nomes por extenso, como se fala: "A, B e C" (como nomesPorExtenso, em regras/contrato.ts, sem depender dele). */
@@ -55,13 +56,39 @@ export function candidatosDeGrupo(grupos: readonly GrupoDaEquipe[] | undefined, 
   return (grupos ?? []).filter(g => !jaNoItem.includes(g.id) && normal(g.nome).includes(t));
 }
 
-/** O filtro "Grupo da equipe" em ids: 'meus' são os grupos de quem está logado; um id, ele mesmo; vazio, nenhum filtro (null). */
-export const gruposDoFiltro = (filtro: string | undefined, meus: readonly string[]) =>
-  !filtro ? null : filtro === FILTRO_DOS_MEUS_GRUPOS ? [...meus] : [filtro];
+/**
+ * O filtro "Grupo da equipe" em ids: 'meus' são os grupos de quem está logado; um id, ele mesmo; a Geral, nenhum grupo; vazio,
+ * nenhum filtro (null). Os grupos de pedidoDoFiltroDeGrupo.
+ */
+export const gruposDoFiltro = (filtro: string | undefined, meus: readonly string[]) => pedidoDoFiltroDeGrupo(filtro, meus)?.grupos ?? null;
 
-/** O filtro guardado só vale se o grupo ainda existe (ou é "Dos meus grupos"); senão volta a "Todos os grupos" (undefined). */
+/** O valor do filtro "Grupo da equipe" que mostra a demanda contínua Geral e as tarefas dela (#416): o mesmo da escolha do cadastro. */
+export const FILTRO_DA_GERAL = CONTINUA_GERAL;
+
+/**
+ * O filtro "Grupo da equipe" como o banco o pede (#416): os grupos e se entra a contínua Geral. Um grupo traz os itens dele e a
+ * contínua dele (e as tarefas dela); "Dos meus grupos", os de todos os meus grupos; a Geral, só a contínua Geral.
+ */
+export interface PedidoDoFiltroDeGrupo { grupos: string[]; geral: boolean }
+/** As opções do filtro que não são um grupo, e o que cada uma pede. */
+const PEDIDOS_QUE_NAO_SAO_GRUPO: Record<string, (meus: readonly string[]) => PedidoDoFiltroDeGrupo> = {
+  [FILTRO_DOS_MEUS_GRUPOS]: meus => ({ grupos: [...meus], geral: false }),
+  [FILTRO_DA_GERAL]: () => ({ grupos: [], geral: true })
+};
+/** O pedido do filtro; vazio, nenhum filtro (null). */
+export const pedidoDoFiltroDeGrupo = (filtro: string | undefined, meus: readonly string[]): PedidoDoFiltroDeGrupo | null =>
+  !filtro ? null : Object.hasOwn(PEDIDOS_QUE_NAO_SAO_GRUPO, filtro) ? PEDIDOS_QUE_NAO_SAO_GRUPO[filtro](meus) : { grupos: [filtro], geral: false };
+
+/**
+ * A demanda (ou a tarefa, com os grupos dela) entra no pedido? Tem um dos grupos pedidos, ou é a contínua de um deles, ou é a Geral
+ * com a Geral pedida (como public.tarefas_do_filtro_de_grupo, em supabase/migrations/20261123202316_grupo_com_demanda_continua.sql).
+ */
+export const entraNoPedido = (p: PedidoDoFiltroDeGrupo, d: Partial<Pick<Demanda, 'grupos' | 'continua' | 'continua_grupo_id'>>) =>
+  (d.grupos ?? []).some(g => p.grupos.includes(g)) || (!!d.continua && (d.continua_grupo_id ? p.grupos.includes(d.continua_grupo_id) : p.geral));
+
+/** O filtro guardado só vale se o grupo ainda existe (ou é "Dos meus grupos" ou a Geral); senão volta a "Todos os grupos" (undefined). */
 export const filtroQueVale = (filtro: string | undefined, grupos: readonly GrupoDaEquipe[] | undefined) =>
-  filtro && (filtro === FILTRO_DOS_MEUS_GRUPOS || (grupos ?? []).some(g => g.id === filtro)) ? filtro : undefined;
+  filtro && (Object.hasOwn(PEDIDOS_QUE_NAO_SAO_GRUPO, filtro) || (grupos ?? []).some(g => g.id === filtro)) ? filtro : undefined;
 
 /** O nome de cada módulo, no singular e no plural, para contar os itens do grupo. */
 const NOME_DO_MODULO: Record<ModuloDoPedido, [string, string]> = {
