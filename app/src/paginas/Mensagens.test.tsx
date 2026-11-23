@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SD, type InclusaoDaMensagem, type Mensagem, type PedidoDaMensagem } from '../dados';
+import { SD, type DemandaDoCompromissoDaMensagem, type InclusaoDaMensagem, type Mensagem, type PedidoDaMensagem } from '../dados';
 import { avisar, falha } from '../ui/avisos';
 import Mensagens from './Mensagens';
 
@@ -195,5 +195,40 @@ describe('Mensagens: grupos da equipe (#378)', () => {
     await userEvent.click(within(item).getByRole('link', { name: 'Ver as tarefas do grupo' }));
     // Então
     expect(marcar).toHaveBeenCalledWith('m-grupo');
+  });
+});
+
+describe('Mensagens: a demanda que nasce do compromisso que se repete (#307)', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  const aviso = (extra: Partial<DemandaDoCompromissoDaMensagem> = {}): Mensagem => ({
+    id: 'm-dc', tipo: 'demandaDoCompromisso', criado_em: '2026-11-22T12:00:00Z', lido_em: null, comentario: null, prazo: null, pedido: null, inclusao: null,
+    demandaDoCompromisso: { aviso: 'demanda_nova', demanda: { id: 'd1', codigo: 'D0001', titulo: 'Reunião mensal (10/12/2026)' }, compromisso_id: 'c1',
+      data_antes: null, data_nova: '2026-12-10', ...extra }
+  });
+
+  it('dada a demanda nova, quando a caixa abre, então mostra a demanda com link e de que data ela nasceu', async () => {
+    // Quando
+    montar([aviso()]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: 'Demanda nova do compromisso não lido: Reunião mensal (10/12/2026)' });
+    expect(within(item).getByRole('link', { name: /Reunião mensal/ })).toHaveAttribute('href', '/demandas/?id=d1');
+    expect(item).toHaveTextContent('Nasceu do compromisso de 10/12/2026, que se repete.');
+  });
+
+  it('dada a data mudada e o compromisso cancelado, quando a caixa abre, então cada aviso diz o que aconteceu', async () => {
+    // Quando
+    montar([aviso({ aviso: 'data_mudou', data_antes: '2026-12-10', data_nova: '2026-12-12' }), { ...aviso({ aviso: 'cancelado' }), id: 'm-dc2' }]);
+    // Então
+    expect(await screen.findByRole('listitem', { name: /^Compromisso com data mudada/ })).toHaveTextContent('passou de 10/12/2026 para 12/12/2026');
+    expect(screen.getByRole('listitem', { name: /^Compromisso cancelado/ })).toHaveTextContent('A demanda continua');
+  });
+
+  it('dada a demanda que a pessoa não vê mais, quando a caixa abre, então diz isso, sem link', async () => {
+    // Quando
+    montar([aviso({ demanda: null })]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: /de uma demanda que você não vê mais/ });
+    expect(item).toHaveTextContent('Este aviso é de uma demanda que você não vê mais.');
+    expect(within(item).queryByRole('link')).toBeNull();
   });
 });

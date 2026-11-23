@@ -9,6 +9,7 @@ import type { FrequenciaRepeticao, RegraDeRepeticao, RepeticaoCompromisso, Repet
 import { REPETICAO } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
 import { DIAS_NA_SEMANA, somarDias } from './prazos';
+import { erroDosDiasAntes, type CamposDemandaDoCompromisso } from './demandaDoCompromisso';
 
 /** Meses num ano. */
 const MESES_NO_ANO = 12;
@@ -84,8 +85,11 @@ export function vezNaLista(vezes: readonly VezNaLista[], hoje: string): string |
 /** Como a repetição termina: sem fim, numa data ou depois de um número de vezes. */
 export type FimDaRepeticao = 'nunca' | 'data' | 'vezes';
 export const FINS_DA_REPETICAO: Record<FimDaRepeticao, string> = { nunca: 'Sem fim', data: 'Até uma data', vezes: 'Depois de algumas vezes' };
-/** Os campos da repetição no cadastro do compromisso, como digitados. Sem `repetir`, o compromisso não se repete. */
-export interface CamposRepeticao {
+/**
+ * Os campos da repetição no cadastro do compromisso, como digitados. Sem `repetir`, o compromisso não se repete. A demanda de cada data
+ * (`demandaDiasAntes`, #307 parte B) só vale com a repetição.
+ */
+export interface CamposRepeticao extends CamposDemandaDoCompromisso {
   repetir: FrequenciaRepeticao | '';
   /** O N de "a cada N". */
   aCada: string;
@@ -94,13 +98,13 @@ export interface CamposRepeticao {
   repetirAte: string;
   repetirVezes: string;
 }
-export const REPETICAO_VAZIA: CamposRepeticao = { repetir: '', aCada: '1', termina: 'nunca', repetirAte: '', repetirVezes: '' };
+export const REPETICAO_VAZIA: CamposRepeticao = { repetir: '', aCada: '1', termina: 'nunca', repetirAte: '', repetirVezes: '', demandaDiasAntes: '' };
 
 const inteiro = (t: string) => /^\d+$/.test(t.trim()) ? Number(t.trim()) : NaN;
 const dataOuNada = (t: string) => { try { return lerData(t); } catch { return null; } };
 type Conferencia = (c: CamposRepeticao & { data: string }) => string | null;
 /** As conferências da repetição, por campo (a primeira que falhar dá a mensagem). Sem repetir, nada é conferido. */
-export const CONFERENCIAS_DA_REPETICAO: Record<'aCada' | 'repetirAte' | 'repetirVezes', Conferencia[]> = {
+export const CONFERENCIAS_DA_REPETICAO: Record<'aCada' | 'repetirAte' | 'repetirVezes' | 'demandaDiasAntes', Conferencia[]> = {
   aCada: [c => !c.repetir || (inteiro(c.aCada) >= 1 && inteiro(c.aCada) <= REPETICAO.intervaloMaximo) ? null : `Informe de 1 a ${REPETICAO.intervaloMaximo}.`],
   repetirAte: [
     c => !c.repetir || c.termina !== 'data' || c.repetirAte.trim() ? null : 'Informe até quando o compromisso se repete.',
@@ -111,7 +115,8 @@ export const CONFERENCIAS_DA_REPETICAO: Record<'aCada' | 'repetirAte' | 'repetir
     }
   ],
   repetirVezes: [c => !c.repetir || c.termina !== 'vezes' || (inteiro(c.repetirVezes) >= 2 && inteiro(c.repetirVezes) <= REPETICAO.vezesMaximas)
-    ? null : `Informe de 2 a ${REPETICAO.vezesMaximas} vezes, contando a primeira.`]
+    ? null : `Informe de 2 a ${REPETICAO.vezesMaximas} vezes, contando a primeira.`],
+  demandaDiasAntes: [c => c.repetir ? erroDosDiasAntes(c.demandaDiasAntes) : null]
 };
 
 /** A regra que vai para o banco (só depois de conferida), ou null se o compromisso não se repete. */

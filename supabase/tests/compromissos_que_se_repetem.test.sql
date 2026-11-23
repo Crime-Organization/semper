@@ -20,7 +20,9 @@ select is(privado.data_da_vez('2026-03-15', 'ano', 10, 1), '2036-03-15'::date, '
 
 -- Dada uma série (frequencia, intervalo, inicio, ate, vezes, gerada_ate), quando se pedem as datas a gerar num dia, então vêm as do horizonte
 create function pg_temp.serie(p_freq text, p_intervalo int, p_inicio date, p_ate date, p_vezes int, p_gerada date) returns public.compromisso_repeticoes
-language sql as $$ select row(gen_random_uuid(), null, p_freq, p_intervalo, p_inicio, p_ate, p_vezes, p_gerada, null, now(), now())::public.compromisso_repeticoes $$;
+-- Pelos nomes das colunas (e não pela posição), para a série continuar montável quando a tabela ganha colunas (a parte B, #307).
+language sql as $$ select jsonb_populate_record(null::public.compromisso_repeticoes, jsonb_build_object('id', gen_random_uuid(), 'frequencia', p_freq,
+  'intervalo', p_intervalo, 'inicio', p_inicio, 'ate', p_ate, 'vezes', p_vezes, 'gerada_ate', p_gerada, 'criado_em', now(), 'atualizado_em', now())) $$;
 select is((select count(*) from privado.vezes_para_gerar(pg_temp.serie('mes', 1, '2026-01-31', null, null, '2026-01-31'), '2026-01-31')), 12::bigint,
           'Todo mês, sem fim: as 12 datas seguintes, até 12 meses adiante');
 select is((select array_agg(data order by n) from privado.vezes_para_gerar(pg_temp.serie('ano', 10, '2026-03-15', null, null, '2026-03-15'), '2026-03-15')),

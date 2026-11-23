@@ -9,7 +9,9 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
+import { DEMANDA_DO_COMPROMISSO, GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
+import { somarDias } from '../regras/prazos';
+import { fmtData } from '../regras/pessoa';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
@@ -1954,6 +1956,71 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           for (const t of tarefas.slice(0, ITENS_DO_COMPROMISSO)) await SD.compromissoLigar(id, 'tarefas', t.id);
           // Quando / Então
           await expect(SD.compromissoLigar(id, 'tarefas', tarefas[ITENS_DO_COMPROMISSO].id)).rejects.toThrow(`no máximo ${ITENS_DO_COMPROMISSO} itens`);
+        });
+      });
+
+      describe('a demanda de cada data do compromisso que se repete (#307, parte B)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        // Uma reunião do Bruno daqui a 5 dias, com a Ana, um cliente e ligada a um contrato, que se repete toda semana.
+        const semanal = async () => {
+          const { id: cliente } = await criar(marca());
+          const contrato = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+          const r = await reuniao({ data: somarDias(hojeISO(), 5), hora: '10:00', responsavel_id: 'u-bruno', participantes: ['u-ana'], pessoas: [cliente] });
+          await SD.compromissoLigar(r.id, 'contratos', contrato.id);
+          const repetidos = await SD.compromissoRepetir(r.id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: null });
+          return { ...r, cliente, contrato, segunda: repetidos.ids[0] };
+        };
+
+        it('quando a repetição é marcada para gerar demanda 7 dias antes, então nasce a da data que já está no prazo, ligada ao contrato e às pessoas', async () => {
+          // Dado
+          const { id, codigo, cliente, contrato, segunda } = await semanal();
+          // Quando
+          const nascidas = await SD.compromissoGerarDemandas(id, 7);
+          // Então
+          expect(nascidas).toHaveLength(1);
+          const d = await SD.demandaObter(nascidas[0]);
+          const c = await SD.compromissoObter(id);
+          expect(d).toMatchObject({ prazo: somarDias(hojeISO(), 5), responsavel_id: 'u-bruno', colaboradores: ['u-ana'], contrato_id: contrato.id });
+          expect(d!.titulo).toBe(`${c!.titulo} (${fmtData(somarDias(hojeISO(), 5))})`);
+          expect(d!.clientes.map(p => p.id)).toEqual([cliente]);
+          expect(c!.demanda_gerada_id).toBe(nascidas[0]);
+          expect(c!.repeticao?.demanda_dias_antes).toBe(7);
+          expect((await SD.compromissoItens(id)).visiveis.map(i => i.modulo).sort()).toEqual(['contratos', 'demandas']);
+          expect((await SD.compromissoObter(segunda))!.demanda_gerada_id).toBeNull();
+          expect(codigo).toBeTruthy();
+          // E marcar de novo não gera em dobro
+          expect(await SD.compromissoGerarDemandas(id, 7)).toEqual([]);
+        });
+
+        it('quando a data muda e quando o compromisso é cancelado, então o prazo acompanha e o responsável é avisado em Mensagens', async () => {
+          // Dado
+          const { id } = await semanal();
+          const [demanda] = await SD.compromissoGerarDemandas(id, 7);
+          const nova = somarDias(hojeISO(), 6);
+          // Quando
+          await SD.compromissoAtualizar(id, { data: nova });
+          const cancelado = (await SD.colunasListar('compromissos')).find(c => c.nome === 'Cancelado')!;
+          await SD.compromissoMover(id, cancelado.id, null);
+          // Então
+          expect((await SD.demandaObter(demanda))!.prazo).toBe(nova);
+          entrarComo('u-bruno');
+          const avisos = (await SD.mensagensListar()).filter(m => m.tipo === 'demandaDoCompromisso').map(m => m.demandaDoCompromisso!);
+          expect(avisos.map(a => a.aviso).sort()).toEqual(['cancelado', 'data_mudou', 'demanda_nova']);
+          expect(avisos.every(a => a.demanda?.id === demanda)).toBe(true);
+          expect(avisos.find(a => a.aviso === 'data_mudou')).toMatchObject({ data_antes: somarDias(hojeISO(), 5), data_nova: nova });
+          expect(await SD.mensagensNaoLidas()).toBeGreaterThanOrEqual(3);
+        });
+
+        it('quando quem não muda o compromisso, ou o que não se repete, tenta marcar, então é recusado', async () => {
+          // Dado
+          const { id } = await semanal(), { id: avulsa } = await reuniao({ responsavel_id: 'u-master' });
+          // Quando / Então
+          await expect(SD.compromissoGerarDemandas(avulsa, 7)).rejects.toThrow('Só o compromisso que se repete gera demanda.');
+          entrarComo('u-bruno');
+          await expect(SD.compromissoGerarDemandas(avulsa, 7)).rejects.toThrow('Você não tem permissão para fazer isso.');
+          entrarComo('u-master');
+          await expect(SD.compromissoGerarDemandas(id, DEMANDA_DO_COMPROMISSO.diasMaximos + 1)).rejects.toThrow('Algum campo está em formato inválido.');
         });
       });
 

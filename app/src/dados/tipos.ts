@@ -1365,7 +1365,7 @@ export interface ComentarioDaMensagem {
  * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
  * de quem entrou num item (#377).
  */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo';
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1403,6 +1403,21 @@ export interface Mensagem {
   inclusao: InclusaoDaMensagem | null;
   /** Na mensagem de quem entrou num grupo da equipe (#378). Ausente nas outras. */
   grupo?: GrupoDaMensagem | null;
+  /** No aviso da demanda que nasceu de um compromisso que se repete (#307). Ausente nas outras. */
+  demandaDoCompromisso?: DemandaDoCompromissoDaMensagem | null;
+}
+/** Qual aviso da demanda que nasce do compromisso (#307; mensagens_de_compromisso.aviso no banco): nasceu, a data mudou, foi cancelado. */
+export type AvisoDaDemandaDoCompromisso = 'demanda_nova' | 'data_mudou' | 'cancelado';
+/**
+ * O aviso ao responsável da demanda que nasceu de uma data do compromisso que se repete (#307, tabela mensagens_de_compromisso).
+ * `demanda`: null quando a pessoa não a vê mais (a caixa só diz isso). As datas: a de antes (no data_mudou) e a do compromisso.
+ */
+export interface DemandaDoCompromissoDaMensagem {
+  aviso: AvisoDaDemandaDoCompromisso;
+  demanda: { id: string; codigo: string; titulo: string } | null;
+  compromisso_id: string | null;
+  data_antes: string | null;
+  data_nova: string | null;
 }
 /**
  * A mensagem de quem foi posto num grupo da equipe (#378, tabela mensagens_de_grupo): uma só, a do grupo, e não uma por item (a
@@ -1476,6 +1491,8 @@ export interface Compromisso {
   repeticao_data?: string | null;
   /** A regra da série, para o cartão mostrar como se repete. */
   repeticao?: RepeticaoCompromisso | null;
+  /** A demanda que nasceu desta data (#307, parte B); ausente ou null: nenhuma (ou foi excluída). */
+  demanda_gerada_id?: string | null;
 }
 /** Como o compromisso se repete (#307): por semana, mês ou ano. */
 export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
@@ -1485,7 +1502,12 @@ export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
  */
 export interface RegraDeRepeticao { frequencia: FrequenciaRepeticao; intervalo: number; ate: string | null; vezes: number | null }
 /** A série de um compromisso que se repete: a regra e a primeira data (`inicio`), de onde todas as datas são contadas. */
-export interface RepeticaoCompromisso extends RegraDeRepeticao { id: string; inicio: string }
+export interface RepeticaoCompromisso extends RegraDeRepeticao {
+  id: string;
+  inicio: string;
+  /** Quantos dias corridos antes de cada data nasce uma demanda para o trabalho daquela vez (#307, parte B). Ausente ou null: não gera. */
+  demanda_dias_antes?: number | null;
+}
 /** O resultado de repetir: os compromissos criados (as datas seguintes) e as datas em que a sala estava ocupada (elas ficaram sem sala). */
 export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
@@ -1564,6 +1586,12 @@ export interface DadosCompromissos {
   compromissoMudarSeguintes(id: string, quando: Pick<Compromisso, 'data' | 'hora' | 'hora_fim'>): Promise<number>;
   /** Arquiva este compromisso e os seguintes da série ainda em aberto, e a série para de se repetir. Devolve quantos foram arquivados. */
   compromissoArquivarSeguintes(id: string): Promise<number>;
+  /**
+   * Marca a repetição do compromisso para gerar uma demanda `dias` corridos antes de cada data (null: não gera mais; #307, parte B),
+   * recuando ao dia útil anterior quando o dia cai num fim de semana ou num feriado do Calendário. Quem muda o compromisso, com o módulo
+   * Demandas ligado. Devolve as demandas que já nasceram (as das datas que já estão no prazo); as outras nascem na rotina diária.
+   */
+  compromissoGerarDemandas(id: string, dias: number | null): Promise<string[]>;
   /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
   prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */

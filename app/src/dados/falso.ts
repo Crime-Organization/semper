@@ -36,7 +36,9 @@ import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
 import { dataDaVez, regraNoLimite, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
-import type { RepeticaoCompromisso, RepeticaoCriada } from './tipos';
+import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
+import { DEMANDA_DO_COMPROMISSO } from './limites';
+import type { AvisoDaDemandaDoCompromisso, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
@@ -153,6 +155,8 @@ interface Banco {
   gruposDaEquipe?: GrupoDaEquipe[];
   /** A mensagem de quem entrou num grupo (#378), como a tabela mensagens_de_grupo: uma por pessoa e grupo. */
   mensagensDeGrupo?: { id: string; perfil_id: string; grupo_id: string; incluido_por: string | null; criado_em: string; lido_em: string | null }[];
+  /** Os avisos das demandas que nascem dos compromissos que se repetem (#307), como a tabela mensagens_de_compromisso. */
+  mensagensDeCompromisso?: MensagemDeCompromissoGuardada[];
   /** As sequências de mudanças no papel de cada pessoa em cada item (#377), como a tabela privado.mudancas_na_equipe. */
   mudancasNaEquipe?: (SequenciaDeMudancas & { perfil_id: string; item_id: string })[];
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
@@ -291,7 +295,9 @@ type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> &
 /** Processo como fica guardado: os clientes pelo id; os nomes são lidos na hora. */
 type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes: string[] };
 /** Compromisso como fica guardado: as pessoas pelo id; os nomes e o processo são lidos na hora. */
-type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[] };
+type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[]; demanda_gerada_em?: string | null };
+/** O aviso da demanda que nasceu de um compromisso (#307), como fica guardado: quem recebe e os ids (o título vem da demanda, na hora). */
+type MensagemDeCompromissoGuardada = Omit<DemandaDoCompromissoDaMensagem, 'demanda'> & { id: string; perfil_id: string; demanda_id: string; criado_em: string; lido_em: string | null };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
 type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type ParcelaGuardada = Parcela & { excluido_em: string | null };
@@ -715,6 +721,7 @@ bd.mensagensDePedido ??= [];
 bd.mensagensDeInclusao ??= [];
 bd.gruposDaEquipe ??= [];
 bd.mensagensDeGrupo ??= [];
+bd.mensagensDeCompromisso ??= [];
 bd.mudancasNaEquipe ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
@@ -1562,7 +1569,8 @@ const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
   const serie = serieDoFalso(c.repeticao_id);
   return { ...c, sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null, repeticao_data: c.repeticao_data ?? null,
-    repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes }, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
+    repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes,
+      demanda_dias_antes: serie.demanda_dias_antes ?? null }, demanda_gerada_id: c.demanda_gerada_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
@@ -1688,6 +1696,8 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
     alt[chave] = { de: conv(atual[campo] ?? null), para: conv(v ?? null) };
   });
   if (Object.keys(alt).length) bd.historicoCompromissos!.unshift({ id: Date.now() + Math.random(), compromisso_id: c.id, alteracoes: alt, feito_por: eu, em: agora() });
+  // Como o gatilho demanda_acompanha (#307, parte B): toda forma de mudar o compromisso passa por aqui, antes de gravar.
+  demandaAcompanhaNoFalso(c, dados);
 }
 /** O compromisso sai, com os comentários, as etiquetas e o histórico dele. */
 function apagarCompromisso(c: CompromissoGuardado) {
@@ -1761,15 +1771,81 @@ function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda())
       participantes: modelo.participantes.filter(id => EQUIPE.some(m => m.id === id)), arquivado_em: null, arquivado_por: null,
       criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data };
     bd.compromissos!.push(c);
-    ligacoesDoCompromisso(modelo.id).forEach(l => bd.compromissoLigacoes!.push({ ...l, compromisso_id: c.id, criado_em: agora() }));
+    // A ligação com a demanda que nasceu de outra data não vem junto (cada data tem a sua, #307 parte B).
+    ligacoesDoCompromisso(modelo.id).filter(l => !(l.modulo === 'demandas' && demandaGeradaPorAlgum(l.item_id)))
+      .forEach(l => bd.compromissoLigacoes!.push({ ...l, compromisso_id: c.id, criado_em: agora() }));
     bd.etiquetasAplicadas!.filter(a => a.modulo === 'compromissos' && a.cartao_id === modelo.id).forEach(a => bd.etiquetasAplicadas!.push({ ...a, cartao_id: c.id }));
     criada.ids.push(c.id);
     serie.gerada_ate = data;
   }
   return criada;
 }
-// Como a rotina diária estender-repeticoes: ao abrir o banco fictício, as séries ganham as datas que entraram no horizonte.
+// ---------- a demanda de cada data (como supabase/migrations/20261123000750_demandas_dos_compromissos.sql, #307 parte B) ----------
+const demandaGeradaPorAlgum = (demandaId: string) => bd.compromissos!.some(c => c.demanda_gerada_id === demandaId);
+/** Como privado.avisar_da_demanda_do_compromisso: o responsável da demanda, se ativo e se não foi ele quem fez (`por`; null: a rotina). */
+function avisarDaDemandaNoFalso(d: DemandaGuardada, compromissoId: string, aviso: AvisoDaDemandaDoCompromisso, antes: string | null, nova: string | null, por: string | null) {
+  if (!recebeAviso(d.responsavel_id) || d.responsavel_id === por) return;
+  bd.mensagensDeCompromisso!.push({ id: novoId(), perfil_id: d.responsavel_id, aviso, demanda_id: d.id, compromisso_id: compromissoId, data_antes: antes, data_nova: nova,
+    criado_em: agora(), lido_em: null });
+}
+/**
+ * Como privado.gerar_demanda_do_compromisso: a data em aberto, de hoje em diante, que ainda não gerou e cujo dia de nascer chegou (o
+ * banco fictício tem todos os módulos ligados). O responsável é o do compromisso ou, se saiu da equipe, quem criou a repetição.
+ */
+function gerarDemandaNoFalso(c: CompromissoGuardado, hoje: string, por: string | null): string | null {
+  const serie = serieDoFalso(c.repeticao_id), dias = serie?.demanda_dias_antes;
+  if (!serie || !dias || c.demanda_gerada_em || c.data < hoje || !compromissoEmAberto(c) || diaDaDemanda(c.data, dias, bd.diasLancados!) > hoje) return null;
+  const responsavel = [c.responsavel_id, serie.criado_por].find(p => p && recebeAviso(p));
+  if (!responsavel) return null;
+  const contrato = ligacoesDoCompromisso(c.id).find(l => l.modulo === 'contratos')?.item_id ?? null;
+  const inicio = bd.colunas.find(x => x.modulo === 'demandas' && x.marco === 'inicio')?.id ?? null;
+  const d: DemandaGuardada = { ...demandaNova(), ...prepararDemanda({ titulo: tituloDaDemanda(c.titulo, c.data), prazo: c.data, prazo_hora: c.hora, responsavel_id: responsavel,
+    colaboradores: c.participantes.filter(recebeAviso), clientes: c.pessoas, grupos: c.grupos ?? [], contrato_id: contrato, etapa_id: inicio, etapa_ordem: Date.now() / 1000 }) as Partial<DemandaGuardada>,
+  id: novoId(), codigo: codigo(), criado_por: serie.criado_por ?? c.criado_por };
+  bd.demandas!.push(d);
+  Object.assign(c, { demanda_gerada_id: d.id, demanda_gerada_em: agora() });
+  if (ligacoesDoCompromisso(c.id).length < ITENS_DO_COMPROMISSO) {
+    const item_nome = nomeDoItemDoCompromisso('demandas', d.id);
+    bd.compromissoLigacoes!.push({ compromisso_id: c.id, modulo: 'demandas', item_id: d.id, item_nome, criado_em: agora() });
+    historicoDaLigacao(c.id, item_nome, true);
+  }
+  avisarDaDemandaNoFalso(d, c.id, 'demanda_nova', null, c.data, por);
+  return d.id;
+}
+/** Como privado.gerar_demandas_das_series: as datas de uma série (ou de todas, com null) que já estão no prazo, na ordem das datas. */
+const gerarDemandasNoFalso = (serieId: string | null, hoje: string, por: string | null) => bd.compromissos!
+  .filter(c => c.repeticao_id && (serieId === null || c.repeticao_id === serieId))
+  .sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
+  .flatMap(c => { const id = gerarDemandaNoFalso(c, hoje, por); return id ? [id] : []; });
+/**
+ * Como o gatilho demanda_acompanha: a data mudada leva o prazo da demanda (se ainda era a data antiga) e o título (se ainda era o de
+ * quando ela nasceu), e avisa; o compromisso cancelado (coluna "Cancelado" ou arquivado sem ter sido realizado) avisa, e a demanda fica.
+ */
+function demandaAcompanhaNoFalso(c: CompromissoGuardado, dados: Record<string, unknown>) {
+  const d = c.demanda_gerada_id ? bd.demandas!.find(x => x.id === c.demanda_gerada_id) : undefined;
+  if (!d) return;
+  const depois = { ...c, ...Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined)) } as CompromissoGuardado;
+  if ((depois.data !== c.data || depois.hora !== c.hora) && !d.arquivado_em && d.prazo === c.data) {
+    const novos = { prazo: depois.data, prazo_hora: d.prazo_hora === c.hora ? depois.hora : d.prazo_hora,
+      titulo: depois.data !== c.data && d.titulo === tituloDaDemanda(c.titulo, c.data) ? tituloDaDemanda(depois.titulo, depois.data) : d.titulo };
+    historicoDemanda(d, novos);
+    Object.assign(d, novos, { atualizado_em: agora() });
+  }
+  if (depois.data !== c.data) avisarDaDemandaNoFalso(d, c.id, 'data_mudou', c.data, depois.data, eu);
+  if (compromissoEmAberto(c) && !compromissoEmAberto(depois) && !naColunaDeConcluido(depois.etapa_id)) avisarDaDemandaNoFalso(d, c.id, 'cancelado', null, depois.data, eu);
+}
+/** Como a regra de leitura de mensagens_de_compromisso: cada um lê as suas; a demanda excluída leva as dela (a chave estrangeira). */
+const minhasMensagensDeCompromisso = () => bd.mensagensDeCompromisso!.filter(m => m.perfil_id === eu && bd.demandas!.some(d => d.id === m.demanda_id));
+function mensagemDeCompromissoLida({ id, perfil_id: _perfil, demanda_id, criado_em, lido_em, ...aviso }: MensagemDeCompromissoGuardada): Mensagem {
+  const d = bd.demandas!.find(x => x.id === demanda_id);
+  return { id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+    demandaDoCompromisso: { ...aviso, demanda: d && vejoNoModulo('demandas', d.id) ? { id: d.id, codigo: d.codigo, titulo: d.titulo } : null } };
+}
+
+// Como as rotinas diárias estender-repeticoes e gerar-demandas-dos-compromissos: ao abrir o banco fictício, as séries ganham as datas que
+// entraram no horizonte, e as datas no prazo ganham a demanda (sem ninguém logado: o responsável é avisado).
 bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).forEach(r => gerarRepeticoesNoFalso(r));
+gerarDemandasNoFalso(null, hojeNaAgenda(), null);
 
 // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
 // Aqui a regra de quem vê e quem altera vale de verdade (regras/anotacao.ts), e a visibilidade de cada item ligado segue as
@@ -3892,6 +3968,17 @@ export const SD: Dados = {
     gerarRepeticoesNoFalso(nova);
     gravar(); return espera(lista.length);
   },
+  // Como public.compromisso_gerar_demandas (#307, parte B).
+  async compromissoGerarDemandas(id, dias) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Só o compromisso que se repete gera demanda.');
+    if (dias !== null && !(Number.isInteger(dias) && dias >= 1 && dias <= DEMANDA_DO_COMPROMISSO.diasMaximos)) throw new Error(FORMATO_INVALIDO);
+    serie.demanda_dias_antes = dias;
+    const criadas = dias === null ? [] : gerarDemandasNoFalso(serie.id, hojeNaAgenda(), eu);
+    gravar(); return espera(criadas);
+  },
   async compromissoArquivarSeguintes(id) {
     const c = bd.compromissos!.find(x => x.id === id);
     if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
@@ -5112,18 +5199,19 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
   mensagensListar: () => espera(juntarAsCaixas([
+    minhasMensagensDeCompromisso().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeCompromissoLida),
     minhasMensagensDeGrupo().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeGrupoLida),
     minhasMensagensDeInclusao().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeInclusaoLida),
     minhasMensagensDePedido().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map(mensagemDePedidoLida),
     minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)
   ], MENSAGENS_DA_CAIXA)),
-  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].filter(m => !m.lido_em).length),
+  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
-    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].find(x => x.id === id && !x.lido_em);
+    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].find(x => x.id === id && !x.lido_em);
     if (m) { m.lido_em = agora(); gravar(); }
   },
   async mensagensMarcarTodasLidas() {
-    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()]) m.lido_em ??= agora();
+    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()]) m.lido_em ??= agora();
     gravar();
   },
 
@@ -5218,6 +5306,7 @@ export const SD: Dados = {
     // Como privado.grupos_de_quem_saiu (#378).
     bd.gruposDaEquipe!.forEach(g => { g.integrantes = g.integrantes.filter(p => p !== id); });
     bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.perfil_id !== id);
+    bd.mensagensDeCompromisso = bd.mensagensDeCompromisso!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
     gravar();
   },

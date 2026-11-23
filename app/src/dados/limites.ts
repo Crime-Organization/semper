@@ -211,6 +211,11 @@ export const TAMANHO_SALA = { nome: 80, capacidadeMaxima: 999 };
  * Exigidos pelo banco: supabase/migrations/20261122232804_compromissos_que_se_repetem.sql (as regras check e privado.horizonte_da_repeticao).
  */
 export const REPETICAO = { intervaloMaximo: 99, vezesMaximas: 999, horizonteMeses: 12 };
+/**
+ * A demanda que nasce de cada data do compromisso que se repete (#307, parte B): `diasMaximos` é o maior "N dias antes" aceito.
+ * Exigido pelo banco: supabase/migrations/20261123000750_demandas_dos_compromissos.sql (a regra check de demanda_dias_antes).
+ */
+export const DEMANDA_DO_COMPROMISSO = { diasMaximos: 365 };
 /** Quantos compromissos, e quantos prazos de cada módulo, a agenda lê de um período (um mês tem bem menos que isso). */
 export const ITENS_DA_AGENDA = 500;
 /** Quantos processos (os ativos mais recentes que combinam com a busca) a busca de processo oferece para ligar. */

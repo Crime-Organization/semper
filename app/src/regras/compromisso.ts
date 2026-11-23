@@ -9,6 +9,7 @@ import { clientesPorExtenso } from './contrato';
 import { fmtData, lerData } from './pessoa';
 import { estaPeloGrupo } from './gruposDaEquipe';
 import { CONFERENCIAS_DA_REPETICAO, descreverRepeticao, regraDosCampos, REPETICAO_VAZIA, type CamposRepeticao } from './repeticao';
+import { descreverDemandaDoCompromisso } from './demandaDoCompromisso';
 
 /** O fuso da agenda: a data e a hora dos compromissos são as do relógio de Brasília. */
 export const FUSO_DA_AGENDA = 'America/Sao_Paulo';
@@ -156,7 +157,7 @@ export type EtapaCompromisso = 'compromisso' | 'onde' | 'pessoas' | 'detalhes';
 export interface DefinicaoEtapaCompromisso { id: EtapaCompromisso; titulo: string; texto: string; campos: (keyof CamposCompromisso)[] }
 /** As etapas do cadastro, na ordem, como nos cadastros de pessoa, de demanda e de processo. */
 export const ETAPAS_COMPROMISSO: DefinicaoEtapaCompromisso[] = [
-  { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim', 'repetir', 'aCada', 'termina', 'repetirAte', 'repetirVezes'] },
+  { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim', 'repetir', 'aCada', 'termina', 'repetirAte', 'repetirVezes', 'demandaDiasAntes'] },
   { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade. A sala do escritório, se houver, fica livre só para ele no horário.', campos: ['processoId', 'salaId', 'modalidade', 'local'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem da equipe vai, quem ajuda e, se houver, as pessoas do cadastro ligadas ao compromisso.', campos: ['pessoas', 'responsavelId', 'participantes', 'geral'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.', campos: ['resultado', 'observacoes'] }
@@ -212,6 +213,7 @@ export const valorLegivelCompromisso = (campo: string, v: unknown) =>
  */
 export const linhasDoCompromisso = (c: Compromisso, sala = ''): [string, string][] => ([
   ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome], ['Repete', c.repeticao ? descreverRepeticao(c.repeticao) : ''],
+  ['Demanda', c.repeticao?.demanda_dias_antes ? descreverDemandaDoCompromisso(c.repeticao.demanda_dias_antes) : ''],
   ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Sala', sala], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
 ] as [string, string][]).filter(([, valor]) => valor);
 

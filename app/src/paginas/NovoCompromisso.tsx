@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
-import { CLIENTES_MAXIMOS, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, DEMANDA_DO_COMPROMISSO, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
+import { avisoDasDemandasNascidas, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
 import { avisoDaRepeticao, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, type FimDaRepeticao } from '../regras/repeticao';
 import {
   camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
@@ -167,6 +168,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso, exigeHora = TIPOS_COMPROMISSO[c.tipo].exigeHora;
   // A repetição (#307) só no cadastro de um compromisso novo, e só nos tipos que se repetem (audiência e perícia, não).
   const repeteAqui = !idAtualizar && !edicao && TIPOS_COMPROMISSO[c.tipo].repete;
+  // A demanda de cada data (#307, parte B), só com o módulo Demandas ligado no escritório.
+  const geraDemanda = !!ctx.escritorio?.modulos?.demandas;
 
   // ---------- etapas ----------
   function irPara(i: number) {
@@ -301,14 +304,24 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         // Sem coluna escolhida, o compromisso novo entra na coluna-marco de início.
         const coluna = etapaInicial || await colunaInicial('compromissos');
         const r = await SD.compromissoCriar({ ...dadosDoCompromisso(c), etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        const doCriado = volta ?? ENDERECO + '?id=' + r.id;
+        // Vindo de uma tarefa, demanda ou contrato, a ligação vem antes de repetir: as datas seguintes, e a demanda de cada uma (#307), a levam junto.
+        const destinoDoItem = daAnotacao ? null : await depoisDeCriarNoItem(doItem, r.id, doCriado);
         // Que se repete (#307): as datas seguintes viram compromissos. Se não der, o compromisso fica cadastrado sem repetir, e a pessoa sabe.
         const regra = repeteAqui ? repeticaoDoCompromisso(c) : null;
         const repetidos = regra && await SD.compromissoRepetir(r.id, regra).catch(e => {
           falha(new Error(`O compromisso ${r.codigo} foi cadastrado, mas não foi possível repeti-lo: ${(e as Error).message}`));
           return null;
         });
+        // E gera a demanda de cada data, tantos dias antes: as das datas que já estão no prazo nascem agora; as outras, na rotina diária.
+        const dias = repetidos && geraDemanda ? diasAntesDosCampos(c) : null;
+        const nascidas = dias ? await SD.compromissoGerarDemandas(r.id, dias).catch(e => {
+          falha(new Error(`O compromisso ${r.codigo} se repete, mas não foi possível marcá-lo para gerar demanda: ${(e as Error).message}`));
+          return null;
+        }) : null;
         const todos = [r.id, ...repetidos?.ids ?? []];
-        feito(repetidos ? avisoDaRepeticao(r.codigo, repetidos) : `Compromisso ${r.codigo} cadastrado.`, 'cadastro do compromisso', async () => {
+        feito(repetidos ? avisoDaRepeticao(r.codigo, repetidos) + avisoDasDemandasNascidas(nascidas?.length ?? 0) : `Compromisso ${r.codigo} cadastrado.`, 'cadastro do compromisso', async () => {
+          if (nascidas?.length) { await SD.demandasArquivar(nascidas, true); await SD.demandasExcluir(nascidas); }
           await SD.compromissosArquivar(todos, true);
           const x = await SD.compromissosExcluir(todos);
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
@@ -318,8 +331,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         // Vindo de uma anotação (ou de uma tarefa, demanda ou contrato), liga o compromisso a ela e volta ao cartão dela, no lugar do cadastro.
         // Vindo do "+" do menu lateral (#404), volta à tela onde a pessoa estava (o aviso no pé da tela diz que foi cadastrado); senão, abre
         // o cartão do compromisso novo na Agenda.
-        const doCriado = volta ?? ENDERECO + '?id=' + r.id;
-        navegar(daAnotacao ? await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, doCriado) : await depoisDeCriarNoItem(doItem, r.id, doCriado),
+        navegar(daAnotacao ? await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, doCriado) : destinoDoItem ?? doCriado,
           { replace: !!daAnotacao || !!doItem || !!volta });
       }
     } catch (err) {
@@ -370,6 +382,11 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         {c.termina === 'vezes' && <Campo rotulo="Quantas vezes" para="repetirVezes" obrigatorio erro={erros.repetirVezes} dica="Contando a primeira.">
           <input type="number" inputMode="numeric" min={2} max={REPETICAO.vezesMaximas} {...propsDoCampo('repetirVezes', { dica: true, erro: erros.repetirVezes })}
             value={c.repetirVezes} onChange={e => mudar({ repetirVezes: e.target.value })} />
+        </Campo>}
+        {geraDemanda && <Campo rotulo="Gerar demanda (dias antes)" para="demandaDiasAntes" erro={erros.demandaDiasAntes}
+          dica="Opcional. A demanda de cada data nasce esses dias corridos antes (no dia útil anterior, se cair em fim de semana ou feriado), com o mesmo contrato e as mesmas pessoas. O responsável é avisado em Mensagens.">
+          <input type="number" inputMode="numeric" min={1} max={DEMANDA_DO_COMPROMISSO.diasMaximos} {...propsDoCampo('demandaDiasAntes', { dica: true, erro: erros.demandaDiasAntes })}
+            value={c.demandaDiasAntes} onChange={e => mudar({ demandaDiasAntes: e.target.value })} />
         </Campo>}
       </>}
     </>,
