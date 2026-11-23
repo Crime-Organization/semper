@@ -9,9 +9,9 @@ import { escreverCSV, lerCSV, linhaVazia, PROTECAO_DE_FORMULA } from './csv';
 import { maiusculas } from './cadastro';
 import {
   ajustarAoTipo, CAMPOS, CAMPOS_DO_TIPO, celularCompleto, cepValido, cnpjValido, cpfValido, dig, DIGITOS_DO_CEP, emailValido,
-  entidadeDoTexto, espacos, estadoCivilDoTexto, fmtCEP, fmtDocumento, fmtTelefone, FUSO_PADRAO, generoDoTexto, generoPermitido,
-  LGPD, lerDataFlexivel, lerDataHora, limparDocumento, naturezaDaEntidade, naturezaDoTexto, porteDoTexto, tabela,
-  telefoneValido, TIPOS, ufValida
+  entidadeDoTexto, espacos, estadoCivilDoTexto, faltaDataDoConsentimento, fmtCEP, fmtDocumento, fmtTelefone, FUSO_PADRAO, generoDoTexto,
+  generoPermitido, LGPD, lerDataFlexivel, lerDataHora, limparDocumento, MSG_SEM_DATA_DO_CONSENTIMENTO, naturezaDaEntidade,
+  naturezaDoTexto, porteDoTexto, tabela, telefoneValido, TIPOS, ufValida
 } from './pessoa';
 import { normal } from './texto';
 
@@ -100,7 +100,7 @@ export const COLUNAS_IMPORTACAO: readonly ColunaImportacao[] = [
     { apelidos: ['email', 'e-mail'] }),
   coluna('lgpd_base', 'contrato, processo, consentimento, obrigacao_legal ou legitimo_interesse; vazio = a escolha da tela',
     'contrato', 'contrato', { apelidos: ['base legal', 'lgpd'] }),
-  coluna('lgpd_consentimento', `${DATA}; só com consentimento`, '', ''),
+  coluna('lgpd_consentimento', `${DATA}; só com consentimento, e aí obrigatória (sem ela, a linha não entra)`, '', ''),
   coluna('responsaveis', `nome ou @usuario da equipe, separados por "${SEPARADOR_DE_LISTA.trim()}"`, 'Ana Lima', 'Ana Lima',
     { apelidos: ['responsavel'] }),
   coluna('cadastrado_em', `${DATA}, ou data e hora; vazio = hoje`, '15/03/2019', '15/03/2019', { apelidos: ['cadastro', 'cadastrado'] }),
@@ -494,6 +494,10 @@ export function normalizarLinha(l: LinhaLida, ctx: ContextoImportacao): PessoaIm
       continue;
     }
     NORMALIZAR[chave](valor, s, ctx);
+  }
+  // Com a base legal "consentimento", a linha só entra com a data dele (#408), como no cadastro pela tela.
+  if (faltaDataDoConsentimento(s.dados.lgpd_base, s.dados.lgpd_consentimento)) {
+    anotar(s, 'lgpd_consentimento', 'erro', MSG_SEM_DATA_DO_CONSENTIMENTO);
   }
   // Só os campos do tipo: o que veio em coluna de outro tipo fica de fora (com aviso).
   const ajustado = ajustarAoTipo(s.dados);

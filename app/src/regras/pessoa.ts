@@ -77,6 +77,15 @@ export const LGPD: Record<string, string> = {
   legitimo_interesse: 'Legítimo interesse (art. 7º, IX)'
 };
 
+/** A base legal que exige a data do consentimento (#408): sem a data, o escritório não prova quando o titular consentiu. */
+export const BASE_DO_CONSENTIMENTO = 'consentimento';
+/** Mensagem de quando falta a data do consentimento, em todo lugar que grava a base legal (cadastro, edição, importação). */
+export const MSG_SEM_DATA_DO_CONSENTIMENTO =
+  'Informe a data do consentimento: com a base legal "consentimento", é essa data que prova quando a pessoa autorizou o uso dos dados dela (LGPD).';
+/** true quando a base legal é o consentimento e a data dele está vazia (as outras bases não pedem data). */
+export const faltaDataDoConsentimento = (base: string | null | undefined, data: string | null | undefined) =>
+  base === BASE_DO_CONSENTIMENTO && !String(data ?? '').trim();
+
 export const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
   'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 

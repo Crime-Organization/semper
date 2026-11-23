@@ -3,7 +3,8 @@
 // já cadastrado (que depende do banco) é pedida de volta pelo resultado, em "documento".
 import type { TipoPessoa } from '../dados/tipos';
 import {
-  cepValido, cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, fmtCNPJ, lerData, limparDocumento, telefoneValido
+  BASE_DO_CONSENTIMENTO, cepValido, cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, faltaDataDoConsentimento, fmtCNPJ,
+  lerData, limparDocumento, MSG_SEM_DATA_DO_CONSENTIMENTO, telefoneValido
 } from './pessoa';
 
 export type Etapa = 's-tipo' | 's-ident' | 's-pf' | 's-entidade' | 's-empresa' | 's-endereco' | 's-contato';
@@ -113,7 +114,9 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
     const tels = a.telefones.map(t => dig(t.v)).filter(Boolean);
     marcar('telefones', tels.length > 0 && tels.every(telefoneValido), tels.length ? 'Confira os telefones: use DDD + número.' : undefined);
     marcar('emails', a.emails.map(x => x.v.trim()).filter(Boolean).every(emailValido));
-    if (a.lgpdBase === 'consentimento') data(a.lgpdData, 'lgpdData');
+    // Com o consentimento, a data é obrigatória (#408) e precisa existir; as outras bases não pedem data.
+    if (faltaDataDoConsentimento(a.lgpdBase, a.lgpdData)) r.erros.lgpdData = MSG_SEM_DATA_DO_CONSENTIMENTO;
+    else if (a.lgpdBase === BASE_DO_CONSENTIMENTO) data(a.lgpdData, 'lgpdData');
     return r;
   }
 };

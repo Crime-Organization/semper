@@ -9,7 +9,7 @@ import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { contratoDaPessoaFechada } from './clienteAoContrato';
 import {
-  cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
+  BASE_DO_CONSENTIMENTO, cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
   fmtCPF, fmtData, fmtTelefone, lerData, limparDocumento, MASCARAS, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
@@ -344,7 +344,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     d.telefones = [...new Set(a.telefones.map(x => fmtTelefone(x.v)).filter(x => dig(x)))];
     d.emails = [...new Set(a.emails.map(x => x.v.trim().toLowerCase()).filter(Boolean))];
     d.lgpd_base = a.lgpdBase || null;
-    d.lgpd_consentimento = d.lgpd_base === 'consentimento' ? lerData(a.lgpdData) : null;
+    d.lgpd_consentimento = d.lgpd_base === BASE_DO_CONSENTIMENTO ? lerData(a.lgpdData) : null;
     return d;
   }
 

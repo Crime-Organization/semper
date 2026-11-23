@@ -4,7 +4,7 @@
 import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
 import { AO_ENTRAR, DOCUMENTO_INVALIDO, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
-import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
+import { BASE_DO_CONSENTIMENTO, cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
 import { Campo, CampoDeVarios, Escolhas, estiloBotao, SecaoDoFormulario } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { EscolhaDaEquipe } from '../../ui/EscolhaDaEquipe';
@@ -159,7 +159,7 @@ function EtapaContato() {
         {Object.entries(LGPD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
       </select>
     </Campo>
-    {c.lgpdBase === 'consentimento' && <Campo rotulo="Data do consentimento" para="lgpdData" erro={erroDe('lgpdData')}>{data('lgpdData')}</Campo>}
+    {c.lgpdBase === BASE_DO_CONSENTIMENTO && <Campo rotulo="Data do consentimento" para="lgpdData" obrigatorio erro={erroDe('lgpdData')}>{data('lgpdData')}</Campo>}
   </SecaoDoFormulario>;
 }
 

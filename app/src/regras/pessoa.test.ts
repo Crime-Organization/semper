@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { DadosPessoa } from '../dados/tipos';
 import {
   ajustarAoTipo, CAMPOS, CAMPOS_DO_TIPO, cepValido, cnpjComLetrasNaBusca, cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual,
-  emailValido, entidadeDoTexto, estadoCivilDoTexto, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento, fmtTelefone, generoDoTexto,
+  emailValido, entidadeDoTexto, estadoCivilDoTexto, faltaDataDoConsentimento, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento, fmtTelefone, generoDoTexto,
   generoPermitido, lerData, lerDataFlexivel, lerDataHora, limparDocumento, MASCARAS, naturezaDaEntidade, naturezaDoTexto, nomeProprio, porteDoTexto,
   qualificacao, telefoneNormal, telefoneValido, ufValida, valorLegivel, variantesTelefone
 } from './pessoa';
@@ -843,5 +843,23 @@ describe('Rótulos dos campos', () => {
   ])('quando o campo é %s, então o rótulo é "%s"', (campo, rotulo) => {
     // Quando / Então
     expect(CAMPOS[campo]).toBe(rotulo);
+  });
+});
+
+describe('Data do consentimento obrigatória (#408)', () => {
+  it.each([
+    ['consentimento', '', true],
+    ['consentimento', '   ', true],
+    ['consentimento', null, true],
+    ['consentimento', '10/01/2020', false],
+    ['consentimento', '2020-01-10', false],
+    ['contrato', '', false],
+    ['processo', null, false],
+    ['obrigacao_legal', '', false],
+    ['legitimo_interesse', undefined, false],
+    [null, '', false]
+  ] as [string | null, string | null | undefined, boolean][])('dada a base %s e a data "%s", quando confere, então falta = %s', (base, data, falta) => {
+    // Quando / Então
+    expect(faltaDataDoConsentimento(base, data)).toBe(falta);
   });
 });

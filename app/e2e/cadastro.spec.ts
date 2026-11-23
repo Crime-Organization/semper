@@ -2,6 +2,7 @@
 // Caminhos do cadastro de pessoa além da pessoa física (que está em pessoas.spec.ts): pessoa jurídica, MEI,
 // somente contato e as validações de cada etapa.
 import { expect, test, type Page } from '@playwright/test';
+import { abrirSecao } from './ajudantes';
 
 const CNPJ_LIVRE = '12.345.678/0001-95';   // válido e fora da semente do banco fictício
 /** CNPJ com letras (alfanumérico, emitido desde julho de 2026): o exemplo da Receita, válido. */
@@ -322,5 +323,68 @@ test.describe('Validações das etapas', () => {
     await page.getByRole('button', { name: 'Salvar cadastro' }).click();
     // Então
     await expect(page.getByText('Data inexistente.')).toBeVisible();
+  });
+
+  test('dado o cadastro novo com base legal consentimento, quando salva sem a data, então não salva e explica que a data é obrigatória (#408)', async ({ page }) => {
+    // Dado
+    await ateEndereco(page);
+    await proxima(page);
+    await proxima(page);
+    await etapa(page, 'Contato');
+    await page.getByRole('textbox', { name: 'Telefone' }).fill('38999990000');
+    await page.getByLabel('Base legal para o tratamento dos dados (LGPD)').selectOption({ value: 'consentimento' });
+    // Quando
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    // Então: fica no cadastro, com o erro no campo da data
+    await expect(page.getByRole('alert').filter({ hasText: 'Informe a data do consentimento' })).toContainText('prova quando a pessoa autorizou');
+    await expect(page.getByLabel('Data do consentimento')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page).toHaveURL(/\/pessoas\/nova\//);
+    // E, com a data, salva
+    await page.getByLabel('Data do consentimento').fill('10012020');
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+  });
+
+  test('dada outra base legal, quando salva sem data do consentimento, então salva como antes (#408)', async ({ page }) => {
+    // Dado
+    await ateEndereco(page);
+    await proxima(page);
+    await proxima(page);
+    await etapa(page, 'Contato');
+    await page.getByRole('textbox', { name: 'Telefone' }).fill('38999990000');
+    await page.getByLabel('Base legal para o tratamento dos dados (LGPD)').selectOption({ value: 'legitimo_interesse' });
+    // Quando
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+  });
+});
+
+test.describe('Cadastro antigo com consentimento sem data (#408)', () => {
+  const NOME = 'CONSENTIMENTO SEM DATA E2E';
+
+  test('dado um cadastro antigo com base legal consentimento e sem a data, quando alguém o edita no cartão, então precisa informar a data para salvar', async ({ page }) => {
+    // Dado: um cadastro de antes da regra, gravado direto no banco fictício da página (o Vite serve o módulo pelo caminho do arquivo)
+    await page.goto('/pessoas/');
+    const id = await page.evaluate(async nome => {
+      const caminho = '/src/dados/falso.ts';
+      const { SD } = await import(/* @vite-ignore */ caminho) as typeof import('../src/dados/falso');
+      return (await SD.pessoaCriar({ tipo: 'contato', nome, telefones: ['38999990000'], lgpd_base: 'consentimento', lgpd_consentimento: null })).id;
+    }, NOME);
+    await page.goto('/pessoas/?id=' + id);
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { level: 2, name: NOME }) });
+    await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar cadastro' });
+    // Quando
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então: não salva, e a mensagem diz por que a data é pedida
+    await expect(edicao.getByRole('alert').filter({ hasText: 'Informe a data do consentimento' })).toContainText('prova quando a pessoa autorizou');
+    await expect(edicao).toBeVisible();
+    // E, com a data, salva e o cartão mostra a data
+    await edicao.getByLabel('Data do consentimento').fill('10012020');
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(edicao).toHaveCount(0);
+    await abrirSecao(cartao, 'Dados do cadastro');
+    await expect(cartao.getByText('10/01/2020')).toBeVisible();
   });
 });
