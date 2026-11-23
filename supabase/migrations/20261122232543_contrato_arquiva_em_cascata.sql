@@ -17,8 +17,8 @@
 --   Demanda contínua (#313, feita em paralelo): ela nunca é arquivada. A coluna demandas.continua ainda pode não existir quando esta
 --   migração roda, por isso ela é lida por to_jsonb (que dá nulo sem a coluna) em privado.demanda_continua(). A contínua também não
 --   conta como "outra ligação ativa" da tarefa: ela só agrupa as tarefas sem demanda, e a tarefa do contrato arquivado sai com ele.
---   JUNCAO-313 (obrigatório ao juntar a #313): trocar privado.demanda_continua() pela forma real da contínua (por uma migração
---   nova, se esta já tiver sido aplicada), e também o banco fictício e os testes: a lista está em app/src/regras/arquivarContrato.ts.
+--   Na junção com a #313 (lote 9), 20261123030754_contrato_cascata_com_a_continua.sql passou a ler a coluna real em
+--   privado.demanda_continua(), depois de a #313 criá-la.
 --
 --   O gatilho roda como sistema: quem arquiva o contrato arquiva junto demandas e tarefas que talvez não pudesse arquivar sozinho.
 --   É o que a tarefa pede. O histórico e a auditoria de cada item registram o arquivamento, como se fosse feito pela pessoa.

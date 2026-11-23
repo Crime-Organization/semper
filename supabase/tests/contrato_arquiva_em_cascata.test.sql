@@ -4,10 +4,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
 
--- A demanda contínua (#313) pode ainda não existir: o teste cria a coluna só dentro desta transação, se faltar.
--- JUNCAO-313 (obrigatório ao juntar a #313): tirar esta linha, para o teste falhar se a coluna não existir, e criar a contínua
--- pelo caminho real da #313 (veja app/src/regras/arquivarContrato.ts).
-alter table public.demandas add column if not exists continua boolean not null default false;
+-- A contínua (DC) é gravada aqui direto na coluna public.demandas.continua (#313), ligada ao contrato só para provar que a cascata
+-- a pula. O caminho real (a tarefa sem demanda entra na contínua) está em contrato_cascata_com_a_continua.test.sql.
 
 -- Dado um escritório com Ana (administradora) e Bia (da equipe, que cadastrou o contrato K1), e o Davi, de outro escritório.
 insert into public.escritorios (id, nome, slug, modulos) values

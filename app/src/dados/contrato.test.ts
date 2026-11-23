@@ -5431,6 +5431,29 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(resumos.reduce((s, x) => s + x.tarefas, 0)).toBe(3);
         expect(resumos.reduce((s, x) => s + x.segundos, 0)).toBe(600);
       });
+
+      // Junção do lote 9 (#284 com a #313): a tarefa gravada sem demanda entra na contínua, que nunca sai com o contrato.
+      it('dada a tarefa do contrato gravada sem demanda (na contínua), quando o contrato é arquivado e depois excluído, então a tarefa sai e a contínua fica', async () => {
+        // Dado
+        const c = await cenario();
+        const continua = (await SD.tarefaObter(c.doContrato.id))!.demanda!;
+        expect(continua).toMatchObject({ continua: true });
+        const avulsa = await SD.tarefaCriar({ titulo: 'Sem contrato', responsavel_id: 'u-master' });
+        // Quando
+        await SD.contratosArquivar([c.k.id], true);
+        // Então
+        expect(await arquivada('demanda', continua.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(true);
+        expect(await arquivada('tarefa', avulsa.id)).toBe(false);
+        // Quando
+        expect((await SD.contratoExclusaoPrevia([c.k.id])).demandas).toBe(1);
+        await SD.contratosExcluir([c.k.id]);
+        // Então
+        expect(await SD.demandaObter(continua.id)).toMatchObject({ continua: true, arquivado_em: null });
+        expect(await SD.tarefaObter(c.doContrato.id)).toBeNull();
+        expect((await SD.tarefaObter(c.comOutro.id))!.demanda_ids).toEqual([continua.id]);
+        expect((await SD.tarefaObter(avulsa.id))!.demanda_ids).toEqual([continua.id]);
+      });
     });
 
     describe('Meu tempo trabalhado', () => {
