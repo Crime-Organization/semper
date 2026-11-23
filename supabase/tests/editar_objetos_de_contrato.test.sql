@@ -216,5 +216,34 @@ reset role;
 select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000001'), 'Registro de marca no INPI | A definir / Registro de marca no INPI; A definir',
   'O "A definir" dos contratos ficou como estava');
 
+-- ---------- a troca não cria demanda ----------
+-- Dado o contrato K5, assinado, com "Consulta" e o "A definir", e sem demanda da Consulta (a que foi excluída, ou o contrato
+-- importado sem demandas)
+set local session_replication_role = replica;
+insert into public.contratos (id, escritorio_id, numero, sigla, ano, codigo, cliente_id, cliente_nome, clientes, responsavel_id, servico, objetos, categoria, criado_por, etapa_id, arquivado_em) values
+  ('c0000000-0000-0000-0000-000000000005', 'e0000000-0000-0000-0000-000000000001', 5, 'AN26', 2026, 'AN26-0005-2026', '10000000-0000-0000-0000-000000000005', 'CLIENTE',
+   '{10000000-0000-0000-0000-000000000005}', 'a0000000-0000-0000-0000-000000000001', 'Consulta; A definir', '{Consulta,A definir}',
+   'pro_labore', 'a0000000-0000-0000-0000-000000000001', pg_temp.assinado('e0000000-0000-0000-0000-000000000001'), null);
+insert into privado.contratos_com_demandas (contrato_id) values ('c0000000-0000-0000-0000-000000000005');
+set local session_replication_role = origin;
+-- Quando a Ana corrige "Consulta" para "Consultoria" e depois a junta em "Oposição ao registro", então nenhuma demanda nasce
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ select * from public.objetos_do_escritorio() $$, 'A lista põe nela a Consulta do K5');
+select is(public.objeto_renomear(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Consulta'), 'Consultoria') ->> 'contratos', '1', 'A correção mudou o K5');
+reset role;
+select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000005'), 0::bigint,
+  'Corrigir o nome no contrato assinado com "A definir" não cria demanda');
+select pg_temp.entrar(1); set local role authenticated;
+select is(public.objetos_juntar(array[pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Consultoria')],
+  pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Oposição ao registro')) ->> 'contratos', '1', 'A junção mudou o K5');
+reset role;
+select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000005'), 'Oposição ao registro | A definir / Oposição ao registro; A definir', 'O K5 tem o que ficou');
+select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000005'), 0::bigint,
+  'Juntar no contrato assinado com "A definir" não cria demanda');
+-- Quando, depois da troca, alguém põe um objeto no lugar do "A definir" do K5, então a demanda dele nasce, como antes
+update public.contratos set objetos = '{Oposição ao registro,Recurso}' where id = 'c0000000-0000-0000-0000-000000000005';
+select is((select string_agg(objeto, ', ' order by objeto) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000005'), 'Recurso',
+  'Fora da troca, o objeto que entra no lugar do "A definir" vira demanda');
+
 select * from finish();
 rollback;

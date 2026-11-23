@@ -16,11 +16,15 @@
 --   O "A definir" não é objeto de verdade: não aparece na lista, não se corrige, não se junta e não se apaga, nem a linha
 --   antiga que tenha ficado em objeto_sugestoes de antes de 20261108000016 (corrigi-la trocaria o "A definir" de todos os
 --   contratos do escritório).
---   A troca vale primeiro nas demandas e depois nos contratos: no contrato assinado que tinha "A definir", o gatilho
---   privado.demandas_do_contrato criaria uma demanda repetida se a ordem fosse a outra. Na lista, a troca vem antes dos
---   contratos, para o gatilho privado.guardar_objetos não pôr o nome novo como um item à parte.
--- Só acrescenta: quatro funções públicas e uma privada. Nenhuma tabela, coluna, gatilho ou regra muda. A versão anterior do
--- site continua funcionando: ela não chama as funções novas.
+--   A troca vale primeiro nas demandas e depois nos contratos. Na lista, a troca vem antes dos contratos, para o gatilho
+--   privado.guardar_objetos não pôr o nome novo como um item à parte.
+--   5. privado.demandas_do_contrato: trocar o nome de um objeto não cria demanda. No contrato assinado que ainda tem "A definir",
+--      o gatilho tomava o nome novo por um objeto que entrou no lugar do "A definir" e criava a demanda dele quando o objeto
+--      não tinha demanda no contrato (a que foi excluída, o contrato importado sem demandas). A troca liga uma marca que vale
+--      só até o fim da transação (semper.troca_de_objetos), e o gatilho não cria demanda enquanto ela está ligada.
+-- Só acrescenta: quatro funções públicas, uma privada e uma privada trocada, que só deixa de criar demanda durante a troca de
+-- nomes. Nenhuma tabela, coluna ou regra muda. A versão anterior do site continua funcionando: ela não chama as funções novas,
+-- e fora da troca o gatilho faz o mesmo de antes.
 -- =====================================================================
 
 -- A troca de nomes, em todo lugar, dentro de um escritório: as demandas, os contratos e o modelo de lista. Quem chama já
@@ -35,6 +39,8 @@ begin
   order by k.id for update;
   select coalesce(array_agg(k.id), '{}') into v_contratos from public.contratos k
   where k.escritorio_id = p_escritorio and exists (select 1 from unnest(k.objetos) o, unnest(p_de) x where privado.mesmo_objeto(o, x));
+  -- Trocar um nome não cria demanda: o gatilho privado.demandas_do_contrato olha esta marca (desligada no fim da troca).
+  perform set_config('semper.troca_de_objetos', 'sim', true);
 
   -- 1. As demandas primeiro. O título muda só se ainda for igual ao nome antigo (quem o reescreveu fica com o dele).
   update public.demandas d
@@ -73,6 +79,7 @@ begin
     where d.contrato_id = any(v_contratos) and privado.mesmo_objeto(d.objeto, p_para)
     group by d.contrato_id having count(*) > 1) s;
 
+  perform set_config('semper.troca_de_objetos', '', true);
   return jsonb_build_object('contratos', n_contratos, 'demandas', n_demandas, 'modelos', n_modelos, 'contratos_com_duas_demandas', n_duas);
 end $$;
 revoke execute on function privado.trocar_objetos(uuid, text[], text) from public, anon, authenticated;
@@ -181,3 +188,48 @@ revoke execute on function public.objetos_do_escritorio(), public.objeto_renomea
   from public, anon;
 grant execute on function public.objetos_do_escritorio(), public.objeto_renomear(uuid, text), public.objetos_juntar(uuid[], uuid), public.objeto_apagar(uuid)
   to authenticated;
+
+-- 5. As demandas na assinatura, sem nascer da troca de nomes. Igual à versão de 20261121223632_objetos_sem_demanda.sql, mais a
+-- primeira linha: durante privado.trocar_objetos, a mudança dos objetos é só de nome e não cria demanda.
+create or replace function privado.demandas_do_contrato() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_inicio uuid; v_base double precision := extract(epoch from clock_timestamp()); d record; v_objetos text[];
+begin
+  if tg_op = 'UPDATE' and coalesce(current_setting('semper.troca_de_objetos', true), '') = 'sim' then return null; end if;
+  if tg_op = 'UPDATE' and new.etapa_id is not distinct from old.etapa_id and new.objetos is not distinct from old.objetos then return null; end if;
+  if not exists (select 1 from public.quadro_colunas where id = new.etapa_id and marco = 'assinado') then return null; end if;
+  select coalesce(array_agg(o.texto order by o.n), '{}') into v_objetos
+  from unnest(new.objetos) with ordinality as o(texto, n) where not privado.mesmo_objeto(o.texto, 'A definir');
+  if cardinality(v_objetos) = 0 then return null; end if;
+  if tg_op = 'UPDATE' and new.etapa_id is not distinct from old.etapa_id then
+    -- Só os objetos mudaram, num contrato que já estava assinado: vale apenas para o que entra no lugar do "A definir".
+    if not exists (select 1 from unnest(old.objetos) o where privado.mesmo_objeto(o, 'A definir')) then return null; end if;
+    select coalesce(array_agg(x.texto order by x.n), '{}') into v_objetos
+    from unnest(v_objetos) with ordinality as x(texto, n)
+    where not exists (select 1 from unnest(old.objetos) o where privado.mesmo_objeto(o, x.texto))
+      and not exists (select 1 from public.demandas dd where dd.contrato_id = new.id and privado.mesmo_objeto(dd.objeto, x.texto));
+    if cardinality(v_objetos) = 0 then return null; end if;
+    insert into privado.contratos_com_demandas (contrato_id) values (new.id) on conflict do nothing;
+  else
+    -- O contrato chegou ao assinado: as demandas nascem uma vez só.
+    insert into privado.contratos_com_demandas (contrato_id) values (new.id) on conflict do nothing;
+    if not found then return null; end if;
+    -- O objeto que já tem demanda neste contrato (a criada na hora, #349) não ganha outra.
+    select coalesce(array_agg(x.texto order by x.n), '{}') into v_objetos
+    from unnest(v_objetos) with ordinality as x(texto, n)
+    where not exists (select 1 from public.demandas dd where dd.contrato_id = new.id and privado.mesmo_objeto(dd.objeto, x.texto));
+    if cardinality(v_objetos) = 0 then return null; end if;
+  end if;
+  select id into v_inicio from public.quadro_colunas
+  where escritorio_id = new.escritorio_id and modulo = 'demandas' and marco = 'inicio';
+  for d in
+    insert into public.demandas (escritorio_id, titulo, responsavel_id, clientes, contrato_id, objeto, etapa_id, etapa_ordem, criado_por)
+    select new.escritorio_id, o.texto, new.responsavel_id, new.clientes, new.id, o.texto, v_inicio, v_base + o.n / 1000.0,
+           coalesce(auth.uid(), new.criado_por)
+    from unnest(v_objetos) with ordinality as o(texto, n)
+    returning id
+  loop
+    perform privado.tarefas_do_modelo(d.id);
+  end loop;
+  return null;
+end $$;

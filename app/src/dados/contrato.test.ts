@@ -380,6 +380,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await naLista(objeto)).toBeUndefined();
           expect(await SD.objetosSugeridos()).not.toContain(objeto);
         });
+
+        it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {
+          // Dado: a demanda do objeto foi excluída
+          const velho = 'Velho ' + marca(), outro = 'Outro ' + marca(), novo = 'Novo ' + marca();
+          const k = await novoContrato({ objetos: ['A definir'] });
+          await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!.id, 1);
+          await SD.contratoAtualizar(k.id, { objetos: [velho, 'A definir'] });
+          const [d] = await SD.demandasDoContrato(k.id);
+          await SD.demandasArquivar([d.id]);
+          await SD.demandasExcluir([d.id]);
+          await novoContrato({ objetos: [outro] });
+          const o = (await naLista(velho))!;
+          // Quando
+          await SD.objetoRenomear(o.id, novo);
+          // Então
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([novo, 'A definir']);
+          expect(await SD.demandasDoContrato(k.id)).toEqual([]);
+          // Quando: o nome corrigido é juntado a outro
+          const fica = (await naLista(outro))!;
+          await SD.objetosJuntar([o.id, fica.id], fica.id);
+          // Então
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([outro, 'A definir']);
+          expect(await SD.demandasDoContrato(k.id)).toEqual([]);
+        });
       });
 
       it('quando o contrato tem vários participantes, então voltam na ordem, com os percentuais', async () => {
