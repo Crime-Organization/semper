@@ -1597,9 +1597,10 @@ export const SD: Dados = {
   async tarefasParaLigar(f) {
     // O contrato da demanda vem pela regra de leitura das demandas: quem não vê a demanda recebe null.
     type Lida = Omit<TarefaParaEscolher, 'contrato_da_demanda'> & { criado_em: string; demanda: { contrato_id: string | null } | null };
-    // "Sem demanda" (#313): sem nenhuma, ou só na contínua (a tarefa avulsa, que sai dela ao ganhar uma demanda de verdade).
+    // "Sem demanda" (#313): sem nenhuma, ou só na contínua (a tarefa avulsa, que sai dela ao ganhar uma demanda de verdade). As
+    // contínuas vêm todas, pela função do banco: lidas da tabela, faltariam as dos grupos em que quem lê não está.
     const semDemanda = f.sem === 'demandas';
-    const continuas = semDemanda ? ((await rodar(sb.from('demandas').select('id').eq('continua', true))).data as { id: string }[]).map(d => d.id) : [];
+    const continuas = semDemanda ? (await rpc('demandas_continuas') as string[] | null) ?? [] : [];
     const avulsas = (q: Livre) => semDemanda ? q.or(`demanda_id.is.null${continuas.length ? `,demanda_id.in.(${continuas.join(',')})` : ''}`) : q;
     const ler = async (filtro: (q: Livre) => Livre) => (await rodar(paraLigar(filtro(avulsas(soOsMeus(sb.from('tarefas')
       .select('id, codigo, titulo, pessoa_nome, prazo, demanda_id, demanda_codigo, contrato_id, processo_id, pessoas, criado_em, demanda:demandas(contrato_id)'), 'participantes'))),

@@ -85,6 +85,8 @@ select is((select titulo from public.demandas where id = pg_temp.continua('Núcl
 -- Dado a Eva, sem grupo, então ela não vê a contínua do Núcleo A
 select pg_temp.entrar(5);
 select is((select count(*) from public.demandas where id = pg_temp.continua('Núcleo A')), 0::bigint, 'Quem não está no grupo não vê a contínua dele');
+-- Mas a lista "sem demanda" de ligar tarefas sabe que ela é contínua (a tarefa avulsa dela em que a Eva está não some da lista)
+select ok(pg_temp.continua('Núcleo A') = any(public.demandas_continuas()), 'As contínuas do escritório vêm todas, mesmo as de um grupo em que não está');
 -- Quando a Eva cria uma tarefa sem demanda, então ela entra na Geral, que toda a equipe vê
 insert into public.tarefas (id, titulo, responsavel_id, criado_por) values ('70000000-0000-0000-0000-000000000003', 'Pagar a guia', auth.uid(), auth.uid());
 select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000003'), array[pg_temp.continua(null)], 'Quem não está em grupo nenhum vai para a Geral');
@@ -114,6 +116,8 @@ select throws_ok(format($$ insert into public.tarefas (titulo, responsavel_id, d
 select pg_temp.entrar(4);
 select throws_ok(format('select public.demanda_continua(%L)', pg_temp.g('A')), 'P0001', 'Grupo não encontrado neste escritório.', 'Outro escritório não pede a contínua deste');
 select is((select count(*) from public.demandas where escritorio_id = 'e0000000-0000-0000-0000-000000000001'), 0::bigint, 'Outro escritório não vê as contínuas deste');
+select ok(not pg_temp.continua('Núcleo A') = any(public.demandas_continuas()) and not pg_temp.continua(null) = any(public.demandas_continuas()),
+  'Nem recebe os ids delas pela lista das contínuas');
 -- E a tarefa sem demanda dele vai para a Geral do escritório dele
 insert into public.tarefas (id, titulo, responsavel_id, criado_por) values ('70000000-0000-0000-0000-000000000006', 'Do outro', auth.uid(), auth.uid());
 select is((select escritorio_id from public.demandas where id = (pg_temp.demandas_da('70000000-0000-0000-0000-000000000006'))[1]),
@@ -164,7 +168,7 @@ select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000007'), '{}'::uui
 select is(array_agg(p.oid::regprocedure::text order by 1) filter (where not coalesce(p.proconfig @> array['search_path=""'], false)), null,
   'Toda função nova ou trocada tem search_path vazio')
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname in ('public', 'privado') and p.proname in ('uso_a_continua', 'demanda_continua', 'titulo_da_continua', 'tarefa_na_continua', 'guardar_continua',
+where n.nspname in ('public', 'privado') and p.proname in ('uso_a_continua', 'demanda_continua', 'demandas_continuas', 'titulo_da_continua', 'tarefa_na_continua', 'guardar_continua',
   'continua_do_grupo_excluido', 'continua_do_grupo_renomeado', 'estou_na_tarefa', 'estou_na_tarefa_ligada', 'ligacoes_da_tarefa', 'conferir_mencoes');
 select ok(not (select prosecdef from pg_proc where proname = 'guardar_continua'), 'A guarda da contínua roda como quem grava');
 

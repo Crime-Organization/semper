@@ -9575,6 +9575,19 @@ describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => 
     return id;
   }
 
+  it('dada a tarefa avulsa na contínua de um grupo de que o Bruno não faz parte, com ele como responsável, quando ele busca tarefas "sem demanda" para ligar, então ela aparece', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Tributário');
+    const continua = await SD.demandaContinua(grupo);
+    const { id } = await SD.tarefaCriar({ titulo: 'Conferir a guia do ITCMD', responsavel_id: 'u-bruno', demanda_ids: [continua], participantes: [], pessoas: [] });
+    entrarComo('u-bruno');
+    // Quando
+    const achadas = await SD.tarefasParaLigar({ termo: 'ITCMD', sem: 'demandas' });
+    // Então
+    expect(achadas.map(t => t.id)).toEqual([id]);
+  });
+
   it('dada a tarefa avulsa da Ana na Geral, quando o Bruno lê, então vê a contínua, mas não a tarefa dela (a contínua só agrupa)', async () => {
     // Dado
     entrarComo('u-ana');
