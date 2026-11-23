@@ -82,7 +82,7 @@ import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA } from '../ui/tempos';
 import { arquivadosComOContrato } from '../regras/arquivarContrato';
-import { excluidosComOsContratos, RECUSA_DA_EXCLUSAO } from '../regras/exclusaoDoContrato';
+import { excluidosComOsContratos, RECUSA_DA_EXCLUSAO, tarefasDeCadaContrato } from '../regras/exclusaoDoContrato';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -1136,10 +1136,11 @@ const contratosQueExcluo = (ids: string[]) => bd.contratos!.filter(k => ids.incl
 /** A parcela importada como paga: recebida sem recebimento (não passou pelo Caixa). */
 const importadaComoPaga = (p: ParcelaGuardada) => !p.recebimento_id && !!p.recebida_em && !p.excluido_em;
 /** O que sai junto com os contratos (regras/exclusaoDoContrato.ts). */
-const excluidosNoFalso = (ids: string[]) => excluidosComOsContratos(ids, {
+const escritorioParaExcluir = () => ({
   demandas: bd.demandas!,
   tarefas: bd.tarefas!.map(t => ({ id: t.id, arquivado_em: t.arquivado_em, demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processo_id: t.processo_id }))
 });
+const excluidosNoFalso = (ids: string[]) => excluidosComOsContratos(ids, escritorioParaExcluir());
 /** Como privado.resumo_da_exclusao: as contagens, os valores e os pagamentos já feitos. */
 function resumoDaExclusaoNoFalso(ids: string[]) {
   const junto = excluidosNoFalso(ids);
@@ -3360,10 +3361,14 @@ export const SD: Dados = {
     const r = resumoDaExclusaoNoFalso(ok);
     if (r.pagos.length) return erro(RECUSA_DA_EXCLUSAO.pagamento);
     if ((r.recebimentos > 0 || r.importadas > 0) && !souAdmin()) return erro(RECUSA_DA_EXCLUSAO.administrador);
-    // O resumo de cada contrato, contado antes de apagar; entra na linha da exclusão dele, como no banco (uma linha só).
-    const resumos = new Map(ok.map(id => {
+    // O resumo de cada contrato, contado antes de apagar; entra na linha da exclusão dele, como no banco (uma linha só). Cada tarefa
+    // que sai conta uma vez, no primeiro contrato (pelo código) a que está ligada, também a que só sai por estarem juntos na lista.
+    const pelaOrdem = ok.map(acharContrato).toSorted((a, b) => a.codigo.localeCompare(b.codigo)).map(k => k.id);
+    const deCada = tarefasDeCadaContrato(pelaOrdem, r.junto, escritorioParaExcluir());
+    const resumos = new Map(pelaOrdem.map(id => {
       const { pagos: _p, junto: _j, ...cascata } = resumoDaExclusaoNoFalso([id]);
-      return [id, cascata];
+      const segundos = Math.max(0, bd.tempos!.filter(x => deCada[id].includes(x.tarefa_id)).reduce((s, x) => s + x.segundos, 0));
+      return [id, { ...cascata, tarefas: deCada[id].length, segundos }];
     }));
     // O Financeiro: a cópia escondida de cada recebimento (também o estornado) e de cada parcela importada como paga; depois, tudo sai.
     const recebimentos = bd.recebimentos!.filter(x => ok.includes(x.contrato_id)), idsDosRecebimentos = new Set(recebimentos.map(x => x.id));

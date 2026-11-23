@@ -73,7 +73,7 @@ insert into public.compromissos (id, escritorio_id, codigo, tipo, titulo, data, 
 insert into public.compromisso_ligacoes (escritorio_id, compromisso_id, demanda_id) values
   ('e0000000-0000-0000-0000-000000000001', '74000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000001');
 -- As tarefas: T1 só do K1 (com 2 horas registradas); T2 só da D1; T3 da D1 e do K5 (outro contrato); T6 do K1 e do processo;
--- T7 do K1 e da contínua; T9 do K9.
+-- T7 do K1 e da contínua; T8 do K1 e do K3 (com 30 minutos registrados); T9 do K9.
 insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, participantes, demanda_id, demanda_ids, contrato_id, contrato_ids,
                             processo_id, criado_por) values
   ('70000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'T1', 'Do K1', 'a0000000-0000-0000-0000-000000000001', '{}',
@@ -89,11 +89,15 @@ insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, p
   ('70000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-000000000001', 'T7', 'Do K1 e da contínua', 'a0000000-0000-0000-0000-000000000001', '{}',
    '71000000-0000-0000-0000-000000000004', '{71000000-0000-0000-0000-000000000004}', 'c0000000-0000-0000-0000-000000000001', '{c0000000-0000-0000-0000-000000000001}',
    null, 'a0000000-0000-0000-0000-000000000001'),
+  ('70000000-0000-0000-0000-000000000008', 'e0000000-0000-0000-0000-000000000001', 'T8', 'Do K1 e do K3', 'a0000000-0000-0000-0000-000000000001', '{}',
+   null, '{}', 'c0000000-0000-0000-0000-000000000001', '{c0000000-0000-0000-0000-000000000001,c0000000-0000-0000-0000-000000000003}', null,
+   'a0000000-0000-0000-0000-000000000001'),
   ('70000000-0000-0000-0000-000000000009', 'e0000000-0000-0000-0000-000000000002', 'T9', 'De fora', 'a0000000-0000-0000-0000-000000000003', '{}',
    '71000000-0000-0000-0000-000000000009', '{71000000-0000-0000-0000-000000000009}', 'c0000000-0000-0000-0000-000000000009', '{c0000000-0000-0000-0000-000000000009}',
    null, 'a0000000-0000-0000-0000-000000000003');
 insert into public.tarefa_tempos (escritorio_id, tarefa_id, perfil_id, segundos) values
-  ('e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 7200);
+  ('e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 7200),
+  ('e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 1800);
 set local session_replication_role = origin;
 
 create function pg_temp.entrar(p_quem int) returns void language sql as $$
@@ -222,6 +226,13 @@ select is((select resumo -> 'cascata' ->> 'recebido' from public.auditoria where
   'A auditoria guarda o resumo com os valores');
 select is((select count(*) from public.auditoria where tabela = 'contratos' and acao = 'exclusao' and registro_id = 'c0000000-0000-0000-0000-000000000001'),
   1::bigint, 'A exclusão do contrato fica numa linha só do registro de ações, com o resumo');
+-- E a T8 (do K1 e do K3, que saíram juntos) conta uma vez, no K1, com o tempo dela: T1, T2, T7 e T8, 2 h 30 min
+select is((select (resumo -> 'cascata' ->> 'tarefas') || ' ' || (resumo -> 'cascata' ->> 'segundos') from public.auditoria
+            where tabela = 'contratos' and acao = 'exclusao' and registro_id = 'c0000000-0000-0000-0000-000000000001'), '4 9000',
+  'O resumo do K1 conta a tarefa que ele tinha em comum com o K3, com o tempo dela');
+select is((select (resumo -> 'cascata' ->> 'tarefas') || ' ' || (resumo -> 'cascata' ->> 'segundos') from public.auditoria
+            where tabela = 'contratos' and acao = 'exclusao' and registro_id = 'c0000000-0000-0000-0000-000000000003'), '0 0',
+  'E o do K3 não a conta de novo');
 
 -- ===== Quem lê a cópia escondida =====
 select pg_temp.entrar(1); set local role authenticated;

@@ -28,6 +28,22 @@ export function excluidosComOsContratos(contratos: readonly string[], e: Escrito
   return { demandas, tarefas };
 }
 
+/**
+ * De qual contrato é cada tarefa que sai, para o resumo de cada um no registro de ações. `contratos` vem na ordem do resumo (pelo
+ * código): a tarefa conta no primeiro a que está ligada, direto ou por uma das demandas dele que saem. Assim a tarefa de dois
+ * contratos excluídos juntos conta uma vez só, e nenhuma tarefa que sai fica fora do resumo.
+ */
+export function tarefasDeCadaContrato(contratos: readonly string[], junto: ExcluidosJunto, e: EscritorioParaExcluir): Record<string, string[]> {
+  const saem = new Set(junto.tarefas), demandasQueSaem = new Set(junto.demandas), contadas = new Set<string>();
+  return Object.fromEntries(contratos.map(k => {
+    const demandas = new Set(e.demandas.filter(d => d.contrato_id === k && demandasQueSaem.has(d.id)).map(d => d.id));
+    const minhas = e.tarefas.filter(t => saem.has(t.id) && !contadas.has(t.id) && (t.contratos.includes(k) || t.demandas.some(d => demandas.has(d))))
+      .map(t => t.id);
+    minhas.forEach(id => contadas.add(id));
+    return [k, minhas];
+  }));
+}
+
 /** Por que a exclusão não pode seguir. A ordem conta: o pagamento feito vale para todos; o dinheiro, para quem não é administrador. */
 export type BloqueioDaExclusao = 'pagamento' | 'administrador' | 'nenhum';
 

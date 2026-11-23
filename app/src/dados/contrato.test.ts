@@ -4932,6 +4932,21 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(linhas).toHaveLength(1);
         expect(linhas[0].resumo).toMatchObject({ codigo: c.k.codigo, cascata: { demandas: 1, tarefas: 2 } });
       });
+
+      it('dados dois contratos com uma tarefa em comum excluídos juntos, quando abre o registro de ações, então ela conta uma vez, com o tempo dela', async () => {
+        // Dado
+        const c = await cenario();
+        await SD.tempoIniciar(c.comOutro.id, new Date().toISOString(), 600);
+        await SD.contratosArquivar([c.k.id, c.outro.id], true);
+        // Quando
+        await SD.contratosExcluir([c.k.id, c.outro.id]);
+        // Então: as três tarefas que saíram entram no resumo dos dois, sem contar duas vezes
+        const resumos = (await SD.auditoriaListar()).filter(l => l.tabela === 'contratos' && l.acao === 'exclusao' && [c.k.id, c.outro.id].includes(l.registro_id!))
+          .map(l => l.resumo!.cascata!);
+        expect(resumos).toHaveLength(2);
+        expect(resumos.reduce((s, x) => s + x.tarefas, 0)).toBe(3);
+        expect(resumos.reduce((s, x) => s + x.segundos, 0)).toBe(600);
+      });
     });
 
     describe('Meu tempo trabalhado', () => {

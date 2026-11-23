@@ -173,6 +173,7 @@ declare
   v_escritorio uuid := privado.meu_escritorio();
   v_ok uuid[]; v_rec uuid[]; v_lanc uuid[]; v_dem uuid[]; v_tar uuid[]; v_r jsonb; v_k public.contratos;
   v_resumos jsonb := '{}';   -- o resumo do que sai com cada contrato, pelo id, para a linha da auditoria
+  v_dem_k uuid[]; v_tar_k uuid[]; v_contadas uuid[] := '{}';   -- as demandas e as tarefas de um contrato no resumo; as já contadas
 begin
   if v_escritorio is null then raise exception 'Entre no sistema de novo.' using errcode = '42501'; end if;
   -- Trava os contratos e os recebimentos e repasses deles: quem está pagando ou recebendo agora termina primeiro.
@@ -191,10 +192,23 @@ begin
     raise exception 'Este contrato tem dinheiro recebido: só um administrador o exclui.' using errcode = '42501';
   end if;
 
+  -- O que sai junto com a lista inteira: as demandas e as tarefas (também a que só sai porque os contratos dela saem juntos).
+  v_dem := privado.demandas_que_saem(v_ok);
+  v_tar := privado.tarefas_que_saem(v_escritorio, v_ok, v_dem);
+
   -- O resumo de cada contrato, contado antes de apagar (depois não há mais o que contar). Ele entra na linha da exclusão que o
-  -- gatilho privado.auditar grava (abaixo, depois do delete): uma linha só por contrato no registro de ações.
+  -- gatilho privado.auditar grava (abaixo, depois do delete): uma linha só por contrato no registro de ações. Cada tarefa que sai
+  -- conta uma vez, no primeiro contrato (pelo código) a que está ligada, direto ou por uma das demandas dele: a tarefa de dois
+  -- contratos excluídos juntos entra no resumo, com o tempo registrado nela (regras/exclusaoDoContrato.ts, tarefasDeCadaContrato).
   for v_k in select * from public.contratos where id = any(v_ok) order by codigo loop
-    v_resumos := v_resumos || jsonb_build_object(v_k.id::text, privado.resumo_da_exclusao(v_escritorio, array[v_k.id]) - 'pagos');
+    v_dem_k := privado.demandas_que_saem(array[v_k.id]);
+    select coalesce(array_agg(t.id), '{}') into v_tar_k from public.tarefas t
+     where t.id = any(v_tar) and not t.id = any(v_contadas)
+       and (v_k.id = any(t.contrato_ids) or t.contrato_id = v_k.id or t.demanda_ids && v_dem_k or t.demanda_id = any(v_dem_k));
+    v_contadas := v_contadas || v_tar_k;
+    v_resumos := v_resumos || jsonb_build_object(v_k.id::text, (privado.resumo_da_exclusao(v_escritorio, array[v_k.id]) - 'pagos')
+      || jsonb_build_object('tarefas', cardinality(v_tar_k),
+                            'segundos', (select greatest(coalesce(sum(segundos), 0), 0) from public.tarefa_tempos where tarefa_id = any(v_tar_k))));
   end loop;
 
   -- A cópia escondida: cada recebimento (também o estornado), com tudo o que ele criou, e cada parcela importada como paga.
@@ -230,8 +244,6 @@ begin
   delete from public.financeiro_lancamentos where id = any(v_lanc);
 
   -- As tarefas que só pertencem a estes contratos, as demandas e, por fim, os contratos (com as parcelas e o histórico delas).
-  v_dem := privado.demandas_que_saem(v_ok);
-  v_tar := privado.tarefas_que_saem(v_escritorio, v_ok, v_dem);
   delete from public.tarefas where id = any(v_tar);
   delete from public.demandas where id = any(v_dem);
   delete from public.contratos where id = any(v_ok);

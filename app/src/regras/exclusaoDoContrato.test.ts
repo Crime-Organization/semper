@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { PreviaExclusaoContrato } from '../dados/tipos';
 import type { TarefaParaArquivar } from './arquivarContrato';
 import { fmtCentavos } from './caixa';
-import { bloqueioDaExclusao, detalheDaExclusaoDoContrato, excluidosComOsContratos, janelaDaExclusao, RECUSA_DA_EXCLUSAO, type EscritorioParaExcluir } from './exclusaoDoContrato';
+import { bloqueioDaExclusao, detalheDaExclusaoDoContrato, excluidosComOsContratos, janelaDaExclusao, RECUSA_DA_EXCLUSAO, tarefasDeCadaContrato, type EscritorioParaExcluir } from './exclusaoDoContrato';
 
 const ARQUIVADO = '2030-01-01T00:00:00Z';
 const tarefa = (id: string, extra: Partial<TarefaParaArquivar> = {}): TarefaParaArquivar =>
@@ -54,6 +54,24 @@ describe('O que sai junto com o contrato excluído', () => {
     // Quando / Então
     expect(excluidosComOsContratos(['k1'], e).tarefas).toEqual([]);
     expect(excluidosComOsContratos(['k1', 'k2'], e).tarefas).toEqual(['dos-dois']);
+  });
+
+  it('dadas tarefas de dois contratos excluídos juntos, quando monta o resumo de cada um, então cada tarefa conta uma vez, no primeiro a que está ligada', () => {
+    // Dado: uma tarefa dos dois, uma só do K2 e uma da D1 (do K1) e do K2
+    const e = escritorio([tarefa('dos-dois', { contratos: ['k1', 'k2'] }), tarefa('do-k2', { contratos: ['k2'] }), tarefa('da-d1-e-k2', { contratos: ['k2'], demandas: ['d1'] })]);
+    const junto = excluidosComOsContratos(['k1', 'k2'], e);
+    // Quando
+    const deCada = tarefasDeCadaContrato(['k1', 'k2'], junto, e);
+    // Então
+    expect(deCada).toEqual({ k1: ['dos-dois', 'da-d1-e-k2'], k2: ['do-k2'] });
+    expect(Object.values(deCada).flat().toSorted()).toEqual(junto.tarefas.toSorted());
+  });
+
+  it('dada uma tarefa ligada só à demanda contínua do contrato, quando monta o resumo, então ela não conta (não sai)', () => {
+    // Dado
+    const e = escritorio([tarefa('da-continua', { demandas: ['dc'] })]);
+    // Quando / Então
+    expect(tarefasDeCadaContrato(['k1'], excluidosComOsContratos(['k1'], e), e)).toEqual({ k1: [] });
   });
 });
 
