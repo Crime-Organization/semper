@@ -40,7 +40,7 @@ import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, hojeISO, relativo } from '../ui/util';
-import { ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, PARAMETRO_ACOMPANHAR, prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
+import { ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, PARAMETRO_ACOMPANHAR, prazoExtraDaProtecao, prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
 import { ValidadeDaProtecao } from './processo/ValidadeDaProtecao';
 import { CartoesLigados } from './CartoesLigados';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
@@ -122,10 +122,14 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeCriarCompromisso = !p.arquivado_em && (podeAlterar || advogado);
   const novoCompromisso = '/agenda/novo/?processo=' + p.id;
   // Propriedade intelectual (#317, parte C): os prazos do INPI viram um compromisso que se repete (#307), com a mesma regra de criar
-  // compromisso e o módulo Compromissos ligado. O cadastro abre já preenchido (?acompanhar=protecao).
-  const prazosNaAgenda = podeCriarCompromisso && modulos?.compromissos ? acompanhamentoDaProtecao(p, hoje) : null;
-  const acompanharNaAgenda = prazosNaAgenda && {
-    processoId: p.id, acompanhamento: prazosNaAgenda, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PROTECAO}`, comDemanda: !!modulos?.demandas
+  // compromisso e o módulo Compromissos ligado. O cadastro abre já preenchido (?acompanhar=protecao). O prazo que já está no prazo extra
+  // (com taxa) vira um compromisso só, no último dia dele (?acompanhar=prazo-extra): a série começa no prazo seguinte.
+  const naAgenda = podeCriarCompromisso && !!modulos?.compromissos;
+  const prazosNaAgenda = naAgenda ? acompanhamentoDaProtecao(p, hoje) : null, prazoExtra = naAgenda ? prazoExtraDaProtecao(p, hoje) : null;
+  const acompanharNaAgenda = (prazosNaAgenda || prazoExtra) && {
+    processoId: p.id, comDemanda: !!modulos?.demandas,
+    serie: prazosNaAgenda && { acompanhamento: prazosNaAgenda, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PROTECAO}` },
+    extra: prazoExtra && { prazo: prazoExtra, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PRAZO_EXTRA}` }
   };
   // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
   const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;

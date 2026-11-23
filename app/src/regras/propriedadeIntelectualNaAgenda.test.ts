@@ -2,7 +2,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  acompanhamentoDaProtecao, AREA_DA_PI, AVISO_DO_ACOMPANHAMENTO, camposDoAcompanhamento, compromissoDoAcompanhamento, descreverAcompanhamento, prazosDaProtecao,
+  ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, AREA_DA_PI, AVISO_DO_ACOMPANHAMENTO, camposDoAcompanhamento, camposParaAcompanhar,
+  compromissoDoAcompanhamento, descreverAcompanhamento, descreverPrazoExtra, ehAcompanhamento, prazoExtraDaProtecao, prazosDaProtecao,
   TIPOS_DE_PROTECAO, type DatasDaProtecao
 } from './propriedadeIntelectual';
 import { compromissoVazio, repeticaoDoCompromisso, validarCompromisso } from './compromisso';
@@ -141,6 +142,62 @@ describe('Acompanhar os prazos do INPI na agenda', () => {
     // Então
     expect(compromissoDoAcompanhamento([arquivado, ativo], a)).toBe(ativo);
     expect(compromissoDoAcompanhamento([arquivado, { titulo: 'Reunião', arquivado_em: null }], a)).toBeNull();
+  });
+});
+
+describe('O prazo que já está no prazo extra, na agenda', () => {
+  it('dada a patente depositada em 10/03/2020, quando o cartão abre, então a 7ª anuidade (no prazo extra) vira um compromisso no último dia do extra', () => {
+    // Dado: a 7ª anuidade acabou em 10/06/2026, e o prazo extra, com taxa, vai até 10/12/2026; a série começa na 8ª
+    const d = processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }, 'BR 10 2020 004567-8');
+    // Quando
+    const x = prazoExtraDaProtecao(d, HOJE)!;
+    // Então
+    expect(x).toMatchObject({ nome: '7ª anuidade', data: '2026-12-10', titulo: '7ª anuidade no prazo extra BR 10 2020 004567-8' });
+    expect(x.observacoes).toContain('7ª anuidade: o prazo normal acabou em 10/06/2026; com a taxa extra, vai até 10/12/2026.');
+    expect(x.observacoes).toContain(AVISO_DO_ACOMPANHAMENTO);
+    expect(descreverPrazoExtra(x)).toBe('7ª anuidade está no prazo extra, com taxa, até 10/12/2026. Cria na agenda "7ª anuidade no prazo extra BR 10 2020 004567-8" nesse dia.');
+    expect(acompanhamentoDaProtecao(d, HOJE)!.data).toBe('2027-06-10');
+  });
+
+  it('quando o cadastro do compromisso abre pelo prazo extra, então vem um compromisso só, do tipo "Outro", que passa nas conferências', () => {
+    // Dado
+    const d = processo({ protecao: 'patente_invencao', deposito: '2020-03-10' });
+    // Quando
+    const c = { ...compromissoVazio(), responsavelId: 'u-mauro', ...camposParaAcompanhar(ACOMPANHAR_PRAZO_EXTRA, d, HOJE) };
+    // Então
+    expect(c).toMatchObject({ tipo: 'outro', titulo: '7ª anuidade no prazo extra', data: '10/12/2026', hora: '', repetir: '' });
+    expect(validarCompromisso(c)).toEqual({});
+    expect(repeticaoDoCompromisso(c)).toBeNull();
+  });
+
+  it('dada a patente cuja última anuidade está no prazo extra, quando o cartão abre, então não há série, mas há o prazo extra', () => {
+    // Dado: depositada em 10/07/2007, a 20ª anuidade acabou em 10/10/2026; com taxa, vai até 10/04/2027
+    const d = processo({ protecao: 'patente_invencao', deposito: '2007-07-10' });
+    // Então
+    expect(acompanhamentoDaProtecao(d, HOJE)).toBeNull();
+    expect(prazoExtraDaProtecao(d, HOJE)).toMatchObject({ nome: '20ª anuidade', data: '2027-04-10' });
+  });
+
+  it('dada a marca cujo período acabou em 10/08/2026, quando o cartão abre, então a prorrogação no prazo extra vai até 10/02/2027', () => {
+    // Então
+    expect(prazoExtraDaProtecao(processo({ protecao: 'marca', concessao: '2016-08-10' }), HOJE)).toMatchObject({ nome: '1ª prorrogação', data: '2027-02-10' });
+  });
+
+  it.each([
+    ['o desenho no primeiro período', { protecao: 'desenho_industrial', deposito: '2025-01-15' }],
+    ['a patente com o prazo extra já vencido', { protecao: 'patente_invencao', deposito: '2000-01-10' }],
+    ['o programa de computador', { protecao: 'programa_computador', criacao: '2020-01-01' }]
+  ] as const)('dado %s, quando o cartão abre, então não há prazo extra', (_, d) => {
+    // Então
+    expect(prazoExtraDaProtecao(processo(d), HOJE)).toBeNull();
+  });
+
+  it('dado um valor de ?acompanhar= que o cadastro não conhece, então ele não preenche nada', () => {
+    // Então
+    expect(ehAcompanhamento('outra-coisa')).toBe(false);
+    expect(ehAcompanhamento(null)).toBe(false);
+    expect(camposParaAcompanhar('outra-coisa', processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }), HOJE)).toBeNull();
+    expect(camposParaAcompanhar(ACOMPANHAR_PROTECAO, processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }), HOJE)).toMatchObject({ repetir: 'ano' });
   });
 });
 

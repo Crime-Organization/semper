@@ -2,12 +2,13 @@
 // lista de todos os prazos (anuidades, quinquênio, prorrogações, pedido de exame), cada um com a situação de hoje. As contas são as
 // de regras/propriedadeIntelectual.ts; aqui só se mostra. As datas são estimativas: o cartão manda conferir na RPI. Embaixo, o
 // "Acompanhar na agenda" (parte C, com a #307) abre o cadastro do compromisso que se repete, já preenchido com os prazos; se o processo
-// já tem esse compromisso, o cartão diz qual, em vez de oferecer outro.
+// já tem esse compromisso, o cartão diz qual, em vez de oferecer outro. O prazo que já está no prazo extra (com taxa), mais urgente, ganha
+// antes o seu atalho: um compromisso só, no último dia do prazo extra (a série começa no prazo seguinte).
 import { Fragment, useEffect, useState } from 'react';
 import { SD, type CompromissoLigado } from '../../dados';
 import {
-  compromissoDoAcompanhamento, descreverAcompanhamento, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
-  type AcompanhamentoDaProtecao, type PrazosDaProtecao
+  compromissoDoAcompanhamento, descreverAcompanhamento, descreverPrazoExtra, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
+  type AcompanhamentoDaProtecao, type PrazoExtraDaProtecao, type PrazosDaProtecao
 } from '../../regras/propriedadeIntelectual';
 import { nomeDoCompromisso } from '../../regras/compromisso';
 import { fmtData } from '../../regras/pessoa';
@@ -18,8 +19,16 @@ import { AcoesDosLigados } from '../../ui/ItensLigados';
 export const AVISO_DAS_DATAS_DO_INPI = 'Datas calculadas pela lei, para acompanhar: confira sempre na Revista da Propriedade Industrial (RPI). '
   + 'O prazo que vence em dia sem expediente no INPI passa para o próximo dia útil.';
 
-/** O que o cartão passa para oferecer o compromisso que se repete: o processo, o que será criado, o endereço do cadastro e se gera demanda. */
-export interface AcompanharNaAgenda { processoId: string; acompanhamento: AcompanhamentoDaProtecao; para: string; comDemanda: boolean }
+/**
+ * O que o cartão passa para oferecer os compromissos dos prazos: o processo, se gera demanda e, cada um com o endereço do cadastro, a série
+ * dos prazos e o prazo que está no prazo extra (null: não há).
+ */
+export interface AcompanharNaAgenda {
+  processoId: string;
+  comDemanda: boolean;
+  serie: { acompanhamento: AcompanhamentoDaProtecao; para: string } | null;
+  extra: { prazo: PrazoExtraDaProtecao; para: string } | null;
+}
 
 export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: PrazosDaProtecao; hoje: string; acompanhar?: AcompanharNaAgenda | null }) {
   if (prazos.falta) return <Nota>{prazos.falta}</Nota>;
@@ -45,8 +54,8 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: Prazo
   </>;
 }
 
-/** O atalho para acompanhar os prazos na agenda, ou o compromisso que já os acompanha. */
-function AcompanharOsPrazos({ processoId, acompanhamento, para, comDemanda }: AcompanharNaAgenda) {
+/** Os atalhos para acompanhar os prazos na agenda (o prazo extra e a série), ou os compromissos que já os acompanham. */
+function AcompanharOsPrazos({ processoId, comDemanda, serie, extra }: AcompanharNaAgenda) {
   // undefined: ainda lendo os compromissos do processo (o atalho só aparece depois, para não oferecer um segundo).
   const [ligados, setLigados] = useState<CompromissoLigado[] | undefined>();
   useEffect(() => {
@@ -55,10 +64,19 @@ function AcompanharOsPrazos({ processoId, acompanhamento, para, comDemanda }: Ac
     return () => { vale = false; };
   }, [processoId]);
   if (!ligados) return null;
-  const ja = compromissoDoAcompanhamento(ligados, acompanhamento);
-  if (ja) return <Nota>Estes prazos já estão na agenda: {nomeDoCompromisso(ja)}, na seção "Compromissos".</Nota>;
+  const jaExtra = extra && compromissoDoAcompanhamento(ligados, extra.prazo), ja = serie && compromissoDoAcompanhamento(ligados, serie.acompanhamento);
   return <>
-    <Nota>{descreverAcompanhamento(acompanhamento, comDemanda)}</Nota>
-    <AcoesDosLigados novo={{ para, rotulo: 'Acompanhar na agenda' }} />
+    {extra && (jaExtra
+      ? <Nota>O prazo extra já está na agenda: {nomeDoCompromisso(jaExtra)}, na seção "Compromissos".</Nota>
+      : <>
+        <Nota>{descreverPrazoExtra(extra.prazo)}</Nota>
+        <AcoesDosLigados novo={{ para: extra.para, rotulo: 'Pôr o prazo extra na agenda' }} />
+      </>)}
+    {serie && (ja
+      ? <Nota>Estes prazos já estão na agenda: {nomeDoCompromisso(ja)}, na seção "Compromissos".</Nota>
+      : <>
+        <Nota>{descreverAcompanhamento(serie.acompanhamento, comDemanda)}</Nota>
+        <AcoesDosLigados novo={{ para: serie.para, rotulo: 'Acompanhar na agenda' }} />
+      </>)}
   </>;
 }

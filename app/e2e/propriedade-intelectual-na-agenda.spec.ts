@@ -63,4 +63,30 @@ test.describe('Acompanhar os prazos do INPI na agenda (#317)', () => {
     await expect(cartao.getByText(`Estes prazos já estão na agenda: ${TITULO}, na seção "Compromissos".`)).toBeVisible();
     await expect(cartao.getByRole('link', { name: 'Acompanhar na agenda' })).toHaveCount(0);
   });
+
+  test('dada a 7ª anuidade no prazo extra, quando a pessoa põe o prazo extra na agenda, então nasce um compromisso só, no último dia do extra', async ({ page }) => {
+    // Dado: a 7ª anuidade acabou em 10/06/2026; com a taxa extra, vai até 10/12/2026
+    let cartao = await cadastrarPatente(page);
+    const doProcesso = page.url(), titulo = `7ª anuidade no prazo extra ${NUMERO}`;
+    await abrirSecao(cartao, 'Validade e anuidades');
+    await expect(cartao.getByText(`7ª anuidade está no prazo extra, com taxa, até 10/12/2026. Cria na agenda "${titulo}" nesse dia.`)).toBeVisible();
+    // Quando
+    await cartao.getByRole('link', { name: 'Pôr o prazo extra na agenda' }).click();
+    // Então: o cadastro vem preenchido com o prazo extra, sem repetir
+    await expect(page.getByLabel('Título')).toHaveValue(titulo);
+    await expect(page.getByRole('textbox', { name: 'Data*', exact: true })).toHaveValue('10/12/2026');
+    await expect(page.getByLabel('Repetir', { exact: true })).toHaveValue('');
+    // Quando
+    while (await page.getByRole('button', { name: 'Próxima' }).isVisible()) await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar compromisso' }).click();
+    // Então
+    await expect(page.getByText(/Compromisso \w+ cadastrado/)).toBeVisible();
+    // E, de volta ao processo, o prazo extra já está na agenda, e a série continua oferecida
+    await page.goto(doProcesso);
+    cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Validade e anuidades');
+    await expect(cartao.getByText(`O prazo extra já está na agenda: ${titulo}, na seção "Compromissos".`)).toBeVisible();
+    await expect(cartao.getByRole('link', { name: 'Pôr o prazo extra na agenda' })).toHaveCount(0);
+    await expect(cartao.getByRole('link', { name: 'Acompanhar na agenda' })).toBeVisible();
+  });
 });

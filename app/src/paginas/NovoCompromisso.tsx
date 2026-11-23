@@ -39,7 +39,7 @@ import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, subirAoCadastro, useAtrasado, useTitulo } from '../ui/util';
-import { ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, camposDoAcompanhamento, PARAMETRO_ACOMPANHAR } from '../regras/propriedadeIntelectual';
+import { camposParaAcompanhar, ehAcompanhamento, PARAMETRO_ACOMPANHAR } from '../regras/propriedadeIntelectual';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
 import { useSalas } from './agenda/useSalas';
@@ -71,8 +71,10 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   // Aberto pelo "+" do menu lateral (#404): a tela onde a pessoa estava, para voltar a ela depois de gravar.
   const volta = voltaDoMenu(useLocation().state, CADASTRO);
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), pessoaInicial = params.get('pessoa'), processoInicial = params.get('processo');
-  // Vindo do "Acompanhar na agenda" do processo de propriedade intelectual (#317, parte C): os prazos do INPI preenchem o compromisso que se repete.
-  const acompanharProtecao = !idAtualizar && !!processoInicial && params.get(PARAMETRO_ACOMPANHAR) === ACOMPANHAR_PROTECAO;
+  // Vindo do "Acompanhar na agenda" do processo de propriedade intelectual (#317, parte C): os prazos do INPI preenchem o compromisso que se
+  // repete; ou, vindo do "Pôr o prazo extra na agenda", o compromisso do prazo que está no prazo extra.
+  const qualAcompanhar = params.get(PARAMETRO_ACOMPANHAR);
+  const acompanharProtecao = !idAtualizar && !!processoInicial && ehAcompanhamento(qualAcompanhar);
   const tipoInicial: TipoCompromisso = acompanharProtecao ? 'outro' : processoInicial ? 'audiencia' : 'reuniao';
   // A anotação de onde o compromisso nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada ao compromisso novo.
   const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'compromisso');
@@ -154,16 +156,16 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     if (pessoaInicial) SD.pessoaObter(pessoaInicial).then(p => { if (p) { setPessoas([p]); setC(x => ({ ...x, pessoas: [p.id] })); } }).catch(falha);
     if (processoInicial) void ligarProcesso(processoInicial);
   }, [idAtualizar, pessoaInicial, processoInicial, porPessoas, ligarProcesso]);
-  // Os prazos do INPI do processo (#317, parte C) preenchem o título, a primeira data, a repetição e a demanda de cada data.
+  // Os prazos do INPI do processo (#317, parte C) preenchem o título, a primeira data, a repetição e a demanda de cada data (ou o prazo extra).
   useEffect(() => {
     if (!acompanharProtecao || !processoInicial) return;
     let vale = true;
     SD.processoObter(processoInicial).then(p => {
-      const a = p && acompanhamentoDaProtecao(p, hojeISO());
-      if (vale && a) setC(atual => ({ ...atual, ...camposDoAcompanhamento(a) }));
+      const campos = p && camposParaAcompanhar(qualAcompanhar, p, hojeISO());
+      if (vale && campos) setC(atual => ({ ...atual, ...campos }));
     }).catch(falha);
     return () => { vale = false; };
-  }, [acompanharProtecao, processoInicial]);
+  }, [acompanharProtecao, qualAcompanhar, processoInicial]);
   // As pessoas da origem entram no compromisso, se ele ainda não tem nenhuma.
   useEffect(() => {
     if (!doItem?.pessoas.length || camposAgora.current.pessoas.some(Boolean)) return;

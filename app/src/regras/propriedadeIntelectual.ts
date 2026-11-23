@@ -389,9 +389,57 @@ export const camposDoAcompanhamento = (a: AcompanhamentoDaProtecao): Partial<Cam
     : { repetir: '' })
 });
 
+/**
+ * O prazo que já passou do fim normal e ainda está no prazo extra, com taxa (a anuidade nos 6 meses seguintes, a prorrogação da marca
+ * ou do desenho): é o mais urgente, porque perdê-lo arquiva a patente ou extingue o registro. A série começa no prazo seguinte, então
+ * ele vira um compromisso só, no último dia do prazo extra.
+ */
+export interface PrazoExtraDaProtecao {
+  /** O nome do prazo ("7ª anuidade"). */
+  nome: string;
+  titulo: string;
+  /** O último dia do prazo extra (aaaa-mm-dd). */
+  data: string;
+  observacoes: string;
+}
+/** O primeiro prazo dos que o compromisso acompanha que está hoje no prazo extra, ou null. */
+export function prazoExtraDaProtecao(p: DatasDaProtecao & { area?: string | null; numero?: string | null }, hoje: string): PrazoExtraDaProtecao | null {
+  const prazos = prazosDaProtecao(p, hoje), como = p.protecao ? TIPOS_DE_PROTECAO[p.protecao].acompanhar : null;
+  const x = prazos && como ? prazos.datas.find(d => como.tipos.includes(d.tipo) && situacaoDoPrazo(d, hoje) === 'extra') : undefined;
+  if (!x?.fimExtra) return null;
+  return {
+    nome: x.nome, data: x.fimExtra,
+    titulo: [`${x.nome} no prazo extra`, p.numero?.trim()].filter(Boolean).join(' ').slice(0, TAMANHO_COMPROMISSO.titulo),
+    observacoes: `Prazo do INPI calculado a partir das datas do processo. ${x.nome}: o prazo normal acabou em ${fmtData(x.fim)}; `
+      + `com a taxa extra, vai até ${fmtData(x.fimExtra)}. ${AVISO_DO_ACOMPANHAMENTO}`
+  };
+}
+/** O que o botão do prazo extra vai criar: "7ª anuidade está no prazo extra, com taxa, até 10/04/2027. Cria na agenda "…" nesse dia." */
+export const descreverPrazoExtra = (x: PrazoExtraDaProtecao) =>
+  `${x.nome} está no prazo extra, com taxa, até ${fmtData(x.data)}. Cria na agenda "${x.titulo}" nesse dia.`;
+/** Os campos do cadastro do compromisso do prazo extra: tipo "Outro", o dia todo, sem repetir. */
+export const camposDoPrazoExtra = (x: PrazoExtraDaProtecao): Partial<CamposCompromisso> => ({
+  tipo: 'outro', titulo: x.titulo, data: fmtData(x.data), hora: '', horaFim: '', observacoes: x.observacoes, repetir: ''
+});
+
 /** O compromisso ativo do processo que já acompanha esses prazos (o de mesmo título), para o cartão não oferecer criar outro. */
 export const compromissoDoAcompanhamento = <T extends Pick<CompromissoLigado, 'titulo' | 'arquivado_em'>>(ligados: readonly T[], a: Pick<AcompanhamentoDaProtecao, 'titulo'>) =>
   ligados.find(c => !c.arquivado_em && c.titulo === a.titulo) ?? null;
-/** No endereço do cadastro do compromisso (?acompanhar=protecao, com ?processo=): abre já preenchido com os prazos do processo. */
+/**
+ * No endereço do cadastro do compromisso (?acompanhar=…, com ?processo=): abre já preenchido com os prazos do processo. "protecao": a
+ * série dos prazos; "prazo-extra": o prazo que está no prazo extra.
+ */
 export const PARAMETRO_ACOMPANHAR = 'acompanhar';
 export const ACOMPANHAR_PROTECAO = 'protecao';
+export const ACOMPANHAR_PRAZO_EXTRA = 'prazo-extra';
+type ProcessoParaAcompanhar = DatasDaProtecao & { area?: string | null; numero?: string | null };
+/** O que cada valor de ?acompanhar= preenche no cadastro do compromisso (null: o processo não tem esse prazo). Valor novo = entrada nova. */
+const CAMPOS_PARA_ACOMPANHAR: Record<string, (p: ProcessoParaAcompanhar, hoje: string) => Partial<CamposCompromisso> | null> = {
+  [ACOMPANHAR_PROTECAO]: (p, hoje) => { const a = acompanhamentoDaProtecao(p, hoje); return a && camposDoAcompanhamento(a); },
+  [ACOMPANHAR_PRAZO_EXTRA]: (p, hoje) => { const x = prazoExtraDaProtecao(p, hoje); return x && camposDoPrazoExtra(x); }
+};
+/** Se o valor de ?acompanhar= é um dos que o cadastro conhece. */
+export const ehAcompanhamento = (qual: string | null): qual is string => !!qual && Object.hasOwn(CAMPOS_PARA_ACOMPANHAR, qual);
+/** Os campos do cadastro para o valor de ?acompanhar= e o processo, ou null. */
+export const camposParaAcompanhar = (qual: string | null, p: ProcessoParaAcompanhar, hoje: string) =>
+  ehAcompanhamento(qual) ? CAMPOS_PARA_ACOMPANHAR[qual](p, hoje) : null;
