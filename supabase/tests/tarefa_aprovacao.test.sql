@@ -134,6 +134,32 @@ insert into public.tarefas (id, titulo, responsavel_id, solicitante_id, precisa_
 update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000003';
 select is(pg_temp.onde('70000000-0000-0000-0000-000000000003'), 'Concluída', 'O solicitante conclui direto');
 
+-- ---------- o administrador que executa ----------
+-- Dada uma tarefa que o Caio pediu à Ana (administradora), com aprovação
+select pg_temp.entrar(3);
+insert into public.tarefas (id, titulo, responsavel_id, solicitante_id, precisa_aprovacao, criado_por, etapa_id) values
+  ('70000000-0000-0000-0000-000000000004', 'Revisar a minuta', 'a0000000-0000-0000-0000-000000000001', auth.uid(), true, auth.uid(), pg_temp.coluna('Fazendo'));
+-- Quando a Ana a leva às concluídas, então ela também vai para a de aprovação (ser administradora não pula a aprovação de quem pediu)
+select pg_temp.entrar(1);
+update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000004';
+select is(pg_temp.onde('70000000-0000-0000-0000-000000000004'), 'Para aprovar', 'O administrador que executa também passa pela aprovação');
+select is(pg_temp.concluida_em('70000000-0000-0000-0000-000000000004'), null, 'Sem aprovação, a tarefa do administrador não está concluída');
+-- Quando a Ana a tira da coluna de aprovação para as concluídas (arrastando), então é a aprovação dela
+update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000004';
+select is(pg_temp.onde('70000000-0000-0000-0000-000000000004'), 'Concluída', 'Quem aprova, tirando da coluna de aprovação, conclui');
+-- Dada a mesma tarefa de volta à aprovação, quando a Ana usa o Aprovar, então ela vai para as concluídas
+update public.tarefas set etapa_id = pg_temp.coluna('Fazendo') where id = '70000000-0000-0000-0000-000000000004';
+update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000004';
+select is(public.tarefa_aprovar('70000000-0000-0000-0000-000000000004'), pg_temp.coluna('concluido'), 'O administrador aprova pelo Aprovar');
+select is(pg_temp.onde('70000000-0000-0000-0000-000000000004'), 'Concluída', 'Aprovada pelo administrador, a tarefa vai para as concluídas');
+-- Sem ninguém logado (uma rotina), a tarefa vai direto
+reset role;
+select set_config('request.jwt.claims', '', true);
+update public.tarefas set etapa_id = pg_temp.coluna('Fazendo') where id = '70000000-0000-0000-0000-000000000004';
+update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000004';
+select is(pg_temp.onde('70000000-0000-0000-0000-000000000004'), 'Concluída', 'Sem ninguém logado, concluir vai direto');
+set local role authenticated;
+
 -- ---------- outro escritório ----------
 -- Quando o Davi (administrador de outro escritório) tenta aprovar, então não acha a tarefa
 select pg_temp.entrar(4);

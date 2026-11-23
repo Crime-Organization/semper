@@ -9706,6 +9706,33 @@ describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
     expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
   });
 
+  it('dada a tarefa que o Bruno pediu à Ana (administradora), com aprovação, quando a Ana a conclui, então ela também espera a aprovação, e a Ana a aprova pelo Aprovar', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const { id } = await SD.tarefaCriar({ titulo: 'Revisar a minuta', responsavel_id: 'u-ana', solicitante_id: 'u-bruno', precisa_aprovacao: true,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    entrarComo('u-ana');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => !!c.de_aprovacao));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeNull();
+    expect(await SD.tarefaAprovar(id)).toBe(await coluna(c => c.marco === 'concluido'));
+  });
+
+  it('dada a tarefa na coluna de aprovação, quando o Mauro (administrador) a arrasta para as concluídas, então ela é aprovada', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 2);
+    // Então
+    expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
+  });
+
   it('dada a tarefa sem aprovação, quando o Bruno a conclui, então ela vai direto para as concluídas (como antes)', async () => {
     // Dado
     const id = await pedidaAoBruno(false);

@@ -56,12 +56,26 @@ describe('Para onde a tarefa vai ao ser concluída', () => {
 
   it.each([
     ['o solicitante a conclui', PEDIDA, 'c-feita', ANA, 'c-feita'],
-    ['um administrador a conclui', PEDIDA, 'c-feita', MAURO, 'c-feita'],
     ['ela não precisa de aprovação', { ...PEDIDA, precisa_aprovacao: false }, 'c-feita', BRUNO, 'c-feita'],
     ['ela vai para outra coluna', PEDIDA, 'c-fazer', BRUNO, 'c-fazer']
   ])('dada a tarefa, quando %s, então vai para onde foi pedido', (_caso, t, etapa, quem, destino) => {
     // Então
-    expect(etapaComAprovacao(t, etapa, COLUNAS, quem)).toBe(destino);
+    expect(etapaComAprovacao(t, etapa, COLUNAS, quem, 'c-fazendo')).toBe(destino);
+  });
+
+  it('dada a tarefa com aprovação pedida pela Ana, quando um administrador que a executa a conclui, então ela também vai para a coluna de aprovação', () => {
+    // Então
+    expect(etapaComAprovacao(PEDIDA, 'c-feita', COLUNAS, MAURO, 'c-fazendo')).toBe('c-aprovacao');
+    expect(etapaComAprovacao(PEDIDA, 'c-feita', COLUNAS, MAURO)).toBe('c-aprovacao');
+  });
+
+  it.each([
+    ['um administrador', MAURO, 'c-feita'],
+    ['o solicitante', ANA, 'c-feita'],
+    ['quem executa', BRUNO, 'c-aprovacao']
+  ])('dada a tarefa na coluna de aprovação, quando %s a leva às concluídas, então ela vai para %s', (_quem, quem, destino) => {
+    // Então: tirá-la da coluna de aprovação para as concluídas é aprovar (só quem aprova)
+    expect(etapaComAprovacao(PEDIDA, 'c-feita', COLUNAS, quem, 'c-aprovacao')).toBe(destino);
   });
 
   it('dado um quadro sem a coluna de aprovação, quando quem executa conclui, então a tarefa vai para as concluídas', () => {

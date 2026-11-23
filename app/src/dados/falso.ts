@@ -3609,8 +3609,9 @@ export const SD: Dados = {
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
     if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
-    // Como o gatilho aa_aprovacao (#313): a que precisa de aprovação, concluída por quem não aprova, vai para a coluna de aprovação.
-    const etapa = etapaComAprovacao(t, etapaId, colunasDeTarefas(), membroLogado());
+    // Como o gatilho aa_aprovacao (#313): a que precisa de aprovação, concluída por quem não a pediu (mesmo um administrador), vai
+    // para a coluna de aprovação; quem aprova e a tira de lá para as concluídas a aprova.
+    const etapa = etapaComAprovacao(t, etapaId, colunasDeTarefas(), membroLogado(), t.etapa_id);
     gravarColunaDaTarefa(t, etapa, ordem); gravar();
     return etapa;   // sem a espera das leituras: como antes, a gravação responde já
   },

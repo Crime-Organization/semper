@@ -1,7 +1,8 @@
 // A aprovação interna da tarefa (#313, decisão do dono): só vale para a tarefa com a caixa "Precisa de aprovação" marcada (o cadastro
-// a marca sozinho quando o solicitante é outra pessoa que não o responsável). Concluída por quem não aprova, ela espera na coluna de
-// aprovação ("Aguardando: análise do solicitante"); só o solicitante ou um administrador aprova (ela vai para as concluídas) ou devolve,
-// com um comentário (ela volta para "Fazendo"). As mesmas regras estão no banco (supabase/migrations/20261123013306_tarefa_aprovacao.sql).
+// a marca sozinho quando o solicitante é outra pessoa que não o responsável). Concluída por quem não a pediu (mesmo um administrador),
+// ela espera na coluna de aprovação ("Aguardando: análise do solicitante"); só o solicitante ou um administrador aprova (ela vai para as
+// concluídas) ou devolve, com um comentário (ela volta para "Fazendo"). As mesmas regras estão no banco
+// (supabase/migrations/20261123013306_tarefa_aprovacao.sql e 20261123021438_tarefa_aprovacao_do_administrador.sql).
 // Sem tela nem banco.
 import { TAMANHO_TAREFA } from '../dados/limites';
 import type { MarcoColuna, Membro, Tarefa } from '../dados/tipos';
@@ -46,12 +47,22 @@ export const esperaAprovacao = (t: ComAprovacao & Pick<Tarefa, 'etapa_id' | 'arq
   t.precisa_aprovacao && !t.arquivado_em && !!t.etapa_id && colunaDeAprovacao(colunas)?.id === t.etapa_id;
 
 /**
- * Para onde a tarefa vai quando alguém a leva à coluna `etapa` (como o gatilho aa_aprovacao do banco): a que precisa de aprovação e
- * é levada às concluídas por quem não aprova vai para a coluna de aprovação (se o quadro a tem). Nos outros casos, para `etapa`.
+ * Se quem leva a tarefa às concluídas a conclui sem passar pela aprovação: só o próprio solicitante, ou quem aprova (o solicitante ou
+ * um administrador) tirando-a da coluna de aprovação (`de`), que é aprovar. O administrador que executa a tarefa pedida por outra
+ * pessoa passa pela coluna de aprovação como qualquer um (e pode aprová-la depois, pelo Aprovar).
  */
-export function etapaComAprovacao(t: ComAprovacao, etapa: string | null, colunas: readonly ColunaDoQuadro[], quem: QuemAprova): string | null {
+export const concluiSemAprovacao = (t: ComAprovacao, de: string | null, colunas: readonly ColunaDoQuadro[], quem: QuemAprova) =>
+  (!!t.solicitante_id && t.solicitante_id === quem.id) || (!!de && colunaDeAprovacao(colunas)?.id === de && aprovaATarefa(t, quem));
+
+/**
+ * Para onde a tarefa vai quando alguém a leva da coluna `de` à coluna `etapa` (como o gatilho aa_aprovacao do banco): a que precisa
+ * de aprovação e é levada às concluídas por quem não a conclui sem aprovação (concluiSemAprovacao) vai para a coluna de aprovação (se
+ * o quadro a tem). Nos outros casos, para `etapa`. `de` nulo: a tarefa é nova.
+ */
+export function etapaComAprovacao(t: ComAprovacao, etapa: string | null, colunas: readonly ColunaDoQuadro[], quem: QuemAprova,
+  de: string | null = null): string | null {
   const vaiConcluir = !!etapa && colunas.some(c => c.id === etapa && c.marco === 'concluido');
-  if (!t.precisa_aprovacao || !vaiConcluir || aprovaATarefa(t, quem)) return etapa;
+  if (!t.precisa_aprovacao || !vaiConcluir || concluiSemAprovacao(t, de, colunas, quem)) return etapa;
   return colunaDeAprovacao(colunas)?.id ?? etapa;
 }
 
