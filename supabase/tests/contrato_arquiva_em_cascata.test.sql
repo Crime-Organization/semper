@@ -5,6 +5,8 @@ create extension if not exists pgtap with schema extensions;
 select no_plan();
 
 -- A demanda contínua (#313) pode ainda não existir: o teste cria a coluna só dentro desta transação, se faltar.
+-- JUNCAO-313 (obrigatório ao juntar a #313): tirar esta linha, para o teste falhar se a coluna não existir, e criar a contínua
+-- pelo caminho real da #313 (veja app/src/regras/arquivarContrato.ts).
 alter table public.demandas add column if not exists continua boolean not null default false;
 
 -- Dado um escritório com Ana (administradora) e Bia (da equipe, que cadastrou o contrato K1), e o Davi, de outro escritório.
