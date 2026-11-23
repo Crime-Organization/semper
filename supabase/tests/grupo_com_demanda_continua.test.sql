@@ -93,6 +93,24 @@ select is(pg_temp.filtro(array[pg_temp.g('A')], false), array['A2 da Eva'], 'Que
 -- Mas a contínua do Núcleo A continua escondida dela
 select is((select count(*) from public.demandas where continua and continua_grupo_id = pg_temp.g('A')), 0::bigint, 'O filtro não abre a contínua do grupo');
 
+-- Dada uma demanda comum do Núcleo A e, nela, uma tarefa de que a Eva (fora do grupo e fora da demanda) é a responsável
+select pg_temp.entrar(1);
+insert into public.demandas (id, titulo, responsavel_id, grupos, criado_por) values
+  ('d0000000-0000-0000-0000-000000000002', 'Partilha do Núcleo A', auth.uid(), array[pg_temp.g('A')], auth.uid());
+insert into public.tarefas (titulo, responsavel_id, demanda_ids, criado_por) values
+  ('Da Eva na demanda do A', pg_temp.id(5), '{d0000000-0000-0000-0000-000000000002}', auth.uid());
+-- Quando a Eva filtra pelo Núcleo A, então vê também essa tarefa, como as da contínua (o filtro só escolhe entre as que ela já vê)
+select pg_temp.entrar(5);
+select is(pg_temp.filtro(array[pg_temp.g('A')], false), array['A2 da Eva', 'Da Eva na demanda do A'],
+  'Quem está fora do grupo vê, pelo filtro, a tarefa da demanda do grupo em que está');
+select is((select array_agg(titulo order by titulo) from public.tarefas_dos_grupos(array[pg_temp.g('A')])), array['A2 da Eva', 'Da Eva na demanda do A'],
+  'A função da versão anterior também traz a tarefa da demanda do grupo');
+-- Mas a demanda do Núcleo A continua escondida dela
+select is((select count(*) from public.demandas where id = 'd0000000-0000-0000-0000-000000000002'), 0::bigint, 'O filtro não abre a demanda do grupo');
+-- E o Davi, de outro escritório, não a alcança pelo filtro
+select pg_temp.entrar(4);
+select is(privado.demandas_do_filtro(array[pg_temp.g('A')], false), '{}'::uuid[], 'Outro escritório não recebe os ids das demandas do grupo deste');
+
 -- ---------- escritório isolado ----------
 -- Dado o Davi, de outro escritório, com uma tarefa avulsa na Geral dele
 select pg_temp.entrar(4);

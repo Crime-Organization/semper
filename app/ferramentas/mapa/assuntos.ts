@@ -157,7 +157,7 @@ export const ASSUNTOS: Assunto[] = [
       'Demandas', 'NovaDemanda', 'NovaDemandaPelaOrigem', 'CartaoDemanda', 'DemandasRelacionadas', 'concluirDemanda', 'CartoesLigados',
       'demanda', 'demandaContinua', 'demandasRelacionadas', 'demandaDoCompromisso', 'dataDeInicio', 'ordemPorPrazo', 'filtroDoInicio',
       'demandas', 'demandas-relacionadas', 'demanda-continua',
-      'demanda_continua', 'demandas_continuas_do_escritorio', 'grupo_com_demanda_continua', 'demandas_relacionadas', 'data_de_inicio'
+      'demanda_continua', 'demandas_continuas_do_escritorio', 'grupo_com_demanda_continua', 'filtro_de_grupo_pelas_demandas_do_escritorio', 'demandas_relacionadas', 'data_de_inicio'
     ],
     tabelas: ['demandas', 'demanda_clientes', 'demanda_historico', 'demandas_relacionadas'],
     dados: ['DadosDemandas'],
@@ -168,7 +168,7 @@ export const ASSUNTOS: Assunto[] = [
       'A contínua é especial em todo lugar que lista, liga ou conclui demandas: `ehContinua` em `paginas/concluirDemanda.ts` (nunca se conclui), `regras/ligarExistente.ts` e `paginas/ligarNoCartao.ts` (desfazer a ligação devolve a tarefa a ela) e `demandasParaLigar` em `supabase.ts` (uma por grupo, todas contam). Veja [Ligações entre itens](#ligacoes).',
       'Arquivar ou excluir contrato em cascata não leva a contínua, e a tarefa avulsa ligada ao contrato volta para ela: teste do banco `contrato_cascata_com_a_continua` e `e2e/contrato-arquiva-em-cascata.spec.ts` (veja [Contratos](#contratos)).',
       'Checklists da demanda estão em [Checklists e modelos](#listas).',
-      'O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migração `grupo_com_demanda_continua`).'
+      'O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migrações `grupo_com_demanda_continua` e `filtro_de_grupo_pelas_demandas_do_escritorio`). Os ids das demandas pedidas (as do grupo e as contínuas) vêm de `privado.demandas_do_filtro`, que não passa pelas regras de leitura das demandas: quem vê a tarefa a vê pelo filtro mesmo sem ver a demanda, como `daTarefaNoGrupo` em `falso.ts`.'
     ],
     testes: ['ligar-existente', 'tarefa-em-varias-ligacoes', 'contrato-arquiva-em-cascata', 'contrato_cascata_com_a_continua', 'ligarExistente']
   },

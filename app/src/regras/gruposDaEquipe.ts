@@ -75,7 +75,7 @@ export const pedidoDoFiltroDeGrupo = (filtro: string | undefined, meus: readonly
 
 /**
  * A demanda (ou a tarefa, com os grupos dela) entra no pedido? Tem um dos grupos pedidos, ou é a contínua de um deles, ou é a Geral
- * com a Geral pedida (como public.tarefas_do_filtro_de_grupo, em supabase/migrations/20261123202316_grupo_com_demanda_continua.sql).
+ * com a Geral pedida (como public.tarefas_do_filtro_de_grupo, em supabase/migrations/20261123222534_filtro_de_grupo_pelas_demandas_do_escritorio.sql).
  */
 export const entraNoPedido = (p: PedidoDoFiltroDeGrupo, d: Partial<Pick<Demanda, 'grupos' | 'continua' | 'continua_grupo_id'>>) =>
   (d.grupos ?? []).some(g => p.grupos.includes(g)) || (!!d.continua && (d.continua_grupo_id ? p.grupos.includes(d.continua_grupo_id) : p.geral));

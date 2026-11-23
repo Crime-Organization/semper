@@ -10270,6 +10270,21 @@ describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => 
     expect(achadas.linhas.map(t => t.id)).toEqual([id]);
   });
 
+  it('dada a tarefa de uma demanda comum de um grupo de que o Bruno não faz parte, com ele como responsável, quando ele filtra por esse grupo, então ela aparece, e a demanda continua escondida (#416)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const penal = await SD.grupoDaEquipeCriar('Núcleo Penal');
+    const demanda = await SD.demandaCriar({ titulo: 'Demanda do Núcleo Penal', responsavel_id: 'u-ana', grupos: [penal] });
+    const { id } = await SD.tarefaCriar({ titulo: 'Filtro pela demanda do grupo', responsavel_id: 'u-bruno', demanda_ids: [demanda.id], participantes: [], pessoas: [] });
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-bruno');
+    const achadas = await SD.tarefasListar({ termo: 'Filtro pela demanda do grupo', grupo: penal });
+    // Então
+    expect(achadas.linhas.map(t => t.id)).toEqual([id]);
+    expect(await SD.demandaObter(demanda.id)).toBeNull();
+  });
+
   it('dada a tarefa avulsa da Ana na Geral, quando o Bruno lê, então vê a contínua, mas não a tarefa dela (a contínua só agrupa)', async () => {
     // Dado
     entrarComo('u-ana');

@@ -697,7 +697,7 @@ async function tarefaCompleta({ ligadas, codigos_das_demandas, codigos_dos_contr
 /**
  * De onde vêm as tarefas da lista e do quadro. Com o filtro "Grupo da equipe" (#378), de public.tarefas_do_filtro_de_grupo, que traz
  * também as tarefas das demandas do grupo (a tarefa vista pelo grupo da demanda não some com o filtro) e as da contínua dele (#416;
- * a Geral, as da contínua Geral), pelas regras de leitura das tarefas.
+ * a Geral, as da contínua Geral), pelas regras de leitura das tarefas: quem vê a tarefa a vê pelo filtro mesmo sem ver a demanda.
  */
 function deTarefas(campos: string, f: FiltroTarefas): Livre {
   const pedido = pedidoDoFiltroDeGrupo(f.grupo, osMeusGrupos());

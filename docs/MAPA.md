@@ -183,7 +183,7 @@ As funções de dados ficam em `DadosContratos` (veja Contratos).
 As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, demandas relacionadas e a demanda contínua, que junta as tarefas avulsas.
 
 - **Tabelas:** `demandas` (demandas), `demanda_clientes` (demandas), `demanda_historico` (demandas), `demandas_relacionadas` (demandas_relacionadas); entre parênteses, a migração que a cria
-- **Migrações:** (supabase/migrations/) 20261027000017_demandas, 20261109102349_equipe_ve_tudo, 20261110022014_lembretes_dos_prazos, 20261118200000_data_de_inicio, 20261119233811_grupos_da_equipe, 20261122125913_demandas_relacionadas, 20261123003418_demanda_continua, 20261123022647_demandas_continuas_do_escritorio, 20261123202316_grupo_com_demanda_continua
+- **Migrações:** (supabase/migrations/) 20261027000017_demandas, 20261109102349_equipe_ve_tudo, 20261110022014_lembretes_dos_prazos, 20261118200000_data_de_inicio, 20261119233811_grupos_da_equipe, 20261122125913_demandas_relacionadas, 20261123003418_demanda_continua, 20261123022647_demandas_continuas_do_escritorio, 20261123202316_grupo_com_demanda_continua, 20261123222534_filtro_de_grupo_pelas_demandas_do_escritorio
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
   - `DadosDemandas`: demandasListar, demandasDaEtapa, demandaObter, demandaCriar, demandaAtualizar, demandasArquivar, demandasExcluir, demandaMover, demandaHistorico, demandasDaPessoa, demandasDoContrato, contratoCriarDemanda, demandaContinua, demandasRelacionadas, demandaRelacionar, demandaDesrelacionar
 - **Regras:** (app/src/regras/)
@@ -205,7 +205,7 @@ As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, d
   - A contínua é especial em todo lugar que lista, liga ou conclui demandas: `ehContinua` em `paginas/concluirDemanda.ts` (nunca se conclui), `regras/ligarExistente.ts` e `paginas/ligarNoCartao.ts` (desfazer a ligação devolve a tarefa a ela) e `demandasParaLigar` em `supabase.ts` (uma por grupo, todas contam). Veja [Ligações entre itens](#ligacoes).
   - Arquivar ou excluir contrato em cascata não leva a contínua, e a tarefa avulsa ligada ao contrato volta para ela: teste do banco `contrato_cascata_com_a_continua` e `e2e/contrato-arquiva-em-cascata.spec.ts` (veja [Contratos](#contratos)).
   - Checklists da demanda estão em [Checklists e modelos](#listas).
-  - O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migração `grupo_com_demanda_continua`).
+  - O filtro "Grupo da equipe" (e a opção "Geral") traz a contínua do grupo e as tarefas dela, pela contínua e não pelos grupos (ela não tem grupos): `pedidoDoFiltroDeGrupo` e `entraNoPedido` em `regras/gruposDaEquipe.ts`, `porGrupo` e `deTarefas` em `supabase.ts` e `public.tarefas_do_filtro_de_grupo` (migrações `grupo_com_demanda_continua` e `filtro_de_grupo_pelas_demandas_do_escritorio`). Os ids das demandas pedidas (as do grupo e as contínuas) vêm de `privado.demandas_do_filtro`, que não passa pelas regras de leitura das demandas: quem vê a tarefa a vê pelo filtro mesmo sem ver a demanda, como `daTarefaNoGrupo` em `falso.ts`.
 
 <a id="listas"></a>
 ## Checklists e modelos
