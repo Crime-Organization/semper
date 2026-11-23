@@ -150,3 +150,10 @@ const AVISOS_DAS_SEGUINTES: Record<MudancaDasSeguintes, (n: number) => string> =
 };
 /** O aviso depois de mudar ou arquivar "esta e as seguintes". */
 export const avisoDasSeguintes = (mudanca: MudancaDasSeguintes, n: number) => AVISOS_DAS_SEGUINTES[mudanca](n);
+
+/**
+ * As recusas a quem não muda todas as datas em aberto da série (#307): "esta e as seguintes" e a demanda valem para a série inteira.
+ * As mesmas mensagens do banco (20261123011949_repeticao_so_quem_muda_as_datas.sql) e do banco fictício.
+ */
+export const SEGUINTES_DE_OUTROS = 'Há datas seguintes desta repetição que você não pode mudar. Mude só esta data ou peça a quem cuida da repetição.';
+export const DEMANDA_NA_SERIE_DE_OUTROS = 'Há datas desta repetição que você não pode mudar. Peça a quem cuida da repetição para marcar a demanda.';

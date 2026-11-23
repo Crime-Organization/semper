@@ -16,6 +16,7 @@ import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
+import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS } from '../regras/repeticao';
 import { SALA_REPETIDA } from '../regras/sala';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
@@ -2021,6 +2022,51 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await expect(SD.compromissoGerarDemandas(avulsa, 7)).rejects.toThrow('Você não tem permissão para fazer isso.');
           entrarComo('u-master');
           await expect(SD.compromissoGerarDemandas(id, DEMANDA_DO_COMPROMISSO.diasMaximos + 1)).rejects.toThrow('Algum campo está em formato inválido.');
+        });
+      });
+
+      describe('as datas do compromisso que se repete (#307, parte A)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        /** Daqui a n dias. */
+        const dia = (n: number) => somarDias(hojeISO(), n);
+        const hora = (id: string) => SD.compromissoObter(id).then(c => c!.hora?.slice(0, 5));
+        const semanal = (vezes: number) => ({ frequencia: 'semana' as const, intervalo: 1, ate: null, vezes });
+
+        it('dado o Bruno posto numa data só, quando tenta mudar ou arquivar as seguintes, ou marcar a demanda, então é recusado e a série continua', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2), hora: '10:00' });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(4));
+          await SD.compromissoAtualizar(ids[1], { participantes: ['u-bruno'] });
+          entrarComo('u-bruno');
+          // Quando / Então
+          await expect(SD.compromissoArquivarSeguintes(ids[1])).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoMudarSeguintes(ids[1], { data: dia(9), hora: '15:00', hora_fim: null })).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoMudarSeguintes(ids[1], { data: dia(10), hora: '15:00', hora_fim: null })).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoGerarDemandas(ids[1], 7)).rejects.toThrow(DEMANDA_NA_SERIE_DE_OUTROS);
+          // E ele muda só a data dele, como sempre
+          await SD.compromissoAtualizar(ids[1], { hora: '16:00' });
+          entrarComo('u-master');
+          expect(await hora(ids[1])).toBe('16:00');
+          expect((await SD.compromissoObter(r.id))!.repeticao).toMatchObject({ ate: null, vezes: 4, demanda_dias_antes: null });
+          expect((await Promise.all(ids.map(id => SD.compromissoObter(id)))).every(c => !c!.arquivado_em)).toBe(true);
+        });
+
+        it('dada a reunião com o Bruno, quando ela se repete e gera demanda, então ele continua com os mesmos avisos de inclusão', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(5), participantes: ['u-bruno'] });
+          const inclusoes = async () => {
+            entrarComo('u-bruno');
+            const n = (await SD.mensagensListar()).filter(m => m.tipo === 'inclusao').map(m => m.inclusao!.modulo);
+            entrarComo('u-master');
+            return { compromissos: n.filter(x => x === 'compromissos').length, demandas: n.filter(x => x === 'demandas').length };
+          };
+          const antes = await inclusoes();
+          // Quando
+          await SD.compromissoRepetir(r.id, semanal(4));
+          expect(await SD.compromissoGerarDemandas(r.id, 7)).toHaveLength(1);
+          // Então: as datas e a demanda que o sistema cria não são inclusões novas (como no banco, onde as funções não avisam)
+          expect(await inclusoes()).toEqual(antes);
         });
       });
 

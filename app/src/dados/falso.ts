@@ -35,7 +35,7 @@ import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasR
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
-import { dataDaVez, regraNoLimite, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
+import { dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTROS, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
 import type { AvisoDaDemandaDoCompromisso, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
@@ -1754,6 +1754,13 @@ const vezesNaLista = (serieId: string) => bd.compromissos!.filter(x => x.repetic
 const estaEAsSeguintes = (c: CompromissoGuardado) => bd.compromissos!
   .filter(x => x.repeticao_id === c.repeticao_id && (x.id === c.id || (x.repeticao_data! > c.repeticao_data! && compromissoEmAberto(x) && alteroCompromisso(x))))
   .sort((a, b) => a.repeticao_data!.localeCompare(b.repeticao_data!));
+/**
+ * Como privado.altero_as_datas_em_aberto: quem está logado muda todas as datas em aberto da série, as de uma vez em diante (`vezDesde`,
+ * a data que a regra deu) e as de um dia em diante (`diaDesde`). Null não filtra.
+ */
+const alteroAsDatasEmAberto = (serieId: string, vezDesde: string | null, diaDesde: string | null) => bd.compromissos!
+  .filter(x => x.repeticao_id === serieId && (vezDesde === null || x.repeticao_data! >= vezDesde) && (diaDesde === null || x.data >= diaDesde) && compromissoEmAberto(x))
+  .every(alteroCompromisso);
 /**
  * Como privado.gerar_repeticoes: cada data nova copia a última da série ainda ativa (pessoas, equipe, processo, sala, ligações e
  * etiquetas), na coluna de início do quadro; a sala ocupada numa data fica de fora só nela. Sem nenhuma ativa, a série não cresce.
@@ -3959,6 +3966,7 @@ export const SD: Dados = {
     if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
     const serie = serieDoFalso(c.repeticao_id);
     if (!serie) throw new Error('Este compromisso não se repete.');
+    if (!alteroAsDatasEmAberto(serie.id, c.repeticao_data!, null)) throw new Error(SEGUINTES_DE_OUTROS);
     const lista = estaEAsSeguintes(c), hora = horaComSegundos(q.hora), hora_fim = horaComSegundos(q.hora_fim);
     const mudar = (x: CompromissoGuardado, campos: Partial<CompromissoGuardado>) => {
       conferirSalaNoFalso({ ...x, ...campos }, x);
@@ -3995,6 +4003,7 @@ export const SD: Dados = {
     if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
     const serie = serieDoFalso(c.repeticao_id);
     if (!serie) throw new Error('Só o compromisso que se repete gera demanda.');
+    if (!alteroAsDatasEmAberto(serie.id, null, hojeNaAgenda())) throw new Error(DEMANDA_NA_SERIE_DE_OUTROS);
     if (dias !== null && !(Number.isInteger(dias) && dias >= 1 && dias <= DEMANDA_DO_COMPROMISSO.diasMaximos)) throw new Error(FORMATO_INVALIDO);
     serie.demanda_dias_antes = dias;
     const criadas = dias === null ? [] : gerarDemandasNoFalso(serie.id, hojeNaAgenda(), eu);
@@ -4005,6 +4014,7 @@ export const SD: Dados = {
     if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
     const serie = serieDoFalso(c.repeticao_id);
     if (!serie) throw new Error('Este compromisso não se repete.');
+    if (!alteroAsDatasEmAberto(serie.id, c.repeticao_data!, null)) throw new Error(SEGUINTES_DE_OUTROS);
     const lista = estaEAsSeguintes(c);
     Object.assign(serie, { ate: somarDias(c.repeticao_data!, -1), vezes: null });
     lista.forEach(x => {
