@@ -28,6 +28,7 @@ import { ParcelasDoContrato, ROTULO_DA_NOVA_PARCELA } from './financeiro/Parcela
 import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
 import { EquipeDoContratoNoTopo } from './EquipeDoContratoNoTopo';
+import { perguntarExclusaoDeContratos } from './ExclusaoDoContrato';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -138,14 +139,15 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     const estava = !!k!.arquivado_em;
     try {
       await SD.contratosArquivar([k!.id], !estava);
-      feito(estava ? 'Contrato desarquivado.' : 'Contrato arquivado. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
+      feito(estava ? 'Contrato desarquivado. As demandas e as tarefas arquivadas junto com ele voltaram.'
+        : 'Contrato arquivado, com as demandas e as tarefas dele. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
         async () => { await SD.contratosArquivar([k!.id], estava); });
       aoMudar(); await carregar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
   async function excluir() {
     const r = await SD.contratosExcluir([k!.id]);
-    if (r.excluidas) { avisar('Contrato excluído definitivamente.'); aoFechar(); aoMudar(); }
+    if (r.excluidas) { avisar('Contrato excluído definitivamente, com o que estava ligado a ele.'); aoFechar(); aoMudar(); }
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
   async function mudarSituacao(valor: string) {
@@ -227,6 +229,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         equipe={<EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />}
         mudaEtiquetas={!k.arquivado_em && !(oculto && !semValores)} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        perguntarAntesDeExcluir={() => perguntarExclusaoDeContratos([k.id])}
         lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />

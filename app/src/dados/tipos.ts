@@ -526,11 +526,33 @@ export type ConviteCriado = Convite & { codigo?: string };
 export type DestinoDoAvisoDaTroca = 'antigo' | 'gestao';
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[]; parcela?: number; recebimento?: string; pago_em?: string; valor?: number } | null;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[]; parcela?: number; recebimento?: string; pago_em?: string; valor?: number;
+    /** A exclusão do contrato em cascata (#284): o que saiu junto e os valores. */
+    cascata?: ResumoDaCascata } | null;
   feito_por: string | null; em: string;
 }
 
 export interface Exclusao { excluidas: number; naoExcluidas: number; motivo: string }
+
+/** O que saiu junto com um contrato excluído e os valores (centavos), como a auditoria guarda (#284). */
+export interface ResumoDaCascata {
+  demandas: number; tarefas: number; segundos: number; parcelas: number; recebimentos: number; estornados: number;
+  recebido: number; taxas: number; repasses: number; correcoes: number; importadas: number; importado: number;
+}
+
+/**
+ * A prévia da exclusão de contratos (#284), para a janela que pergunta antes: quantos contratos saem (e quantos não, por não estarem
+ * arquivados ou por quem pede não poder), o que sai junto, se há dinheiro recebido (só administrador exclui) e os pagamentos já feitos
+ * (ninguém exclui). Valores em centavos; "valores" é null e "pagos" vem vazio para quem não vê o dinheiro destes contratos.
+ */
+export interface PreviaExclusaoContrato {
+  contratos: number; nao_excluiveis: number;
+  demandas: number; tarefas: number; segundos: number; parcelas: number;
+  recebimentos: number; estornados: number; importadas: number;
+  com_dinheiro: boolean; sou_admin: boolean; tem_pagamento: boolean;
+  valores: { recebido: number; taxas: number; repasses: number; correcoes: number; importado: number } | null;
+  pagos: { codigo: string; parcela: number; nome: string; valor: number }[];
+}
 
 /** Verificação em duas etapas (aplicativo autenticador no celular). */
 export interface FatorDuasEtapas { id: string; ativo: boolean; criado_em: string }
@@ -642,8 +664,18 @@ export interface DadosContratos {
   /** O nome das contas do escritório, para escolher a conta de destino do contrato (qualquer um da equipe). */
   contasParaEscolher(): Promise<ContaParaEscolher[]>;
   contratoAtualizar(id: string, dados: DadosContrato): Promise<{ id: string; codigo: string }>;
+  /**
+   * Arquivar leva junto as demandas do contrato e as tarefas dele e delas que não têm outra ligação ativa (#284, regras/arquivarContrato.ts);
+   * desarquivar traz de volta só o que foi arquivado junto. Mover para Encerrado não arquiva nada.
+   */
   contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
-  /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */
+  /** O que a exclusão destes contratos leva junto, para a janela que pergunta antes (#284, regras/exclusaoDoContrato.ts). */
+  contratoExclusaoPrevia(ids: string[]): Promise<PreviaExclusaoContrato>;
+  /**
+   * Só contratos arquivados são excluídos (por quem criou ou um administrador), com as demandas, as tarefas que só pertencem a eles,
+   * as parcelas e o dinheiro no Financeiro (#284). Com pagamento já feito, recusa; com dinheiro recebido, só um administrador exclui.
+   * O dinheiro recusa a lista inteira, sem excluir pela metade.
+   */
   contratosExcluir(ids: string[]): Promise<Exclusao>;
   /** Recusa quem pode ver, mas não alterar, o contrato (quem só foi mencionado). */
   contratoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;

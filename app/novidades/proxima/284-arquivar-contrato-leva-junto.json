@@ -1,0 +1,5 @@
+{
+  "titulo": "Arquivar um contrato arquiva junto as demandas e tarefas dele",
+  "texto": "Ao arquivar um contrato, as demandas dele e as tarefas do contrato e dessas demandas vão juntas para os arquivados. A tarefa ligada também a outro contrato, demanda ou processo ativo continua ativa. Ao desarquivar, volta só o que foi arquivado junto; mover para Encerrado não arquiva nada.",
+  "ondeAchar": "Contratos > cartão do contrato > menu ⋯ > Arquivar (ou Desarquivar), ou a caixa de seleção na tabela e o botão Arquivar."
+}

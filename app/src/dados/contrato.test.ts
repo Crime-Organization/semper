@@ -3919,15 +3919,87 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(SD.financeiroRestaurarRecebimento(id)).rejects.toThrow('recebida de novo');
       });
 
-      it('quando o contrato tem recebimento, então não se exclui; sem ele, sai com as parcelas', async () => {
-        // Dado
-        const k = await assinado(), livre = await assinado(), conta = await contaPJ();
-        await receber(k.parcelas[0].id, conta.id);
-        await SD.contratosArquivar([k.id, livre.id]);
-        // Então
-        await expect(SD.contratosExcluir([k.id])).rejects.toThrow('tem recebimentos');
-        await SD.contratosExcluir([livre.id]);
-        expect(await SD.parcelasDoContrato(livre.id)).toEqual([]);
+      describe('Excluir o contrato com dinheiro (#284)', () => {
+        const falso = () => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void; importarParcelaPaga(id: string, data: string, valor: number): void } }).SEMPER_FALSO;
+        afterEach(() => falso().entrarComo('u-master'));
+
+        it('dado um contrato com recebimento, quando o administrador o exclui, então o recebimento sai do Caixa junto com as parcelas', async () => {
+          // Dado
+          const k = await assinado(), livre = await assinado(), conta = await contaPJ();
+          const id = await receber(k.parcelas[0].id, conta.id);
+          await SD.contratosArquivar([k.id, livre.id]);
+          // Quando: a prévia mostra o que sai e os valores
+          const previa = await SD.contratoExclusaoPrevia([k.id]);
+          // Então
+          expect(previa).toMatchObject({ contratos: 1, parcelas: 2, recebimentos: 1, com_dinheiro: true, sou_admin: true, tem_pagamento: false,
+            valores: { recebido: 100000, taxas: 3000, repasses: 64750, correcoes: 0, importado: 0 } });
+          // Quando
+          expect((await SD.contratosExcluir([k.id, livre.id])).excluidas).toBe(2);
+          // Então
+          expect(await SD.parcelasDoContrato(k.id)).toEqual([]);
+          expect(await SD.parcelasDoContrato(livre.id)).toEqual([]);
+          expect(await lancamentos(conta.id)).toEqual([]);
+          expect(await repassesDe(id)).toEqual([]);
+          expect(await SD.financeiroRecebimento(id)).toBeNull();
+        });
+
+        it('dado um repasse já pago, quando pede para excluir, então ninguém exclui até o pagamento ser desfeito', async () => {
+          // Dado
+          const k = await assinado(), conta = await contaPJ();
+          const id = await receber(k.parcelas[0].id, conta.id);
+          const [rep] = await repassesDe(id);
+          await SD.financeiroPagarRepasse(rep.id, conta.id, '2026-03-20');
+          await SD.contratosArquivar([k.id]);
+          // Quando / Então
+          expect(await SD.contratoExclusaoPrevia([k.id])).toMatchObject({ tem_pagamento: true, pagos: [{ codigo: k.codigo, parcela: 1, nome: rep.nome, valor: rep.valor }] });
+          await expect(SD.contratosExcluir([k.id])).rejects.toThrow('Já há pagamento feito');
+          // Quando o administrador desfaz o pagamento
+          await SD.financeiroDesfazerPagamento(rep.id);
+          // Então
+          expect((await SD.contratosExcluir([k.id])).excluidas).toBe(1);
+        });
+
+        it('dado um indicador já marcado como pago, quando pede para excluir, então ninguém exclui até a marcação ser desfeita', async () => {
+          // Dado
+          const k = await assinado({ indicador_id: 'p-bruno', indicador_percentual: 10 }), conta = await contaPJ();
+          const id = await receber(k.parcelas[0].id, conta.id);
+          const indicador = (await SD.financeiroRecebimento(id))!.terceiros.find(t => t.id === 'p-bruno')!;
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          await SD.contratosArquivar([k.id]);
+          // Quando / Então
+          expect(await SD.contratoExclusaoPrevia([k.id])).toMatchObject({ tem_pagamento: true,
+            pagos: [{ codigo: k.codigo, parcela: 1, nome: indicador.nome, valor: indicador.valor }] });
+          await expect(SD.contratosExcluir([k.id])).rejects.toThrow('Já há pagamento feito');
+          expect(await SD.financeiroRecebimento(id)).not.toBeNull();
+          // Quando o administrador desfaz a marcação
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          // Então
+          expect((await SD.contratosExcluir([k.id])).excluidas).toBe(1);
+          expect(await SD.financeiroRecebimento(id)).toBeNull();
+        });
+
+        it('dado dinheiro recebido ou parcela importada como paga, quando quem cadastrou e não é administrador pede, então não exclui', async () => {
+          // Dado dois contratos cadastrados pelo Bruno (da equipe), um com recebimento e outro com a parcela importada como paga
+          falso().entrarComo('u-bruno');
+          const [comRecebimento, comImportada] = [await novoContrato(), await novoContrato()];
+          falso().entrarComo('u-master');
+          await Promise.all([comRecebimento, comImportada].map(k => assinar(k.id)));
+          const conta = await contaPJ();
+          await receber((await SD.parcelasDoContrato(comRecebimento.id))[0].id, conta.id);
+          falso().importarParcelaPaga((await SD.parcelasDoContrato(comImportada.id))[0].id, '2020-03-10', 70000);
+          await SD.contratosArquivar([comRecebimento.id, comImportada.id]);
+          // Quando o Bruno pede
+          falso().entrarComo('u-bruno');
+          const previa = await SD.contratoExclusaoPrevia([comImportada.id]);
+          // Então a prévia conta a parcela importada, sem mostrar valores a quem não cuida do contrato, e nada sai
+          expect(previa).toMatchObject({ contratos: 1, importadas: 1, com_dinheiro: true, sou_admin: false, valores: null });
+          await expect(SD.contratosExcluir([comRecebimento.id])).rejects.toThrow('só um administrador o exclui');
+          await expect(SD.contratosExcluir([comImportada.id])).rejects.toThrow('só um administrador o exclui');
+          // Quando o administrador pede, então sai
+          falso().entrarComo('u-master');
+          expect(await SD.contratoExclusaoPrevia([comImportada.id])).toMatchObject({ valores: { importado: 70000 } });
+          expect((await SD.contratosExcluir([comRecebimento.id, comImportada.id])).excluidas).toBe(2);
+        });
       });
 
       it('quando o responsável era sócio na data, então a parte dele fica no escritório; mudar a lista depois não muda o passado', async () => {
@@ -4882,6 +4954,121 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const naLista = (await SD.tarefasListar({ porPagina: 100 })).linhas.find(t => t.id === id);
         // Então
         expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [] }]);
+      });
+    });
+
+    describe('Arquivar o contrato leva junto as demandas e as tarefas (#284)', () => {
+      const novoContrato = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+      };
+      const arquivada = async (modulo: 'demanda' | 'tarefa', id: string) =>
+        !!(modulo === 'demanda' ? await SD.demandaObter(id) : await SD.tarefaObter(id))!.arquivado_em;
+      // Dado um contrato com uma demanda e três tarefas: uma do contrato, uma da demanda e uma também ligada a outro contrato ativo
+      const cenario = async () => {
+        const [k, outro] = [await novoContrato(), await novoContrato()];
+        const d = await SD.demandaCriar({ titulo: 'Do contrato ' + marca(), responsavel_id: 'u-master', contrato_id: k.id });
+        const doContrato = await SD.tarefaCriar({ titulo: 'Do contrato', responsavel_id: 'u-master', contrato_ids: [k.id] });
+        const daDemanda = await SD.tarefaCriar({ titulo: 'Da demanda', responsavel_id: 'u-master', demanda_ids: [d.id] });
+        const comOutro = await SD.tarefaCriar({ titulo: 'Também de outro', responsavel_id: 'u-master', contrato_ids: [k.id, outro.id] });
+        return { k, outro, d, doContrato, daDemanda, comOutro };
+      };
+
+      it('dado um contrato com demandas e tarefas, quando é arquivado, então elas são arquivadas junto, menos a que tem outro contrato ativo', async () => {
+        // Dado
+        const c = await cenario();
+        // Quando
+        await SD.contratosArquivar([c.k.id], true);
+        // Então
+        expect(await arquivada('demanda', c.d.id)).toBe(true);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(true);
+        expect(await arquivada('tarefa', c.daDemanda.id)).toBe(true);
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(false);
+      });
+
+      it('dado um contrato, quando é movido para Encerrado, então nem ele nem o que está ligado a ele é arquivado', async () => {
+        // Dado
+        const c = await cenario();
+        const encerrado = (await SD.colunasListar('contratos')).find(x => x.nome === 'Encerrado')!;
+        // Quando
+        await SD.contratoMover(c.k.id, encerrado.id, 1);
+        // Então
+        expect((await SD.contratoObter(c.k.id))!.arquivado_em).toBeNull();
+        expect(await arquivada('demanda', c.d.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+      });
+
+      it('dado um contrato arquivado, quando é desarquivado, então voltam só as arquivadas junto com ele', async () => {
+        // Dado uma tarefa já arquivada antes e outra que a pessoa desarquivou e arquivou de novo, de propósito
+        const c = await cenario();
+        const antes = await SD.tarefaCriar({ titulo: 'Já arquivada', responsavel_id: 'u-master', contrato_ids: [c.k.id] });
+        await SD.tarefasArquivar([antes.id], true);
+        await SD.contratosArquivar([c.k.id], true);
+        await SD.tarefasArquivar([c.daDemanda.id], false);
+        await SD.tarefasArquivar([c.daDemanda.id], true);
+        // Quando
+        await SD.contratosArquivar([c.k.id], false);
+        // Então
+        expect(await arquivada('demanda', c.d.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+        expect(await arquivada('tarefa', antes.id)).toBe(true);
+        expect(await arquivada('tarefa', c.daDemanda.id)).toBe(true);
+      });
+
+      it('dado dois contratos com uma tarefa em comum arquivados juntos, quando só o primeiro volta, então a tarefa volta com ele', async () => {
+        // Dado: no banco é um update só, e o gatilho do primeiro já vê o outro arquivado; a tarefa fica marcada com o primeiro
+        const c = await cenario();
+        await SD.contratosArquivar([c.k.id, c.outro.id], true);
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(true);
+        // Quando
+        await SD.contratosArquivar([c.k.id], false);
+        // Então
+        expect(await arquivada('tarefa', c.comOutro.id)).toBe(false);
+        expect(await arquivada('tarefa', c.doContrato.id)).toBe(false);
+      });
+
+      it('dado um contrato arquivado, quando é excluído, então saem as demandas e as tarefas dele; a ligada a outro contrato fica, só com ele', async () => {
+        // Dado
+        const c = await cenario();
+        await SD.contratosArquivar([c.k.id], true);
+        // Quando
+        const previa = await SD.contratoExclusaoPrevia([c.k.id]);
+        const r = await SD.contratosExcluir([c.k.id]);
+        // Então
+        expect(previa).toMatchObject({ contratos: 1, demandas: 1, tarefas: 2, recebimentos: 0, com_dinheiro: false });
+        expect(r.excluidas).toBe(1);
+        expect(await SD.contratoObter(c.k.id)).toBeNull();
+        expect(await SD.demandaObter(c.d.id)).toBeNull();
+        expect(await SD.tarefaObter(c.doContrato.id)).toBeNull();
+        expect(await SD.tarefaObter(c.daDemanda.id)).toBeNull();
+        expect((await SD.tarefaObter(c.comOutro.id))!.contrato_ids).toEqual([c.outro.id]);
+      });
+
+      it('dado um contrato excluído em cascata, quando abre o registro de ações, então a exclusão aparece numa linha só, com o resumo', async () => {
+        // Dado
+        const c = await cenario();
+        await SD.contratosArquivar([c.k.id], true);
+        // Quando
+        await SD.contratosExcluir([c.k.id]);
+        // Então
+        const linhas = (await SD.auditoriaListar()).filter(l => l.tabela === 'contratos' && l.acao === 'exclusao' && l.registro_id === c.k.id);
+        expect(linhas).toHaveLength(1);
+        expect(linhas[0].resumo).toMatchObject({ codigo: c.k.codigo, cascata: { demandas: 1, tarefas: 2 } });
+      });
+
+      it('dados dois contratos com uma tarefa em comum excluídos juntos, quando abre o registro de ações, então ela conta uma vez, com o tempo dela', async () => {
+        // Dado
+        const c = await cenario();
+        await SD.tempoIniciar(c.comOutro.id, new Date().toISOString(), 600);
+        await SD.contratosArquivar([c.k.id, c.outro.id], true);
+        // Quando
+        await SD.contratosExcluir([c.k.id, c.outro.id]);
+        // Então: as três tarefas que saíram entram no resumo dos dois, sem contar duas vezes
+        const resumos = (await SD.auditoriaListar()).filter(l => l.tabela === 'contratos' && l.acao === 'exclusao' && [c.k.id, c.outro.id].includes(l.registro_id!))
+          .map(l => l.resumo!.cascata!);
+        expect(resumos).toHaveLength(2);
+        expect(resumos.reduce((s, x) => s + x.tarefas, 0)).toBe(3);
+        expect(resumos.reduce((s, x) => s + x.segundos, 0)).toBe(600);
       });
     });
 

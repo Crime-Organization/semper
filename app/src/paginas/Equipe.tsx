@@ -11,6 +11,7 @@ import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_MOSTRADAS }
 import { erroDoEmailDoColega, normalizarEmail, seloDoAvisoDaTroca, situacaoDoAvisoDaTroca } from '../regras/conta';
 import { FUNCOES, motivoParaNaoDarAcesso } from '../regras/equipe';
 import { detalheDaMarcacao } from '../regras/meusValores';
+import { detalheDaExclusaoDoContrato } from '../regras/exclusaoDoContrato';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -41,7 +42,9 @@ const TABELAS: Record<string, string> = {
   financeiro_terceiros_pagos: 'a marcação de pago de um valor do contrato'
 };
 /** O que a ação diz além do alvo, nas tabelas em que só ele não basta. */
-const DETALHES: Partial<Record<string, (resumo: NonNullable<RegistroAuditoria['resumo']>) => string>> = { financeiro_terceiros_pagos: detalheDaMarcacao };
+const DETALHES: Partial<Record<string, (resumo: NonNullable<RegistroAuditoria['resumo']>) => string>> = {
+  financeiro_terceiros_pagos: detalheDaMarcacao, contratos: detalheDaExclusaoDoContrato
+};
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou', importacao: 'importou' };
 const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
 /** Ações que não cabem em "quem fez o quê a qual cadastro": as sobre muitos cadastros de uma vez contam quantos, e a troca de e-mail diz de qual para qual. */

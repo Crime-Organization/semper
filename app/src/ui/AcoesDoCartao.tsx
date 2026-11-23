@@ -37,6 +37,11 @@ export interface EdicaoNoCartao {
 export interface ExclusaoNoCartao {
   oQue: string;
   aoConfirmar: () => unknown;
+  /**
+   * A pergunta própria do módulo, no lugar da de sempre (ex.: o contrato, que mostra o que sai junto e os valores, #284). Diz se a
+   * pessoa confirmou.
+   */
+  perguntar?: () => Promise<boolean>;
 }
 
 /** Uma ação a mais do cartão: no ⋯, uma linha; para quem só lê (AcoesDeQuemLe), um botão redondo só com o ícone. */
@@ -113,7 +118,7 @@ export function MenuDoCartao({ arquivado, rotulo = MAIS_ACOES, aoArquivar, exclu
   const itens: ItemDoMenu[] = [...extras];
   if (aoArquivar) itens.push({ rotulo: arquivado ? 'Desarquivar' : 'Arquivar', icone: arquivado ? 'arquivoAberto' : 'arquivo', aoClicar: aoArquivar });
   if (arquivado && excluir) {
-    itens.push({ rotulo: 'Excluir', icone: 'lixeira', perigo: true, antes: () => confirmarExclusao(excluir), aoClicar: excluir.aoConfirmar });
+    itens.push({ rotulo: 'Excluir', icone: 'lixeira', perigo: true, antes: () => excluir.perguntar?.() ?? confirmarExclusao(excluir), aoClicar: excluir.aoConfirmar });
   }
   // O foco volta ao ⋯ ao escolher um item (o menu some, e o foco iria para o começo da página): a pergunta ou a janela que o
   // item abre o devolvem para lá ao fechar. Se a janela fechou com o ⋯ ainda desligado (a ação rodando), o foco volta a ele quando

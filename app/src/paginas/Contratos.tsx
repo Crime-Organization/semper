@@ -30,6 +30,7 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoContrato } from './CartaoContrato';
+import { perguntarExclusaoDeContratos } from './ExclusaoDoContrato';
 import { avisarSeAssinadoSemObjeto } from './clienteAoContrato';
 import './Contratos.css';
 
@@ -118,7 +119,7 @@ export default function Contratos() {
     try {
       const q = await SD.contratosArquivar(lista, true);
       const quantos = q === 1 ? '1 contrato' : q + ' contratos';
-      feito(`${plural(q, 'contrato arquivado', 'contratos arquivados')}.`, `arquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, false); });
+      feito(`${plural(q, 'contrato arquivado', 'contratos arquivados')}, com as demandas e as tarefas.`, `arquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, false); });
       selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }
@@ -178,7 +179,7 @@ export default function Contratos() {
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<ContratoLista> modulo="contratos" nome={{ um: 'contrato', varios: 'contratos', feminino: false }} total={totalArquivados}
             versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivados(pagina, POR_PAGINA)}
-            arquivar={(ids, a) => SD.contratosArquivar(ids, a)} excluir={ids => SD.contratosExcluir(ids)}
+            arquivar={(ids, a) => SD.contratosArquivar(ids, a)} excluir={ids => SD.contratosExcluir(ids)} perguntarAntesDeExcluir={perguntarExclusaoDeContratos}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivados', pagina: numeroDaPagina }} ordem="recentes"
               filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} comNegociacao={comNegociacao} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
         </>}

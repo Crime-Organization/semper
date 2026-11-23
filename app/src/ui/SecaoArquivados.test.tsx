@@ -9,17 +9,17 @@ import { SecaoArquivados } from './SecaoArquivados';
 type Item = { id: string; nome: string };
 const MARIA: Item = { id: 'p1', nome: 'MARIA ARQUIVADA' };
 
-function montar() {
+function montar(perguntarAntesDeExcluir?: (ids: string[]) => Promise<boolean>) {
   const listar = vi.fn(async () => ({ linhas: [MARIA], total: 1 }));
   const arquivar = vi.fn(async (ids: string[]) => ids.length);
   const excluir = vi.fn(async (ids: string[]) => ({ excluidas: ids.length, naoExcluidas: 0, motivo: '' }));
   const aoMudar = vi.fn();
   render(<SecaoArquivados<Item> modulo="teste" nome={{ um: 'pessoa', varios: 'pessoas', feminino: true }} total={1}
-    listar={listar} arquivar={arquivar} excluir={excluir} versao={0} aoMudar={aoMudar}
+    listar={listar} arquivar={arquivar} excluir={excluir} perguntarAntesDeExcluir={perguntarAntesDeExcluir} versao={0} aoMudar={aoMudar}
     tabela={(pagina, _n, selecao) => <ul>{pagina.linhas.map(i => <li key={i.id}><label>
       <input type="checkbox" checked={selecao.selecionadas.has(i.id)} onChange={e => selecao.marcar([i.id], e.target.checked)} />{i.nome}
     </label></li>)}</ul>} />);
-  return { listar, arquivar, aoMudar };
+  return { listar, arquivar, excluir, aoMudar };
 }
 
 describe('Seção dos arquivados', () => {
@@ -57,5 +57,22 @@ describe('Seção dos arquivados', () => {
     const icone = (nome: string) => screen.getByRole('button', { name: nome }).querySelector('svg')?.getAttribute('data-icone');
     expect(icone('Desarquivar')).toBe('arquivoAberto');
     expect(icone('Excluir')).toBe('lixeira');
+  });
+
+  it('dado o módulo com a pergunta própria (o contrato, #284), quando a pessoa exclui, então só ela pergunta, e a resposta decide', async () => {
+    // Dado
+    const perguntar = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { excluir } = montar(perguntar);
+    await userEvent.click(screen.getByRole('button', { name: /^Arquivados/ }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'MARIA ARQUIVADA' }));
+    // Quando a pessoa desiste
+    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    // Então nada é excluído (e não há o segundo clique de confirmar)
+    expect(perguntar).toHaveBeenCalledWith(['p1']);
+    expect(excluir).not.toHaveBeenCalled();
+    // Quando confirma
+    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    // Então exclui
+    expect(excluir).toHaveBeenCalledWith(['p1']);
   });
 });

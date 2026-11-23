@@ -86,6 +86,28 @@ describe('O ⋯ do cartão arquivado', () => {
   });
 });
 
+describe('O ⋯ do cartão com a pergunta própria (#284)', () => {
+  it('dado o módulo com a pergunta própria, quando a pessoa escolhe Excluir, então só ela pergunta, e a resposta decide se exclui', async () => {
+    // Dado
+    const aoConfirmar = vi.fn(), perguntar = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<><MenuDoCartao rotulo="Mais ações do contrato" arquivado aoArquivar={() => {}} excluir={{ oQue: 'o contrato', aoConfirmar, perguntar }} /><Janelas /></>);
+    const excluirPeloMenu = async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Mais ações do contrato' }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }));
+    };
+    // Quando a pessoa desiste na pergunta própria
+    await excluirPeloMenu();
+    // Então nada é excluído, e a janela de sempre não aparece
+    await waitFor(() => expect(perguntar).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(aoConfirmar).not.toHaveBeenCalled();
+    // Quando confirma
+    await excluirPeloMenu();
+    // Então exclui
+    await waitFor(() => expect(aoConfirmar).toHaveBeenCalledOnce());
+  });
+});
+
 describe('O ⋯ sem nada dentro', () => {
   it('dado quem só lê um cartão sem ações a mais, quando o topo aparece, então não há ⋯ (um menu vazio só faria clicar à toa)', () => {
     // Quando

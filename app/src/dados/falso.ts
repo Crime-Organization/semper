@@ -83,6 +83,8 @@ import {
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA } from '../ui/tempos';
+import { arquivadosComOContrato } from '../regras/arquivarContrato';
+import { excluidosComOsContratos, RECUSA_DA_EXCLUSAO, tarefasDeCadaContrato } from '../regras/exclusaoDoContrato';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -246,6 +248,11 @@ interface Banco {
   processoDemandas?: { processo_id: string; demanda_id: string; papel?: PapelDaDemandaNoProcesso }[];
   /** As demandas relacionadas (demandas_relacionadas no banco, #310): as duas em ordem, a menor primeiro. Os números vêm das demandas. */
   demandasRelacionadas?: { demanda_a: string; demanda_b: string }[];
+  /** O que cada contrato arquivou junto (privado.arquivados_com_contrato no banco, #284): o id da demanda ou da tarefa. */
+  arquivadosComContrato?: { contrato_id: string; id: string }[];
+  /** A cópia escondida do dinheiro que saiu com o contrato excluído (financeiro_excluidos no banco, #284). Ninguém lê pela tela. */
+  financeiroExcluidos?: { contrato_id: string; contrato_codigo: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number; data: string | null;
+    valor: number; conta_id: string | null; estornado: boolean; copia: unknown; excluido_por: string; excluido_em: string }[];
   /** Os processos ligados aos contratos (contrato_processos no banco). */
   contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -601,6 +608,8 @@ bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
 bd.demandasRelacionadas ??= [];
+bd.arquivadosComContrato ??= [];
+bd.financeiroExcluidos ??= [];
 bd.processoPartes ??= [];
 bd.contratoProcessos ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
@@ -732,10 +741,12 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
   equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
   /** Fecha a visualização (#363): cada um vê só as tarefas, demandas, processos e compromissos de que faz parte. */
   fecharVisibilidade: (ligada: boolean) => { bd.visibilidadeFechada = ligada; gravar(); },
+  /** A parcela como a importação do histórico a traz já paga (#214): recebida, sem recebimento no Caixa. */
+  importarParcelaPaga: (id: string, recebidaEm: string, recebido: number) => { Object.assign(acharParcela(id), { recebida_em: recebidaEm, recebido }); gravar(); },
   mudarFuncao: (id: string, funcao: Funcao) => { bd.funcoesDeTeste = { ...bd.funcoesDeTeste, [id]: funcao }; EQUIPE.find(m => m.id === id)!.funcao = funcao; gravar(); }
 };
 
-const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
+const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor' | 'cascata'>) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo, ...detalhes }, feito_por: eu, em: agora() });
 const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
@@ -1062,6 +1073,111 @@ const demandaDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id'>) => bd.dem
 /** Todas as demandas ligadas à tarefa (#283), na ordem. */
 const demandasDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id' | 'demanda_ids'>) =>
   demandasDaTarefa(t).flatMap(id => bd.demandas!.filter(d => d.id === id));
+
+/** A demanda ou a tarefa arquivada, desarquivada ou excluída sozinha perde a marca de "arquivada junto com o contrato" (#284). */
+const esquecerArquivadoComContrato = (id: string) => { bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.id !== id); };
+
+/**
+ * Como o gatilho privado.contrato_arquiva_em_cascata (#284): arquivar o contrato arquiva junto as demandas e as tarefas dele
+ * (regras/arquivarContrato.ts), em nome de quem arquivou o contrato; desarquivar traz de volta só as que têm a marca dele.
+ */
+function arquivarEmCascata(contratoId: string, arquivar: boolean) {
+  const campos = () => ({ arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+  const mudar = (ids: ReadonlySet<string>) => {
+    bd.demandas!.filter(d => ids.has(d.id)).forEach(d => { historicoDemanda(d, { arquivado_em: campos().arquivado_em }); Object.assign(d, campos()); });
+    bd.tarefas!.filter(t => ids.has(t.id)).forEach(t => { historicoTarefa(t, { arquivado_em: campos().arquivado_em }); Object.assign(t, campos()); });
+  };
+  if (!arquivar) {
+    mudar(new Set(bd.arquivadosComContrato!.filter(m => m.contrato_id === contratoId).map(m => m.id)));
+    bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.contrato_id !== contratoId);
+    return;
+  }
+  const junto = arquivadosComOContrato(contratoId, {
+    demandas: bd.demandas!,
+    tarefas: bd.tarefas!.map(t => ({ id: t.id, arquivado_em: t.arquivado_em, demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processo_id: t.processo_id })),
+    contratoAtivo: id => bd.contratos!.some(k => k.id === id && !k.arquivado_em),
+    processoAtivo: id => bd.processos!.some(p => p.id === id && !p.arquivado_em)
+  });
+  const ids = [...junto.demandas, ...junto.tarefas];
+  mudar(new Set(ids));
+  ids.forEach(id => bd.arquivadosComContrato!.push({ contrato_id: contratoId, id }));
+}
+/** Apaga a demanda e o que cai junto com ela no banco (o delete e as cascatas). */
+function apagarDemanda(d: DemandaGuardada) {
+  const id = d.id;
+  bd.demandas = bd.demandas!.filter(x => x.id !== id);
+  bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
+  bd.demandasRelacionadas = bd.demandasRelacionadas!.filter(l => l.demanda_a !== id && l.demanda_b !== id);
+  soltarDasAnotacoes('demandas', id);
+  soltarDosCompromissos('demandas', id);
+  bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
+  bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
+  // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
+  // Com várias (#283), ela sai só da lista de cada tarefa, e a próxima vira a principal.
+  bd.tarefas!.forEach(t => { if (demandasDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ demanda_ids: demandasDaTarefa(t).filter(x => x !== id) }, t)); });
+  excluirListasDoCartao('demanda_id', id);
+  esquecerArquivadoComContrato(id);
+  auditar('demandas', 'exclusao', d);
+}
+/** Apaga a tarefa e o que cai junto com ela no banco (o tempo registrado, os comentários, as listas). */
+function apagarTarefa(t: TarefaGuardada) {
+  const id = t.id;
+  bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
+  // Como o on delete set null e o gatilho do banco: a intimação que ficou sem a tarefa volta a ficar a tratar.
+  bd.prazos!.forEach(z => { if (z.tarefa_id === id) z.tarefa_id = null; });
+  bd.andamentos!.forEach(a => { if (a.tarefa_id === id) { a.tarefa_id = null; a.tratada_em = null; } });
+  bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
+  bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
+  bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
+  soltarDasAnotacoes('tarefas', id);
+  soltarDosCompromissos('tarefas', id);
+  excluirListasDoCartao('tarefa_id', id);
+  esquecerArquivadoComContrato(id);
+  auditar('tarefas', 'exclusao', t);
+}
+// ---------- excluir o contrato em cascata (#284), como public.contratos_excluir ----------
+/** Como privado.contratos_que_excluo: arquivados, cadastrados por quem pede (ou ele é administrador). */
+const contratosQueExcluo = (ids: string[]) => bd.contratos!.filter(k => ids.includes(k.id) && k.arquivado_em && (k.criado_por === eu || souAdmin())).map(k => k.id);
+/** A parcela importada como paga: recebida sem recebimento (não passou pelo Caixa). */
+const importadaComoPaga = (p: ParcelaGuardada) => !p.recebimento_id && !!p.recebida_em && !p.excluido_em;
+/** O que sai junto com os contratos (regras/exclusaoDoContrato.ts). */
+const escritorioParaExcluir = () => ({
+  demandas: bd.demandas!,
+  tarefas: bd.tarefas!.map(t => ({ id: t.id, arquivado_em: t.arquivado_em, demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processo_id: t.processo_id }))
+});
+const excluidosNoFalso = (ids: string[]) => excluidosComOsContratos(ids, escritorioParaExcluir());
+/** Como privado.resumo_da_exclusao: as contagens, os valores e os pagamentos já feitos. */
+function resumoDaExclusaoNoFalso(ids: string[]) {
+  const junto = excluidosNoFalso(ids);
+  const recebimentos = bd.recebimentos!.filter(r => ids.includes(r.contrato_id)), validos = recebimentos.filter(r => !r.estornado_em);
+  const idsDosRecebimentos = new Set(recebimentos.map(r => r.id));
+  const importadas = bd.parcelas!.filter(p => ids.includes(p.contrato_id) && importadaComoPaga(p));
+  const soma = <T,>(lista: T[], valor: (x: T) => number) => lista.reduce((s, x) => s + valor(x), 0);
+  const ondeFoi = (recebimentoId: string) => {
+    const r = recebimentos.find(x => x.id === recebimentoId)!;
+    return { codigo: acharContrato(r.contrato_id).codigo, parcela: acharParcela(r.parcela_id).numero, r };
+  };
+  const pagos = [
+    ...bd.repasses!.filter(x => idsDosRecebimentos.has(x.recebimento_id) && x.pago_em && !x.cancelado_em)
+      .map(x => { const { codigo, parcela } = ondeFoi(x.recebimento_id); return { codigo, parcela, nome: x.nome, valor: x.valor }; }),
+    ...bd.terceirosPagos!.filter(m => idsDosRecebimentos.has(m.recebimento_id)).map(m => {
+      const { codigo, parcela, r } = ondeFoi(m.recebimento_id);
+      const t = r.terceiros.find(x => x.id === m.pessoa_id);
+      return { codigo, parcela, nome: t?.nome ?? 'Pessoa excluída', valor: t?.valor ?? 0 };
+    })
+  ].toSorted((a, b) => a.codigo.localeCompare(b.codigo) || a.parcela - b.parcela || a.nome.localeCompare(b.nome));
+  return {
+    demandas: junto.demandas.length, tarefas: junto.tarefas.length,
+    segundos: Math.max(0, soma(bd.tempos!.filter(r => junto.tarefas.includes(r.tarefa_id)), r => r.segundos)),
+    parcelas: bd.parcelas!.filter(p => ids.includes(p.contrato_id) && !p.excluido_em).length,
+    recebimentos: validos.length, estornados: recebimentos.length - validos.length,
+    recebido: soma(validos, r => r.valor), taxas: soma(validos, r => r.taxa_maquina),
+    repasses: soma(bd.repasses!.filter(x => idsDosRecebimentos.has(x.recebimento_id) && !x.cancelado_em), x => x.valor),
+    correcoes: soma(bd.lancamentos!.filter(l => l.corrige_recebimento && idsDosRecebimentos.has(l.corrige_recebimento) && !l.excluido_em), l => l.valor),
+    importadas: importadas.length, importado: soma(importadas, p => p.recebido ?? 0),
+    pagos, junto
+  };
+}
 /** Como a regra de leitura das demandas: quem está nela e, só para ler, quem está no contrato ligado a ela (#326). */
 const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou(), meusGruposNoFalso());
 /** Como a regra de leitura das tarefas: quem está nela ou numa das demandas e, só para ler, quem está num dos contratos dela ou no de uma das demandas (#326, #283). */
@@ -3265,24 +3381,72 @@ export const SD: Dados = {
     return espera({ id, codigo: k.codigo });
   },
   async contratosArquivar(ids, arquivar = true) {
-    ids.forEach(id => {
-      const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return;
+    // Como o banco: um update só, e o gatilho de cada contrato roda depois, com todos os da lista já arquivados (ou desarquivados).
+    const mudaram = ids.flatMap(id => {
+      const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return [];
+      const mudou = !k.arquivado_em === arquivar;
       historicoContrato(k, { arquivado_em: arquivar ? agora() : null });
       Object.assign(k, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      return mudou ? [k.id] : [];
     });
+    mudaram.forEach(id => arquivarEmCascata(id, arquivar));
     gravar(); return espera(ids.length);
   },
+  contratoExclusaoPrevia(ids) {
+    const ok = contratosQueExcluo(ids), r = resumoDaExclusaoNoFalso(ok), admin = souAdmin();
+    const ve = admin || ok.every(cuidoDoContrato);
+    return espera({
+      contratos: ok.length, nao_excluiveis: new Set(ids).size - ok.length,
+      demandas: r.demandas, tarefas: r.tarefas, segundos: r.segundos, parcelas: r.parcelas,
+      recebimentos: r.recebimentos, estornados: r.estornados, importadas: r.importadas,
+      com_dinheiro: r.recebimentos > 0 || r.importadas > 0, sou_admin: admin, tem_pagamento: r.pagos.length > 0,
+      valores: ve ? { recebido: r.recebido, taxas: r.taxas, repasses: r.repasses, correcoes: r.correcoes, importado: r.importado } : null,
+      pagos: ve ? r.pagos : []
+    });
+  },
   async contratosExcluir(ids) {
-    if (bd.recebimentos!.some(r => ids.includes(r.contrato_id))) return erro('Este contrato tem recebimentos e não pode ser excluído: eles ficam guardados no caixa.');
+    const ok = contratosQueExcluo(ids);
+    if (!ok.length) return espera({ excluidas: 0, naoExcluidas: ids.length, motivo: RECUSA_DA_EXCLUSAO.nenhum });
+    const r = resumoDaExclusaoNoFalso(ok);
+    if (r.pagos.length) return erro(RECUSA_DA_EXCLUSAO.pagamento);
+    if ((r.recebimentos > 0 || r.importadas > 0) && !souAdmin()) return erro(RECUSA_DA_EXCLUSAO.administrador);
+    // O resumo de cada contrato, contado antes de apagar; entra na linha da exclusão dele, como no banco (uma linha só). Cada tarefa
+    // que sai conta uma vez, no primeiro contrato (pelo código) a que está ligada, também a que só sai por estarem juntos na lista.
+    const pelaOrdem = ok.map(acharContrato).toSorted((a, b) => a.codigo.localeCompare(b.codigo)).map(k => k.id);
+    const deCada = tarefasDeCadaContrato(pelaOrdem, r.junto, escritorioParaExcluir());
+    const resumos = new Map(pelaOrdem.map(id => {
+      const { pagos: _p, junto: _j, ...cascata } = resumoDaExclusaoNoFalso([id]);
+      const segundos = Math.max(0, bd.tempos!.filter(x => deCada[id].includes(x.tarefa_id)).reduce((s, x) => s + x.segundos, 0));
+      return [id, { ...cascata, tarefas: deCada[id].length, segundos }];
+    }));
+    // O Financeiro: a cópia escondida de cada recebimento (também o estornado) e de cada parcela importada como paga; depois, tudo sai.
+    const recebimentos = bd.recebimentos!.filter(x => ok.includes(x.contrato_id)), idsDosRecebimentos = new Set(recebimentos.map(x => x.id));
+    const repasses = bd.repasses!.filter(x => idsDosRecebimentos.has(x.recebimento_id));
+    const lancamentos = new Set([...recebimentos.flatMap(x => [x.lancamento_id, x.lancamento_taxa_id]), ...repasses.map(x => x.lancamento_id)].filter(Boolean));
+    const copia = { excluido_por: eu, excluido_em: agora() };
+    recebimentos.forEach(x => bd.financeiroExcluidos!.push({ contrato_id: x.contrato_id, contrato_codigo: acharContrato(x.contrato_id).codigo, tipo: 'recebimento',
+      parcela_numero: acharParcela(x.parcela_id).numero, data: x.data, valor: x.valor, conta_id: x.conta_id, estornado: !!x.estornado_em, ...copia,
+      copia: { recebimento: x, repasses: repasses.filter(y => y.recebimento_id === x.id), terceiros_pagos: bd.terceirosPagos!.filter(m => m.recebimento_id === x.id),
+        lancamentos: bd.lancamentos!.filter(l => lancamentos.has(l.id) || l.corrige_recebimento === x.id) } }));
+    bd.parcelas!.filter(p => ok.includes(p.contrato_id) && importadaComoPaga(p)).forEach(p => bd.financeiroExcluidos!.push({ contrato_id: p.contrato_id,
+      contrato_codigo: acharContrato(p.contrato_id).codigo, tipo: 'parcela_importada', parcela_numero: p.numero, data: p.recebida_em, valor: p.recebido ?? 0, conta_id: null,
+      estornado: false, ...copia, copia: { parcela: p } }));
+    bd.repasses = bd.repasses!.filter(x => !idsDosRecebimentos.has(x.recebimento_id));
+    bd.terceirosPagos = bd.terceirosPagos!.filter(m => !idsDosRecebimentos.has(m.recebimento_id));
+    bd.recebimentos = bd.recebimentos!.filter(x => !idsDosRecebimentos.has(x.id));
+    bd.lancamentos = bd.lancamentos!.filter(l => !lancamentos.has(l.id) && !(l.corrige_recebimento && idsDosRecebimentos.has(l.corrige_recebimento)));
+    // As tarefas que só pertencem a estes contratos e as demandas; por fim, os contratos.
+    bd.tarefas!.filter(t => r.junto.tarefas.includes(t.id)).forEach(apagarTarefa);
+    bd.demandas!.filter(d => r.junto.demandas.includes(d.id)).forEach(apagarDemanda);
     let excluidas = 0;
-    ids.forEach(id => {
-      const k = bd.contratos!.find(x => x.id === id);
-      if (!k || !k.arquivado_em || (k.criado_por !== eu && !souAdmin())) return;
+    ok.forEach(id => {
+      const k = bd.contratos!.find(x => x.id === id)!;
       bd.contratos = bd.contratos!.filter(x => x.id !== id);
       bd.parcelas = bd.parcelas!.filter(p => p.contrato_id !== id);
       bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
+      bd.arquivadosComContrato = bd.arquivadosComContrato!.filter(m => m.contrato_id !== id);
       excluirListasDoCartao('contrato_id', id);
       soltarDasAnotacoes('contratos', id);
       soltarDosCompromissos('contratos', id);
@@ -3290,10 +3454,10 @@ export const SD: Dados = {
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       // Como o banco (#283): o contrato sai da lista de cada tarefa; a tarefa continua, ligada aos outros.
       bd.tarefas!.forEach(t => { if (contratosDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ contrato_ids: contratosDaTarefa(t).filter(x => x !== id) }, t)); });
-      auditar('contratos', 'exclusao', k); excluidas++;
+      auditar('contratos', 'exclusao', k, { cascata: resumos.get(id) }); excluidas++;
     });
     gravar();
-    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos.' : '' });
+    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? RECUSA_DA_EXCLUSAO.nenhum : '' });
   },
   async contratoDefinirGrupos(id, grupos) {
     const k = bd.contratos!.find(x => x.id === id && !x.arquivado_em);
@@ -3401,6 +3565,7 @@ export const SD: Dados = {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
       Object.assign(d, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      esquecerArquivadoComContrato(id);
     });
     gravar(); return espera(ids.length);
   },
@@ -3409,18 +3574,7 @@ export const SD: Dados = {
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id);
       if (!d || !d.arquivado_em) return;
-      bd.demandas = bd.demandas!.filter(x => x.id !== id);
-      bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
-      bd.demandasRelacionadas = bd.demandasRelacionadas!.filter(l => l.demanda_a !== id && l.demanda_b !== id);
-      soltarDasAnotacoes('demandas', id);
-      soltarDosCompromissos('demandas', id);
-      bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
-      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
-      // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
-      // Com várias (#283), ela sai só da lista de cada tarefa, e a próxima vira a principal.
-      bd.tarefas!.forEach(t => { if (demandasDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ demanda_ids: demandasDaTarefa(t).filter(x => x !== id) }, t)); });
-      excluirListasDoCartao('demanda_id', id);
-      auditar('demandas', 'exclusao', d); excluidas++;
+      apagarDemanda(d); excluidas++;
     });
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só demandas arquivadas podem ser excluídas.' : '' });
@@ -3513,6 +3667,7 @@ export const SD: Dados = {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
       Object.assign(t, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+      esquecerArquivadoComContrato(id);
     });
     gravar(); return espera(ids.length);
   },
@@ -3521,17 +3676,7 @@ export const SD: Dados = {
     ids.forEach(id => {
       const t = bd.tarefas!.find(x => x.id === id);
       if (!t || !t.arquivado_em) return;
-      bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
-      // Como o on delete set null e o gatilho do banco: a intimação que ficou sem a tarefa volta a ficar a tratar.
-      bd.prazos!.forEach(z => { if (z.tarefa_id === id) z.tarefa_id = null; });
-      bd.andamentos!.forEach(a => { if (a.tarefa_id === id) { a.tarefa_id = null; a.tratada_em = null; } });
-      bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
-      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
-      bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
-      soltarDasAnotacoes('tarefas', id);
-      soltarDosCompromissos('tarefas', id);
-      excluirListasDoCartao('tarefa_id', id);
-      auditar('tarefas', 'exclusao', t); excluidas++;
+      apagarTarefa(t); excluidas++;
     });
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só tarefas arquivadas podem ser excluídas.' : '' });
