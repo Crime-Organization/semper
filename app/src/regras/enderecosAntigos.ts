@@ -2,6 +2,10 @@
 // favoritos e as abas antigas continuam valendo. Nenhuma linha sai desta tabela: um endereço que muda de novo ganha o destino novo.
 // Puro, sem tela: o roteador (App.tsx) só chama enderecoNovo.
 import { enderecoNovoDaAnotacaoNova } from './anotacao';
+import { TIPOS_PROCESSO } from './processo';
+
+/** As páginas dos tipos de processo que saíram (#406): os processos delas viraram administrativos, e o cartão aberto (?id=) vai junto. */
+const paraOsAdministrativos = (busca: string) => TIPOS_PROCESSO.administrativo.caminho + busca;
 
 /** Cada endereço antigo (sem as barras das pontas) e para onde leva, dada a busca ("?…") com que foi aberto. */
 export const ENDERECOS_ANTIGOS: Record<string, (busca: string) => string> = {
@@ -11,7 +15,9 @@ export const ENDERECOS_ANTIGOS: Record<string, (busca: string) => string> = {
   // A página das parcelas de cada mês (#331): o que falta receber, contrato por contrato, está em Direitos.
   'parcelas': () => '/financeiro/direitos/',
   // A anotação nova abre em Documentos, na mesma janela da anotação aberta (#369).
-  'documentos/nova': enderecoNovoDaAnotacaoNova
+  'documentos/nova': enderecoNovoDaAnotacaoNova,
+  'processos/extrajudicial': paraOsAdministrativos,
+  'processos/investigacao': paraOsAdministrativos
 };
 
 /** O endereço novo de um antigo ("/parcelas/" → "/financeiro/direitos/"); null quando o endereço não é antigo. */

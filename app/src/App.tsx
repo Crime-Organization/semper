@@ -139,8 +139,6 @@ function Rotas() {
           <Route path="processos" element={<PainelProcessos />} />
           <Route path="processos/judicial" element={<Processos key="judicial" tipo="judicial" />} />
           <Route path="processos/administrativo" element={<Processos key="administrativo" tipo="administrativo" />} />
-          <Route path="processos/extrajudicial" element={<Processos key="extrajudicial" tipo="extrajudicial" />} />
-          <Route path="processos/investigacao" element={<Processos key="investigacao" tipo="investigacao" />} />
           <Route path="agenda" element={<Compromissos />} />
           <Route path="documentos" element={<Documentos />} />
           <Route path="financeiro" element={<HubDoFinanceiro />} />

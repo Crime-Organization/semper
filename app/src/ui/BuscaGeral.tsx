@@ -25,8 +25,7 @@ import './BuscaGeral.css';
 
 /** O ícone de cada grupo: o mesmo do módulo no menu (ICONE_DO_MODULO); os grupos de processos (um por tipo), o dos processos. */
 const ICONE_DO_GRUPO: Record<GrupoDaBusca, NomeIcone> = {
-  ...ICONE_DO_MODULO, judiciais: ICONE_DO_MODULO.processos, administrativos: ICONE_DO_MODULO.processos, extrajudiciais: ICONE_DO_MODULO.processos,
-  investigacoes: ICONE_DO_MODULO.processos
+  ...ICONE_DO_MODULO, judiciais: ICONE_DO_MODULO.processos, administrativos: ICONE_DO_MODULO.processos
 };
 
 /**

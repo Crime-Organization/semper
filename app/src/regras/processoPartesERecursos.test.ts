@@ -1,4 +1,4 @@
-// Processo: pessoas com papel, recursos e incidentais e os tipos extrajudicial e investigação (#316).
+// Processo: pessoas com papel, recursos e incidentais (#316) e os tipos que ficaram, judicial e administrativo (#406).
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { PARTES_MAXIMAS } from '../dados/limites';
@@ -8,23 +8,22 @@ import {
 } from './processo';
 
 describe('Tipos de processo', () => {
-  it('quando a pessoa escolhe o tipo, então extrajudicial e investigação estão entre as opções, cada um com o seu quadro e a sua página', () => {
+  it('quando a pessoa escolhe o tipo, então só judicial e administrativo estão entre as opções, cada um com o seu quadro e a sua página (#406)', () => {
     // Então
-    expect(TIPOS.map(t => TIPOS_PROCESSO[t].nome)).toEqual(['Judicial', 'Administrativo', 'Extrajudicial', 'Investigação']);
-    expect(TIPOS_PROCESSO.extrajudicial).toMatchObject({ quadro: 'processos_extrajudiciais', caminho: '/processos/extrajudicial/' });
-    expect(TIPOS_PROCESSO.investigacao).toMatchObject({ quadro: 'processos_investigacoes', caminho: '/processos/investigacao/' });
+    expect(TIPOS.map(t => TIPOS_PROCESSO[t].nome)).toEqual(['Judicial', 'Administrativo']);
+    expect(TIPOS_PROCESSO.administrativo).toMatchObject({ quadro: 'processos_administrativos', caminho: '/processos/administrativo/' });
     expect(new Set(TIPOS.map(t => TIPOS_PROCESSO[t].quadro)).size).toBe(TIPOS.length);
   });
 
-  it.each([['extrajudicial', 'extrajudicial'], ['investigacao', 'investigacao'], ['outro', 'judicial'], [null, 'judicial']] as const)(
+  it.each([['administrativo', 'administrativo'], ['extrajudicial', 'administrativo'], ['investigacao', 'administrativo'], ['outro', 'judicial'], [null, 'judicial']] as const)(
     'quando o endereço traz o tipo %s, então o cadastro abre como %s', (valor, tipo) => {
       // Então
       expect(tipoDoEndereco(valor)).toBe(tipo);
     });
 
-  it('quando o processo é extrajudicial, então o número não segue o CNJ e os campos só do judicial não são gravados', () => {
+  it('quando o processo é administrativo, então o número não segue o CNJ e os campos só do judicial não são gravados', () => {
     // Dado
-    const c = { ...processoVazio('extrajudicial'), numero: 'Notificação 12/2026', clientes: ['p1'], responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
+    const c = { ...processoVazio('administrativo'), numero: 'Notificação 12/2026', clientes: ['p1'], responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
     // Quando
     const erros = validarProcesso(c), dados = dadosDoProcesso(c);
     // Então

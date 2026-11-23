@@ -47,7 +47,7 @@ import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regra
 import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
 import {
-  alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, TIPOS_PROCESSO,
+  alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, ehTipoDeProcesso, TIPOS_PROCESSO,
   LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, type QuadroDeProcesso
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
@@ -62,6 +62,7 @@ import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_
 import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
 import { FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
+import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
 import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
 import { aprovaATarefa, colunaDaDevolucao, comentarioDaDevolucao, conferirMudancaDaAprovacao, esperaAprovacao, etapaComAprovacao, NAO_ESPERA_APROVACAO, SO_QUEM_PEDIU_APROVA } from '../regras/aprovacaoDaTarefa';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
@@ -558,7 +559,8 @@ bd.diasLancados ??= [];
 bd.gruposDeColunas ??= [];
 bd.etiquetas ??= [];
 bd.etiquetasAplicadas ??= [];
-// Os quadros de processos, como a função criar_quadros_de_processos da migração: grupos, colunas e marcos.
+// Os quadros de processos, como a função criar_quadros_de_processos da migração: grupos, colunas e marcos. Desde a #406, só o judicial
+// e o administrativo (os da sessão aberta antes, extrajudicial e de investigações, ficam, como no banco).
 const QUADROS_DE_PROCESSOS: Record<QuadroDeProcesso, { nome: string; fechado?: boolean; colunas: string[] }[]> = {
   processos_judiciais: [
     { nome: 'Início', colunas: ['Distribuído', 'Pedido de habilitação', 'Emendar a inicial', 'Tutela provisória', 'Aguardando citação'] },
@@ -575,23 +577,10 @@ const QUADROS_DE_PROCESSOS: Record<QuadroDeProcesso, { nome: string; fechado?: b
     { nome: 'Decisão', colunas: ['Deferido/concedido', 'Indeferido', 'Recurso administrativo', 'Ajuizar ação'] },
     { nome: 'Concessão e vigência', colunas: ['Pagamento da concessão', 'Expedição do certificado', 'Registro em vigor', 'Retribuição anual', 'Prorrogação', 'Contra nulidade'] },
     { nome: 'Encerrado', fechado: true, colunas: ['Arquivado/baixado'] }
-  ],
-  // Os dois quadros dos tipos novos (#316), como a migração processo_partes_recursos_e_tipos.
-  processos_extrajudiciais: [
-    { nome: 'Início', colunas: ['Aberto', 'Reunir documentos'] },
-    { nome: 'Andamento', colunas: ['Notificação enviada', 'Aguardando resposta', 'Em negociação', 'Minuta em análise'] },
-    { nome: 'Conclusão', colunas: ['Acordo ou escritura assinada', 'Registro ou averbação'] },
-    { nome: 'Encerrado', fechado: true, colunas: ['Concluído/arquivado'] }
-  ],
-  processos_investigacoes: [
-    { nome: 'Instauração', colunas: ['Instaurado', 'Pedido de acesso aos autos'] },
-    { nome: 'Diligências', colunas: ['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa'] },
-    { nome: 'Conclusão', colunas: ['Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento'] },
-    { nome: 'Encerrado', fechado: true, colunas: ['Arquivado'] }
   ]
 };
-/** O grupo da busca pelo código de cada tipo de processo, como privado.grupo_do_tipo_de_processo no banco (#316). */
-const GRUPO_DO_TIPO: Record<TipoProcesso, GrupoDoPedido> = { judicial: 'judiciais', administrativo: 'administrativos', extrajudicial: 'extrajudiciais', investigacao: 'investigacoes' };
+/** O grupo da busca pelo código de cada tipo de processo, como privado.grupo_do_tipo_de_processo no banco. */
+const GRUPO_DO_TIPO: Record<TipoProcesso, GrupoDoPedido> = { judicial: 'judiciais', administrativo: 'administrativos' };
 /** Folga entre a última coluna e o primeiro grupo de um quadro, a mesma de privado.folga_dos_grupos() no banco (#296). */
 const FOLGA_DOS_GRUPOS = 1_000_000;
 for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as[keyof typeof QUADROS_DE_PROCESSOS, (typeof QUADROS_DE_PROCESSOS)[keyof typeof QUADROS_DE_PROCESSOS]][]) {
@@ -681,6 +670,8 @@ bd.historicoTarefas ??= [];
 // Colunas padrão que chegaram depois (#314, #315): acrescentadas uma vez em cada sessão, sem repetir as que já existem, como as
 // migrações fazem com o escritório que já existe (e o gatilho, com o escritório novo).
 bd.colunasNovas ??= [];
+/** A tarefa que pôs as colunas da investigação no quadro administrativo (a marca de que a sessão já as ganhou). */
+const TAREFA_DA_INVESTIGACAO = 406;
 /** Acrescenta ao quadro as colunas padrão que faltam (como privado.acrescentar_colunas_padrao). */
 function acrescentarColunasPadrao(modulo: Modulo, novas: ColunasNovas) {
   const grupos = bd.gruposDeColunas!.filter(g => g.modulo === modulo);
@@ -697,6 +688,14 @@ for (const { tarefa, modulo, novas } of COLUNAS_NOVAS_POR_TAREFA) {
   if (bd.colunasNovas.includes(tarefa)) continue;
   bd.colunasNovas.push(tarefa);
   acrescentarColunasPadrao(modulo, novas);
+}
+// As colunas da investigação no quadro administrativo (#406), uma vez, como privado.investigacao_no_administrativo. Os processos dos
+// tipos que saíram são convertidos no fim do arquivo (converterTiposQueSairam), depois que tudo o que a conversão usa existe.
+if (!bd.colunasNovas.includes(TAREFA_DA_INVESTIGACAO)) {
+  bd.colunasNovas.push(TAREFA_DA_INVESTIGACAO);
+  const modulo = QUADRO_ADMINISTRATIVO;
+  const novas = colunasDaInvestigacaoNoQuadro(bd.colunas.filter(c => c.modulo === modulo), bd.gruposDeColunas!.filter(g => g.modulo === modulo));
+  bd.colunas.push(...novas.map(c => ({ id: novoId(), ...c, criado_por: null, modulo, marco: null })));
 }
 // A coluna de aprovação das tarefas (#313), como privado.marcar_coluna_de_aprovacao: a "Aguardando: análise do solicitante" (ou a de
 // nome parecido); sem ela, uma nova depois de "Fazendo". Uma vez: depois, a marca fica, mesmo que a coluna seja renomeada.
@@ -5348,8 +5347,11 @@ export const SD: Dados = {
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('processos', processoLista)), total: r.length });
   },
   processoObter: id => { const p = bd.processos!.find(x => x.id === id && vejoNoModulo('processos', x.id)); return espera(p ? processoCompleto(p) : null); },
-  async processoCriar({ tipo, ...dados }) {
-    if (!(tipo in TIPOS_PROCESSO)) return erro(FORMATO_INVALIDO);
+  async processoCriar({ tipo: pedido, ...dados }) {
+    // O tipo que saiu (#406) vira administrativo, na coluna equivalente, como o gatilho aa_tipo_que_saiu.
+    if (ehTipoQueSaiu(pedido)) dados = { ...dados, etapa_id: colunaEquivalente(dados.etapa_id ?? null, bd.colunas, bd.gruposDeColunas!) };
+    const tipo = tipoQueFica(pedido);
+    if (!ehTipoDeProcesso(tipo)) return erro(FORMATO_INVALIDO);
     conferirOrigemDoProcesso(dados);
     const pronto = prepararProcesso({ colaboradores: [], clientes: [], ...dados }, tipo);
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
@@ -5483,6 +5485,7 @@ export const SD: Dados = {
   processoCampos: () => espera([...bd.camposDeProcesso!]),
   async processoCampoCriar(dados) {
     const c: CampoDeProcesso = { ...prepararCampoDeProcesso(dados), id: novoId(), apagado_em: null };
+    c.aparece_em = tipoQueFica(c.aparece_em);
     if ((c.tipo === 'lista') !== (c.opcoes.length > 0)) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     bd.camposDeProcesso!.push(c); gravar();
     return espera(c);
@@ -5492,6 +5495,7 @@ export const SD: Dados = {
     if (!c) return erro('Campo não encontrado neste escritório.');
     const d = prepararCampoDeProcesso(dados, id);
     if (d.opcoes !== undefined && (c.tipo === 'lista') !== (d.opcoes.length > 0)) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    if (d.aparece_em !== undefined) d.aparece_em = tipoQueFica(d.aparece_em);
     Object.assign(c, d); gravar();
     return espera({ ...c });
   },
@@ -5920,3 +5924,23 @@ export const SD: Dados = {
     gravar();
   }
 };
+
+/**
+ * Os processos e os campos próprios dos tipos que saíram (#406), guardados numa sessão aberta antes, viram administrativos, como
+ * privado.converter_tipos_que_sairam: cada processo vai para a coluna equivalente, e o número que repetiria entre os administrativos
+ * ganha o nome do tipo de antes (as duas mudanças ficam no histórico).
+ */
+function converterTiposQueSairam() {
+  const antigos = bd.processos!.filter(p => ehTipoQueSaiu(p.tipo));
+  for (const p of antigos) {
+    const tipo = p.tipo as string;
+    if (!ehTipoQueSaiu(tipo)) continue;
+    const repete = bd.processos!.some(x => x.id !== p.id && x.tipo === 'administrativo' && numeroParaComparar(x.numero) === numeroParaComparar(p.numero));
+    const novos = { etapa_id: colunaEquivalente(p.etapa_id, bd.colunas, bd.gruposDeColunas!), ...(repete ? { numero: numeroQueNaoRepete(p.numero, tipo) } : {}) };
+    historicoProcesso(p, novos);
+    Object.assign(p, novos, { tipo: 'administrativo' });
+  }
+  bd.camposDeProcesso!.forEach(c => { c.aparece_em = tipoQueFica(c.aparece_em); });
+  if (antigos.length) gravar();
+}
+converterTiposQueSairam();

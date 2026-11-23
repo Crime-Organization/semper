@@ -9,6 +9,7 @@ export type ComoEntrarNoProcesso = 'colaborador' | 'responsavel';
 export type ModuloComSaida = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'anotacoes';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
 export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos'
+  /** Os quadros dos tipos que saíram (#406): ficam no banco até a migração que os apaga, e só a conversão os lê. */
   | 'processos_extrajudiciais' | 'processos_investigacoes';
 
 export interface Perfil {
@@ -959,9 +960,9 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
-/** Processo: judicial, administrativo, extrajudicial ou investigação (#316; não muda depois), com número e pelo menos um cliente. O código
+/** Processo: judicial ou administrativo (não muda depois; extrajudicial e investigação saíram na #406), com número e pelo menos um cliente. O código
  *  (curto e aleatório) é dado pelo banco. Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
-export type TipoProcesso = 'judicial' | 'administrativo' | 'extrajudicial' | 'investigacao';
+export type TipoProcesso = 'judicial' | 'administrativo';
 /** Como o processo nasceu de outro (#316): recurso ou incidental. */
 export type LigacaoDeProcesso = 'recurso' | 'incidental';
 /** O papel de uma pessoa no processo, além dos clientes (#316). A lista do banco é a mesma (processo_partes). */
@@ -2287,8 +2288,8 @@ export interface DadosParcelas {
 // ---------- pedir para participar (#363) ----------
 /** Os módulos em que se pede para participar de um item. */
 export type ModuloDoPedido = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'contratos' | 'anotacoes';
-/** O grupo da busca geral em que o item aparece: os processos se dividem pelo tipo (judiciais, administrativos, extrajudiciais e investigações). */
-export type GrupoDoPedido = 'tarefas' | 'demandas' | 'judiciais' | 'administrativos' | 'extrajudiciais' | 'investigacoes' | 'compromissos' | 'contratos' | 'anotacoes';
+/** O grupo da busca geral em que o item aparece: os processos se dividem pelo tipo (judiciais e administrativos). */
+export type GrupoDoPedido = 'tarefas' | 'demandas' | 'judiciais' | 'administrativos' | 'compromissos' | 'contratos' | 'anotacoes';
 export type SituacaoDoPedido = 'pendente' | 'aprovado' | 'recusado' | 'cancelado';
 /**
  * Um item de que a pessoa não faz parte, achado pelo código exato ou pelo número inteiro do processo: só o tipo e o código.

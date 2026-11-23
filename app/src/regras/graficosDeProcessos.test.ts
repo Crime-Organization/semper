@@ -94,18 +94,18 @@ describe('Ativos e fases', () => {
 
   it('dados processos, quando conta os ativos, então ficam fora os arquivados e os da coluna de encerrados', () => {
     // Então
-    expect(ativosPorTipo(processos, COLUNAS)).toEqual({ judicial: 1, administrativo: 1, extrajudicial: 0, investigacao: 0 });
+    expect(ativosPorTipo(processos, COLUNAS)).toEqual({ judicial: 1, administrativo: 1 });
   });
 
-  it('dados processos extrajudiciais e investigações, quando conta os ativos, então cada tipo tem o seu número e o total soma os quatro tipos (#316)', () => {
+  it('dados mais processos administrativos, quando conta os ativos, então só os dois tipos têm número e o total soma os dois (#406)', () => {
     // Dado
-    const outros = [...processos, processo('e', { tipo: 'extrajudicial', etapa_id: null }), processo('f', { tipo: 'investigacao', etapa_id: null }),
-      processo('g', { tipo: 'investigacao', etapa_id: null }), processo('h', { tipo: 'investigacao', arquivado_em: '2026-01-01' })];
+    const outros = [...processos, processo('e', { tipo: 'administrativo', etapa_id: null }), processo('f', { tipo: 'administrativo', etapa_id: null }),
+      processo('h', { tipo: 'administrativo', arquivado_em: '2026-01-01' })];
     // Quando
     const ativos = ativosPorTipo(outros, COLUNAS);
     // Então
-    expect(ativos).toEqual({ judicial: 1, administrativo: 1, extrajudicial: 1, investigacao: 2 });
-    expect(totalDeAtivos(ativos)).toBe(5);
+    expect(ativos).toEqual({ judicial: 1, administrativo: 3 });
+    expect(totalDeAtivos(ativos)).toBe(4);
   });
 
   it('dados processos, quando conta as fases, então cada coluna tem os não arquivados dela, e os sem coluna ficam juntos', () => {
@@ -147,16 +147,14 @@ describe('Textos e endereços dos números', () => {
     // Então
     expect(ativosPorExtenso('judicial', 1)).toBe('1 judicial');
     expect(ativosPorExtenso('administrativo', 1200)).toBe('1.200 administrativos');
-    expect(ativosPorExtenso('extrajudicial', 2)).toBe('2 extrajudiciais');
-    expect(ativosPorExtenso('investigacao', 1)).toBe('1 investigação');
-    expect(ativosPorExtenso('investigacao', 3)).toBe('3 investigações');
+    expect(ativosPorExtenso('administrativo', 1)).toBe('1 administrativo');
+    expect(ativosPorExtenso('judicial', 2)).toBe('2 judiciais');
   });
 
   it('dada uma pessoa, então a lista do tipo vem filtrada por ela; sem pessoa, a lista toda', () => {
     // Então
     expect(enderecoDoTipo('judicial', 'u1')).toBe('/processos/judicial/?pessoa=u1');
     expect(enderecoDoTipo('administrativo', null)).toBe('/processos/administrativo/');
-    expect(enderecoDoTipo('extrajudicial', null)).toBe('/processos/extrajudicial/');
-    expect(enderecoDoTipo('investigacao', 'u1')).toBe('/processos/investigacao/?pessoa=u1');
+    expect(enderecoDoTipo('administrativo', 'u1')).toBe('/processos/administrativo/?pessoa=u1');
   });
 });

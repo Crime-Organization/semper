@@ -1,4 +1,4 @@
-// Regras do processo (módulo Processos): os quatro tipos, as listas prontas, o cadastro por etapas, o que aparece no cartão, as
+// Regras do processo (módulo Processos): os dois tipos (judicial e administrativo), as listas prontas, o cadastro por etapas, o que aparece no cartão, as
 // pessoas com papel e os recursos e incidentais (#316). Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
 import type {
   CampoDeOpcao, DadosProcesso, GratuidadeProcesso, LigacaoDeProcesso, MeioProcesso, Membro, Modulo, PapelDaParte, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista,
@@ -11,6 +11,7 @@ import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroC
 import { fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 import { estaPeloGrupo } from './gruposDaEquipe';
+import { tipoQueFica } from './investigacaoNoAdministrativo';
 import {
   AREA_DA_PI, APRESENTACOES_DA_MARCA, camposDaProtecao, dadosDaProtecao, erroDaProtecao, fmtClassesNice, NATUREZAS_DA_MARCA, PAPEIS_DA_PI, papeisDaProtecao,
   PROTECAO_VAZIA, TIPOS_DE_PROTECAO, type CampoDaProtecao, type CamposProtecao
@@ -20,20 +21,22 @@ import {
 export const SEM_SITUACAO_PROCESSO = 'Sem situação';
 
 /** Os quadros dos processos, um por tipo. */
-export type QuadroDeProcesso = Extract<Modulo, 'processos_judiciais' | 'processos_administrativos' | 'processos_extrajudiciais' | 'processos_investigacoes'>;
+export type QuadroDeProcesso = Extract<Modulo, 'processos_judiciais' | 'processos_administrativos'>;
 /**
- * O que cada tipo de processo tem de próprio: o nome, o título da página, o quadro e o endereço. Extrajudicial e investigação vieram
- * com a #316; o quadro de cada tipo é o de privado.quadro_do_tipo_de_processo no banco.
+ * O que cada tipo de processo tem de próprio: o nome, o título da página, o quadro e o endereço. Extrajudicial e investigação, da #316,
+ * saíram na #406: os processos deles viraram administrativos (regras/investigacaoNoAdministrativo.ts).
  */
 export const TIPOS_PROCESSO: Record<TipoProcesso, { nome: string; titulo: string; quadro: QuadroDeProcesso; caminho: string }> = {
   judicial: { nome: 'Judicial', titulo: 'Processos judiciais', quadro: 'processos_judiciais', caminho: '/processos/judicial/' },
-  administrativo: { nome: 'Administrativo', titulo: 'Processos administrativos', quadro: 'processos_administrativos', caminho: '/processos/administrativo/' },
-  extrajudicial: { nome: 'Extrajudicial', titulo: 'Processos extrajudiciais', quadro: 'processos_extrajudiciais', caminho: '/processos/extrajudicial/' },
-  investigacao: { nome: 'Investigação', titulo: 'Investigações', quadro: 'processos_investigacoes', caminho: '/processos/investigacao/' }
+  administrativo: { nome: 'Administrativo', titulo: 'Processos administrativos', quadro: 'processos_administrativos', caminho: '/processos/administrativo/' }
 };
 export const TIPOS = Object.keys(TIPOS_PROCESSO) as TipoProcesso[];
-/** O tipo que vem do endereço (?tipo=); fora da lista, o judicial. */
-export const tipoDoEndereco = (valor: string | null): TipoProcesso => TIPOS.find(t => t === valor) ?? 'judicial';
+export const ehTipoDeProcesso = (valor: string): valor is TipoProcesso => Object.hasOwn(TIPOS_PROCESSO, valor);
+/** O tipo que vem do endereço (?tipo=): os que saíram (#406) viram administrativo; fora da lista, o judicial. */
+export function tipoDoEndereco(valor: string | null): TipoProcesso {
+  const tipo = tipoQueFica(valor ?? '');
+  return ehTipoDeProcesso(tipo) ? tipo : 'judicial';
+}
 
 /** O polo do cliente; vítima, investigado e apenado servem aos processos criminais (#289). A lista do banco é a mesma (migração polo_criminal). */
 export const POLOS: Record<PoloProcesso, string> = { autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro', vitima: 'Vítima', investigado: 'Investigado', apenado: 'Apenado' };

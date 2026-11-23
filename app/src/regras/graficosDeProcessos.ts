@@ -124,8 +124,7 @@ export function painelDaPessoa(painel: PainelDeProcessos, pessoa: string, hoje: 
 
 /** Os processos ativos de um tipo, por extenso, no número do alto ("1 judicial", "18 judiciais"). */
 const NOME_NO_NUMERO: Record<TipoProcesso, [um: string, varios: string]> = {
-  judicial: ['judicial', 'judiciais'], administrativo: ['administrativo', 'administrativos'],
-  extrajudicial: ['extrajudicial', 'extrajudiciais'], investigacao: ['investigação', 'investigações']
+  judicial: ['judicial', 'judiciais'], administrativo: ['administrativo', 'administrativos']
 };
 export const ativosPorExtenso = (tipo: TipoProcesso, n: number) => `${n.toLocaleString('pt-BR')} ${NOME_NO_NUMERO[tipo][n === 1 ? 0 : 1]}`;
 

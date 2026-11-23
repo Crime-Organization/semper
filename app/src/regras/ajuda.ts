@@ -41,7 +41,7 @@ export const AJUDA: Record<ModuloComAjuda, readonly string[]> = {
     'No cartão da tarefa, o cronômetro marca o tempo gasto nela.'
   ],
   processos: [
-    'Cada tipo de processo (judicial, administrativo, extrajudicial e investigação) tem o seu quadro, com colunas próprias.',
+    'O processo é judicial ou administrativo, e cada tipo tem o seu quadro, com colunas próprias.',
     'Cadastre o processo pelo número e ligue a ele as pessoas envolvidas.',
     'No Kanban mova o processo pela fase em que ele está. Na Tabela, busque pelo número, pelo cliente ou pela comarca.',
     'Clique no processo para ver os andamentos e tudo o que está ligado a ele.'

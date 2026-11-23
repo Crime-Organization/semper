@@ -5,7 +5,7 @@
 // Para rodar também no Supabase (com um Supabase local), basta chamar contrato() com a outra implementação.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipos';
+import type { ApareceEm, Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao, TipoProcesso } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
@@ -2449,22 +2449,35 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
-    describe('Processos: pessoas com papel, recursos e incidentais, tipos novos (#316)', () => {
+    describe('Processos: pessoas com papel, recursos e incidentais (#316)', () => {
       const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
         const { id: cliente } = await criar(marca());
         return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
       };
 
-      it('quando um processo extrajudicial e uma investigação são criados, então cada um fica no seu tipo e na sua página', async () => {
-        // Dado
+      it('quando o site antigo cria um processo extrajudicial ou uma investigação, então ele é gravado como administrativo (#406)', async () => {
+        // Dado: os tipos que saíram, como o site antigo ainda os manda
+        const [extrajudicial, investigacao]: string[] = ['extrajudicial', 'investigacao'];
         const numero = marca();
         // Quando
-        const extra = await novoProcesso({ tipo: 'extrajudicial', numero });
-        const inv = await novoProcesso({ tipo: 'investigacao', numero });
+        const extra = await novoProcesso({ tipo: extrajudicial as TipoProcesso, numero });
+        const inv = await novoProcesso({ tipo: investigacao as TipoProcesso, numero: numero + '-2' });
         // Então
-        expect(await SD.processoObter(extra.id)).toMatchObject({ tipo: 'extrajudicial', origem_id: null, ligacao: null });
-        expect((await SD.processosListar({ tipo: 'investigacao', termo: numero })).linhas.map(p => p.id)).toEqual([inv.id]);
+        expect(await SD.processoObter(extra.id)).toMatchObject({ tipo: 'administrativo', origem_id: null, ligacao: null });
+        expect((await SD.processosListar({ tipo: 'administrativo', termo: numero })).linhas.map(p => p.id).sort()).toEqual([extra.id, inv.id].sort());
         expect((await SD.processosListar({ tipo: 'judicial', termo: numero })).linhas).toEqual([]);
+      });
+
+      it('quando se abre o quadro administrativo, então ele tem as colunas da investigação, e os quadros que saíram não existem (#406)', async () => {
+        // Quando
+        const administrativo = (await SD.colunasListar('processos_administrativos')).map(c => c.nome);
+        // Então
+        expect(administrativo).toEqual(expect.arrayContaining(['Instaurado', 'Pedido de acesso aos autos', 'Oitiva ou depoimento', 'Perícia', 'Diligências pendentes',
+          'Manifestação da defesa', 'Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento']));
+        expect(administrativo).not.toContain('Arquivado');
+        expect(administrativo).not.toContain('Aberto');
+        expect(await SD.colunasListar('processos_investigacoes')).toEqual([]);
+        expect(await SD.colunasListar('processos_extrajudiciais')).toEqual([]);
       });
 
       it('quando a pessoa ganha um papel no processo, então ela aparece nele com o papel, e o processo aparece no cartão dela', async () => {
@@ -2779,7 +2792,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const [judiciais, administrativas, grupos] = await Promise.all([SD.colunasListar('processos_judiciais'), SD.colunasListar('processos_administrativos'), SD.gruposListar('processos_judiciais')]);
         // Então
         expect(judiciais).toHaveLength(31);
-        expect(administrativas).toHaveLength(20);
+        expect(administrativas).toHaveLength(20 + 9);   // as 20 de sempre e as 9 da investigação (#406)
         expect(judiciais.filter(c => c.marco).map(c => [c.nome, c.marco])).toEqual([['Distribuído', 'inicio'], ['Baixado/arquivado', 'concluido']]);
         expect(administrativas.filter(c => c.marco).map(c => [c.nome, c.marco])).toEqual([['Protocolado', 'inicio'], ['Arquivado/baixado', 'concluido']]);
         expect(grupos.map(g => [g.nome, g.comeca_fechado])).toContainEqual(['Encerrado', true]);
@@ -4855,6 +4868,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       };
       const novoCampo = (extra: Partial<Parameters<Dados['processoCampoCriar']>[0]> = {}) =>
         SD.processoCampoCriar({ nome: marca(), tipo: 'texto', aparece_em: 'ambos', opcoes: [], ...extra });
+
+      it('quando o site antigo marca um campo como "Só investigação" ou "Só extrajudicial", então ele fica "Só administrativo" (#406)', async () => {
+        // Dado: os tipos que saíram, como o site antigo ainda os manda
+        const [investigacao, extrajudicial]: string[] = ['investigacao', 'extrajudicial'];
+        // Quando
+        const c = await novoCampo({ aparece_em: investigacao as ApareceEm });
+        const mudado = await SD.processoCampoAtualizar(c.id, { aparece_em: extrajudicial as ApareceEm });
+        // Então
+        expect(c.aparece_em).toBe('administrativo');
+        expect(mudado.aparece_em).toBe('administrativo');
+        const { id } = await processoCom({ tipo: 'administrativo', campos: { [c.id]: 'Delegacia de exemplo' } });
+        expect((await SD.processoObter(id))?.campos).toEqual({ [c.id]: 'Delegacia de exemplo' });
+      });
 
       it('quando o administrador cria um campo, então ele volta na lista, e o valor é gravado no processo', async () => {
         // Dado

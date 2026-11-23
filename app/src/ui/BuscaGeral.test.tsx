@@ -94,8 +94,8 @@ describe('Busca geral: a janela', () => {
     // Quando
     await buscar('jose');
     // Então
-    // Os processos são buscados num grupo por tipo (quatro desde a #316).
-    expect(busca).toHaveBeenLastCalledWith('jose', ['pessoas', 'judiciais', 'administrativos', 'extrajudiciais', 'investigacoes', 'tarefas']);
+    // Os processos são buscados num grupo por tipo: judiciais e administrativos (#406).
+    expect(busca).toHaveBeenLastCalledWith('jose', ['pessoas', 'judiciais', 'administrativos', 'tarefas']);
     const grupos = within(screen.getByRole('listbox', { name: 'Resultados' })).getAllByRole('group');
     expect(grupos.map(g => g.getAttribute('aria-labelledby') && document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent))
       .toEqual(['Pessoas', 'Processos judiciais', 'Tarefas']);
