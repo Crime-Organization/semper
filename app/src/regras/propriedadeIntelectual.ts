@@ -17,6 +17,17 @@
 // Os prazos de meses e anos terminam no dia de mesmo número do dia do início (Código Civil, art. 132, §3º); o dia que não existe no
 // mês de chegada vira o último dia dele (29/02 + 1 ano = 28/02). Prazo que vence em dia sem expediente no INPI vai para o próximo
 // dia útil (Manual de Marcas, cap. 1): a conta mostra a data da lei, e o cartão avisa para conferir.
+//
+// O que os guias do INPI instalados (inpi-manual-de-marcas, inpi-inventando-futuro-patentes, inpi-desenhos-industriais-pme,
+// inpi-expressao-criativa-direito-autor) confirmam e o que NÃO confirmam (vem só da leitura da lei, e precisa da conferência de
+// alguém da área; esta lista é a que vai para o comentário da tarefa #317):
+// - Confirmados: a vigência da marca (10 anos da concessão) e a prorrogação no último ano ou nos 6 meses seguintes, com taxa (Manual
+//   de Marcas, cap. 6); a vigência da patente (20 anos) e do modelo (15 anos), do depósito (cartilha de patentes); os 10 + 5 + 5 + 5 =
+//   25 anos do desenho (cartilha de desenhos, cap. 2); os 50 anos do programa, de 1º de janeiro do ano seguinte (cartilha de direito de
+//   autor); o dia útil seguinte quando o prazo vence em dia sem expediente (Manual de Marcas, cap. 1, que trata das marcas).
+// - Não confirmados nos guias (nenhum deles trata do assunto): a anuidade da patente (o início no 3º ano, os 3 meses do prazo normal,
+//   os 6 meses do extra e a contagem pelo aniversário do depósito); os 36 meses do pedido de exame; os 180 dias do prazo extra da
+//   prorrogação do desenho; o 2º quinquênio pago no 5º ano; e o dia útil seguinte nos prazos de patente e de desenho.
 import type { ApresentacaoMarca, CompromissoLigado, NaturezaMarca, PapelDaParte, Processo, RegraDeRepeticao, TipoProtecao } from '../dados/tipos';
 import { CLASSE_NICE_MAIOR, DEMANDA_DO_COMPROMISSO, TAMANHO_COMPROMISSO, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
 import type { CamposCompromisso } from './compromisso';
