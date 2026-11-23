@@ -425,3 +425,43 @@ describe('Tarefa avulsa na demanda contínua do grupo (#313)', () => {
     expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ demanda_ids: ['c-geral'] }));
   });
 });
+
+describe('Aprovação interna no cadastro (#313)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    sessao.escritorio = undefined;
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+  });
+
+  it('dada uma tarefa nova, quando o responsável passa a ser outra pessoa que não quem a pediu, então "Precisa de aprovação" vem marcada e é gravada', async () => {
+    // Dado
+    const criar = vi.spyOn(SD, 'tarefaCriar').mockResolvedValue({ id: 't9', codigo: 'T9' });
+    render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovaTarefa /> }, { path: '*', element: <p>Salva</p> }])} />);
+    await userEvent.type(await screen.findByLabelText(/Título/), 'Minutar a petição');
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    const caixa = await screen.findByRole('checkbox', { name: 'Precisa de aprovação' });
+    expect(caixa).not.toBeChecked();
+    // Quando
+    await userEvent.selectOptions(screen.getByLabelText(/Responsável/), 'Ana Teste Lima');
+    // Então
+    expect(caixa).toBeChecked();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar tarefa' }));
+    // Então
+    await waitFor(() => expect(criar).toHaveBeenCalledWith(expect.objectContaining({ responsavel_id: 'u-ana', solicitante_id: 'u-bruno', precisa_aprovacao: true })));
+  });
+
+  it('dada uma tarefa com aprovação pedida pela Ana, quando o Bruno (quem executa) abre o lápis, então a caixa e o solicitante ficam travados', async () => {
+    // Dado
+    vi.spyOn(SD, 'tarefaObter').mockResolvedValue(tarefa({ solicitante_id: 'u-ana', precisa_aprovacao: true, funcoes: {} }));
+    // Quando
+    render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovaTarefa edicao={{ id: 't1', aoTerminar: () => undefined }} /> }])} />);
+    // Então
+    const caixa = await screen.findByRole('checkbox', { name: 'Precisa de aprovação' });
+    expect(caixa).toBeChecked();
+    expect(caixa).toBeDisabled();
+    expect(screen.getByLabelText(/Solicitante/)).toBeDisabled();
+  });
+});

@@ -14,7 +14,7 @@ import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS } from '../ordem';
 import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
-import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
+import { cartoesEmPalavras, explicacaoDaColuna, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
 import { emCaixaAlta, normal, partesParaQuebrar } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { MoverNoQuadro, type MoverNaTela } from './moverNoQuadro';
@@ -542,7 +542,7 @@ function MenuColuna({ c, nome, botao, quadro, aoFechar }: { c: Coluna | null; no
     </button>)}
     {c && <>
     <hr className="kmenu-divisoria" />
-    {c.marco && <p className="kmenu-nota">{MARCOS[c.marco].explicacao}</p>}
+    {explicacaoDaColuna(c) && <p className="kmenu-nota">{explicacaoDaColuna(c)}</p>}
     {quadro.podeReordenar && i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
     {quadro.podeReordenar && i < visiveis.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
     <button type="button" role="menuitem" onClick={agir(() => quadro.ocultar(c, true))}><Icone nome="oculto" tam={15} /> Ocultar para mim</button>

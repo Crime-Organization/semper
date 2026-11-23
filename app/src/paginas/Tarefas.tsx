@@ -11,6 +11,7 @@ import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { SEM_SITUACAO_TAREFA, soLeATarefaNaLista } from '../regras/tarefa';
+import { ENVIADA_PARA_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -199,15 +200,18 @@ export default function Tarefas() {
           endereco={t => endereco(t.id)}
           aoAbrir={t => abrir(t.id)}
           aoMover={async (t, m) => {
-            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.tarefasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.tarefaMover(id, etapa, ordem) };
+            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.tarefasArquivar(ids, a), mover: async (id: string, etapa: string | null, ordem: number | null) => { await SD.tarefaMover(id, etapa, ordem); } };
             if (await moverNoArquivo(t.codigo, t.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_TAREFA)) { recarregar(); return; }
             const { de, para, ordem, ordemAnterior } = m;
-            await SD.tarefaMover(t.id, para, ordem);
+            // A tarefa que precisa de aprovação, arrastada às concluídas por quem não aprova, fica na coluna de aprovação (#313): o
+            // quadro relê para mostrá-la lá.
+            const ficou = await SD.tarefaMover(t.id, para, ordem);
             const voltar = async () => { await SD.tarefaMover(t.id, de, ordemAnterior); };
-            if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
+            if (ficou !== para) { feito(`${t.codigo}: ${ENVIADA_PARA_APROVACAO}`, 'movimentação do cartão', voltar); recarregar(); }
+            else if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
             // As ofertas de quem muda a Situação por qualquer caminho (#355): o prazo do processo e a demanda da tarefa.
-            if (de !== para) void oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: ordemAnterior, ligadoADemanda: !!t.demanda_codigo }, para, navegar);
+            if (de !== ficou) void oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: ordemAnterior, ligadoADemanda: !!t.demanda_codigo }, ficou, navegar);
           }}
           aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

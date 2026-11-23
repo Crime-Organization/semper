@@ -50,13 +50,14 @@ import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
-import { acaoDeConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
+import { acaoDeConclusao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarContratoNaTarefa, ligarEAvisar, ligarTarefaNaDemanda } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 import { copiarParaOutraDemanda } from './copiarTarefa';
 import { COPIAR_PARA_OUTRA_DEMANDA } from '../regras/copiaDaTarefa';
+import { FaixaDaAprovacao } from './AprovacaoDaTarefa';
 
 interface Props {
   id: string;
@@ -73,6 +74,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const [t, setT] = useState<Tarefa | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  // Muda quando a devolução da tarefa (#313) grava um comentário: a seção dos comentários relê.
+  const [versaoComentarios, setVersaoComentarios] = useState(0);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
@@ -149,7 +152,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const comoItem = (): ItemQueMuda => ({ id: t!.id, titulo: t!.titulo, etapa_id: t!.etapa_id || null, etapa_ordem: t!.etapa_ordem ?? null, ligadoADemanda: !!t!.demanda });
   /** Depois de gravar: mostra a coluna nova e relê a tarefa (chegar ou sair da coluna das concluídas muda a data de conclusão e o
    *  resumo do tempo). */
-  const depoisDeMudar = (etapa: string | null) => async (ordem: number) => {
+  const depoisDeMudar = async (ordem: number, etapa: string | null) => {
     setT({ ...t!, etapa_id: etapa, etapa_ordem: ordem });
     aoMudar(); setVersaoHist(v => v + 1);
     await carregar();
@@ -158,12 +161,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   async function mudarSituacao(valor: string) {
     const etapa = valor || null;
     await mudarSituacaoDoItem('tarefas', comoItem(), etapa, etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`,
-      navegar, depoisDeMudar(etapa));
+      navegar, depoisDeMudar);
   }
 
   /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */
   function concluirOuReabrir(acao: AcaoDeConclusao) {
-    return concluirOuReabrirItem('tarefas', quadro.colunas, comoItem(), acao, navegar, depoisDeMudar(colunaDaAcao(quadro.colunas, acao)?.id ?? null));
+    return concluirOuReabrirItem('tarefas', quadro.colunas, comoItem(), acao, navegar, depoisDeMudar);
   }
 
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */
@@ -242,8 +245,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 
     {soLeitura && <Nota>{soLeitura}</Nota>}
-    {/* Quem pediu a tarefa (#313): não troca o responsável; ele a vê, lê e comenta. */}
-    {t.solicitante_id && <Nota>Pedida por <b>{nomeDe(t.solicitante_id)}</b></Nota>}
+    {/* Quem pediu a tarefa (#313): não troca o responsável; ele a vê, lê e comenta e, com a aprovação, aprova a conclusão. */}
+    {t.solicitante_id && <Nota>Pedida por <b>{nomeDe(t.solicitante_id)}</b>{t.precisa_aprovacao && ', que aprova a conclusão'}</Nota>}
+    {!t.solicitante_id && t.precisa_aprovacao && <Nota>A conclusão precisa da aprovação de um administrador.</Nota>}
+    {/* A tarefa que espera aprovação (#313): de quem é a aprovação e, para quem aprova, o Aprovar e o Devolver. */}
+    <FaixaDaAprovacao t={t} colunas={quadro.colunas} nomeDe={nomeDe}
+      aoMudar={() => { depoisDeLigar(); setVersaoComentarios(v => v + 1); }} />
     {/* O motivo da diligência (#313), logo abaixo da cabeça: é o que diz por que a tarefa existe. */}
     {t.diligencia && t.diligencia_motivo && <Nota><b>Motivo da diligência:</b> {t.diligencia_motivo}</Nota>}
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
@@ -297,7 +304,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
         histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
     <NaColunaDoCartao>
-      <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, demandasAbertas)} />
+      <SecaoComentarios modulo="tarefas" cartaoId={t.id} versao={versaoComentarios} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, demandasAbertas)} />
       <AnotacoesDoCartao modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} />
       <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.coluna.historico" contador={historico}>
         <HistoricoDoCartao carregar={() => SD.tarefaHistorico(t.id)} campos={CAMPOS_TAREFA} valor={valorLegivelTarefa} versao={versaoHist} />

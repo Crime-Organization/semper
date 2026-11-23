@@ -1,0 +1,5 @@
+{
+  "titulo": "Aprovação antes de concluir a tarefa",
+  "texto": "A tarefa pode precisar da aprovação de quem a pediu: ao ser concluída, ela espera na coluna \"Aguardando: análise do solicitante\" até essa pessoa (ou um administrador) aprovar ou devolver com um comentário.",
+  "ondeAchar": "Tarefas, no cadastro ou no lápis: caixa \"Precisa de aprovação\", na etapa Pessoas. Os botões Aprovar e Devolver aparecem no cartão da tarefa que espera."
+}

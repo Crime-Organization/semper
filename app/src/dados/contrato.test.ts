@@ -16,6 +16,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
+import { NAO_ESPERA_APROVACAO, SEM_COMENTARIO_DA_DEVOLUCAO, SO_QUEM_PEDIU_APROVA, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
 import { FUNCAO_REPETIDA, funcaoEmUso } from '../regras/funcoesNaTarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
@@ -9629,5 +9630,89 @@ describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => 
     const agora = await demandaDe(id);
     expect(agora).toMatchObject({ titulo: tituloDaContinua('Geral'), continua: true });
     expect(await SD.demandaObter(doGrupo)).toBeNull();
+  });
+});
+
+describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void };
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO.entrarComo(id);
+  const colunas = async () => SD.colunasListar('tarefas');
+  const coluna = async (qual: (c: Awaited<ReturnType<typeof colunas>>[number]) => boolean) => (await colunas()).find(qual)!.id;
+  /** O Mauro (administrador) pede ao Bruno uma tarefa com aprovação, em "Fazendo". */
+  const pedidaAoBruno = async (precisa = true) => {
+    entrarComo('u-master');
+    const { id } = await SD.tarefaCriar({ titulo: 'Minutar a petição', responsavel_id: 'u-bruno', solicitante_id: 'u-master', precisa_aprovacao: precisa,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => entrarComo('u-master'));
+
+  it('dado o quadro de tarefas, quando é lido, então tem uma coluna de aprovação, a "Aguardando: análise do solicitante", que não se exclui', async () => {
+    // Quando
+    const aprovacao = (await colunas()).filter(c => c.de_aprovacao);
+    // Então
+    expect(aprovacao.map(c => c.nome)).toEqual(['Aguardando: análise do solicitante']);
+    await expect(SD.colunaExcluir(aprovacao[0].id)).rejects.toThrow('A coluna de aprovação das tarefas não pode ser excluída.');
+  });
+
+  it('dada a tarefa com aprovação, quando o Bruno (quem executa) a conclui, então ela fica na coluna de aprovação, sem data de conclusão, e ele não se aprova', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => !!c.de_aprovacao));
+    expect(await SD.tarefaObter(id)).toMatchObject({ etapa_id: ficou, concluida_em: null, precisa_aprovacao: true });
+    await expect(SD.tarefaAprovar(id)).rejects.toThrow(SO_QUEM_PEDIU_APROVA);
+    await expect(SD.tarefaAtualizar(id, { precisa_aprovacao: false })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+    await expect(SD.tarefaAtualizar(id, { solicitante_id: 'u-bruno' })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+  });
+
+  it('dada a tarefa na aprovação, quando o Mauro a devolve com um comentário, então ela volta para "Fazendo" e o comentário fica no cartão', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    await expect(SD.tarefaDevolver(id, '  ')).rejects.toThrow(SEM_COMENTARIO_DA_DEVOLUCAO);
+    const voltou = await SD.tarefaDevolver(id, ' Falta o pedido de tutela. ');
+    // Então
+    expect(voltou).toBe(await coluna(c => c.nome === 'Fazendo'));
+    expect((await SD.tarefaObter(id))?.etapa_id).toBe(voltou);
+    expect((await SD.comentariosListar('tarefas', id)).map(c => [c.autor_id, c.texto])).toEqual([['u-master', 'Tarefa devolvida: Falta o pedido de tutela.']]);
+    await expect(SD.tarefaDevolver(id, 'De novo')).rejects.toThrow(NAO_ESPERA_APROVACAO);
+  });
+
+  it('dada a tarefa na aprovação, quando o Mauro aprova, então ela vai para as concluídas, com a data de conclusão', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    const foi = await SD.tarefaAprovar(id);
+    // Então
+    expect(foi).toBe(await coluna(c => c.marco === 'concluido'));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
+  });
+
+  it('dada a tarefa sem aprovação, quando o Bruno a conclui, então ela vai direto para as concluídas (como antes)', async () => {
+    // Dado
+    const id = await pedidaAoBruno(false);
+    entrarComo('u-bruno');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
   });
 });

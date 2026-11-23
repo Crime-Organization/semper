@@ -1874,3 +1874,7 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* No menu da bolinha, a marca da função escolhida (#313); nas outras, o mesmo espaço, sem a marca. */
 .marca-da-funcao { display: inline-flex }
 .marca-da-funcao.apagada { visibility: hidden }
+/* A faixa da aprovação no cartão da tarefa (#313): o texto ocupa a linha, e os botões descem quando falta lugar (como a do arquivado). */
+.faixa-da-aprovacao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--botao-redondo-vao) calc(2 * var(--botao-redondo-vao)) }
+.faixa-da-aprovacao > span:first-child { flex: 1 1 var(--faixa-texto-minimo) }
+.faixa-da-aprovacao-botoes { display: flex; flex-wrap: wrap; gap: var(--botao-redondo-vao) }

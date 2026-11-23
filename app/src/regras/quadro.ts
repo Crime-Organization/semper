@@ -30,8 +30,18 @@ export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }>
 export const colunaComMarco = (colunas: { id: string; marco?: MarcoColuna | null }[], etapaId: string | null, marco: MarcoColuna) =>
   !!etapaId && colunas.some(c => c.id === etapaId && c.marco === marco);
 
-/** Só administradores excluem colunas, e coluna-marco nunca. */
-export const podeExcluirColuna = (c: { marco?: MarcoColuna | null }, ehAdmin: boolean) => ehAdmin && !c.marco;
+/** A coluna em que a tarefa espera a aprovação (#313): também é reconhecida pelo sistema, mas sem marco (a versão anterior do site
+ *  não conheceria um marco novo). */
+export const COLUNA_DE_APROVACAO = {
+  rotulo: 'Aprovação',
+  explicacao: 'Coluna da aprovação: a tarefa que precisa de aprovação, quando concluída, espera aqui até quem a pediu (ou um administrador) aprovar ou devolver. Pode ser renomeada, mas não excluída.'
+};
+type ColunaReconhecida = { marco?: MarcoColuna | null; de_aprovacao?: boolean };
+/** O que o menu da coluna explica: o que o marco dela faz, ou a aprovação (null: uma coluna comum). */
+export const explicacaoDaColuna = (c: ColunaReconhecida) => c.marco ? MARCOS[c.marco].explicacao : c.de_aprovacao ? COLUNA_DE_APROVACAO.explicacao : null;
+
+/** Só administradores excluem colunas, e coluna-marco (ou a de aprovação, #313) nunca. */
+export const podeExcluirColuna = (c: ColunaReconhecida, ehAdmin: boolean) => ehAdmin && !c.marco && !c.de_aprovacao;
 
 // ---------- grupos de colunas ----------
 /** Um trecho do quadro: as colunas de um grupo, na ordem delas (grupo null: as colunas sem grupo). */

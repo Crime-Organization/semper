@@ -22,10 +22,11 @@ import { depoisDeCriar, tarefaDoProcesso } from '../regras/origemDoCadastro';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import {
-  camposDaTarefa, comMaisUm, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, ligadasDaTarefa, ligadosDaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
+  camposDaTarefa, comMaisUm, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, ligadasDaTarefa, ligadosDaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, precisaDeAprovacao,
   primeiraEtapaComErroTarefa, semADemanda,
   semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
 } from '../regras/tarefa';
+import { aprovaATarefa, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { funcoesAoGravar } from '../regras/funcoesNaTarefa';
 import { continuaInicial, grupoDaContinuaAoGravar, opcoesDaContinua } from '../regras/demandaContinua';
@@ -243,6 +244,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
   // Solicitante (#313): qualquer um da equipe ativa, e quem já é o solicitante.
   const opcoesSolicitante = ctx.equipe.filter(m => m.ativo !== false || m.id === c.solicitanteId);
+  // Na tarefa que já precisa de aprovação, só quem aprova (o solicitante ou um administrador) muda a caixa e o solicitante (#313).
+  const aprovacaoTravada = !!alvo?.precisa_aprovacao && !aprovaATarefa(alvo, ctx.perfil);
   // Os participantes de agora, com a função de cada um (quem entrou ganha a padrão; quem saiu sai das funções).
   const mudarParticipantes = (participantes: string[]) => mudar({ participantes, funcoes: funcoesAoGravar(participantes, c.funcoes, funcoes, c.funcoes) });
 
@@ -365,11 +368,17 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         </select>
       </Campo>
       <Campo rotulo="Solicitante" para="solicitanteId" erro={erros.solicitanteId} dica="Quem pediu a tarefa. Ele passa a vê-la, mas não troca o responsável.">
-        <select {...propsDoCampo('solicitanteId', { dica: true, erro: erros.solicitanteId })} value={c.solicitanteId} onChange={e => mudar({ solicitanteId: e.target.value })}>
+        <select {...propsDoCampo('solicitanteId', { dica: true, erro: erros.solicitanteId })} value={c.solicitanteId} disabled={aprovacaoTravada}
+          onChange={e => mudar({ solicitanteId: e.target.value })}>
           <option value="">Não informado</option>
           {opcoesSolicitante.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
+      {/* A aprovação interna (#313): vem marcada quando o solicitante é outra pessoa que não o responsável, até a pessoa mexer nela. */}
+      <Escolhas rotulo="Aprovação" dica={aprovacaoTravada ? SO_QUEM_PEDIU_MUDA_A_APROVACAO : 'Ao concluir, a tarefa espera na coluna de aprovação até quem a pediu (ou um administrador) aprovar ou devolver.'}>
+        <label><input type="checkbox" checked={precisaDeAprovacao(c)} disabled={aprovacaoTravada}
+          onChange={e => mudar({ precisaAprovacao: e.target.checked })} />Precisa de aprovação</label>
+      </Escolhas>
       <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} adicionar="Adicionar participante"
         dica="Quem da equipe também trabalha na tarefa (e passa a vê-la), com a função de cada um. Ex.: Executa, para quem recebeu a tarefa para fazer."
         equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={mudarParticipantes}

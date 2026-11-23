@@ -35,7 +35,7 @@ export const ESCOLHER_ETIQUETAS = 'Escolher etiquetas';
 /** O nome da linha dos selos das etiquetas, para o leitor de tela. */
 export const SELOS_DAS_ETIQUETAS = 'Etiquetas';
 /** O tamanho do ícone do Desarquivar da faixa (o dos botões pequenos). */
-const ICONE_DA_FAIXA = 15;
+export const ICONE_DA_FAIXA = 15;
 
 interface PropsDoMolde {
   /** O começo da esquerda, sempre no canto de cima: o tipo do item; na anotação, o caminho da pasta. */

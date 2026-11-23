@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Membro, Tarefa } from '../dados/tipos';
 import {
-  CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, comMaisUm, continuaPelaDemanda, CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, dadosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA,
+  CAMPOS_TAREFA, valorLegivelTarefa, precisaDeAprovacao, camposDaTarefa, comMaisUm, continuaPelaDemanda, CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, dadosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA,
   demandasDaTarefa, demandasQueAbre, errosDaEtapaTarefa, estaNaTarefa, ETAPAS_TAREFA, ligadasDaTarefa, motivoSemMencaoNaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
   papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, soLeATarefaNaLista, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa,
   diligenciaAoGravar, MOTIVO_DA_DILIGENCIA_LONGO, SEM_MOTIVO_DA_DILIGENCIA, motivoDeSoLerATarefa, SO_LEITURA_DO_SOLICITANTE
@@ -39,7 +39,20 @@ describe('Cadastro de tarefa', () => {
     // Então
     expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
       participantes: ['u-bruno'], pessoas: ['p1'], demanda_ids: [], contrato_ids: [], processo_id: null, diligencia: false, diligencia_motivo: null,
-      solicitante_id: null, funcoes: {} });
+      solicitante_id: null, funcoes: {}, precisa_aprovacao: false });
+  });
+
+  it.each([
+    ['o solicitante é outra pessoa e a caixa não foi mexida', { solicitanteId: 'u-mauro', precisaAprovacao: null }, true],
+    ['o solicitante é o responsável', { solicitanteId: 'u-ana', precisaAprovacao: null }, false],
+    ['a pessoa desmarcou a caixa', { solicitanteId: 'u-mauro', precisaAprovacao: false }, false],
+    ['a pessoa marcou a caixa sem solicitante', { solicitanteId: '', precisaAprovacao: true }, true]
+  ])('dado que %s (#313), quando a tarefa é salva, então precisa de aprovação = %s', (_caso, mudanca, precisa) => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, ...mudanca });
+    // Então
+    expect(precisaDeAprovacao({ ...completa, ...mudanca })).toBe(precisa);
+    expect(dados.precisa_aprovacao).toBe(precisa);
   });
 
   it('dadas duas demandas e dois contratos (#283), quando a tarefa é salva, então vão as listas inteiras, na ordem e sem repetir', () => {
@@ -125,7 +138,7 @@ describe('Cadastro de tarefa', () => {
     // Então
     expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
       pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {},
-      grupoDaContinua: null });
+      grupoDaContinua: null, precisaAprovacao: false });
   });
 
   it('dada uma tarefa gravada sem as listas (numa importação), quando volta ao formulário ou ao cartão, então conta a demanda e o contrato principais', () => {
@@ -162,7 +175,7 @@ describe('Cadastro de tarefa', () => {
     // Então
     expect(ETAPAS_TAREFA.map(e => e.id)).toEqual(['tarefa', 'pessoas']);
     expect(ETAPAS_TAREFA[0].campos).toEqual(expect.arrayContaining(['titulo', 'prazo', 'hora', 'lembrete', 'demandas', 'contratos', 'processoId']));
-    expect(ETAPAS_TAREFA[1]).toMatchObject({ titulo: 'Pessoas', campos: ['responsavelId', 'solicitanteId', 'participantes', 'funcoes', 'pessoas'] });
+    expect(ETAPAS_TAREFA[1]).toMatchObject({ titulo: 'Pessoas', campos: ['responsavelId', 'solicitanteId', 'precisaAprovacao', 'participantes', 'funcoes', 'pessoas'] });
   });
 
   it('dado o lápis do cartão, quando ele mostra as seções, então as pessoas vêm antes da demanda, do contrato e do processo, como antes da #299', () => {

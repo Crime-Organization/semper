@@ -54,7 +54,8 @@ import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
 import { FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
-import { COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas } from '../regras/colunasPadrao';
+import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
+import { aprovaATarefa, colunaDaDevolucao, comentarioDaDevolucao, conferirMudancaDaAprovacao, esperaAprovacao, etapaComAprovacao, NAO_ESPERA_APROVACAO, SO_QUEM_PEDIU_APROVA } from '../regras/aprovacaoDaTarefa';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
@@ -85,7 +86,7 @@ import {
 } from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
-import { DIA, HORA } from '../ui/tempos';
+import { DIA, HORA, SEGUNDO } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -414,7 +415,7 @@ function demandaNova(): DemandaGuardada {
 function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
-    diligencia: false, diligencia_motivo: null, solicitante_id: null, funcoes: {},
+    diligencia: false, diligencia_motivo: null, solicitante_id: null, funcoes: {}, precisa_aprovacao: false,
     contrato_id: null, contrato_codigo: null, demanda_ids: [], contrato_ids: [], processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null, data_inicio: inicioDoCriadoEm(agora())
   };
@@ -653,18 +654,30 @@ bd.historicoTarefas ??= [];
 // Colunas padrão que chegaram depois (#314, #315): acrescentadas uma vez em cada sessão, sem repetir as que já existem, como as
 // migrações fazem com o escritório que já existe (e o gatilho, com o escritório novo).
 bd.colunasNovas ??= [];
-for (const { tarefa, modulo, novas } of COLUNAS_NOVAS_POR_TAREFA) {
-  if (bd.colunasNovas.includes(tarefa)) continue;
-  bd.colunasNovas.push(tarefa);
+/** Acrescenta ao quadro as colunas padrão que faltam (como privado.acrescentar_colunas_padrao). */
+function acrescentarColunasPadrao(modulo: Modulo, novas: ColunasNovas) {
   const grupos = bd.gruposDeColunas!.filter(g => g.modulo === modulo);
   const plano = planoDasColunasNovas(bd.colunas.filter(c => c.modulo === modulo), grupos, novas);
-  if (!plano) continue;
+  if (!plano) return;
   let grupoId = plano.grupoId;
   if (plano.grupoNovo) {
     grupoId = novoId();
     bd.gruposDeColunas!.push({ id: grupoId, ...plano.grupoNovo, comeca_fechado: false, modulo });
   }
   bd.colunas.push(...plano.colunas.map(c => ({ id: novoId(), ...c, criado_por: null, modulo, grupo_id: grupoId, marco: null })));
+}
+for (const { tarefa, modulo, novas } of COLUNAS_NOVAS_POR_TAREFA) {
+  if (bd.colunasNovas.includes(tarefa)) continue;
+  bd.colunasNovas.push(tarefa);
+  acrescentarColunasPadrao(modulo, novas);
+}
+// A coluna de aprovação das tarefas (#313), como privado.marcar_coluna_de_aprovacao: a "Aguardando: análise do solicitante" (ou a de
+// nome parecido); sem ela, uma nova depois de "Fazendo". Uma vez: depois, a marca fica, mesmo que a coluna seja renomeada.
+const colunasDeTarefas = () => bd.colunas.filter(c => c.modulo === 'tarefas');
+if (colunasDeTarefas().length && !colunasDeTarefas().some(c => c.de_aprovacao)) {
+  if (!colunaDeAprovacaoNoQuadro(colunasDeTarefas())) acrescentarColunasPadrao('tarefas', COLUNA_DE_APROVACAO_DAS_TAREFAS);
+  const aprovacao = colunaDeAprovacaoNoQuadro(colunasDeTarefas());
+  if (aprovacao) aprovacao.de_aprovacao = true;
 }
 // Sessões abertas antes da data de início (#357): cada demanda começa no dia em que foi criada (como a migração data_de_inicio).
 bd.demandas.forEach(d => { d.data_inicio ??= inicioDoCriadoEm(d.criado_em); });
@@ -689,6 +702,8 @@ bd.tarefas.forEach(t => { t.data_inicio ??= inicioDoCriadoEm(t.criado_em); });
 bd.tarefas.forEach(t => { t.diligencia ??= false; t.diligencia_motivo ??= null; });
 // Sessões abertas antes das funções e do solicitante (#313): sem solicitante; os participantes ficam com a função padrão (como a migração).
 bd.tarefas.forEach(t => { t.solicitante_id ??= null; t.funcoes = funcoesDaTarefaNoFalso(t); });
+// Sessões abertas antes da aprovação (#313): a tarefa não precisa de aprovação (como o padrão da migração).
+bd.tarefas.forEach(t => { t.precisa_aprovacao ??= false; });
 bd.tarefas.forEach(t => { t.concluida_em ??= bd.colunas.find(c => c.id === t.etapa_id)?.marco === 'concluido' ? t.atualizado_em : null; });
 // Tempo de exemplo: "Emitir a GRU" (Mauro e Bruno) e "Organizar a pasta", concluída, com um ajuste do Bruno.
 if (!bd.tempos) {
@@ -1429,6 +1444,21 @@ function filtrarTarefas(f: FiltroTarefas = {}) {
     && (!f.etiqueta || temEtiqueta('tarefas', x.id, f.etiqueta)) && inicioNosLimites(x.data_inicio, f)
     && (!t || buscaTarefa(x).includes(t)));
 }
+/** Leva a tarefa à coluna, com o histórico. Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de
+ *  conclusão; sair dela, apaga. */
+function gravarColunaDaTarefa(t: TarefaGuardada, etapa: string | null, ordem: number | null) {
+  historicoTarefa(t, { etapa_id: etapa });
+  const concluida = bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
+  Object.assign(t, { etapa_id: etapa, etapa_ordem: ordem, atualizado_em: agora(), atualizado_por: eu, concluida_em: concluida ? t.concluida_em ?? agora() : null });
+}
+/** Como privado.tarefa_que_aprovo (#313): a tarefa que espera a aprovação de quem está logado, ou a recusa do banco. */
+function tarefaQueAprovo(id: string): TarefaGuardada {
+  const t = bd.tarefas!.find(x => x.id === id);
+  if (!t) throw new Error('Tarefa não encontrada neste escritório.');
+  if (!aprovaATarefa(t, membroLogado())) throw new Error(SO_QUEM_PEDIU_APROVA);
+  if (!esperaAprovacao(t, colunasDeTarefas())) throw new Error(NAO_ESPERA_APROVACAO);
+  return t;
+}
 const acharTarefa = (id: string) => {
   const t = bd.tarefas!.find(x => x.id === id);
   if (!t) throw new Error('Tarefa não encontrada.');
@@ -1493,6 +1523,8 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
     if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`);
     t.participantes = lista;
   }
+  // Como o gatilho aa_aprovacao (#313): só quem aprova tira a aprovação ou troca o solicitante da tarefa que precisa de aprovação.
+  if (atual) conferirMudancaDaAprovacao(t, atual, membroLogado());
   // Como o gatilho preparar_pedido (#313): o solicitante que entra é da equipe; cada participante tem uma função (sem ela, a padrão).
   if (t.solicitante_id && t.solicitante_id !== atual?.solicitante_id && !EQUIPE.some(m => m.id === t.solicitante_id)) {
     throw new Error('O solicitante precisa ser alguém da equipe do escritório.');
@@ -3532,6 +3564,8 @@ export const SD: Dados = {
   async tarefaCriar(dados) {
     const t: TarefaGuardada = { ...tarefaNova(), ...prepararTarefa(naContinuaSemDemanda({ pessoas: [], participantes: [], ...dados })) as Partial<TarefaGuardada>,
       id: novoId(), codigo: codigo() };
+    // Como o gatilho aa_aprovacao (#313): também quem cria já concluída, sem aprovar.
+    t.etapa_id = etapaComAprovacao(t, t.etapa_id, colunasDeTarefas(), membroLogado());
     bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null); auditar('tarefas', 'inclusao', t); gravar();
     return espera({ id: t.id, codigo: t.codigo });
   },
@@ -3575,10 +3609,25 @@ export const SD: Dados = {
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
     if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandasDaTarefaNoFalso(t), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
-    historicoTarefa(t, { etapa_id: etapaId });
-    // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
-    const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
-    Object.assign(t, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora(), concluida_em: concluida ? t.concluida_em ?? agora() : null }); gravar();
+    // Como o gatilho aa_aprovacao (#313): a que precisa de aprovação, concluída por quem não aprova, vai para a coluna de aprovação.
+    const etapa = etapaComAprovacao(t, etapaId, colunasDeTarefas(), membroLogado());
+    gravarColunaDaTarefa(t, etapa, ordem); gravar();
+    return etapa;   // sem a espera das leituras: como antes, a gravação responde já
+  },
+  // Como public.tarefa_aprovar e public.tarefa_devolver (#313).
+  async tarefaAprovar(id) {
+    const t = tarefaQueAprovo(id), fim = colunasDeTarefas().find(c => c.marco === 'concluido');
+    if (!fim) return erro('O quadro de tarefas não tem a coluna das concluídas.');
+    gravarColunaDaTarefa(t, fim.id, Date.now() / SEGUNDO); gravar();
+    return espera(fim.id);
+  },
+  async tarefaDevolver(id, comentario) {
+    const t = tarefaQueAprovo(id), texto = comentarioDaDevolucao(comentario), volta = colunaDaDevolucao(colunasDeTarefas());
+    if (!volta) return erro('O quadro de tarefas não tem a coluna para onde a tarefa volta.');
+    const c = { id: novoId(), modulo: 'tarefas' as const, cartao_id: id, autor_id: eu, ...prepararComentario('tarefas', texto, id), criado_em: agora(), editado_em: null };
+    bd.comentarios!.push(c); mensagensDoComentario(c);
+    gravarColunaDaTarefa(t, volta.id, Date.now() / SEGUNDO); gravar();
+    return espera(volta.id);
   },
   tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
   tarefasDaPessoa: (pessoaId, perfilId = null) => espera(bd.tarefas!.map(tarefaLigada(pessoaId, perfilId)).filter(t => t.papeis.length)
@@ -5104,7 +5153,9 @@ export const SD: Dados = {
   async colunaRenomear(id, nome) { const c = bd.colunas.find(x => x.id === id); if (c) c.nome = nome; gravar(); },
   async colunaOrdenar(id, ordem) { const c = bd.colunas.find(x => x.id === id); if (c) c.ordem = ordem; gravar(); },
   async colunaExcluir(id) {
-    if (bd.colunas.find(c => c.id === id)?.marco) return erro('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
+    const col = bd.colunas.find(c => c.id === id);
+    if (col?.marco) return erro('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
+    if (col?.de_aprovacao) return erro('A coluna de aprovação das tarefas não pode ser excluída.');
     for (const c of bd.compromissos!) if (c.etapa_id === id) { historicoCompromisso(c, { etapa_id: null }); c.etapa_id = null; }
     for (const p of bd.processos!) if (p.etapa_id === id) { historicoProcesso(p, { etapa_id: null }); p.etapa_id = null; }
     for (const d of bd.demandas!) if (d.etapa_id === id) { historicoDemanda(d, { etapa_id: null }); d.etapa_id = null; }

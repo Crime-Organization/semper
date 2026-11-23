@@ -628,7 +628,7 @@ async function comAsOutrasDemandas(linhas: (Omit<TarefaLista, 'equipes_das_outra
 // A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
 const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, continua, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
 const CONTRATO_DA_TAREFA = `codigo, servico, ${EQUIPE_DO_CONTRATO}`;
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, solicitante_id, funcoes, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, solicitante_id, funcoes, precisa_aprovacao, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, demanda_ids, contrato_ids, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'codigos_das_demandas:tarefa_demandas(demanda_id, codigo), codigos_dos_contratos:tarefa_contratos(contrato_id, codigo), '
@@ -2040,9 +2040,15 @@ export const SD: Dados = {
     const excluidas = data.length;
     return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só tarefas arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
   },
+  // Devolve a coluna em que a tarefa ficou: a que precisa de aprovação, concluída por quem não aprova, vai para a de aprovação (#313).
   async tarefaMover(id, etapaId, ordem) {
-    conferirQueMudou((await rodar(sb.from('tarefas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
+    const { data } = await rodar(sb.from('tarefas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('etapa_id').maybeSingle());
+    conferirQueMudou(data);
+    return (data as { etapa_id: string | null }).etapa_id;
   },
+  // A aprovação interna (#313): public.tarefa_aprovar e public.tarefa_devolver conferem quem aprova e devolvem a coluna nova.
+  tarefaAprovar: id => rpc('tarefa_aprovar', { p_id: id }),
+  tarefaDevolver: (id, comentario) => rpc('tarefa_devolver', { p_id: id, p_comentario: comentario }),
   async tarefaHistorico(id) {
     const { data } = await rodar(sb.from('tarefa_historico').select('id, alteracoes, feito_por, em')
       .eq('tarefa_id', id).order('em', { ascending: false }).limit(100));
@@ -2318,7 +2324,7 @@ export const SD: Dados = {
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {
     const [{ data: colunas }, { data: ocultas }] = await Promise.all([
-      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco, grupo_id').eq('modulo', modulo).order('ordem').order('id')),
+      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco, grupo_id, de_aprovacao').eq('modulo', modulo).order('ordem').order('id')),
       rodar(sb.from('quadro_colunas_ocultas').select('coluna_id'))
     ]);
     const o = new Set(ocultas.map((x: { coluna_id: string }) => x.coluna_id));

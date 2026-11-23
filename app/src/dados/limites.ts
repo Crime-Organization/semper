@@ -54,7 +54,9 @@ export const DEMANDAS_RELACIONADAS = 200;
 export const TAMANHO_TAREFA = {
   titulo: 300, descricao: 4000,
   /** O motivo da diligência (#313), exigido pelo banco (supabase/migrations/20261122232657_tarefa_diligencia.sql). */
-  motivoDaDiligencia: 1000
+  motivoDaDiligencia: 1000,
+  /** O comentário de quem devolve a tarefa na aprovação (#313), exigido pelo banco (supabase/migrations/20261123013306_tarefa_aprovacao.sql). */
+  devolucao: 1000
 };
 /** O nome de cada função dos participantes da tarefa (#313), exigido pelo banco (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql). */
 export const TAMANHO_FUNCAO_NA_TAREFA = { nome: 40 };

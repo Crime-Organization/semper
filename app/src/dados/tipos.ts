@@ -203,7 +203,11 @@ export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao:
 
 /** Código fixo das colunas que marcam um ponto do fluxo (regras/quadro.ts). */
 export type MarcoColuna = 'assinado' | 'inicio' | 'concluido' | 'contrato_fechado' | 'aguardando_assinatura';
-export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null }
+export interface Coluna {
+  id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null;
+  /** A coluna em que a tarefa espera a aprovação (#313): uma só, no quadro de tarefas; renomeia-se, mas não se exclui. */
+  de_aprovacao?: boolean;
+}
 /** Grupo de colunas de um quadro, que abre e fecha. Do escritório: só os administradores mudam. comeca_fechado: aparece fechado até a pessoa abrir. */
 export interface GrupoDeColunas { id: string; nome: string; ordem: number; comeca_fechado: boolean }
 
@@ -445,6 +449,11 @@ export interface Tarefa {
    * entra sem ela e tira quem sai. A função é só um rótulo: não muda quem vê nem quem altera.
    */
   funcoes: Record<string, string>;
+  /**
+   * Precisa de aprovação (#313): concluída por quem não aprova (o solicitante ou um administrador), a tarefa espera na coluna de
+   * aprovação até ser aprovada ou devolvida.
+   */
+  precisa_aprovacao: boolean;
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
   /** A demanda principal: a primeira de demanda_ids (a versão anterior do site só conhece esta). */
@@ -500,7 +509,7 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'
-  | 'diligencia' | 'diligencia_motivo' | 'solicitante_id' | 'funcoes'>>;
+  | 'diligencia' | 'diligencia_motivo' | 'solicitante_id' | 'funcoes' | 'precisa_aprovacao'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome' | 'diligencia'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
@@ -729,7 +738,12 @@ export interface DadosTarefas {
   tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
   tarefasExcluir(ids: string[]): Promise<Exclusao>;
-  tarefaMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  /** Devolve a coluna em que a tarefa ficou (a de aprovação, se ela precisa de aprovação e quem conclui não aprova, #313). */
+  tarefaMover(id: string, etapaId: string | null, ordem: number | null): Promise<string | null>;
+  /** Aprova a tarefa que espera na coluna de aprovação (só o solicitante ou um administrador): ela vai para as concluídas. Devolve a coluna. */
+  tarefaAprovar(id: string): Promise<string>;
+  /** Devolve a tarefa que espera aprovação, com o comentário (obrigatório) no cartão: ela volta para "Fazendo". Devolve a coluna. */
+  tarefaDevolver(id: string, comentario: string): Promise<string>;
   tarefaHistorico(id: string): Promise<Historico[]>;
   /** Tarefas em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também as em que é responsável ou participante. */
   tarefasDaPessoa(pessoaId: string, perfilId?: string | null): Promise<TarefaLigada[]>;

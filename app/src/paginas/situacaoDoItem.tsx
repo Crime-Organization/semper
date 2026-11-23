@@ -12,6 +12,7 @@ import type { Coluna } from '../dados';
 import {
   avisoDaConclusao, circuloDoItem, colunaDaAcao, CONCLUIDA_NO_ITEM, type AcaoDeConclusao, type ModuloQueConclui
 } from '../regras/conclusaoNoCartao';
+import { ENVIADA_PARA_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { ConcluirNaMiniatura } from '../ui/quadro/ConcluirNaMiniatura';
 import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
@@ -32,10 +33,11 @@ export interface ItemQueMuda {
 
 type Navegar = (para: string) => void;
 
-/** Como cada módulo grava a coluna nova. */
-const MOVER: Record<ModuloQueConclui, (id: string, etapa: string | null, ordem: number | null) => Promise<void>> = {
+/** Como cada módulo grava a coluna nova, e a coluna em que o item ficou: a tarefa que precisa de aprovação, concluída por quem não
+ *  aprova, fica na coluna de aprovação (#313). */
+const MOVER: Record<ModuloQueConclui, (id: string, etapa: string | null, ordem: number | null) => Promise<string | null>> = {
   tarefas: (id, etapa, ordem) => SD.tarefaMover(id, etapa, ordem),
-  demandas: (id, etapa, ordem) => SD.demandaMover(id, etapa, ordem)
+  demandas: (id, etapa, ordem) => SD.demandaMover(id, etapa, ordem).then(() => etapa)
 };
 
 /** O que cada módulo oferece depois de mudar de coluna: a tarefa, cumprir (ou reabrir) o prazo do processo que ela cumpre e, depois,
@@ -60,16 +62,17 @@ export const oferecerDepoisDeMudar = (modulo: ModuloQueConclui, item: ItemQueMud
 /**
  * Leva o item para a coluna `etapa` (no fim da ordem manual), com o aviso e o Desfazer (que o devolve para onde estava). Depois,
  * `depois` (o cartão se relê; no quadro, a miniatura muda de coluna na tela; na tabela, a página relê), com a ordem e a coluna
- * novas, e a oferta do módulo. Devolve se gravou; se o banco recusa, avisa o erro e não faz mais nada.
+ * novas, e a oferta do módulo. Se o banco deixou o item em outra coluna (a tarefa que vai para a aprovação, #313), vale a coluna em
+ * que ele ficou, com o aviso dela. Devolve se gravou; se o banco recusa, avisa o erro e não faz mais nada.
  */
 export async function mudarSituacaoDoItem(modulo: ModuloQueConclui, item: ItemQueMuda, etapa: string | null, aviso: string,
   navegar: Navegar, depois?: (ordem: number, etapa: string | null) => unknown): Promise<boolean> {
   const ordem = ordemNoFim();
   try {
-    await MOVER[modulo](item.id, etapa, ordem);
-    feito(aviso, 'mudança de situação', async () => { await MOVER[modulo](item.id, item.etapa_id, item.etapa_ordem); });
-    await depois?.(ordem, etapa);
-    await OFERTA[modulo](item, etapa, navegar);
+    const ficou = await MOVER[modulo](item.id, etapa, ordem);
+    feito(ficou === etapa ? aviso : ENVIADA_PARA_APROVACAO, 'mudança de situação', async () => { await MOVER[modulo](item.id, item.etapa_id, item.etapa_ordem); });
+    await depois?.(ordem, ficou);
+    await OFERTA[modulo](item, ficou, navegar);
     return true;
   } catch (e) {
     falha(e);

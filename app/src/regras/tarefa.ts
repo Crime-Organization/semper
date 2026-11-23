@@ -11,6 +11,7 @@ import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeIn
 import { estaPeloGrupo } from './gruposDaEquipe';
 import { SO_LEITURA_FORA_DO_CARTAO } from './equipeVeTudo';
 import { ehContinua, SEM_GRUPO_DA_CONTINUA } from './demandaContinua';
+import { aprovacaoPadrao } from './aprovacaoDaTarefa';
 
 /** Rótulo das tarefas fora das colunas do quadro. */
 export const SEM_SITUACAO_TAREFA = 'Sem situação';
@@ -51,10 +52,15 @@ export interface CamposTarefa {
    * novo e só vale sem demanda; null: não se pergunta (ao mudar uma tarefa que já existe).
    */
   grupoDaContinua: string | null;
+  /**
+   * Precisa de aprovação (#313). null: segue o padrão (marcada quando o solicitante é outra pessoa que não o responsável), até a
+   * pessoa mexer na caixa.
+   */
+  precisaAprovacao: boolean | null;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
   titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: '',
-  diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {}, grupoDaContinua: null
+  diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {}, grupoDaContinua: null, precisaAprovacao: null
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -110,9 +116,14 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
     // Só as funções de quem é participante; quem ficou sem função ganha a padrão no banco.
     funcoes: Object.fromEntries(participantes.flatMap(p => c.funcoes[p] ? [[p, c.funcoes[p]]] : [])),
     pessoas: [...new Set(escolhidos(c.pessoas))], demanda_ids: [...new Set(c.demandas)], contrato_ids: [...new Set(c.contratos)],
-    processo_id: c.processoId || null, diligencia: c.diligencia, diligencia_motivo: c.diligencia ? c.motivoDaDiligencia.trim() : null
+    processo_id: c.processoId || null, diligencia: c.diligencia, diligencia_motivo: c.diligencia ? c.motivoDaDiligencia.trim() : null,
+    precisa_aprovacao: precisaDeAprovacao(c)
   };
 }
+
+/** A caixa "Precisa de aprovação" (#313): a escolha da pessoa ou, sem ela, o padrão (aprovacaoPadrao). */
+export const precisaDeAprovacao = (c: Pick<CamposTarefa, 'precisaAprovacao' | 'solicitanteId' | 'responsavelId'>) =>
+  c.precisaAprovacao ?? aprovacaoPadrao(c.solicitanteId, c.responsavelId);
 
 // ---------- a diligência (#313) ----------
 /** A recusa da diligência sem motivo (a mesma do banco). */
@@ -188,7 +199,7 @@ export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
   demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || '',
   diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || '', solicitanteId: t.solicitante_id ?? '', funcoes: { ...t.funcoes },
-  grupoDaContinua: null
+  grupoDaContinua: null, precisaAprovacao: !!t.precisa_aprovacao
 });
 
 // ---------- etapas do cadastro ----------
@@ -207,8 +218,8 @@ export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
     campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'diligencia', 'motivoDaDiligencia', 'demandas', 'grupoDaContinua', 'contratos', 'processoId'],
     tituloNoLapis: 'Diligência, demanda, contrato e processo' },
-  { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem a pediu, quem da equipe participa (e com que função) e, se houver, as pessoas do cadastro ligadas a ela.',
-    campos: ['responsavelId', 'solicitanteId', 'participantes', 'funcoes', 'pessoas'] }
+  { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem a pediu (e se ela precisa da aprovação dele), quem da equipe participa (e com que função) e, se houver, as pessoas do cadastro ligadas a ela.',
+    campos: ['responsavelId', 'solicitanteId', 'precisaAprovacao', 'participantes', 'funcoes', 'pessoas'] }
 ];
 /**
  * A ordem das seções no lápis do cartão: as pessoas antes da demanda, do contrato e do processo, como era antes de a #299 juntar as
@@ -282,10 +293,13 @@ export const CAMPOS_TAREFA: Record<string, string> = {
   // A diligência (#313)
   diligencia: 'Diligência', diligencia_motivo: 'Motivo da diligência',
   // O solicitante e as funções dos participantes (#313)
-  solicitante_id: 'Solicitante', funcoes: 'Funções'
+  solicitante_id: 'Solicitante', funcoes: 'Funções',
+  // A aprovação interna (#313)
+  precisa_aprovacao: 'Precisa de aprovação'
 };
 /** Os campos só da tarefa, como aparecem no cartão e no histórico (os outros, como os da demanda). */
-const FORMATOS_DA_TAREFA: Record<string, (v: unknown) => string> = { diligencia: v => v ? 'Sim' : 'Não' };
+const simOuNao = (v: unknown) => v ? 'Sim' : 'Não';
+const FORMATOS_DA_TAREFA: Record<string, (v: unknown) => string> = { diligencia: simOuNao, precisa_aprovacao: simOuNao };
 /** Como cada campo aparece no cartão e no histórico (o prazo como dia/mês/ano, a hora como hh:mm, o lembrete por extenso, vazio como traço), igual às demandas. */
 export const valorLegivelTarefa = (campo: string, v: unknown) =>
   campo in FORMATOS_DA_TAREFA && v !== null && v !== undefined ? FORMATOS_DA_TAREFA[campo](v) : valorLegivelDemanda(campo, v);
