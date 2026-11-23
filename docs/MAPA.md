@@ -980,7 +980,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meu-tempo.spec.ts`
 - `/tarefas/nova/` (FormularioTarefa): [Tarefas](#tarefas)
   - escrevem o endereço: (app/) src/paginas/CartaoContrato.tsx, src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/Inicio.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/Tarefas.tsx, src/regras/novoNaAnotacao.test.ts, src/regras/novoNaAnotacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/LigarDoModulo.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/copiar-tarefa.spec.ts e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 
 <a id="sem-assunto"></a>
 ## Sem assunto

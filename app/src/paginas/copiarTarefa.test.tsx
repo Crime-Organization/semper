@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Copiar a tarefa para outra demanda (#312), com o banco fictício: a cópia nasce na demanda com os checklists desmarcados (e os
-// prazos dos itens), e a original não muda; se algo falhar no meio, a cópia sai inteira.
+// prazos dos itens), com a diligência, o solicitante e as funções (#414), e a original não muda; se algo falhar no meio, a cópia
+// sai inteira.
 import { describe, expect, it, vi } from 'vitest';
 import { SD } from '../dados';
 import { copiarTarefa } from './copiarTarefa';
@@ -33,6 +34,23 @@ describe('A cópia da tarefa em outra demanda (#312)', () => {
     const [daOriginal] = await SD.listasDoCartao('tarefas', original);
     expect(daOriginal.itens[0].feito_em).not.toBeNull();
     expect((await SD.tarefaObter(original))?.demanda_id).toBe(daOriginal0);
+  });
+
+  it('dada uma tarefa com diligência, solicitante e funções, quando é copiada, então a cópia tem a mesma diligência (com o motivo), o mesmo solicitante e as mesmas funções (#414)', async () => {
+    // Dado: a Ana executa e o Bruno acompanha; quem pediu foi o Bruno
+    const { id: original } = await SD.tarefaCriar({
+      titulo: 'Protocolar a petição', responsavel_id: 'u-master', participantes: ['u-ana', 'u-bruno'], pessoas: [],
+      diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'u-bruno',
+      funcoes: { 'u-ana': 'fn-executa', 'u-bruno': 'fn-acompanha' }
+    });
+    const [demanda] = await SD.demandasParaLigar({});
+    // Quando
+    const copia = await copiarTarefa(original, demanda);
+    // Então
+    expect(await SD.tarefaObter(copia.id)).toMatchObject({
+      diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'u-bruno',
+      participantes: ['u-ana', 'u-bruno'], funcoes: { 'u-ana': 'fn-executa', 'u-bruno': 'fn-acompanha' }
+    });
   });
 
   it('dado o banco recusando o checklist, quando a tarefa é copiada, então avisa o erro e a cópia pela metade sai', async () => {
