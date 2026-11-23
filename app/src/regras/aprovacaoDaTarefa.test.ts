@@ -114,6 +114,14 @@ describe('Quem muda a caixa e o solicitante', () => {
     // Então
     expect(() => conferirMudancaDaAprovacao({ solicitante_id: 'u-bruno' }, { ...PEDIDA, precisa_aprovacao: false }, BRUNO)).not.toThrow();
   });
+
+  it('dada a tarefa sem aprovação, quando quem executa marca a caixa (com ou sem trocar o solicitante), então pode, como o lápis mostra', () => {
+    // Dado
+    const semAprovacao = { ...PEDIDA, precisa_aprovacao: false };
+    // Então
+    expect(() => conferirMudancaDaAprovacao({ precisa_aprovacao: true }, semAprovacao, BRUNO)).not.toThrow();
+    expect(() => conferirMudancaDaAprovacao({ precisa_aprovacao: true, solicitante_id: 'u-mauro' }, semAprovacao, BRUNO)).not.toThrow();
+  });
 });
 
 describe('A devolução', () => {

@@ -9733,6 +9733,17 @@ describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
     expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
   });
 
+  it('dada a tarefa sem aprovação, quando o Bruno (quem executa) marca a caixa pelo lápis, então grava; depois, ele não a desmarca', async () => {
+    // Dado
+    const id = await pedidaAoBruno(false);
+    entrarComo('u-bruno');
+    // Quando
+    await SD.tarefaAtualizar(id, { precisa_aprovacao: true });
+    // Então
+    expect((await SD.tarefaObter(id))?.precisa_aprovacao).toBe(true);
+    await expect(SD.tarefaAtualizar(id, { precisa_aprovacao: false })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+  });
+
   it('dada a tarefa sem aprovação, quando o Bruno a conclui, então ela vai direto para as concluídas (como antes)', async () => {
     // Dado
     const id = await pedidaAoBruno(false);

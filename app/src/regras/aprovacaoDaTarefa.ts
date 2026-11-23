@@ -67,14 +67,14 @@ export function etapaComAprovacao(t: ComAprovacao, etapa: string | null, colunas
 }
 
 /**
- * Confere a gravação que mexe na caixa ou no solicitante (como o banco): com a aprovação, antes ou depois, só quem aprova (pelo
- * solicitante de antes) muda um dos dois. Recusa com a mensagem do banco.
+ * Confere a gravação que mexe na caixa ou no solicitante (como o banco): na tarefa que já precisa de aprovação, só quem aprova (pelo
+ * solicitante de antes) desmarca a caixa ou troca o solicitante. Na que ainda não precisa, quem a altera liga a aprovação (o lápis só
+ * trava a caixa marcada). Recusa com a mensagem do banco.
  */
 export function conferirMudancaDaAprovacao(novo: Partial<ComAprovacao>, antes: ComAprovacao, quem: QuemAprova) {
-  const precisa = novo.precisa_aprovacao ?? antes.precisa_aprovacao;
   const mudou = (novo.precisa_aprovacao !== undefined && novo.precisa_aprovacao !== antes.precisa_aprovacao)
     || (novo.solicitante_id !== undefined && (novo.solicitante_id ?? null) !== (antes.solicitante_id ?? null));
-  if ((antes.precisa_aprovacao || precisa) && mudou && !aprovaATarefa(antes, quem)) throw new Error(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+  if (antes.precisa_aprovacao && mudou && !aprovaATarefa(antes, quem)) throw new Error(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
 }
 
 /** O comentário da devolução como o banco grava (sem espaços nas pontas), ou a recusa. */

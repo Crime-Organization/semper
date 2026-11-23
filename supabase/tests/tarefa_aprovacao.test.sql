@@ -125,6 +125,11 @@ insert into public.tarefas (id, titulo, responsavel_id, solicitante_id, criado_p
 select pg_temp.entrar(2);
 update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000002';
 select is(pg_temp.onde('70000000-0000-0000-0000-000000000002'), 'Concluída', 'Sem a caixa, concluir vai direto');
+-- Quando a Bia (quem executa) marca a caixa na tarefa que ainda não precisa de aprovação, então pode (o lápis deixa); desmarcar, não
+select lives_ok($$ update public.tarefas set precisa_aprovacao = true where id = '70000000-0000-0000-0000-000000000002' $$,
+  'Quem executa liga a aprovação');
+select throws_ok($$ update public.tarefas set precisa_aprovacao = false where id = '70000000-0000-0000-0000-000000000002' $$, 'P0001',
+  'Só quem pediu a tarefa ou um administrador muda a aprovação ou o solicitante dela.', 'Ligada, quem executa não a desliga');
 select throws_ok($$ select public.tarefa_aprovar('70000000-0000-0000-0000-000000000002') $$, 'P0001',
   'Só quem pediu a tarefa ou um administrador aprova ou devolve.', 'Quem não pediu não aprova');
 
