@@ -233,12 +233,12 @@ export const ASSUNTOS: Assunto[] = [
       'criar-processo-e-tarefa-ligados', 'prazo-da-tarefa',
       'historico_processos_sem_nome_ordem', 'campos_de_processo', 'andamentos_e_prazos', 'painel_de_processos', 'painel_com_tipo_do_andamento', 'processo_demandas',
       'advogado_entra_no_processo', 'andamentos_tipo_e_comentarios_de_processos', 'colunas_de_acompanhamento_dos_processos', 'ligar_processo_existente',
-      'polo_criminal', 'processo_partes_recursos_e_tipos'
+      'polo_criminal', 'processo_partes_recursos_e_tipos', 'investigacaoNoAdministrativo', 'investigacao_no_processo_administrativo'
     ],
     tabelas: ['processos', 'processo_andamentos', 'processo_campos', 'processo_clientes', 'processo_demandas', 'processo_etiquetas', 'processo_historico',
       'processo_opcoes', 'processo_partes', 'processo_prazos'],
     dados: ['DadosProcessos', 'DadosAcompanhamento'],
-    rotas: ['processos', 'processos/judicial', 'processos/administrativo', 'processos/extrajudicial', 'processos/investigacao', 'processos/novo'],
+    rotas: ['processos', 'processos/judicial', 'processos/administrativo', 'processos/novo'],
     armadilhas: [
       'Cada tipo tem o seu quadro (rota própria, `key` em `App.tsx`): mudança no quadro vale para todos os tipos de `TIPOS_PROCESSO`.',
       'Tipo de processo novo ou que sai: `TIPOS_PROCESSO` (`regras/processo.ts`), as rotas em `App.tsx`, os links em `ui/Casca.tsx`, os grupos em `regras/buscaGeral.ts`, `ui/BuscaGeral.tsx` (`ICONE_DO_GRUPO`) e `ui/fontesDaBuscaGeral.ts`, `ONDE_APARECE` em `regras/camposDeProcesso.ts`, `regras/graficosDeProcessos.ts`, `regras/ajuda.ts` e `regras/enderecosAntigos.ts` (veja [Rotas e endereços](#rotas)).',
