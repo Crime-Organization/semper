@@ -9,11 +9,14 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
+import { DEMANDA_DO_COMPROMISSO, GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
+import { somarDias } from '../regras/prazos';
+import { fmtData } from '../regras/pessoa';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
+import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS } from '../regras/repeticao';
 import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
@@ -2084,6 +2087,184 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         });
       });
 
+      describe('a demanda de cada data do compromisso que se repete (#307, parte B)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        // Uma reunião do Bruno daqui a 5 dias, com a Ana, um cliente e ligada a um contrato, que se repete toda semana.
+        const semanal = async () => {
+          const { id: cliente } = await criar(marca());
+          const contrato = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+          const r = await reuniao({ data: somarDias(hojeISO(), 5), hora: '10:00', responsavel_id: 'u-bruno', participantes: ['u-ana'], pessoas: [cliente] });
+          await SD.compromissoLigar(r.id, 'contratos', contrato.id);
+          const repetidos = await SD.compromissoRepetir(r.id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: null });
+          return { ...r, cliente, contrato, segunda: repetidos.ids[0] };
+        };
+
+        it('quando a repetição é marcada para gerar demanda 7 dias antes, então nasce a da data que já está no prazo, ligada ao contrato e às pessoas', async () => {
+          // Dado
+          const { id, codigo, cliente, contrato, segunda } = await semanal();
+          // Quando
+          const nascidas = await SD.compromissoGerarDemandas(id, 7);
+          // Então
+          expect(nascidas).toHaveLength(1);
+          const d = await SD.demandaObter(nascidas[0]);
+          const c = await SD.compromissoObter(id);
+          expect(d).toMatchObject({ prazo: somarDias(hojeISO(), 5), responsavel_id: 'u-bruno', colaboradores: ['u-ana'], contrato_id: contrato.id });
+          expect(d!.titulo).toBe(`${c!.titulo} (${fmtData(somarDias(hojeISO(), 5))})`);
+          expect(d!.clientes.map(p => p.id)).toEqual([cliente]);
+          expect(c!.demanda_gerada_id).toBe(nascidas[0]);
+          expect(c!.repeticao?.demanda_dias_antes).toBe(7);
+          expect((await SD.compromissoItens(id)).visiveis.map(i => i.modulo).sort()).toEqual(['contratos', 'demandas']);
+          expect((await SD.compromissoObter(segunda))!.demanda_gerada_id).toBeNull();
+          expect(codigo).toBeTruthy();
+          // E marcar de novo não gera em dobro
+          expect(await SD.compromissoGerarDemandas(id, 7)).toEqual([]);
+        });
+
+        it('quando a data muda e quando o compromisso é cancelado, então o prazo acompanha e o responsável é avisado em Mensagens', async () => {
+          // Dado
+          const { id } = await semanal();
+          const [demanda] = await SD.compromissoGerarDemandas(id, 7);
+          const nova = somarDias(hojeISO(), 6);
+          // Quando
+          await SD.compromissoAtualizar(id, { data: nova });
+          const cancelado = (await SD.colunasListar('compromissos')).find(c => c.nome === 'Cancelado')!;
+          await SD.compromissoMover(id, cancelado.id, null);
+          // Então
+          expect((await SD.demandaObter(demanda))!.prazo).toBe(nova);
+          entrarComo('u-bruno');
+          const avisos = (await SD.mensagensListar()).filter(m => m.tipo === 'demandaDoCompromisso').map(m => m.demandaDoCompromisso!);
+          expect(avisos.map(a => a.aviso).sort()).toEqual(['cancelado', 'data_mudou', 'demanda_nova']);
+          expect(avisos.every(a => a.demanda?.id === demanda)).toBe(true);
+          expect(avisos.find(a => a.aviso === 'data_mudou')).toMatchObject({ data_antes: somarDias(hojeISO(), 5), data_nova: nova });
+          expect(await SD.mensagensNaoLidas()).toBeGreaterThanOrEqual(3);
+        });
+
+        it('quando quem não muda o compromisso, ou o que não se repete, tenta marcar, então é recusado', async () => {
+          // Dado
+          const { id } = await semanal(), { id: avulsa } = await reuniao({ responsavel_id: 'u-master' });
+          // Quando / Então
+          await expect(SD.compromissoGerarDemandas(avulsa, 7)).rejects.toThrow('Só o compromisso que se repete gera demanda.');
+          entrarComo('u-bruno');
+          await expect(SD.compromissoGerarDemandas(avulsa, 7)).rejects.toThrow('Você não tem permissão para fazer isso.');
+          entrarComo('u-master');
+          await expect(SD.compromissoGerarDemandas(id, DEMANDA_DO_COMPROMISSO.diasMaximos + 1)).rejects.toThrow('Algum campo está em formato inválido.');
+        });
+      });
+
+      describe('as datas do compromisso que se repete (#307, parte A)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        /** Daqui a n dias. */
+        const dia = (n: number) => somarDias(hojeISO(), n);
+        const hora = (id: string) => SD.compromissoObter(id).then(c => c!.hora?.slice(0, 5));
+        const semanal = (vezes: number) => ({ frequencia: 'semana' as const, intervalo: 1, ate: null, vezes });
+
+        it('quando a reunião se repete toda semana, 4 vezes, então nascem as 3 datas seguintes; a sala ocupada fica de fora só na data dela', async () => {
+          // Dado
+          const sala = await SD.salaCriar({ nome: marca(), capacidade: 6 });
+          const r = await reuniao({ data: dia(2), hora: '10:00', hora_fim: '11:00', sala_id: sala.id });
+          await reuniao({ data: dia(9), hora: '10:30', hora_fim: '11:30', sala_id: sala.id });
+          // Quando
+          const criada = await SD.compromissoRepetir(r.id, semanal(4));
+          // Então
+          const datas = await Promise.all(criada.ids.map(id => SD.compromissoObter(id)));
+          expect(datas.map(c => c!.data)).toEqual([dia(9), dia(16), dia(23)]);
+          expect(criada.semSala).toEqual([dia(9)]);
+          expect(datas.map(c => c!.sala_id ?? null)).toEqual([null, sala.id, sala.id]);
+        });
+
+        it('quando muda só o horário desta e das seguintes, então a anterior fica; mudando a data, a série antiga termina na véspera e nenhuma data se repete', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2), hora: '10:00' });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(6));
+          // Quando: o horário, da segunda data em diante
+          const mudados = await SD.compromissoMudarSeguintes(ids[1], { data: dia(16), hora: '15:00', hora_fim: null });
+          // Então
+          expect(mudados).toBe(4);
+          expect(await hora(ids[0])).toBe('10:00');
+          expect(await Promise.all(ids.slice(1).map(hora))).toEqual(['15:00', '15:00', '15:00', '15:00']);
+          // Quando: a data, da terceira em diante, um dia depois
+          expect(await SD.compromissoMudarSeguintes(ids[2], { data: dia(24), hora: '15:00', hora_fim: null })).toBe(3);
+          // Então: a série antiga termina na véspera, e esta e as seguintes andam um dia, com as vezes que faltavam
+          const antiga = (await SD.compromissoObter(r.id))!.repeticao!;
+          expect([antiga.ate, antiga.vezes]).toEqual([dia(22), null]);
+          const novas = await Promise.all(ids.slice(2).map(id => SD.compromissoObter(id)));
+          expect(novas.map(c => c!.data)).toEqual([dia(24), dia(31), dia(38)]);
+          expect(novas[0]!.repeticao!.vezes).toBe(3);
+          const todas = await Promise.all([r.id, ...ids].map(id => SD.compromissoObter(id)));
+          expect(new Set(todas.map(c => c!.data)).size).toBe(todas.length);
+        });
+
+        it('quando arquiva esta e as seguintes, então a anterior fica e a repetição para', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(4));
+          // Quando
+          const arquivados = await SD.compromissoArquivarSeguintes(ids[1]);
+          // Então
+          expect(arquivados).toBe(2);
+          const [primeira, segunda, terceira] = await Promise.all(ids.map(id => SD.compromissoObter(id)));
+          expect(primeira!.arquivado_em).toBeNull();
+          expect([!!segunda!.arquivado_em, !!terceira!.arquivado_em]).toEqual([true, true]);
+          expect((await SD.compromissoObter(r.id))!.repeticao).toMatchObject({ ate: dia(15), vezes: null });
+        });
+
+        it('dada a série, quando a lista pede só a próxima, então vem uma data por série; realizada a primeira, vem a segunda', async () => {
+          // Dado
+          const titulo = marca();
+          const r = await reuniao({ titulo, data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(3));
+          // Quando
+          const proxima = await SD.compromissosListar({ termo: titulo, soAProxima: true });
+          const todas = await SD.compromissosListar({ termo: titulo });
+          // Então
+          expect(proxima.linhas.map(c => c.id)).toEqual([r.id]);
+          expect(todas.linhas).toHaveLength(3);
+          // Quando a primeira é realizada
+          const realizado = (await SD.colunasListar('compromissos')).find(c => c.marco === 'concluido')!;
+          await SD.compromissoMover(r.id, realizado.id, null);
+          // Então
+          expect((await SD.compromissosListar({ termo: titulo, soAProxima: true })).linhas.map(c => c.id)).toEqual([ids[0]]);
+        });
+
+        it('dado o Bruno posto numa data só, quando tenta mudar ou arquivar as seguintes, ou marcar a demanda, então é recusado e a série continua', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2), hora: '10:00' });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(4));
+          await SD.compromissoAtualizar(ids[1], { participantes: ['u-bruno'] });
+          entrarComo('u-bruno');
+          // Quando / Então
+          await expect(SD.compromissoArquivarSeguintes(ids[1])).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoMudarSeguintes(ids[1], { data: dia(9), hora: '15:00', hora_fim: null })).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoMudarSeguintes(ids[1], { data: dia(10), hora: '15:00', hora_fim: null })).rejects.toThrow(SEGUINTES_DE_OUTROS);
+          await expect(SD.compromissoGerarDemandas(ids[1], 7)).rejects.toThrow(DEMANDA_NA_SERIE_DE_OUTROS);
+          // E ele muda só a data dele, como sempre
+          await SD.compromissoAtualizar(ids[1], { hora: '16:00' });
+          entrarComo('u-master');
+          expect(await hora(ids[1])).toBe('16:00');
+          expect((await SD.compromissoObter(r.id))!.repeticao).toMatchObject({ ate: null, vezes: 4, demanda_dias_antes: null });
+          expect((await Promise.all(ids.map(id => SD.compromissoObter(id)))).every(c => !c!.arquivado_em)).toBe(true);
+        });
+
+        it('dada a reunião com o Bruno, quando ela se repete e gera demanda, então ele continua com os mesmos avisos de inclusão', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(5), participantes: ['u-bruno'] });
+          const inclusoes = async () => {
+            entrarComo('u-bruno');
+            const n = (await SD.mensagensListar()).filter(m => m.tipo === 'inclusao').map(m => m.inclusao!.modulo);
+            entrarComo('u-master');
+            return { compromissos: n.filter(x => x === 'compromissos').length, demandas: n.filter(x => x === 'demandas').length };
+          };
+          const antes = await inclusoes();
+          // Quando
+          await SD.compromissoRepetir(r.id, semanal(4));
+          expect(await SD.compromissoGerarDemandas(r.id, 7)).toHaveLength(1);
+          // Então: as datas e a demanda que o sistema cria não são inclusões novas (como no banco, onde as funções não avisam)
+          expect(await inclusoes()).toEqual(antes);
+        });
+      });
+
       describe('nas salas do escritório (#308)', () => {
         const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
         afterEach(() => entrarComo('u-master'));
@@ -2218,6 +2399,53 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const aceito = await SD.comentarioCriar('compromissos', geral.id, 'Veja @bruno.souza');
         expect(aceito.mencoes).toEqual(['u-bruno']);
         expect((await SD.comentariosListar('compromissos', geral.id)).map(c => c.id)).toEqual([aceito.id]);
+      });
+    });
+
+    describe('Processos de propriedade intelectual (#317)', () => {
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'administrativo', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], area: 'Propriedade intelectual', ...extra });
+      };
+
+      it('quando o processo de PI é criado sem os campos dela, então eles vêm vazios; quando a marca é preenchida, então volta como foi gravada', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: null, deposito: null, classes_nice: [], variacoes: null });
+        // Quando
+        await SD.processoAtualizar(id, { protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', apresentacao_marca: 'mista', natureza_marca: 'servico',
+          classes_nice: [35, 45], especificacao: 'Serviços jurídicos' });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', classes_nice: [35, 45], especificacao: 'Serviços jurídicos' });
+        expect((await SD.processoHistorico(id))[0].alteracoes.protecao).toEqual({ de: null, para: 'marca' });
+      });
+
+      it('quando o tipo, a classe, as variações ou a concessão estão fora da regra, então é recusado, como no banco', async () => {
+        // Dado
+        const { id } = await novoProcesso({ deposito: '2020-03-10' });
+        // Quando
+        const pedidos = await Promise.allSettled([
+          SD.processoAtualizar(id, { protecao: 'segredo' as never }),
+          SD.processoAtualizar(id, { classes_nice: [9, 46] }),
+          SD.processoAtualizar(id, { variacoes: 21 }),
+          SD.processoAtualizar(id, { concessao: '2019-01-01' })
+        ]);
+        // Então
+        expect(pedidos.map(r => r.status)).toEqual(['rejected', 'rejected', 'rejected', 'rejected']);
+        expect(pedidos[3]).toMatchObject({ reason: { message: 'A concessão não pode ser antes do depósito.' } });
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: null, classes_nice: [], variacoes: null, concessao: null });
+      });
+
+      it('quando a pessoa ganha o papel de titular, inventor ou autor da criação, então ela aparece no processo com ele', async () => {
+        // Dado
+        const processo = await novoProcesso({ protecao: 'patente_invencao' });
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        await SD.processoParteIncluir(processo.id, pessoa, 'titular');
+        await SD.processoParteIncluir(processo.id, pessoa, 'inventor');
+        await SD.processoParteIncluir(processo.id, pessoa, 'autor_da_criacao');
+        // Então
+        expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['titular', 'inventor', 'autor_da_criacao']);
       });
     });
 

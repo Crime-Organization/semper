@@ -38,6 +38,10 @@ import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasR
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, diligenciaAoGravar, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
+import { dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTROS, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
+import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
+import { DEMANDA_DO_COMPROMISSO } from './limites';
+import type { AvisoDaDemandaDoCompromisso, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
@@ -47,6 +51,8 @@ import {
   LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, type QuadroDeProcesso
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
+import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -161,6 +167,8 @@ interface Banco {
   gruposDaEquipe?: GrupoDaEquipe[];
   /** A mensagem de quem entrou num grupo (#378), como a tabela mensagens_de_grupo: uma por pessoa e grupo. */
   mensagensDeGrupo?: { id: string; perfil_id: string; grupo_id: string; incluido_por: string | null; criado_em: string; lido_em: string | null }[];
+  /** Os avisos das demandas que nascem dos compromissos que se repetem (#307), como a tabela mensagens_de_compromisso. */
+  mensagensDeCompromisso?: MensagemDeCompromissoGuardada[];
   /** As sequências de mudanças no papel de cada pessoa em cada item (#377), como a tabela privado.mudancas_na_equipe. */
   mudancasNaEquipe?: (SequenciaDeMudancas & { perfil_id: string; item_id: string })[];
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
@@ -233,6 +241,8 @@ interface Banco {
   salas?: Sala[];
   /** As funções dos participantes da tarefa (funcoes_na_tarefa no banco, #313). */
   funcoesNaTarefa?: FuncaoNaTarefa[];
+  /** As séries dos compromissos que se repetem (compromisso_repeticoes no banco, #307). */
+  repeticoes?: RepeticaoGuardada[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
   contasFinanceiras?: ContaFinanceira[];
@@ -306,7 +316,9 @@ type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> &
 /** Processo como fica guardado: os clientes pelo id; os nomes são lidos na hora. */
 type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes: string[] };
 /** Compromisso como fica guardado: as pessoas pelo id; os nomes e o processo são lidos na hora. */
-type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[] };
+type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[]; demanda_gerada_em?: string | null };
+/** O aviso da demanda que nasceu de um compromisso (#307), como fica guardado: quem recebe e os ids (o título vem da demanda, na hora). */
+type MensagemDeCompromissoGuardada = Omit<DemandaDoCompromissoDaMensagem, 'demanda'> & { id: string; perfil_id: string; demanda_id: string; criado_em: string; lido_em: string | null };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
 type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type ParcelaGuardada = Parcela & { excluido_em: string | null };
@@ -647,6 +659,7 @@ bd.compromissoLigacoes ??= [];
 bd.salas ??= [];
 // As funções de fábrica dos participantes da tarefa (#313), como a migração e o gatilho do escritório novo.
 bd.funcoesNaTarefa ??= [{ id: 'fn-executa', nome: 'Executa', executa: true, ordem: 1 }, { id: 'fn-acompanha', nome: 'Acompanha', executa: false, ordem: 2 }];
+bd.repeticoes ??= [];
 // Compromissos de exemplo: a audiência do processo de JOSÉ DA SILVA TESTE, amanhã, e a reunião de equipe de hoje, na Agenda geral.
 bd.compromissos ??= (() => {
   const coluna = bd.colunas.find(c => c.modulo === 'compromissos' && c.nome === 'Agendado')?.id ?? null;
@@ -753,6 +766,7 @@ bd.mensagensDePedido ??= [];
 bd.mensagensDeInclusao ??= [];
 bd.gruposDaEquipe ??= [];
 bd.mensagensDeGrupo ??= [];
+bd.mensagensDeCompromisso ??= [];
 bd.mudancasNaEquipe ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
@@ -1781,12 +1795,15 @@ const processoDoCompromisso = (c: CompromissoGuardado) => bd.processos!.find(p =
 const compromissoLista = (c: CompromissoGuardado): CompromissoLista => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, modalidade: c.modalidade, local: c.local, geral: c.geral, responsavel_id: c.responsavel_id,
   participantes: c.participantes, grupos: c.grupos ?? [], pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_codigo: c.processo_codigo, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero,
-  sala_id: c.sala_id ?? null,
+  sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null,
   etapa_id: c.etapa_id, etapa_ordem: c.etapa_ordem, arquivado_em: c.arquivado_em, criado_por: c.criado_por, criado_em: c.criado_em, atualizado_em: c.atualizado_em
 });
 const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
-  return { ...c, sala_id: c.sala_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
+  const serie = serieDoFalso(c.repeticao_id);
+  return { ...c, sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null, repeticao_data: c.repeticao_data ?? null,
+    repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes,
+      demanda_dias_antes: serie.demanda_dias_antes ?? null }, demanda_gerada_id: c.demanda_gerada_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
@@ -1804,6 +1821,7 @@ function filtrarCompromissos(f: FiltroCompromissos = {}) {
     && (!f.tipo || c.tipo === f.tipo)
     && (!f.sala || c.sala_id === f.sala)
     && (!f.etiqueta || temEtiqueta('compromissos', c.id, f.etiqueta))
+    && (!f.soAProxima || !c.repeticao_id || !!c.arquivado_em || vezNaLista(vezesNaLista(c.repeticao_id), hojeNaAgenda()) === c.id)
     && (!t || buscaCompromisso(c).includes(t)));
 }
 const nomeOrdemCompromisso = (c: CompromissoGuardado) => normal(c.titulo || nomesDosClientes(c.pessoas));
@@ -1930,6 +1948,8 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
     alt[chave] = { de: conv(atual[campo] ?? null), para: conv(v ?? null) };
   });
   if (Object.keys(alt).length) bd.historicoCompromissos!.unshift({ id: Date.now() + Math.random(), compromisso_id: c.id, alteracoes: alt, feito_por: eu, em: agora() });
+  // Como o gatilho demanda_acompanha (#307, parte B): toda forma de mudar o compromisso passa por aqui, antes de gravar.
+  demandaAcompanhaNoFalso(c, dados);
 }
 /** O compromisso sai, com os comentários, as etiquetas e o histórico dele. */
 function apagarCompromisso(c: CompromissoGuardado) {
@@ -1970,6 +1990,122 @@ function soltarDosCompromissos(modulo: ModuloDoCompromisso, itemId: string) {
   saem.forEach(l => historicoDaLigacao(l.compromisso_id, nomeDoItemDoCompromisso(modulo, itemId, l.item_nome), false));
   bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => !saem.includes(l));
 }
+// ---------- compromissos que se repetem (como supabase/migrations/20261122232804_compromissos_que_se_repetem.sql, #307) ----------
+/** A série como fica guardada: a regra, a primeira data, a última data que já virou compromisso e quem a criou. */
+type RepeticaoGuardada = RepeticaoCompromisso & { gerada_ate: string; criado_por: string | null };
+const serieDoFalso = (id: string | null | undefined) => bd.repeticoes!.find(r => r.id === id) ?? null;
+const naColunaDeConcluido = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
+/** Como privado.compromisso_em_aberto: nem arquivado, nem na coluna de concluído ("Realizado") ou na "Cancelado". */
+const compromissoEmAberto = (c: CompromissoGuardado) => !c.arquivado_em && !naColunaDeConcluido(c.etapa_id) && !colunaCancelada(nomeDaColuna(c.etapa_id));
+/** As datas da série que quem está logado vê, para o quadro escolher a próxima (public.no_quadro roda com a permissão de quem lê). */
+const vezesNaLista = (serieId: string) => bd.compromissos!.filter(x => x.repeticao_id === serieId && vejoNoModulo('compromissos', x.id))
+  .map(x => ({ id: x.id, data: x.data, hora: x.hora, aberta: compromissoEmAberto(x) }));
+/** Como privado.esta_e_as_seguintes: este e os seguintes da série ainda em aberto que quem está logado muda, na ordem da série. */
+const estaEAsSeguintes = (c: CompromissoGuardado) => bd.compromissos!
+  .filter(x => x.repeticao_id === c.repeticao_id && (x.id === c.id || (x.repeticao_data! > c.repeticao_data! && compromissoEmAberto(x) && alteroCompromisso(x))))
+  .sort((a, b) => a.repeticao_data!.localeCompare(b.repeticao_data!));
+/**
+ * Como privado.altero_as_datas_em_aberto: quem está logado muda todas as datas em aberto da série, as de uma vez em diante (`vezDesde`,
+ * a data que a regra deu) e as de um dia em diante (`diaDesde`). Null não filtra.
+ */
+const alteroAsDatasEmAberto = (serieId: string, vezDesde: string | null, diaDesde: string | null) => bd.compromissos!
+  .filter(x => x.repeticao_id === serieId && (vezDesde === null || x.repeticao_data! >= vezDesde) && (diaDesde === null || x.data >= diaDesde) && compromissoEmAberto(x))
+  .every(alteroCompromisso);
+/**
+ * Como privado.gerar_repeticoes: cada data nova copia a última da série ainda ativa (pessoas, equipe, processo, sala, ligações e
+ * etiquetas), na coluna de início do quadro; a sala ocupada numa data fica de fora só nela. Sem nenhuma ativa, a série não cresce.
+ */
+function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda()): RepeticaoCriada {
+  const criada: RepeticaoCriada = { ids: [], semSala: [] };
+  const modelo = bd.compromissos!.filter(c => c.repeticao_id === serie.id && !c.arquivado_em).sort((a, b) => b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
+  if (!modelo) return criada;
+  const inicio = bd.colunas.find(c => c.modulo === 'compromissos' && c.marco === 'inicio')?.id ?? null;
+  for (const { data } of vezesParaGerar(serie, serie.gerada_ate, hoje)) {
+    let sala = modelo.sala_id ?? null;
+    if (sala && (!bd.salas!.find(s => s.id === sala)?.ativa || conflitoNaSala({ hora: modelo.hora, horaFim: modelo.hora_fim }, ocupacoesNoFalso(sala, data, null)))) {
+      sala = null;
+      criada.semSala.push(data);
+    }
+    const c: CompromissoGuardado = { ...modelo, id: novoId(), codigo: codigo(), data, sala_id: sala, resultado: null, etapa_id: inicio, etapa_ordem: Date.now() / 1000,
+      participantes: modelo.participantes.filter(id => EQUIPE.some(m => m.id === id)), arquivado_em: null, arquivado_por: null,
+      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data };
+    bd.compromissos!.push(c);
+    // A ligação com a demanda que nasceu de outra data não vem junto (cada data tem a sua, #307 parte B).
+    ligacoesDoCompromisso(modelo.id).filter(l => !(l.modulo === 'demandas' && demandaGeradaPorAlgum(l.item_id)))
+      .forEach(l => bd.compromissoLigacoes!.push({ ...l, compromisso_id: c.id, criado_em: agora() }));
+    bd.etiquetasAplicadas!.filter(a => a.modulo === 'compromissos' && a.cartao_id === modelo.id).forEach(a => bd.etiquetasAplicadas!.push({ ...a, cartao_id: c.id }));
+    criada.ids.push(c.id);
+    serie.gerada_ate = data;
+  }
+  return criada;
+}
+// ---------- a demanda de cada data (como supabase/migrations/20261123000750_demandas_dos_compromissos.sql, #307 parte B) ----------
+const demandaGeradaPorAlgum = (demandaId: string) => bd.compromissos!.some(c => c.demanda_gerada_id === demandaId);
+/** Como privado.avisar_da_demanda_do_compromisso: o responsável da demanda, se ativo e se não foi ele quem fez (`por`; null: a rotina). */
+function avisarDaDemandaNoFalso(d: DemandaGuardada, compromissoId: string, aviso: AvisoDaDemandaDoCompromisso, antes: string | null, nova: string | null, por: string | null) {
+  if (!recebeAviso(d.responsavel_id) || d.responsavel_id === por) return;
+  bd.mensagensDeCompromisso!.push({ id: novoId(), perfil_id: d.responsavel_id, aviso, demanda_id: d.id, compromisso_id: compromissoId, data_antes: antes, data_nova: nova,
+    criado_em: agora(), lido_em: null });
+}
+/**
+ * Como privado.gerar_demanda_do_compromisso: a data em aberto, de hoje em diante, que ainda não gerou e cujo dia de nascer chegou (o
+ * banco fictício tem todos os módulos ligados). O responsável é o do compromisso ou, se saiu da equipe, quem criou a repetição.
+ */
+function gerarDemandaNoFalso(c: CompromissoGuardado, hoje: string, por: string | null): string | null {
+  const serie = serieDoFalso(c.repeticao_id), dias = serie?.demanda_dias_antes;
+  if (!serie || !dias || c.demanda_gerada_em || c.data < hoje || !compromissoEmAberto(c) || diaDaDemanda(c.data, dias, bd.diasLancados!) > hoje) return null;
+  const responsavel = [c.responsavel_id, serie.criado_por].find(p => p && recebeAviso(p));
+  if (!responsavel) return null;
+  const contrato = ligacoesDoCompromisso(c.id).find(l => l.modulo === 'contratos')?.item_id ?? null;
+  const inicio = bd.colunas.find(x => x.modulo === 'demandas' && x.marco === 'inicio')?.id ?? null;
+  const d: DemandaGuardada = { ...demandaNova(), ...prepararDemanda({ titulo: tituloDaDemanda(c.titulo, c.data), prazo: c.data, prazo_hora: c.hora, responsavel_id: responsavel,
+    colaboradores: c.participantes.filter(recebeAviso), clientes: c.pessoas, grupos: c.grupos ?? [], contrato_id: contrato, etapa_id: inicio, etapa_ordem: Date.now() / 1000 }) as Partial<DemandaGuardada>,
+  id: novoId(), codigo: codigo(), criado_por: serie.criado_por ?? c.criado_por };
+  bd.demandas!.push(d);
+  Object.assign(c, { demanda_gerada_id: d.id, demanda_gerada_em: agora() });
+  if (ligacoesDoCompromisso(c.id).length < ITENS_DO_COMPROMISSO) {
+    const item_nome = nomeDoItemDoCompromisso('demandas', d.id);
+    bd.compromissoLigacoes!.push({ compromisso_id: c.id, modulo: 'demandas', item_id: d.id, item_nome, criado_em: agora() });
+    historicoDaLigacao(c.id, item_nome, true);
+  }
+  avisarDaDemandaNoFalso(d, c.id, 'demanda_nova', null, c.data, por);
+  return d.id;
+}
+/** Como privado.gerar_demandas_das_series: as datas de uma série (ou de todas, com null) que já estão no prazo, na ordem das datas. */
+const gerarDemandasNoFalso = (serieId: string | null, hoje: string, por: string | null) => bd.compromissos!
+  .filter(c => c.repeticao_id && (serieId === null || c.repeticao_id === serieId))
+  .sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
+  .flatMap(c => { const id = gerarDemandaNoFalso(c, hoje, por); return id ? [id] : []; });
+/**
+ * Como o gatilho demanda_acompanha: a data mudada leva o prazo da demanda (se ainda era a data antiga) e o título (se ainda era o de
+ * quando ela nasceu), e avisa; o compromisso cancelado (coluna "Cancelado" ou arquivado sem ter sido realizado) avisa, e a demanda fica.
+ */
+function demandaAcompanhaNoFalso(c: CompromissoGuardado, dados: Record<string, unknown>) {
+  const d = c.demanda_gerada_id ? bd.demandas!.find(x => x.id === c.demanda_gerada_id) : undefined;
+  if (!d) return;
+  const depois = { ...c, ...Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined)) } as CompromissoGuardado;
+  if ((depois.data !== c.data || depois.hora !== c.hora) && !d.arquivado_em && d.prazo === c.data) {
+    const novos = { prazo: depois.data, prazo_hora: d.prazo_hora === c.hora ? depois.hora : d.prazo_hora,
+      titulo: depois.data !== c.data && d.titulo === tituloDaDemanda(c.titulo, c.data) ? tituloDaDemanda(depois.titulo, depois.data) : d.titulo };
+    historicoDemanda(d, novos);
+    Object.assign(d, novos, { atualizado_em: agora() });
+  }
+  if (depois.data !== c.data) avisarDaDemandaNoFalso(d, c.id, 'data_mudou', c.data, depois.data, eu);
+  if (compromissoEmAberto(c) && !compromissoEmAberto(depois) && !naColunaDeConcluido(depois.etapa_id)) avisarDaDemandaNoFalso(d, c.id, 'cancelado', null, depois.data, eu);
+}
+/** Como a regra de leitura de mensagens_de_compromisso: cada um lê as suas; a demanda excluída leva as dela (a chave estrangeira). */
+const minhasMensagensDeCompromisso = () => bd.mensagensDeCompromisso!.filter(m => m.perfil_id === eu && bd.demandas!.some(d => d.id === m.demanda_id));
+function mensagemDeCompromissoLida({ id, perfil_id: _perfil, demanda_id, criado_em, lido_em, ...aviso }: MensagemDeCompromissoGuardada): Mensagem {
+  const d = bd.demandas!.find(x => x.id === demanda_id);
+  return { id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+    demandaDoCompromisso: { ...aviso, demanda: d && vejoNoModulo('demandas', d.id) ? { id: d.id, codigo: d.codigo, titulo: d.titulo } : null } };
+}
+
+// Como as rotinas diárias estender-repeticoes e gerar-demandas-dos-compromissos: ao abrir o banco fictício, as séries ganham as datas que
+// entraram no horizonte, e as datas no prazo ganham a demanda (sem ninguém logado: o responsável é avisado).
+bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).forEach(r => gerarRepeticoesNoFalso(r));
+gerarDemandasNoFalso(null, hojeNaAgenda(), null);
+
 // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
 // Aqui a regra de quem vê e quem altera vale de verdade (regras/anotacao.ts), e a visibilidade de cada item ligado segue as
 // regras puras de cada módulo, como as do banco (mesmo onde a listagem do módulo, no banco fictício, ainda mostra tudo).
@@ -2502,7 +2638,7 @@ function conferirOrigemDoProcesso(d: DadosProcesso) {
   if (!d.ligacao || !(d.ligacao in LIGACOES)) throw new Error(FORMATO_INVALIDO);
   if (!bd.processos!.some(p => p.id === d.origem_id && vejoNoModulo('processos', p.id))) throw new Error('O processo de origem não foi encontrado neste escritório.');
 }
-const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
+const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...PI_VAZIA, ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [], cliente_nome: nomesDosClientes(p.clientes),
   orgao: p.orgao, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
@@ -2529,6 +2665,8 @@ const ORDENS_PROCESSO: Record<Ordem, (a: ProcessoGuardado, b: ProcessoGuardado) 
 const acharProcesso = (id: string) => {
   const p = bd.processos!.find(x => x.id === id);
   if (!p) throw new Error('Processo não encontrado.');
+  // O processo guardado antes da #317 ganha os campos de PI vazios, como a migração faz (o histórico não vê mudança onde não houve).
+  for (const [campo, vazio] of Object.entries(PI_VAZIA)) if (!(campo in p)) (p as Record<string, unknown>)[campo] = vazio;
   return p;
 };
 /** Como a regra da migração: a coluna precisa ser do quadro do tipo do processo. */
@@ -2538,6 +2676,7 @@ function conferirQuadroDoProcesso(tipo: TipoProcesso, etapaId: string | null | u
 /** Como o gatilho preparar e o índice de número único da migração. */
 function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: ProcessoGuardado): DadosProcesso {
   const d: DadosProcesso = { ...dados };
+  conferirProtecao(d, atual);
   if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   conferirQuadroDoProcesso(tipo, d.etapa_id);
   const limpar = (v: string | null | undefined) => (v ?? '').trim() || null;
@@ -2565,6 +2704,22 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
     d.colaboradores = lista;
   }
   return d;
+}
+/** Os campos de propriedade intelectual vazios (#317), como nascem no banco. */
+const PI_VAZIA = { protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, apresentacao_marca: null, natureza_marca: null,
+  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null };
+/** As regras check da migração propriedade_intelectual (#317): as listas, as classes de 1 a 45, os tamanhos e a concessão depois do depósito. */
+function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
+  const naLista = (v: string | null | undefined, lista: object) => v === undefined || v === null || Object.hasOwn(lista, v);
+  const ateTamanho = (v: string | null | undefined, max: number) => !v || v.length <= max;
+  const classes = d.classes_nice;
+  const valido = naLista(d.protecao, TIPOS_DE_PROTECAO) && naLista(d.apresentacao_marca, APRESENTACOES_DA_MARCA) && naLista(d.natureza_marca, NATUREZAS_DA_MARCA)
+    && (classes === undefined || (classes.length <= CLASSE_NICE_MAIOR && classes.every(n => Number.isInteger(n) && n >= 1 && n <= CLASSE_NICE_MAIOR)))
+    && ateTamanho(d.especificacao, TAMANHO_PROTECAO.especificacao) && ateTamanho(d.linguagem, TAMANHO_PROTECAO.linguagem)
+    && (d.variacoes === undefined || d.variacoes === null || (Number.isInteger(d.variacoes) && d.variacoes >= 1 && d.variacoes <= VARIACOES_DO_DESENHO));
+  if (!valido) throw new Error(FORMATO_INVALIDO);
+  const deposito = d.deposito !== undefined ? d.deposito : atual?.deposito, concessao = d.concessao !== undefined ? d.concessao : atual?.concessao;
+  if (deposito && concessao && concessao < deposito) throw new Error(CONCESSAO_ANTES_DO_DEPOSITO);
 }
 /** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
 const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
@@ -4221,6 +4376,82 @@ export const SD: Dados = {
     historicoDaLigacao(id, item_nome, true); gravar();
     return espera(true);
   },
+  // Como as funções do banco (20261122232804_compromissos_que_se_repetem.sql, #307), com as mesmas conferências e mensagens.
+  async compromissoRepetir(id, regra) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    if (!TIPOS_COMPROMISSO[c.tipo].repete) throw new Error('Audiência e perícia não se repetem.');
+    if (c.repeticao_id) throw new Error('Este compromisso já se repete.');
+    if (regra.ate !== null && regra.ate <= c.data) throw new Error('A data final precisa ser depois da data do compromisso.');
+    if (!regraNoLimite(regra)) throw new Error(FORMATO_INVALIDO);
+    const serie: RepeticaoGuardada = { id: novoId(), frequencia: regra.frequencia, intervalo: regra.intervalo, ate: regra.ate, vezes: regra.vezes, inicio: c.data, gerada_ate: c.data, criado_por: eu };
+    bd.repeticoes!.push(serie);
+    Object.assign(c, { repeticao_id: serie.id, repeticao_data: c.data });
+    const criada = gerarRepeticoesNoFalso(serie);
+    gravar(); return espera(criada);
+  },
+  async compromissoMudarSeguintes(id, q) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Este compromisso não se repete.');
+    if (!alteroAsDatasEmAberto(serie.id, c.repeticao_data!, null)) throw new Error(SEGUINTES_DE_OUTROS);
+    const lista = estaEAsSeguintes(c), hora = horaComSegundos(q.hora), hora_fim = horaComSegundos(q.hora_fim);
+    const mudar = (x: CompromissoGuardado, campos: Partial<CompromissoGuardado>) => {
+      conferirSalaNoFalso({ ...x, ...campos }, x);
+      historicoCompromisso(x, campos);
+      Object.assign(x, campos, { atualizado_em: agora(), atualizado_por: eu });
+    };
+    if (q.data === c.data) {
+      lista.forEach(x => mudar(x, { hora, hora_fim }));
+      gravar(); return espera(lista.length);
+    }
+    // A data mudou: a série recomeça dali (a antiga termina na véspera desta), com o que faltava das vezes e a mesma data final.
+    const resta = serie.vezes === null ? null : serie.vezes - vezDaData(serie, c.repeticao_data!);
+    const nova: RepeticaoGuardada = { id: novoId(), frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: q.data, gerada_ate: q.data, criado_por: eu,
+      ate: serie.ate !== null ? (serie.ate > q.data ? serie.ate : q.data) : resta !== null && resta < 2 ? q.data : null, vezes: resta !== null && resta >= 2 ? resta : null };
+    Object.assign(serie, { ate: somarDias(c.repeticao_data!, -1), vezes: null });
+    bd.repeticoes!.push(nova);
+    // Para a sala não se chocar com a própria série no meio do caminho, quem anda para a frente muda da última para a primeira.
+    const ordem = lista.map((_, i) => i);
+    if (q.data > c.data) ordem.reverse();
+    for (const i of ordem) {
+      const data = dataDaVez(nova, i);
+      if ((nova.ate !== null && data > nova.ate) || (nova.vezes !== null && i + 1 > nova.vezes)) mudar(lista[i], { arquivado_em: agora(), arquivado_por: eu });
+      else {
+        mudar(lista[i], { data, hora, hora_fim, repeticao_id: nova.id, repeticao_data: data });
+        if (data > nova.gerada_ate) nova.gerada_ate = data;
+      }
+    }
+    gerarRepeticoesNoFalso(nova);
+    gravar(); return espera(lista.length);
+  },
+  // Como public.compromisso_gerar_demandas (#307, parte B).
+  async compromissoGerarDemandas(id, dias) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Só o compromisso que se repete gera demanda.');
+    if (!alteroAsDatasEmAberto(serie.id, null, hojeNaAgenda())) throw new Error(DEMANDA_NA_SERIE_DE_OUTROS);
+    if (dias !== null && !(Number.isInteger(dias) && dias >= 1 && dias <= DEMANDA_DO_COMPROMISSO.diasMaximos)) throw new Error(FORMATO_INVALIDO);
+    serie.demanda_dias_antes = dias;
+    const criadas = dias === null ? [] : gerarDemandasNoFalso(serie.id, hojeNaAgenda(), eu);
+    gravar(); return espera(criadas);
+  },
+  async compromissoArquivarSeguintes(id) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Este compromisso não se repete.');
+    if (!alteroAsDatasEmAberto(serie.id, c.repeticao_data!, null)) throw new Error(SEGUINTES_DE_OUTROS);
+    const lista = estaEAsSeguintes(c);
+    Object.assign(serie, { ate: somarDias(c.repeticao_data!, -1), vezes: null });
+    lista.forEach(x => {
+      historicoCompromisso(x, { arquivado_em: agora() });
+      Object.assign(x, { arquivado_em: agora(), arquivado_por: eu, atualizado_em: agora() });
+    });
+    gravar(); return espera(lista.length);
+  },
   async compromissoDesligar(id, modulo, itemId) {
     const c = bd.compromissos!.find(x => x.id === id);
     const ligacao = c && alteroCompromisso(c) ? ligacoesDoCompromisso(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
@@ -5124,7 +5355,7 @@ export const SD: Dados = {
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
-      origem_id: null, ligacao: null,
+      origem_id: null, ligacao: null, ...PI_VAZIA,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
     bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
@@ -5431,18 +5662,19 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
   mensagensListar: () => espera(juntarAsCaixas([
+    minhasMensagensDeCompromisso().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeCompromissoLida),
     minhasMensagensDeGrupo().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeGrupoLida),
     minhasMensagensDeInclusao().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeInclusaoLida),
     minhasMensagensDePedido().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map(mensagemDePedidoLida),
     minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)
   ], MENSAGENS_DA_CAIXA)),
-  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].filter(m => !m.lido_em).length),
+  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
-    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].find(x => x.id === id && !x.lido_em);
+    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].find(x => x.id === id && !x.lido_em);
     if (m) { m.lido_em = agora(); gravar(); }
   },
   async mensagensMarcarTodasLidas() {
-    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()]) m.lido_em ??= agora();
+    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()]) m.lido_em ??= agora();
     gravar();
   },
 
@@ -5537,6 +5769,7 @@ export const SD: Dados = {
     // Como privado.grupos_de_quem_saiu (#378).
     bd.gruposDaEquipe!.forEach(g => { g.integrantes = g.integrantes.filter(p => p !== id); });
     bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.perfil_id !== id);
+    bd.mensagensDeCompromisso = bd.mensagensDeCompromisso!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
     gravar();
   },

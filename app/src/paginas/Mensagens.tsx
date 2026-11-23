@@ -1,7 +1,8 @@
 // Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113), os lembretes marcados nas tarefas e
 // demandas em que ela está (#286), os pedidos para participar de um item (#363: quem aprova recebe o pedido, com "Aprovar" e
 // "Recusar"; quem pediu recebe a resposta), o aviso de quando alguém a põe num item (#377; pelo grupo da equipe, diz qual) e a
-// mensagem de quando um administrador a põe num grupo da equipe (#378). Clicar abre o cartão e marca como lida.
+// mensagem de quando um administrador a põe num grupo da equipe (#378), e os avisos da demanda que nasce de um compromisso que se repete
+// (#307: nasceu, a data mudou, o compromisso foi cancelado). Clicar abre o cartão e marca como lida.
 // O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário ou a equipe de um item, na rotina
 // diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
@@ -11,6 +12,7 @@ import { AVISO_AO_RESPONDER, enderecoDaResposta, enderecoDoItemDoPedido, PEDIDO_
 import { hojeNaAgenda } from '../regras/agenda';
 import { acaoDaInclusao, enderecoDaInclusao, INCLUSAO_DO_MODULO, nomeDoItemDaInclusao, rotulosDaInclusao } from '../regras/inclusao';
 import { linksDoGrupo, textoDaMensagemDeGrupo } from '../regras/gruposDaEquipe';
+import { AVISOS_DA_DEMANDA_DO_COMPROMISSO, DEMANDA_QUE_NAO_VE, enderecoDaDemanda } from '../regras/demandaDoCompromisso';
 import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha } from '../ui/avisos';
@@ -49,7 +51,7 @@ export default function Mensagens() {
     <header className="mensagens-cabeca">
       <div>
         <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar e quando incluem você num item ou num grupo.</p>
+        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar, quando incluem você num item ou num grupo e as demandas que nascem dos compromissos.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
@@ -235,7 +237,30 @@ function ItemDoGrupo(props: PropsDoItem) {
   </LinhaDaMensagem>;
 }
 
+/**
+ * O aviso ao responsável da demanda que nasceu de um compromisso que se repete (#307): a demanda nova, a data do compromisso que mudou e
+ * o compromisso cancelado. Com a demanda, o link para o cartão dela; sem ela (a pessoa não a vê mais), só isso.
+ */
+function ItemDaDemandaDoCompromisso(props: PropsDoItem) {
+  const { m } = props;
+  const a = m.demandaDoCompromisso!, tipo = AVISOS_DA_DEMANDA_DO_COMPROMISSO[a.aviso];
+  if (!a.demanda) {
+    return <LinhaDaMensagem {...props} rotulo={`${tipo.nome} ${situacaoDoAviso(m)} de uma demanda que você não vê mais`} marcarLida="Marcar como lido o aviso de uma demanda que você não vê mais">
+      <CartaoQueNaoVe texto={DEMANDA_QUE_NAO_VE} />
+    </LinhaDaMensagem>;
+  }
+  const nome = a.demanda.titulo || a.demanda.codigo;
+  return <LinhaDaMensagem {...props} rotulo={`${tipo.nome} ${situacaoDoAviso(m)}: ${nome}`} marcarLida={`Marcar como lido o aviso da demanda ${nome}`}>
+    <span className="mensagem-icone" aria-hidden="true"><Icone nome="sino" /></span>
+    <LinkDaMensagem {...props} para={enderecoDaDemanda(a.demanda.id)}>
+      <span className="mensagem-titulo"><b>{tipo.nome}</b>: demanda <b>{nome}</b></span>
+      <span className="mensagem-trecho">{tipo.trecho(a)}</span>
+    </LinkDaMensagem>
+  </LinhaDaMensagem>;
+}
+
 /** Como cada tipo de mensagem aparece. Tipo novo = uma entrada nova. */
 const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = {
-  mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao, grupo: ItemDoGrupo
+  mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao, grupo: ItemDoGrupo,
+  demandaDoCompromisso: ItemDaDemandaDoCompromisso
 };

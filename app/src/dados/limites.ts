@@ -197,6 +197,14 @@ export const OPCOES_POR_CAMPO = 50;
 export const PROCESSOS_LIGADOS = 200;
 /** Quantas pessoas com papel (autor, réu, testemunha...) cabem num processo (#316; exigido pelo banco: privado.partes_maximas). */
 export const PARTES_MAXIMAS = 50;
+/**
+ * Propriedade intelectual (#317; exigidos pelo banco: supabase/migrations/20261123003604_propriedade_intelectual.sql): o tamanho da
+ * especificação da marca e da linguagem do programa, a maior classe da Classificação de Nice (são 45: 1 a 34 de produtos, 35 a 45
+ * de serviços) e quantas variações cabem num pedido de desenho industrial (até 20, art. 104 da Lei 9.279/96).
+ */
+export const TAMANHO_PROTECAO = { especificacao: 2000, linguagem: 120 };
+export const CLASSE_NICE_MAIOR = 45;
+export const VARIACOES_DO_DESENHO = 20;
 /** Quantos contratos entram na lista do cartão do processo. */
 export const CONTRATOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */
@@ -213,6 +221,17 @@ export const COMPROMISSOS_LIGADOS = 200;
 export const ITENS_DO_COMPROMISSO = 30;
 /** O nome e a capacidade (em pessoas) de uma sala do escritório (exigidos pelo banco: 20261122132438_salas_do_escritorio.sql). */
 export const TAMANHO_SALA = { nome: 80, capacidadeMaxima: 999 };
+/**
+ * O compromisso que se repete (#307). `intervaloMaximo`: o N de "a cada N semanas, meses ou anos"; `vezesMaximas`: o "depois de N
+ * vezes" (contando a primeira); `horizonteMeses`: até quantos meses adiante as datas já viram cartões (e sempre, pelo menos, a próxima).
+ * Exigidos pelo banco: supabase/migrations/20261122232804_compromissos_que_se_repetem.sql (as regras check e privado.horizonte_da_repeticao).
+ */
+export const REPETICAO = { intervaloMaximo: 99, vezesMaximas: 999, horizonteMeses: 12 };
+/**
+ * A demanda que nasce de cada data do compromisso que se repete (#307, parte B): `diasMaximos` é o maior "N dias antes" aceito.
+ * Exigido pelo banco: supabase/migrations/20261123000750_demandas_dos_compromissos.sql (a regra check de demanda_dias_antes).
+ */
+export const DEMANDA_DO_COMPROMISSO = { diasMaximos: 365 };
 /** Quantos compromissos, e quantos prazos de cada módulo, a agenda lê de um período (um mês tem bem menos que isso). */
 export const ITENS_DA_AGENDA = 500;
 /** Quantos processos (os ativos mais recentes que combinam com a busca) a busca de processo oferece para ligar. */

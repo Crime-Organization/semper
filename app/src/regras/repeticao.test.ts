@@ -1,0 +1,155 @@
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
+// Os casos de fim de mês e de ano bissexto são os mesmos do teste do banco (supabase/tests/compromissos_que_se_repetem.test.sql).
+import { describe, expect, it } from 'vitest';
+import { REPETICAO } from '../dados/limites';
+import {
+  avisoDaRepeticao, avisoDasSeguintes,
+  CONFERENCIAS_DA_REPETICAO, dataDaVez, descreverRepeticao, REPETICAO_VAZIA, regraDosCampos, regraNoLimite, somarMeses, vezDaData, vezesParaGerar, vezNaLista,
+  type CamposRepeticao, type SerieDeRepeticao, type VezNaLista
+} from './repeticao';
+
+const serie = (campos: Partial<SerieDeRepeticao> = {}): SerieDeRepeticao => ({ frequencia: 'mes', intervalo: 1, inicio: '2026-01-31', ate: null, vezes: null, ...campos });
+
+describe('As datas da repetição', () => {
+  it.each([
+    ['mensal no dia 31, no mês seguinte', serie(), 1, '2026-02-28'],
+    ['mensal no dia 31, dois meses depois (conta da primeira, volta ao dia 31)', serie(), 2, '2026-03-31'],
+    ['mensal no dia 31, em abril', serie(), 3, '2026-04-30'],
+    ['mensal no dia 31, em ano bissexto', serie({ inicio: '2024-01-31' }), 1, '2024-02-29'],
+    ['anual em 29/02, no ano seguinte', serie({ frequencia: 'ano', inicio: '2024-02-29' }), 1, '2025-02-28'],
+    ['anual em 29/02, quatro anos depois', serie({ frequencia: 'ano', inicio: '2024-02-29' }), 4, '2028-02-29'],
+    ['a cada 2 semanas', serie({ frequencia: 'semana', intervalo: 2, inicio: '2026-11-22' }), 1, '2026-12-06'],
+    ['a cada 10 anos (renovação de marca)', serie({ frequencia: 'ano', intervalo: 10, inicio: '2026-03-15' }), 1, '2036-03-15']
+  ])('dada uma repetição %s, quando se conta a data, então ela é a certa', (_caso, r, n, esperada) => {
+    // Dado / Quando / Então
+    expect(dataDaVez(r, n)).toBe(esperada);
+  });
+
+  it('dado o fim do ano, quando se somam meses, então a data passa para o ano seguinte (e volta, com meses negativos)', () => {
+    // Dado / Quando / Então
+    expect(somarMeses('2026-11-30', 3)).toBe('2027-02-28');
+    expect(somarMeses('2026-01-15', -2)).toBe('2025-11-15');
+  });
+
+  it('dada uma data da série, quando se procura a vez dela, então é a posição na regra (a primeira é a vez 0)', () => {
+    // Dado / Quando / Então
+    expect(vezDaData(serie(), '2026-01-31')).toBe(0);
+    expect(vezDaData(serie(), '2026-04-30')).toBe(3);
+  });
+});
+
+describe('As datas que viram cartão', () => {
+  const datas = (r: SerieDeRepeticao, geradaAte: string, hoje: string) => vezesParaGerar(r, geradaAte, hoje).map(v => v.data);
+
+  it('dada uma repetição mensal sem fim, quando ela é criada, então as datas dos próximos 12 meses viram cartões', () => {
+    // Dado / Quando
+    const geradas = datas(serie(), '2026-01-31', '2026-01-31');
+    // Então
+    expect(geradas).toHaveLength(REPETICAO.horizonteMeses);
+    expect(geradas[0]).toBe('2026-02-28');
+    expect(geradas.at(-1)).toBe('2027-01-31');
+  });
+
+  it('dada uma repetição a cada 10 anos, quando ela é criada, então a próxima aparece mesmo depois do horizonte', () => {
+    // Dado / Quando / Então
+    expect(datas(serie({ frequencia: 'ano', intervalo: 10, inicio: '2026-03-15' }), '2026-03-15', '2026-03-15')).toEqual(['2036-03-15']);
+  });
+
+  it('dada uma repetição até uma data ou por um número de vezes, então nenhuma data passa do fim', () => {
+    // Dado / Quando / Então
+    expect(datas(serie({ frequencia: 'semana', inicio: '2026-02-01', ate: '2026-02-20' }), '2026-02-01', '2026-02-01')).toEqual(['2026-02-08', '2026-02-15']);
+    expect(datas(serie({ frequencia: 'semana', inicio: '2026-02-01', vezes: 3 }), '2026-02-01', '2026-02-01')).toEqual(['2026-02-08', '2026-02-15']);
+  });
+
+  it('dada uma série que já gerou datas, quando a rotina roda de novo, então só vêm as que ainda não viraram cartão, de hoje em diante', () => {
+    // Dado
+    const r = serie({ frequencia: 'ano', inicio: '2024-05-10' });
+    // Quando / Então
+    expect(datas(r, '2024-05-10', '2026-01-10')).toEqual(['2026-05-10']);
+    expect(datas(r, '2026-05-10', '2026-06-01')).toEqual(['2027-05-10']);
+    expect(datas(r, '2027-05-10', '2026-06-01')).toEqual([]);
+  });
+});
+
+describe('O quadro e a tabela', () => {
+  const vez = (id: string, data: string, aberta = true, hora: string | null = '10:00:00'): VezNaLista => ({ id, data, hora, aberta });
+
+  it('dada uma série com datas passadas e futuras, então aparece só a próxima em aberto', () => {
+    // Dado
+    const vezes = [vez('a', '2026-11-15'), vez('c', '2026-11-29'), vez('b', '2026-11-22', false)];
+    // Quando / Então
+    expect(vezNaLista(vezes, '2026-11-20')).toBe('c');
+  });
+
+  it('dada uma série sem nenhuma data adiante em aberto, então aparece a última que passou sem ser marcada; sem nenhuma aberta, nenhuma', () => {
+    // Dado / Quando / Então
+    expect(vezNaLista([vez('a', '2026-11-01'), vez('b', '2026-11-08'), vez('c', '2026-11-29', false)], '2026-11-20')).toBe('b');
+    expect(vezNaLista([vez('a', '2026-11-01', false)], '2026-11-20')).toBeNull();
+  });
+
+  it('dadas duas datas no mesmo dia, então vem a de hora mais cedo (a sem hora primeiro)', () => {
+    // Dado / Quando / Então
+    expect(vezNaLista([vez('a', '2026-11-22', true, '15:00:00'), vez('b', '2026-11-22', true, null)], '2026-11-20')).toBe('b');
+  });
+});
+
+describe('A repetição no cadastro', () => {
+  const campos = (c: Partial<CamposRepeticao>) => ({ ...REPETICAO_VAZIA, data: '10/12/2026', ...c });
+  const erros = (c: Partial<CamposRepeticao>) => Object.fromEntries(Object.entries(CONFERENCIAS_DA_REPETICAO)
+    .map(([k, regras]) => [k, regras.map(r => r(campos(c))).find(Boolean) ?? null]).filter(([, e]) => e));
+
+  it('dado um compromisso que não se repete, então nada da repetição é conferido', () => {
+    // Dado / Quando / Então
+    expect(erros({ aCada: '', termina: 'data' })).toEqual({});
+    expect(regraDosCampos(REPETICAO_VAZIA)).toBeNull();
+  });
+
+  it('dada uma repetição sem o N, com o N acima do máximo, ou sem a data final, então o cadastro avisa', () => {
+    // Dado / Quando / Então
+    expect(erros({ repetir: 'ano', aCada: '' }).aCada).toMatch(/de 1 a/);
+    expect(erros({ repetir: 'ano', aCada: String(REPETICAO.intervaloMaximo + 1) }).aCada).toMatch(/de 1 a/);
+    expect(erros({ repetir: 'mes', termina: 'data' }).repetirAte).toBe('Informe até quando o compromisso se repete.');
+    expect(erros({ repetir: 'mes', termina: 'data', repetirAte: '01/12/2026' }).repetirAte).toBe('A data final precisa ser depois da data do compromisso.');
+    expect(erros({ repetir: 'mes', termina: 'vezes', repetirVezes: '1' }).repetirVezes).toMatch(/de 2 a/);
+  });
+
+  it('dada uma repetição a cada 10 anos até 2050, então a regra vai para o banco com a data final', () => {
+    // Dado / Quando / Então
+    expect(regraDosCampos(campos({ repetir: 'ano', aCada: '10', termina: 'data', repetirAte: '31/12/2050' }))).toEqual({ frequencia: 'ano', intervalo: 10, ate: '2050-12-31', vezes: null });
+    expect(regraDosCampos(campos({ repetir: 'semana', termina: 'vezes', repetirVezes: '12' }))).toEqual({ frequencia: 'semana', intervalo: 1, ate: null, vezes: 12 });
+  });
+
+  it('dada uma regra, então ela só vale dentro dos limites do banco', () => {
+    // Dado / Quando / Então
+    expect(regraNoLimite({ frequencia: 'ano', intervalo: 10, ate: null, vezes: null })).toBe(true);
+    expect(regraNoLimite({ frequencia: 'ano', intervalo: 0, ate: null, vezes: null })).toBe(false);
+    expect(regraNoLimite({ frequencia: 'mes', intervalo: 1, ate: null, vezes: 1 })).toBe(false);
+    expect(regraNoLimite({ frequencia: 'mes', intervalo: 1, ate: '2027-01-01', vezes: 3 })).toBe(false);
+  });
+
+  it.each([
+    [{ frequencia: 'ano' as const, intervalo: 1, ate: null, vezes: null }, 'Todo ano, sem data para terminar'],
+    [{ frequencia: 'ano' as const, intervalo: 10, ate: '2050-12-31', vezes: null }, 'A cada 10 anos, até 31/12/2050'],
+    [{ frequencia: 'semana' as const, intervalo: 1, ate: null, vezes: 12 }, 'Toda semana, 12 vezes']
+  ])('dada a regra %o, então o cartão a descreve por extenso', (r, texto) => {
+    // Dado / Quando / Então
+    expect(descreverRepeticao(r)).toBe(texto);
+  });
+});
+
+describe('O aviso depois de cadastrar', () => {
+  it('dada uma repetição com a sala livre, então o aviso diz quantas datas a mais; com a sala ocupada em alguma, diz quais', () => {
+    // Dado / Quando / Então
+    expect(avisoDaRepeticao('K1A2', { ids: ['a'], semSala: [] })).toBe('Compromisso K1A2 cadastrado, com mais 1 data na agenda.');
+    expect(avisoDaRepeticao('K1A2', { ids: ['a', 'b', 'c'], semSala: ['2026-12-08'] }))
+      .toBe('Compromisso K1A2 cadastrado, com mais 3 datas na agenda. Em 1 data (08/12/2026), a sala estava ocupada, e o compromisso ficou sem sala.');
+  });
+});
+
+describe('O aviso de "esta e as seguintes"', () => {
+  it('dadas as datas mudadas ou arquivadas, então o aviso diz quantas, no singular ou no plural', () => {
+    // Dado / Quando / Então
+    expect(avisoDasSeguintes('mudados', 1)).toBe('1 compromisso mudado na repetição.');
+    expect(avisoDasSeguintes('arquivados', 5)).toBe('5 compromissos arquivados. A repetição parou.');
+  });
+});

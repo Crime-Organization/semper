@@ -965,7 +965,14 @@ export type TipoProcesso = 'judicial' | 'administrativo' | 'extrajudicial' | 'in
 /** Como o processo nasceu de outro (#316): recurso ou incidental. */
 export type LigacaoDeProcesso = 'recurso' | 'incidental';
 /** O papel de uma pessoa no processo, além dos clientes (#316). A lista do banco é a mesma (processo_partes). */
-export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro';
+export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro'
+  /** Só nos processos de propriedade intelectual (#317). */
+  | 'titular' | 'inventor' | 'autor_da_criacao';
+/** O tipo de proteção do processo de propriedade intelectual (#317). A lista do banco é a mesma (migração propriedade_intelectual). */
+export type TipoProtecao = 'marca' | 'patente_invencao' | 'modelo_utilidade' | 'desenho_industrial' | 'programa_computador';
+/** Como a marca se apresenta e a natureza dela (#317, as listas do Manual de Marcas do INPI). */
+export type ApresentacaoMarca = 'nominativa' | 'mista' | 'figurativa' | 'tridimensional' | 'posicao';
+export type NaturezaMarca = 'produto' | 'servico' | 'coletiva' | 'certificacao';
 export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
@@ -989,6 +996,13 @@ export interface Processo {
   /** O processo de que este nasceu, como recurso ou incidental (#316). Gravados só ao criar; excluída a origem, origem_id fica vazio. */
   origem_id: string | null;
   ligacao: LigacaoDeProcesso | null;
+  /**
+   * Propriedade intelectual (#317): só nos processos da área "Propriedade intelectual"; vazios nos outros. As datas (aaaa-mm-dd) são
+   * as de que os prazos do INPI partem (regras/propriedadeIntelectual.ts). Os processos de antes da migração vêm com tudo vazio.
+   */
+  protecao?: TipoProtecao | null; deposito?: string | null; concessao?: string | null; publicacao?: string | null; criacao?: string | null;
+  apresentacao_marca?: ApresentacaoMarca | null; natureza_marca?: NaturezaMarca | null; classes_nice?: number[];
+  especificacao?: string | null; variacoes?: number | null; linguagem?: string | null;
 }
 /** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
 export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
@@ -1476,7 +1490,7 @@ export interface ComentarioDaMensagem {
  * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
  * de quem entrou num item (#377).
  */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo';
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1514,6 +1528,21 @@ export interface Mensagem {
   inclusao: InclusaoDaMensagem | null;
   /** Na mensagem de quem entrou num grupo da equipe (#378). Ausente nas outras. */
   grupo?: GrupoDaMensagem | null;
+  /** No aviso da demanda que nasceu de um compromisso que se repete (#307). Ausente nas outras. */
+  demandaDoCompromisso?: DemandaDoCompromissoDaMensagem | null;
+}
+/** Qual aviso da demanda que nasce do compromisso (#307; mensagens_de_compromisso.aviso no banco): nasceu, a data mudou, foi cancelado. */
+export type AvisoDaDemandaDoCompromisso = 'demanda_nova' | 'data_mudou' | 'cancelado';
+/**
+ * O aviso ao responsável da demanda que nasceu de uma data do compromisso que se repete (#307, tabela mensagens_de_compromisso).
+ * `demanda`: null quando a pessoa não a vê mais (a caixa só diz isso). As datas: a de antes (no data_mudou) e a do compromisso.
+ */
+export interface DemandaDoCompromissoDaMensagem {
+  aviso: AvisoDaDemandaDoCompromisso;
+  demanda: { id: string; codigo: string; titulo: string } | null;
+  compromisso_id: string | null;
+  data_antes: string | null;
+  data_nova: string | null;
 }
 /**
  * A mensagem de quem foi posto num grupo da equipe (#378, tabela mensagens_de_grupo): uma só, a do grupo, e não uma por item (a
@@ -1581,13 +1610,37 @@ export interface Compromisso {
   pessoas: PessoaResumida[];
   /** O processo, se quem vê o compromisso também pode abri-lo; senão null (e fica só o código e o número). */
   processo: ProcessoDoCompromisso | null;
+  /** A série do compromisso que se repete (#307): cada data é um compromisso, ligado a ela. Ausente ou null: não se repete. */
+  repeticao_id?: string | null;
+  /** A data que a regra da série deu a este compromisso (a data dele pode ter sido mudada depois, só nele). */
+  repeticao_data?: string | null;
+  /** A regra da série, para o cartão mostrar como se repete. */
+  repeticao?: RepeticaoCompromisso | null;
+  /** A demanda que nasceu desta data (#307, parte B); ausente ou null: nenhuma (ou foi excluída). */
+  demanda_gerada_id?: string | null;
 }
+/** Como o compromisso se repete (#307): por semana, mês ou ano. */
+export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
+/**
+ * O que a pessoa escolhe no cadastro: a cada `intervalo` semanas, meses ou anos; até uma data (`ate`), por um número de vezes
+ * (`vezes`, contando a primeira) ou sem fim (os dois null).
+ */
+export interface RegraDeRepeticao { frequencia: FrequenciaRepeticao; intervalo: number; ate: string | null; vezes: number | null }
+/** A série de um compromisso que se repete: a regra e a primeira data (`inicio`), de onde todas as datas são contadas. */
+export interface RepeticaoCompromisso extends RegraDeRepeticao {
+  id: string;
+  inicio: string;
+  /** Quantos dias corridos antes de cada data nasce uma demanda para o trabalho daquela vez (#307, parte B). Ausente ou null: não gera. */
+  demanda_dias_antes?: number | null;
+}
+/** O resultado de repetir: os compromissos criados (as datas seguintes) e as datas em que a sala estava ocupada (elas ficaram sem sala). */
+export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
   | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de compromissos (tabela, quadro e agenda). */
 export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes' | 'grupos'
-  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'repeticao_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 /** A ordem da tabela de compromissos: as de sempre e a data do compromisso. No quadro, cada coluna tem a sua (Ordem). */
 export type OrdemCompromisso = Ordem | 'data' | 'data_desc';
 export interface FiltroCompromissos {
@@ -1599,6 +1652,8 @@ export interface FiltroCompromissos {
   sala?: string;
   etiqueta?: string;
   situacao?: 'ativos' | 'arquivados';
+  /** O quadro e a tabela (#307): de cada compromisso que se repete, só a próxima data em aberto (regras/repeticao.ts, vezNaLista). */
+  soAProxima?: boolean;
   ordem?: OrdemCompromisso;
   pagina?: number;
   porPagina?: number;
@@ -1643,6 +1698,25 @@ export interface DadosCompromissos {
   /** Liga o compromisso a um item (quem muda o compromisso ativo e vê o item); o item já ligado não muda nada e devolve false. */
   compromissoLigar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<boolean>;
   compromissoDesligar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<void>;
+  /**
+   * Faz o compromisso se repetir (#307; quem o muda, e não audiência nem perícia): cria a série e as datas seguintes até o horizonte
+   * (REPETICAO.horizonteMeses, e sempre a próxima). Cada data copia o compromisso (pessoas, equipe, processo, sala, ligações e
+   * etiquetas), na coluna de início do quadro; a sala ocupada numa das datas fica de fora só nela.
+   */
+  compromissoRepetir(id: string, regra: RegraDeRepeticao): Promise<RepeticaoCriada>;
+  /**
+   * Muda a data e o horário deste compromisso e dos seguintes da série ainda em aberto (os realizados, cancelados e arquivados não
+   * mudam). Mudar a data recomeça a série dali: as seguintes passam a ser contadas da data nova. Devolve quantos mudaram.
+   */
+  compromissoMudarSeguintes(id: string, quando: Pick<Compromisso, 'data' | 'hora' | 'hora_fim'>): Promise<number>;
+  /** Arquiva este compromisso e os seguintes da série ainda em aberto, e a série para de se repetir. Devolve quantos foram arquivados. */
+  compromissoArquivarSeguintes(id: string): Promise<number>;
+  /**
+   * Marca a repetição do compromisso para gerar uma demanda `dias` corridos antes de cada data (null: não gera mais; #307, parte B),
+   * recuando ao dia útil anterior quando o dia cai num fim de semana ou num feriado do Calendário. Quem muda o compromisso, com o módulo
+   * Demandas ligado. Devolve as demandas que já nasceram (as das datas que já estão no prazo); as outras nascem na rotina diária.
+   */
+  compromissoGerarDemandas(id: string, dias: number | null): Promise<string[]>;
   /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
   prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */

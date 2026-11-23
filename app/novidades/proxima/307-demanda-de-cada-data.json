@@ -1,0 +1,5 @@
+{
+  "titulo": "Demanda que nasce do compromisso que se repete",
+  "texto": "O compromisso que se repete pode gerar, alguns dias antes de cada data, uma demanda para o trabalho daquela vez, com o mesmo contrato e as mesmas pessoas (se o dia cair num fim de semana ou feriado, ela nasce no dia útil anterior). O responsável é avisado em Mensagens quando ela nasce, quando a data do compromisso muda (o prazo da demanda acompanha) e quando o compromisso é cancelado.",
+  "ondeAchar": "Agenda, \"Novo compromisso\": ao escolher \"Repetir\", o campo \"Gerar demanda (dias antes)\". Os avisos ficam em Mensagens."
+}

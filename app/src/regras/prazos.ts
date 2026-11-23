@@ -66,9 +66,15 @@ export interface PrazoContado {
 }
 
 // ---------- datas (em UTC, para o fuso não mudar o dia) ----------
+/** Os dias numa semana. */
+export const DIAS_NA_SEMANA = 7;
 const paraData = (iso: string) => { const [a, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(a, m - 1, d)); };
 const paraISO = (d: Date) => d.toISOString().slice(0, 10);
 export const somarDias = (iso: string, n: number) => { const d = paraData(iso); d.setUTCDate(d.getUTCDate() + n); return paraISO(d); };
+/** Um dia, em milissegundos (em UTC o dia tem sempre 24 horas). */
+const UM_DIA = 24 * 60 * 60 * 1000;
+/** Quantos dias corridos de uma data a outra (negativo se a segunda vem antes). */
+export const diasEntre = (de: string, ate: string) => Math.round((paraData(ate).getTime() - paraData(de).getTime()) / UM_DIA);
 const proximo = (iso: string) => somarDias(iso, 1);
 /** Nome do dia da semana que nunca tem expediente (0 = domingo, 6 = sábado). */
 const FIM_DE_SEMANA: Record<number, string> = { 0: 'domingo', 6: 'sábado' };

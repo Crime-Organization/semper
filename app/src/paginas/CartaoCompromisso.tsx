@@ -6,6 +6,8 @@
 // Desde a #346, quem muda o compromisso muda o título no próprio lugar, como na anotação (o lápis não o repete). A audiência e a
 // perícia podem ficar sem título: aí o título mostra o tipo e as pessoas, o campo abre em branco, e apagar o título volta a
 // mostrá-los. Logo abaixo, a data e o horário (#361), que também se mudam no próprio lugar; o lápis não os repete.
+// No compromisso que se repete (#307), mudar a data e o horário ou arquivar pergunta se vale só para esta data ou para esta e as
+// seguintes ainda em aberto (arquivar as seguintes faz a repetição parar). Os outros campos mudam só nesta data.
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
 import { TAMANHO_COMPROMISSO } from '../dados/limites';
@@ -18,6 +20,8 @@ import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar 
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { janela } from '../ui/janela';
+import { avisoDasSeguintes, type MudancaDasSeguintes } from '../regras/repeticao';
 import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
@@ -45,6 +49,12 @@ import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+
+/** Na data de um compromisso que se repete: a mudança vale só para ela ou para ela e as seguintes ainda em aberto? null: desistiu. */
+const soEstaOuSeguintes = (titulo: string, texto: string) => janela<'esta' | 'seguintes'>({
+  titulo, corpo: <p>{texto}</p>,
+  acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Só esta', valor: 'esta' }, { rotulo: 'Esta e as seguintes', valor: 'seguintes', tipo: 'pri' }]
+});
 
 interface Props {
   id: string;
@@ -92,6 +102,11 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   async function arquivar() {
     const estava = !!c!.arquivado_em;
+    const escolha = !estava && c!.repeticao_id
+      ? await soEstaOuSeguintes('Arquivar o compromisso', 'Este compromisso se repete. Arquivar só esta data, ou esta e as seguintes ainda em aberto? Arquivando as seguintes, a repetição para.')
+      : 'esta';
+    if (!escolha) return;
+    if (escolha === 'seguintes') { await mudarAsSeguintes('arquivados', () => SD.compromissoArquivarSeguintes(c!.id)); return; }
     try {
       await SD.compromissosArquivar([c!.id], !estava);
       feito(estava ? 'Compromisso desarquivado.' : 'Compromisso arquivado. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
@@ -121,8 +136,25 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
   });
 
-  /** Grava a data e o horário mudados no próprio lugar (#361), como o lápis: o mesmo aviso, com Desfazer. */
-  const salvarQuando = (q: QuandoGravado) => gravarNoLugar<QuandoGravado>({
+  /** "Esta e as seguintes" (#307): o banco muda a série toda de uma vez; sem Desfazer, porque cada data pode ter mudado de um jeito. */
+  async function mudarAsSeguintes(mudanca: MudancaDasSeguintes, gravar: () => Promise<number>) {
+    try {
+      avisar(avisoDasSeguintes(mudanca, await gravar()));
+      aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+    } catch (e) { falha(e); }
+  }
+  /**
+   * Grava a data e o horário mudados no próprio lugar (#361), como o lápis: o mesmo aviso, com Desfazer. No compromisso que se repete,
+   * pergunta antes se é só esta data ou esta e as seguintes; desistindo, nada muda.
+   */
+  const salvarQuando = async (q: QuandoGravado) => {
+    const escolha = c.repeticao_id
+      ? await soEstaOuSeguintes('Mudar a data e o horário', 'Este compromisso se repete. Mudar só esta data, ou esta e as seguintes ainda em aberto? Mudando a data das seguintes, elas passam a se repetir a partir da data nova.')
+      : 'esta';
+    if (escolha === 'seguintes') return mudarAsSeguintes('mudados', () => SD.compromissoMudarSeguintes(c.id, q));
+    if (escolha) return salvarSoEsta(q);
+  };
+  const salvarSoEsta = (q: QuandoGravado) => gravarNoLugar<QuandoGravado>({
     novo: q, antes: quandoComoEsta(c), gravar: x => SD.compromissoAtualizar(c.id, x),
     aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
     mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }

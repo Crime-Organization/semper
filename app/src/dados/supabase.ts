@@ -19,7 +19,7 @@ import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, Contrat
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
-import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
+import type { DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { MODULOS_MENCIONAVEIS } from '../regras/comentarios';
@@ -286,10 +286,19 @@ const mensagemDeGrupo = (l: LinhaDaMensagemDeGrupo): Mensagem => ({
   grupo: l.grupo && { grupo_id: l.grupo_id, nome: l.grupo.nome, incluido_por: l.incluido_por }
 });
 /**
- * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão e a das mensagens de grupo (#378).
- * Marcar como lida vale em todas (o id só existe numa).
+ * O aviso da demanda que nasceu de um compromisso que se repete (#307), da tabela própria (a versão anterior do site não a lê). A demanda
+ * vem pelas regras de leitura dela: quem não a vê mais recebe null.
  */
-const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo'] as const;
+const CAMPOS_MENSAGEM_DE_COMPROMISSO = 'id, criado_em, lido_em, aviso, compromisso_id, data_antes, data_nova, demanda:demandas(id, codigo, titulo)';
+type LinhaDaMensagemDeCompromisso = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & DemandaDoCompromissoDaMensagem;
+const mensagemDeCompromisso = ({ id, criado_em, lido_em, ...aviso }: LinhaDaMensagemDeCompromisso): Mensagem => ({
+  id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null, demandaDoCompromisso: aviso
+});
+/**
+ * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão, a das mensagens de grupo (#378) e a dos
+ * avisos das demandas que nascem dos compromissos (#307). Marcar como lida vale em todas (o id só existe numa).
+ */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo', 'mensagens_de_compromisso'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
@@ -405,11 +414,15 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
 // ---------- compromissos ----------
 /** Quem só lê a Agenda geral não muda: o banco devolve zero linhas, sem erro. Sem isto, a tela diria que mudou. */
 const NAO_MUDOU = 'Você não tem permissão para fazer isso.';
-const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
+const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, repeticao_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // O processo vem pelas regras de leitura dele: quem não pode abri-lo recebe null (e fica só o código e o número).
 const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  // A série do compromisso que se repete (#307; supabase/migrations/20261122232804_compromissos_que_se_repetem.sql).
+  + 'repeticao_id, repeticao_data, repeticao:compromisso_repeticoes(id, frequencia, intervalo, inicio, ate, vezes, demanda_dias_antes), '
+  // A demanda que nasceu desta data (#307, parte B; supabase/migrations/20261123000750_demandas_dos_compromissos.sql).
+  + 'demanda_gerada_id, '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_FUNCAO_NA_TAREFA = 'id, nome, executa, ordem';
@@ -434,6 +447,8 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
   if (f.tipo) q = q.eq('tipo', f.tipo);
   if (f.sala) q = q.eq('sala_id', f.sala);
+  // O quadro e a tabela (#307): de cada série, só a próxima em aberto (a coluna calculada public.no_quadro; o arquivado vem sempre).
+  if (f.soAProxima) q = q.eq('no_quadro', true);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -575,6 +590,8 @@ const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id,
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
+  // Propriedade intelectual (#317).
+  + 'protecao, deposito, concessao, publicacao, criacao, apresentacao_marca, natureza_marca, classes_nice, especificacao, variacoes, linguagem, '
   + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** As pessoas com papel no processo (#316). */
 const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;
@@ -1314,6 +1331,15 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('compromisso_ligacoes').upsert({ compromisso_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `compromisso_id,${coluna}`, ignoreDuplicates: true }).select('id'));
     return data.length > 0;
   },
+  // A repetição (#307): as funções do banco criam, mudam e arquivam as datas da série com as regras de quem pode mudar o compromisso.
+  async compromissoRepetir(id, regra) {
+    const r = await rpc('compromisso_repetir', { p_id: id, p_frequencia: regra.frequencia, p_intervalo: regra.intervalo, p_ate: regra.ate, p_vezes: regra.vezes });
+    return { ids: r.ids, semSala: r.sem_sala };
+  },
+  compromissoMudarSeguintes: (id, q) => rpc('compromisso_mudar_seguintes', { p_id: id, p_data: q.data, p_hora: q.hora, p_hora_fim: q.hora_fim }),
+  compromissoArquivarSeguintes: id => rpc('compromisso_arquivar_seguintes', { p_id: id }),
+  // A demanda de cada data (#307, parte B): o banco marca a repetição e já cria as que estão no prazo; as outras nascem na rotina diária.
+  async compromissoGerarDemandas(id, dias) { return (await rpc('compromisso_gerar_demandas', { p_id: id, p_dias: dias }) as string[] | null) ?? []; },
   async compromissoDesligar(id, modulo, itemId) {
     // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
     const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
@@ -2410,13 +2436,14 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const [sempre, pedidos, inclusoes, grupos] = await Promise.all([
+    const [sempre, pedidos, inclusoes, grupos, compromissos] = await Promise.all([
       rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
-      rodar(sb.from('mensagens_de_grupo').select(CAMPOS_MENSAGEM_DE_GRUPO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+      rodar(sb.from('mensagens_de_grupo').select(CAMPOS_MENSAGEM_DE_GRUPO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_de_compromisso').select(CAMPOS_MENSAGEM_DE_COMPROMISSO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
     ]);
-    return juntarAsCaixas([(grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
+    return juntarAsCaixas([(compromissos.data as LinhaDaMensagemDeCompromisso[]).map(mensagemDeCompromisso), (grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
       (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {

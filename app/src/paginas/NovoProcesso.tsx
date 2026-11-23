@@ -23,6 +23,7 @@ import {
 } from '../regras/origemDoCadastro';
 import { ligarContratoNoProcesso, ligarNoItem } from './ligarNoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
+import { CamposDaProtecao } from './processo/CamposDaProtecao';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -475,6 +476,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         </select>
       </Campo>
       {listaDe('area')}
+      {/* Na área Propriedade intelectual (#317): o tipo de proteção e os campos dele. */}
+      <CamposDaProtecao c={c} erros={erros} mudar={mudar} />
       {judicial && <>
         {listaDe('natureza')}
         <Campo rotulo="Gratuidade de justiça" para="gratuidade">
