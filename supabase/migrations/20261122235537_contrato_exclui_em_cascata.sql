@@ -219,6 +219,8 @@ begin
            'recebimento', to_jsonb(r),
            'repasses', (select coalesce(jsonb_agg(to_jsonb(x)), '[]') from public.financeiro_repasses x where x.recebimento_id = r.id),
            'terceiros_pagos', (select coalesce(jsonb_agg(to_jsonb(m)), '[]') from public.financeiro_terceiros_pagos m where m.recebimento_id = r.id),
+           -- De qual sócio era o lucro deste recebimento (cai em cascata com ele): pesa no lucro dos sócios, se for relançado à mão.
+           'socio', (select to_jsonb(s) from privado.socio_do_recebimento s where s.recebimento_id = r.id),
            'lancamentos', (select coalesce(jsonb_agg(to_jsonb(l)), '[]') from public.financeiro_lancamentos l
                             where l.id in (r.lancamento_id, r.lancamento_taxa_id) or l.corrige_recebimento = r.id
                                or l.id in (select x.lancamento_id from public.financeiro_repasses x where x.recebimento_id = r.id))),

@@ -189,6 +189,9 @@ reset role;
 select is((select count(*) from public.contratos where id = 'c0000000-0000-0000-0000-000000000002'), 0::bigint, 'O contrato sem dinheiro sai');
 
 -- ===== O administrador exclui com o dinheiro =====
+-- Dado que o lucro do recebimento da parcela 1 do K1 é de um sócio (o que privado.socio_do_recebimento guarda)
+insert into privado.socio_do_recebimento (recebimento_id, escritorio_id, pessoa_id, nome)
+values ((select r1 from rec), 'e0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'SÓCIO DO TESTE');
 -- Quando a Ana exclui o K1 e o K3
 select pg_temp.entrar(1); set local role authenticated;
 select is(public.contratos_excluir('{c0000000-0000-0000-0000-000000000001,c0000000-0000-0000-0000-000000000003,c0000000-0000-0000-0000-000000000009}'), 2,
@@ -221,6 +224,10 @@ select is((select string_agg(contrato_codigo || ' ' || tipo || ' ' || parcela_nu
   'A cópia escondida guarda os recebimentos e a parcela importada');
 select is((select jsonb_array_length(copia -> 'lancamentos') from public.financeiro_excluidos where parcela_numero = 1 and tipo = 'recebimento'), 2,
   'A cópia guarda os lançamentos do recebimento (a entrada e a taxa)');
+select is((select copia -> 'socio' ->> 'nome' from public.financeiro_excluidos where parcela_numero = 1 and tipo = 'recebimento'), 'SÓCIO DO TESTE',
+  'A cópia guarda de qual sócio era o lucro do recebimento');
+select is((select count(*) from privado.socio_do_recebimento where recebimento_id = (select r1 from rec)), 0::bigint,
+  'E a linha do sócio sai junto com o recebimento');
 -- E a auditoria tem o resumo com os valores
 select is((select resumo -> 'cascata' ->> 'recebido' from public.auditoria where registro_id = 'c0000000-0000-0000-0000-000000000001' and resumo ? 'cascata'), '100000',
   'A auditoria guarda o resumo com os valores');
