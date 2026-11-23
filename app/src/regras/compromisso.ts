@@ -8,6 +8,7 @@ import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, ITENS_DO_COMPROMISSO, TAMANHO_
 import { clientesPorExtenso } from './contrato';
 import { fmtData, lerData } from './pessoa';
 import { estaPeloGrupo } from './gruposDaEquipe';
+import { CONFERENCIAS_DA_REPETICAO, descreverRepeticao, regraDosCampos, REPETICAO_VAZIA, type CamposRepeticao } from './repeticao';
 
 /** O fuso da agenda: a data e a hora dos compromissos são as do relógio de Brasília. */
 export const FUSO_DA_AGENDA = 'America/Sao_Paulo';
@@ -17,22 +18,23 @@ export const SEM_SITUACAO_COMPROMISSO = 'Sem situação';
 
 /**
  * O que cada tipo tem de próprio. "doProcesso": exige um processo e a modalidade, tem resultado e pode ficar sem título
- * (o cartão mostra o tipo e as pessoas). "exigeHora": sem ela, vale o dia inteiro. As regras do banco são as mesmas (migração).
+ * (o cartão mostra o tipo e as pessoas). "exigeHora": sem ela, vale o dia inteiro. "repete": pode se repetir (#307); audiência e
+ * perícia não, porque são de um processo e acontecem uma vez. As regras do banco são as mesmas (migrações).
  */
-export const TIPOS_COMPROMISSO: Record<TipoCompromisso, { nome: string; doProcesso: boolean; exigeHora: boolean }> = {
-  audiencia: { nome: 'Audiência', doProcesso: true, exigeHora: true },
-  pericia: { nome: 'Perícia', doProcesso: true, exigeHora: true },
-  reuniao: { nome: 'Reunião', doProcesso: false, exigeHora: true },
+export const TIPOS_COMPROMISSO: Record<TipoCompromisso, { nome: string; doProcesso: boolean; exigeHora: boolean; repete: boolean }> = {
+  audiencia: { nome: 'Audiência', doProcesso: true, exigeHora: true, repete: false },
+  pericia: { nome: 'Perícia', doProcesso: true, exigeHora: true, repete: false },
+  reuniao: { nome: 'Reunião', doProcesso: false, exigeHora: true, repete: true },
   // O atendimento a um cliente (#306): como a reunião, com título e hora, e cor própria no calendário (--agenda-atendimento).
-  atendimento: { nome: 'Atendimento', doProcesso: false, exigeHora: true },
-  outro: { nome: 'Outro', doProcesso: false, exigeHora: false }
+  atendimento: { nome: 'Atendimento', doProcesso: false, exigeHora: true, repete: true },
+  outro: { nome: 'Outro', doProcesso: false, exigeHora: false, repete: true }
 };
 export const TIPOS = Object.keys(TIPOS_COMPROMISSO) as TipoCompromisso[];
 export const MODALIDADES: Record<ModalidadeCompromisso, string> = { presencial: 'Presencial', virtual: 'Virtual' };
 
 // ---------- formulário ----------
-/** Campos do formulário de compromisso, como digitados. */
-export interface CamposCompromisso {
+/** Campos do formulário de compromisso, como digitados. A repetição (#307) só vale no cadastro de um compromisso novo. */
+export interface CamposCompromisso extends CamposRepeticao {
   tipo: TipoCompromisso;
   titulo: string;
   /** dd/mm/aaaa. */
@@ -54,7 +56,8 @@ export interface CamposCompromisso {
   observacoes: string;
 }
 export const compromissoVazio = (tipo: TipoCompromisso = 'reuniao'): CamposCompromisso => ({
-  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', salaId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, resultado: '', observacoes: ''
+  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', salaId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, resultado: '', observacoes: '',
+  ...REPETICAO_VAZIA
 });
 
 type Conferencia = (c: CamposCompromisso) => string | null;
@@ -92,7 +95,10 @@ const CONFERENCIAS: Partial<Record<keyof CamposCompromisso, Conferencia[]>> = {
     c => escolhidos(c.pessoas).length > CLIENTES_MAXIMOS ? `Um compromisso pode ter até ${CLIENTES_MAXIMOS} pessoas ligadas.` : null
   ],
   resultado: [ateTamanho('resultado', 'O resultado')],
-  observacoes: [ateTamanho('observacoes', 'As observações')]
+  observacoes: [ateTamanho('observacoes', 'As observações')],
+  // A repetição (#307) só é conferida nos tipos que se repetem: ao trocar para audiência, ela é deixada de lado (repeticaoDoCompromisso).
+  ...Object.fromEntries(Object.entries(CONFERENCIAS_DA_REPETICAO)
+    .map(([campo, regras]) => [campo, regras.map(r => (c: CamposCompromisso) => doTipo(c).repete ? r(c) : null)]))
 };
 
 /** Erros do cadastro, por campo. Vazio: pode salvar. */
@@ -123,8 +129,10 @@ export const fmtHora = (hora: string | null | undefined) => hora ? hora.slice(0,
 export const camposDoCompromisso = (c: Compromisso): CamposCompromisso => ({
   tipo: c.tipo, titulo: c.titulo || '', data: fmtData(c.data), hora: fmtHora(c.hora), horaFim: fmtHora(c.hora_fim), modalidade: c.modalidade || '', local: c.local || '',
   processoId: c.processo_id || '', salaId: c.sala_id || '', responsavelId: c.responsavel_id, participantes: [...c.participantes], pessoas: c.pessoas.length ? c.pessoas.map(p => p.id) : [''],
-  geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || ''
+  geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || '', ...REPETICAO_VAZIA
 });
+/** A repetição escolhida no cadastro (só depois de conferida), ou null: não se repete, ou o tipo escolhido não se repete. */
+export const repeticaoDoCompromisso = (c: CamposCompromisso) => doTipo(c).repete ? regraDosCampos(c) : null;
 
 /**
  * Depois de gravar, a pessoa continua vendo o compromisso pelo processo ligado? O processo que já estava ligado só vem no
@@ -148,7 +156,7 @@ export type EtapaCompromisso = 'compromisso' | 'onde' | 'pessoas' | 'detalhes';
 export interface DefinicaoEtapaCompromisso { id: EtapaCompromisso; titulo: string; texto: string; campos: (keyof CamposCompromisso)[] }
 /** As etapas do cadastro, na ordem, como nos cadastros de pessoa, de demanda e de processo. */
 export const ETAPAS_COMPROMISSO: DefinicaoEtapaCompromisso[] = [
-  { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim'] },
+  { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim', 'repetir', 'aCada', 'termina', 'repetirAte', 'repetirVezes'] },
   { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade. A sala do escritório, se houver, fica livre só para ele no horário.', campos: ['processoId', 'salaId', 'modalidade', 'local'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem da equipe vai, quem ajuda e, se houver, as pessoas do cadastro ligadas ao compromisso.', campos: ['pessoas', 'responsavelId', 'participantes', 'geral'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.', campos: ['resultado', 'observacoes'] }
@@ -203,7 +211,7 @@ export const valorLegivelCompromisso = (campo: string, v: unknown) =>
  * `sala`: o nome da sala do escritório (#308), como regras/sala.ts o mostra.
  */
 export const linhasDoCompromisso = (c: Compromisso, sala = ''): [string, string][] => ([
-  ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome],
+  ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome], ['Repete', c.repeticao ? descreverRepeticao(c.repeticao) : ''],
   ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Sala', sala], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
 ] as [string, string][]).filter(([, valor]) => valor);
 

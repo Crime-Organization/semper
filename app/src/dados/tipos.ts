@@ -1470,13 +1470,30 @@ export interface Compromisso {
   pessoas: PessoaResumida[];
   /** O processo, se quem vê o compromisso também pode abri-lo; senão null (e fica só o código e o número). */
   processo: ProcessoDoCompromisso | null;
+  /** A série do compromisso que se repete (#307): cada data é um compromisso, ligado a ela. Ausente ou null: não se repete. */
+  repeticao_id?: string | null;
+  /** A data que a regra da série deu a este compromisso (a data dele pode ter sido mudada depois, só nele). */
+  repeticao_data?: string | null;
+  /** A regra da série, para o cartão mostrar como se repete. */
+  repeticao?: RepeticaoCompromisso | null;
 }
+/** Como o compromisso se repete (#307): por semana, mês ou ano. */
+export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
+/**
+ * O que a pessoa escolhe no cadastro: a cada `intervalo` semanas, meses ou anos; até uma data (`ate`), por um número de vezes
+ * (`vezes`, contando a primeira) ou sem fim (os dois null).
+ */
+export interface RegraDeRepeticao { frequencia: FrequenciaRepeticao; intervalo: number; ate: string | null; vezes: number | null }
+/** A série de um compromisso que se repete: a regra e a primeira data (`inicio`), de onde todas as datas são contadas. */
+export interface RepeticaoCompromisso extends RegraDeRepeticao { id: string; inicio: string }
+/** O resultado de repetir: os compromissos criados (as datas seguintes) e as datas em que a sala estava ocupada (elas ficaram sem sala). */
+export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
   | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de compromissos (tabela, quadro e agenda). */
 export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes' | 'grupos'
-  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'repeticao_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 /** A ordem da tabela de compromissos: as de sempre e a data do compromisso. No quadro, cada coluna tem a sua (Ordem). */
 export type OrdemCompromisso = Ordem | 'data' | 'data_desc';
 export interface FiltroCompromissos {
@@ -1488,6 +1505,8 @@ export interface FiltroCompromissos {
   sala?: string;
   etiqueta?: string;
   situacao?: 'ativos' | 'arquivados';
+  /** O quadro e a tabela (#307): de cada compromisso que se repete, só a próxima data em aberto (regras/repeticao.ts, vezNaLista). */
+  soAProxima?: boolean;
   ordem?: OrdemCompromisso;
   pagina?: number;
   porPagina?: number;
@@ -1532,6 +1551,19 @@ export interface DadosCompromissos {
   /** Liga o compromisso a um item (quem muda o compromisso ativo e vê o item); o item já ligado não muda nada e devolve false. */
   compromissoLigar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<boolean>;
   compromissoDesligar(id: string, modulo: ModuloDoCompromisso, itemId: string): Promise<void>;
+  /**
+   * Faz o compromisso se repetir (#307; quem o muda, e não audiência nem perícia): cria a série e as datas seguintes até o horizonte
+   * (REPETICAO.horizonteMeses, e sempre a próxima). Cada data copia o compromisso (pessoas, equipe, processo, sala, ligações e
+   * etiquetas), na coluna de início do quadro; a sala ocupada numa das datas fica de fora só nela.
+   */
+  compromissoRepetir(id: string, regra: RegraDeRepeticao): Promise<RepeticaoCriada>;
+  /**
+   * Muda a data e o horário deste compromisso e dos seguintes da série ainda em aberto (os realizados, cancelados e arquivados não
+   * mudam). Mudar a data recomeça a série dali: as seguintes passam a ser contadas da data nova. Devolve quantos mudaram.
+   */
+  compromissoMudarSeguintes(id: string, quando: Pick<Compromisso, 'data' | 'hora' | 'hora_fim'>): Promise<number>;
+  /** Arquiva este compromisso e os seguintes da série ainda em aberto, e a série para de se repetir. Devolve quantos foram arquivados. */
+  compromissoArquivarSeguintes(id: string): Promise<number>;
   /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
   prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */

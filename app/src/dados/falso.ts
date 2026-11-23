@@ -35,6 +35,8 @@ import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasR
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
+import { dataDaVez, regraNoLimite, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
+import type { RepeticaoCompromisso, RepeticaoCriada } from './tipos';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
@@ -219,6 +221,8 @@ interface Banco {
   compromissoLigacoes?: { compromisso_id: string; modulo: ModuloDoCompromisso; item_id: string; item_nome?: string | null; criado_em: string }[];
   /** As salas do escritório (salas no banco, #308). */
   salas?: Sala[];
+  /** As séries dos compromissos que se repetem (compromisso_repeticoes no banco, #307). */
+  repeticoes?: RepeticaoGuardada[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
   contasFinanceiras?: ContaFinanceira[];
@@ -622,6 +626,7 @@ if (!bd.colunas.some(c => c.modulo === 'compromissos')) {
 bd.historicoCompromissos ??= [];
 bd.compromissoLigacoes ??= [];
 bd.salas ??= [];
+bd.repeticoes ??= [];
 // Compromissos de exemplo: a audiência do processo de JOSÉ DA SILVA TESTE, amanhã, e a reunião de equipe de hoje, na Agenda geral.
 bd.compromissos ??= (() => {
   const coluna = bd.colunas.find(c => c.modulo === 'compromissos' && c.nome === 'Agendado')?.id ?? null;
@@ -1550,12 +1555,14 @@ const processoDoCompromisso = (c: CompromissoGuardado) => bd.processos!.find(p =
 const compromissoLista = (c: CompromissoGuardado): CompromissoLista => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, modalidade: c.modalidade, local: c.local, geral: c.geral, responsavel_id: c.responsavel_id,
   participantes: c.participantes, grupos: c.grupos ?? [], pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_codigo: c.processo_codigo, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero,
-  sala_id: c.sala_id ?? null,
+  sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null,
   etapa_id: c.etapa_id, etapa_ordem: c.etapa_ordem, arquivado_em: c.arquivado_em, criado_por: c.criado_por, criado_em: c.criado_em, atualizado_em: c.atualizado_em
 });
 const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
-  return { ...c, sala_id: c.sala_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
+  const serie = serieDoFalso(c.repeticao_id);
+  return { ...c, sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null, repeticao_data: c.repeticao_data ?? null,
+    repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes }, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
@@ -1573,6 +1580,7 @@ function filtrarCompromissos(f: FiltroCompromissos = {}) {
     && (!f.tipo || c.tipo === f.tipo)
     && (!f.sala || c.sala_id === f.sala)
     && (!f.etiqueta || temEtiqueta('compromissos', c.id, f.etiqueta))
+    && (!f.soAProxima || !c.repeticao_id || !!c.arquivado_em || vezNaLista(vezesNaLista(c.repeticao_id), hojeNaAgenda()) === c.id)
     && (!t || buscaCompromisso(c).includes(t)));
 }
 const nomeOrdemCompromisso = (c: CompromissoGuardado) => normal(c.titulo || nomesDosClientes(c.pessoas));
@@ -1720,6 +1728,49 @@ function soltarDosCompromissos(modulo: ModuloDoCompromisso, itemId: string) {
   saem.forEach(l => historicoDaLigacao(l.compromisso_id, nomeDoItemDoCompromisso(modulo, itemId, l.item_nome), false));
   bd.compromissoLigacoes = bd.compromissoLigacoes!.filter(l => !saem.includes(l));
 }
+// ---------- compromissos que se repetem (como supabase/migrations/20261122232804_compromissos_que_se_repetem.sql, #307) ----------
+/** A série como fica guardada: a regra, a primeira data, a última data que já virou compromisso e quem a criou. */
+type RepeticaoGuardada = RepeticaoCompromisso & { gerada_ate: string; criado_por: string | null };
+const serieDoFalso = (id: string | null | undefined) => bd.repeticoes!.find(r => r.id === id) ?? null;
+const naColunaDeConcluido = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
+/** Como privado.compromisso_em_aberto: nem arquivado, nem na coluna de concluído ("Realizado") ou na "Cancelado". */
+const compromissoEmAberto = (c: CompromissoGuardado) => !c.arquivado_em && !naColunaDeConcluido(c.etapa_id) && !colunaCancelada(nomeDaColuna(c.etapa_id));
+/** As datas da série que quem está logado vê, para o quadro escolher a próxima (public.no_quadro roda com a permissão de quem lê). */
+const vezesNaLista = (serieId: string) => bd.compromissos!.filter(x => x.repeticao_id === serieId && vejoNoModulo('compromissos', x.id))
+  .map(x => ({ id: x.id, data: x.data, hora: x.hora, aberta: compromissoEmAberto(x) }));
+/** Como privado.esta_e_as_seguintes: este e os seguintes da série ainda em aberto que quem está logado muda, na ordem da série. */
+const estaEAsSeguintes = (c: CompromissoGuardado) => bd.compromissos!
+  .filter(x => x.repeticao_id === c.repeticao_id && (x.id === c.id || (x.repeticao_data! > c.repeticao_data! && compromissoEmAberto(x) && alteroCompromisso(x))))
+  .sort((a, b) => a.repeticao_data!.localeCompare(b.repeticao_data!));
+/**
+ * Como privado.gerar_repeticoes: cada data nova copia a última da série ainda ativa (pessoas, equipe, processo, sala, ligações e
+ * etiquetas), na coluna de início do quadro; a sala ocupada numa data fica de fora só nela. Sem nenhuma ativa, a série não cresce.
+ */
+function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda()): RepeticaoCriada {
+  const criada: RepeticaoCriada = { ids: [], semSala: [] };
+  const modelo = bd.compromissos!.filter(c => c.repeticao_id === serie.id && !c.arquivado_em).sort((a, b) => b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
+  if (!modelo) return criada;
+  const inicio = bd.colunas.find(c => c.modulo === 'compromissos' && c.marco === 'inicio')?.id ?? null;
+  for (const { data } of vezesParaGerar(serie, serie.gerada_ate, hoje)) {
+    let sala = modelo.sala_id ?? null;
+    if (sala && (!bd.salas!.find(s => s.id === sala)?.ativa || conflitoNaSala({ hora: modelo.hora, horaFim: modelo.hora_fim }, ocupacoesNoFalso(sala, data, null)))) {
+      sala = null;
+      criada.semSala.push(data);
+    }
+    const c: CompromissoGuardado = { ...modelo, id: novoId(), codigo: codigo(), data, sala_id: sala, resultado: null, etapa_id: inicio, etapa_ordem: Date.now() / 1000,
+      participantes: modelo.participantes.filter(id => EQUIPE.some(m => m.id === id)), arquivado_em: null, arquivado_por: null,
+      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data };
+    bd.compromissos!.push(c);
+    ligacoesDoCompromisso(modelo.id).forEach(l => bd.compromissoLigacoes!.push({ ...l, compromisso_id: c.id, criado_em: agora() }));
+    bd.etiquetasAplicadas!.filter(a => a.modulo === 'compromissos' && a.cartao_id === modelo.id).forEach(a => bd.etiquetasAplicadas!.push({ ...a, cartao_id: c.id }));
+    criada.ids.push(c.id);
+    serie.gerada_ate = data;
+  }
+  return criada;
+}
+// Como a rotina diária estender-repeticoes: ao abrir o banco fictício, as séries ganham as datas que entraram no horizonte.
+bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).forEach(r => gerarRepeticoesNoFalso(r));
+
 // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
 // Aqui a regra de quem vê e quem altera vale de verdade (regras/anotacao.ts), e a visibilidade de cada item ligado segue as
 // regras puras de cada módulo, como as do banco (mesmo onde a listagem do módulo, no banco fictício, ainda mostra tudo).
@@ -3791,6 +3842,68 @@ export const SD: Dados = {
     bd.compromissoLigacoes!.push({ compromisso_id: id, modulo, item_id: itemId, item_nome, criado_em: agora() });
     historicoDaLigacao(id, item_nome, true); gravar();
     return espera(true);
+  },
+  // Como as funções do banco (20261122232804_compromissos_que_se_repetem.sql, #307), com as mesmas conferências e mensagens.
+  async compromissoRepetir(id, regra) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    if (!TIPOS_COMPROMISSO[c.tipo].repete) throw new Error('Audiência e perícia não se repetem.');
+    if (c.repeticao_id) throw new Error('Este compromisso já se repete.');
+    if (regra.ate !== null && regra.ate <= c.data) throw new Error('A data final precisa ser depois da data do compromisso.');
+    if (!regraNoLimite(regra)) throw new Error(FORMATO_INVALIDO);
+    const serie: RepeticaoGuardada = { id: novoId(), frequencia: regra.frequencia, intervalo: regra.intervalo, ate: regra.ate, vezes: regra.vezes, inicio: c.data, gerada_ate: c.data, criado_por: eu };
+    bd.repeticoes!.push(serie);
+    Object.assign(c, { repeticao_id: serie.id, repeticao_data: c.data });
+    const criada = gerarRepeticoesNoFalso(serie);
+    gravar(); return espera(criada);
+  },
+  async compromissoMudarSeguintes(id, q) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Este compromisso não se repete.');
+    const lista = estaEAsSeguintes(c), hora = horaComSegundos(q.hora), hora_fim = horaComSegundos(q.hora_fim);
+    const mudar = (x: CompromissoGuardado, campos: Partial<CompromissoGuardado>) => {
+      conferirSalaNoFalso({ ...x, ...campos }, x);
+      historicoCompromisso(x, campos);
+      Object.assign(x, campos, { atualizado_em: agora(), atualizado_por: eu });
+    };
+    if (q.data === c.data) {
+      lista.forEach(x => mudar(x, { hora, hora_fim }));
+      gravar(); return espera(lista.length);
+    }
+    // A data mudou: a série recomeça dali (a antiga termina na véspera desta), com o que faltava das vezes e a mesma data final.
+    const resta = serie.vezes === null ? null : serie.vezes - vezDaData(serie, c.repeticao_data!);
+    const nova: RepeticaoGuardada = { id: novoId(), frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: q.data, gerada_ate: q.data, criado_por: eu,
+      ate: serie.ate !== null ? (serie.ate > q.data ? serie.ate : q.data) : resta !== null && resta < 2 ? q.data : null, vezes: resta !== null && resta >= 2 ? resta : null };
+    Object.assign(serie, { ate: somarDias(c.repeticao_data!, -1), vezes: null });
+    bd.repeticoes!.push(nova);
+    // Para a sala não se chocar com a própria série no meio do caminho, quem anda para a frente muda da última para a primeira.
+    const ordem = lista.map((_, i) => i);
+    if (q.data > c.data) ordem.reverse();
+    for (const i of ordem) {
+      const data = dataDaVez(nova, i);
+      if ((nova.ate !== null && data > nova.ate) || (nova.vezes !== null && i + 1 > nova.vezes)) mudar(lista[i], { arquivado_em: agora(), arquivado_por: eu });
+      else {
+        mudar(lista[i], { data, hora, hora_fim, repeticao_id: nova.id, repeticao_data: data });
+        if (data > nova.gerada_ate) nova.gerada_ate = data;
+      }
+    }
+    gerarRepeticoesNoFalso(nova);
+    gravar(); return espera(lista.length);
+  },
+  async compromissoArquivarSeguintes(id) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Este compromisso não se repete.');
+    const lista = estaEAsSeguintes(c);
+    Object.assign(serie, { ate: somarDias(c.repeticao_data!, -1), vezes: null });
+    lista.forEach(x => {
+      historicoCompromisso(x, { arquivado_em: agora() });
+      Object.assign(x, { arquivado_em: agora(), arquivado_por: eu, atualizado_em: agora() });
+    });
+    gravar(); return espera(lista.length);
   },
   async compromissoDesligar(id, modulo, itemId) {
     const c = bd.compromissos!.find(x => x.id === id);

@@ -1,6 +1,7 @@
 // Compromissos: a agenda do escritório. Três formas de ver os mesmos compromissos: por data (dia, semana e mês), tabela com
 // ações em lote e quadro por situação, além do cartão de cada um. A estrutura da página vem de <PaginaModulo>; o modelo é o
-// módulo Pessoas. Com salas cadastradas nas Configurações (#308), a agenda filtra também pela sala.
+// módulo Pessoas. Com salas cadastradas nas Configurações (#308), a agenda filtra também pela sala. Do compromisso que se repete (#307),
+// a agenda mostra todas as datas; a tabela e o quadro, só a próxima em aberto (soAProxima).
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
@@ -92,7 +93,7 @@ export default function Compromissos() {
   useEffect(() => {
     if (visao !== 'tabela') return;
     let vivo = true;
-    SD.compromissosListar({ ...f, ordem, porPagina: POR_PAGINA })
+    SD.compromissosListar({ ...f, ordem, porPagina: POR_PAGINA, soAProxima: true })
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
@@ -107,7 +108,7 @@ export default function Compromissos() {
   useEffect(() => {
     if (visao === 'tabela') return;
     let vivo = true;
-    SD.compromissosListar({ ...filtroDasContagens, situacao: 'ativos', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalAtivos(r.total); }).catch(() => {});
+    SD.compromissosListar({ ...filtroDasContagens, situacao: 'ativos', pagina: 0, porPagina: 1, soAProxima: true }).then(r => { if (vivo) setTotalAtivos(r.total); }).catch(() => {});
     return () => { vivo = false; };
   }, [visao, filtroDasContagens, recarga]);
 
@@ -177,7 +178,7 @@ export default function Compromissos() {
       {visao === 'agenda' && <VisaoPorData filtro={f} recarga={chaveDaLista} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} />}
       {visao === 'kanban' && <Kanban<CompromissoLista> quadro={quadro}
         recarga={chaveDaLista}
-        carregar={(colunaId, deslocamento, ordemDaColuna) => SD.compromissosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, POR_COLUNA)}
+        carregar={(colunaId, deslocamento, ordemDaColuna) => SD.compromissosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos', soAProxima: true }, deslocamento, POR_COLUNA)}
         ordemDe={c => c.etapa_ordem}
         arquivados={deslocamento => arquivados(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
         cartao={(c, ordemDaColuna) => <CartaoKanban c={c} ordem={ordemDaColuna} />}

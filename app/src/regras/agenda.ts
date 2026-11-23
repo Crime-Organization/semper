@@ -5,7 +5,7 @@ import type { CompromissoLista, PrazoNaAgenda } from '../dados/tipos';
 import { diaDaSemana, MESES } from './calendario';
 import { FUSO_DA_AGENDA, nomeDoCompromisso } from './compromisso';
 import { fmtData } from './pessoa';
-import { somarDias } from './prazos';
+import { DIAS_NA_SEMANA, somarDias } from './prazos';
 
 /** O formato que dá "aaaa-mm-dd" no Intl. */
 const FORMATO_ISO = 'en-CA';
@@ -15,7 +15,8 @@ export const hojeNaAgenda = (agora = new Date()) => new Intl.DateTimeFormat(FORM
 export const horaNaAgenda = (agora = new Date()) =>
   new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO_DA_AGENDA, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(agora);
 
-export const DIAS_NA_SEMANA = 7;
+// Os dias numa semana ficam em regras/prazos.ts, que não depende da agenda (a repetição dos compromissos também os usa).
+export { DIAS_NA_SEMANA };
 /** Dias da semana até a segunda-feira (a semana começa na segunda, como em Meu tempo). */
 const DESDE_A_SEGUNDA = [6, 0, 1, 2, 3, 4, 5];
 const paraData = (iso: string) => { const [a, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(a, m - 1, d)); };

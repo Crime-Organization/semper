@@ -66,6 +66,8 @@ export interface PrazoContado {
 }
 
 // ---------- datas (em UTC, para o fuso não mudar o dia) ----------
+/** Os dias numa semana. */
+export const DIAS_NA_SEMANA = 7;
 const paraData = (iso: string) => { const [a, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(a, m - 1, d)); };
 const paraISO = (d: Date) => d.toISOString().slice(0, 10);
 export const somarDias = (iso: string, n: number) => { const d = paraData(iso); d.setUTCDate(d.getUTCDate() + n); return paraISO(d); };

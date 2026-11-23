@@ -137,6 +137,7 @@ function Item({ item, completo, situacao, endereco, aoAbrir }: { item: ItemDaAge
     {completo && <span className="agenda-item-mais">
       <Selo tipo="arq">{TIPOS_COMPROMISSO[c!.tipo].nome}</Selo>
       {c!.geral && <Selo>Agenda geral</Selo>}
+      {c!.repeticao_id && <Selo>Se repete</Selo>}
       {c!.local && <span>{c!.local}</span>}
       <span>{situacao(c!.etapa_id)}</span>
     </span>}

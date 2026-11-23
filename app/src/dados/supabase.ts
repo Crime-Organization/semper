@@ -403,11 +403,13 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
 // ---------- compromissos ----------
 /** Quem só lê a Agenda geral não muda: o banco devolve zero linhas, sem erro. Sem isto, a tela diria que mudou. */
 const NAO_MUDOU = 'Você não tem permissão para fazer isso.';
-const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
+const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, repeticao_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // O processo vem pelas regras de leitura dele: quem não pode abri-lo recebe null (e fica só o código e o número).
 const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, sala_id, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  // A série do compromisso que se repete (#307; supabase/migrations/20261122232804_compromissos_que_se_repetem.sql).
+  + 'repeticao_id, repeticao_data, repeticao:compromisso_repeticoes(id, frequencia, intervalo, inicio, ate, vezes), '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
@@ -431,6 +433,8 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
   if (f.tipo) q = q.eq('tipo', f.tipo);
   if (f.sala) q = q.eq('sala_id', f.sala);
+  // O quadro e a tabela (#307): de cada série, só a próxima em aberto (a coluna calculada public.no_quadro; o arquivado vem sempre).
+  if (f.soAProxima) q = q.eq('no_quadro', true);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -1298,6 +1302,13 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('compromisso_ligacoes').upsert({ compromisso_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `compromisso_id,${coluna}`, ignoreDuplicates: true }).select('id'));
     return data.length > 0;
   },
+  // A repetição (#307): as funções do banco criam, mudam e arquivam as datas da série com as regras de quem pode mudar o compromisso.
+  async compromissoRepetir(id, regra) {
+    const r = await rpc('compromisso_repetir', { p_id: id, p_frequencia: regra.frequencia, p_intervalo: regra.intervalo, p_ate: regra.ate, p_vezes: regra.vezes });
+    return { ids: r.ids, semSala: r.sem_sala };
+  },
+  compromissoMudarSeguintes: (id, q) => rpc('compromisso_mudar_seguintes', { p_id: id, p_data: q.data, p_hora: q.hora, p_hora_fim: q.hora_fim }),
+  compromissoArquivarSeguintes: id => rpc('compromisso_arquivar_seguintes', { p_id: id }),
   async compromissoDesligar(id, modulo, itemId) {
     // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
     const { coluna } = LIGACAO_DA_ANOTACAO[modulo];

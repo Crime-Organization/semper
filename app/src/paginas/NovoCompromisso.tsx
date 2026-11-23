@@ -9,9 +9,10 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
-import { CLIENTES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
+import { avisoDaRepeticao, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, type FimDaRepeticao } from '../regras/repeticao';
 import {
-  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
+  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
@@ -25,7 +26,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -164,6 +165,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const conferidos = new Set(ETAPAS_COMPROMISSO.filter(e => conferidas.has(e.id)).flatMap(e => e.campos));
   const erros: Partial<Record<keyof CamposCompromisso, string>> = Object.fromEntries(Object.entries(validarCompromisso(c)).filter(([campo]) => conferidos.has(campo as keyof CamposCompromisso)));
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso, exigeHora = TIPOS_COMPROMISSO[c.tipo].exigeHora;
+  // A repetição (#307) só no cadastro de um compromisso novo, e só nos tipos que se repetem (audiência e perícia, não).
+  const repeteAqui = !idAtualizar && !edicao && TIPOS_COMPROMISSO[c.tipo].repete;
 
   // ---------- etapas ----------
   function irPara(i: number) {
@@ -298,9 +301,16 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         // Sem coluna escolhida, o compromisso novo entra na coluna-marco de início.
         const coluna = etapaInicial || await colunaInicial('compromissos');
         const r = await SD.compromissoCriar({ ...dadosDoCompromisso(c), etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
-        feito(`Compromisso ${r.codigo} cadastrado.`, 'cadastro do compromisso', async () => {
-          await SD.compromissosArquivar([r.id], true);
-          const x = await SD.compromissosExcluir([r.id]);
+        // Que se repete (#307): as datas seguintes viram compromissos. Se não der, o compromisso fica cadastrado sem repetir, e a pessoa sabe.
+        const regra = repeteAqui ? repeticaoDoCompromisso(c) : null;
+        const repetidos = regra && await SD.compromissoRepetir(r.id, regra).catch(e => {
+          falha(new Error(`O compromisso ${r.codigo} foi cadastrado, mas não foi possível repeti-lo: ${(e as Error).message}`));
+          return null;
+        });
+        const todos = [r.id, ...repetidos?.ids ?? []];
+        feito(repetidos ? avisoDaRepeticao(r.codigo, repetidos) : `Compromisso ${r.codigo} cadastrado.`, 'cadastro do compromisso', async () => {
+          await SD.compromissosArquivar(todos, true);
+          const x = await SD.compromissosExcluir(todos);
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'compromissoCriado', id: r.id };
         });
@@ -338,6 +348,30 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       {mostra('horaFim') && <Campo rotulo="Até" para="horaFim" erro={erros.horaFim} dica="Opcional. A hora em que deve terminar.">
         <input type="time" {...propsDoCampo('horaFim', { dica: true, erro: erros.horaFim })} value={c.horaFim} onChange={e => mudar({ horaFim: e.target.value })} />
       </Campo>}
+      {repeteAqui && <Campo rotulo="Repetir" para="repetir" dica="Cada data vira um compromisso na agenda. Audiência e perícia não se repetem.">
+        <select {...propsDoCampo('repetir', { dica: true })} value={c.repetir} onChange={e => mudar({ repetir: e.target.value as CamposCompromisso['repetir'] })}>
+          <option value="">Não se repete</option>
+          {FREQUENCIAS_DA_REPETICAO.map(f => <option key={f} value={f}>{FREQUENCIAS[f].nome}</option>)}
+        </select>
+      </Campo>}
+      {repeteAqui && c.repetir && <>
+        <Campo rotulo={`A cada (${FREQUENCIAS[c.repetir].unidade[1]})`} para="aCada" obrigatorio erro={erros.aCada} dica="1 é toda vez. A renovação de uma marca, por exemplo, é a cada 10 anos.">
+          <input type="number" inputMode="numeric" min={1} max={REPETICAO.intervaloMaximo} {...propsDoCampo('aCada', { dica: true, erro: erros.aCada })} value={c.aCada}
+            onChange={e => mudar({ aCada: e.target.value })} />
+        </Campo>
+        <Escolhas rotulo="Termina" obrigatorio>
+          {(Object.keys(FINS_DA_REPETICAO) as FimDaRepeticao[]).map(fim => <label key={fim}>
+            <input type="radio" name="termina" checked={c.termina === fim} onChange={() => mudar({ termina: fim })} />{FINS_DA_REPETICAO[fim]}
+          </label>)}
+        </Escolhas>
+        {c.termina === 'data' && <Campo rotulo="Repetir até" para="repetirAte" obrigatorio erro={erros.repetirAte}>
+          <CampoData {...propsDoCampo('repetirAte', { erro: erros.repetirAte })} valor={c.repetirAte} aoMudar={repetirAte => mudar({ repetirAte })} />
+        </Campo>}
+        {c.termina === 'vezes' && <Campo rotulo="Quantas vezes" para="repetirVezes" obrigatorio erro={erros.repetirVezes} dica="Contando a primeira.">
+          <input type="number" inputMode="numeric" min={2} max={REPETICAO.vezesMaximas} {...propsDoCampo('repetirVezes', { dica: true, erro: erros.repetirVezes })}
+            value={c.repetirVezes} onChange={e => mudar({ repetirVezes: e.target.value })} />
+        </Campo>}
+      </>}
     </>,
     onde: () => <>
       {c.processoId
