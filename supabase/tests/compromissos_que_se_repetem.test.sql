@@ -183,6 +183,9 @@ grant select on nova to authenticated;
 select ok(public.compromisso_arquivar_seguintes(pg_temp.vez((select id from nova), 4)) > 1, 'Arquiva esta e as seguintes');
 select is((select count(*) from public.compromissos where repeticao_id = (select id from nova) and arquivado_em is null), 4::bigint, 'As quatro anteriores continuam');
 reset role;
+-- A rotina roda pelo pg_cron, sem ninguém logado: auth.uid() é nulo, e os gatilhos dos compromissos seguem esse caminho.
+select set_config('request.jwt.claims', '', true);
+select is(auth.uid(), null, 'Sem ninguém logado, como a rotina');
 select is(privado.estender_repeticoes() >= 0, true, 'A rotina diária roda');
 select is((select count(*) from public.compromissos where repeticao_id = (select id from nova) and arquivado_em is null), 4::bigint, 'A série arquivada não volta a crescer');
 
@@ -193,6 +196,9 @@ delete from public.compromissos where id = pg_temp.vez((select id from mensal), 
 update public.compromisso_repeticoes set gerada_ate = (select max(repeticao_data) from public.compromissos where repeticao_id = (select id from mensal)) where id = (select id from mensal);
 select ok(privado.estender_repeticoes() >= 1, 'A rotina acrescenta a data que faltava');
 select is((select count(*) from public.compromissos where repeticao_id = (select id from mensal)), 4::bigint, 'A série volta a ter as quatro datas');
+-- E a data refeita pela rotina fica como criada por quem criou a série (a Bia), não por ninguém
+select is((select criado_por from public.compromissos where id = pg_temp.vez((select id from mensal), 3)), 'a0000000-0000-0000-0000-000000000002'::uuid,
+          'A data nova é de quem criou a série');
 -- Quando o dia passa da última data de uma série sem fim, então a rotina acrescenta a próxima (simulado com o dia de amanhã de um ano)
 select ok(jsonb_array_length(privado.gerar_repeticoes(pg_temp.serie_de('7c000000-0000-0000-0000-000000000002'), (pg_temp.hoje() + interval '1 year')::date) -> 'ids') = 0,
           'Com data final, nada passa dela');
