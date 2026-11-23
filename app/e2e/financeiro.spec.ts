@@ -103,15 +103,45 @@ test.describe('Contas, DAS e sócios', () => {
     await expect(tabela.getByRole('row').filter({ hasText: 'Conta de luz' })).toContainText('1.299,50');
     const resumo = page.getByRole('definition').filter({ hasText: '1.299,50' });
     await expect(resumo).toBeVisible();
-    // Então: cada uma leva à aba dela no Financeiro, onde muda
-    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Honorários do cliente em Entradas, no Financeiro' })).toHaveAttribute('href', '/financeiro/');
-    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Conta de luz em Saídas, no Financeiro' })).toHaveAttribute('href', '/financeiro/saidas/');
+    // Então: cada uma leva à aba dela no Financeiro, no mês dela (#419), onde muda
+    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Honorários do cliente em Entradas, no Financeiro' })).toHaveAttribute('href', /^\/financeiro\/\?mes=2026-03&lancamento=/);
+    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Conta de luz em Saídas, no Financeiro' })).toHaveAttribute('href', /^\/financeiro\/saidas\/\?mes=2026-03&lancamento=/);
     await expect(tabela.getByRole('button')).toHaveCount(0);
     // Quando: o mês seguinte começa de onde este parou
     await irParaMes(page, '2026-04');
     // Então
     await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
     await expect(page.getByRole('definition').filter({ hasText: '1.299,50' }).first()).toBeVisible();
+  });
+
+  test('dada uma linha de um mês passado, quando clica em "Mudar em Entradas" ou "Mudar em Saídas", então a aba abre no mês dela, com ela à vista (#419)', async ({ page }) => {
+    // Dado: hoje é novembro; os lançamentos são de março e de fevereiro
+    await criarContas(page);
+    await lancar(page, { tipo: 'entrada', valor: '500,00', descricao: 'Honorários de março', data: '2026-03-10' });
+    await lancar(page, { tipo: 'saida', valor: '80,00', descricao: 'Tarifa de fevereiro', data: '2026-02-05' });
+    for (const { mes, descricao, aba, botao, tabela } of [
+      { mes: '2026-03', descricao: 'Honorários de março', aba: 'Entradas', botao: 'Mar', tabela: 'Entradas' },
+      { mes: '2026-02', descricao: 'Tarifa de fevereiro', aba: 'Saídas', botao: 'Fev', tabela: 'Saídas' }
+    ]) {
+      await contasNoMes(page, mes);
+      // Quando
+      await page.getByRole('table', { name: 'Lançamentos do mês' }).getByRole('link', { name: `Mudar o lançamento ${descricao} em ${aba}, no Financeiro` }).click();
+      // Então: a aba certa, no mês do lançamento, com a linha dele marcada e à vista
+      await expect(page.getByRole('navigation', { name: 'Abas do financeiro' }).getByRole('link', { name: aba, exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByRole('group', { name: 'Mês' }).getByRole('button', { name: botao, exact: true })).toHaveAttribute('aria-pressed', 'true');
+      const extrato = page.getByRole('table', { name: tabela, exact: true });
+      const rotuloDoBotao = `Abrir o lançamento: ${descricao}`;
+      const abrir = extrato.getByRole('button', { name: rotuloDoBotao });
+      await expect(abrir).toBeFocused();
+      await expect(abrir).toBeInViewport();
+      // O "has" procura dentro da linha: por isso o botão é achado a partir da página, e não da tabela.
+      await expect(extrato.getByRole('row').filter({ has: page.getByRole('button', { name: rotuloDoBotao }) })).toHaveAttribute('aria-current', 'true');
+      // Então: o endereço volta a ser o da aba, e a linha abre com um clique
+      await expect(page).not.toHaveURL(/lancamento=/);
+      await abrir.click();
+      await expect(page.getByRole('dialog', { name: 'Lançamento' })).toContainText(descricao);
+      await page.getByRole('button', { name: 'Fechar' }).click();
+    }
   });
 
   test('quando lança um ajuste de saldo, então o saldo muda, e o resumo mostra o ajuste à parte das entradas e saídas', async ({ page }) => {
@@ -579,6 +609,26 @@ test.describe('As outras telas do Financeiro', () => {
     await page.goto('/financeiro/');
     // Então
     await expect(outras(page).getByRole('link')).toHaveText(['Meus valores', 'Conferência']);
+  });
+});
+
+// Os avisos vazios da aba Obrigações falam do período escolhido no alto: um mês ou o ano todo (#419).
+test.describe('Obrigações sem nada no período', () => {
+  test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(DIA_DOS_TESTES); });
+
+  test('dado o período "ano" na aba Obrigações sem repasses, quando a lista está vazia, então o aviso fala do ano, não do mês', async ({ page }) => {
+    // Dado
+    await page.goto('/financeiro/obrigacoes/');
+    const repasses = page.getByRole('region', { name: 'Repasses' });
+    const aPassar = page.getByRole('region', { name: 'A passar a participantes e indicadores' });
+    await expect(repasses.getByText('Nenhum repasse a pagar, nem pago neste mês.')).toBeVisible();
+    await expect(aPassar.getByText('Nada a passar neste mês.')).toBeVisible();
+    // Quando
+    await page.getByRole('group', { name: 'Mês' }).getByRole('button', { name: 'Ano todo' }).click();
+    // Então
+    await expect(repasses.getByText('Nenhum repasse a pagar, nem pago neste ano.')).toBeVisible();
+    await expect(aPassar.getByText('Nada a passar neste ano.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Obrigações' })).not.toContainText('neste mês');
   });
 });
 

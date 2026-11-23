@@ -1,0 +1,5 @@
+{
+  "titulo": "\"Mudar em Entradas/Saídas\" abre no mês do lançamento",
+  "texto": "Na página das contas, o link de uma linha agora abre a aba Entradas ou Saídas já no mês daquele lançamento, com a linha marcada e à vista. Na aba Obrigações, com o ano todo escolhido, os avisos de lista vazia falam do ano, e não mais do mês.",
+  "ondeAchar": "Financeiro > Contas e DAS > \"Mudar em Entradas\" ou \"Mudar em Saídas\" de uma linha; e Financeiro > Obrigações > Ano todo."
+}

@@ -4,6 +4,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { SD, type ContaFinanceira, type Repasse } from '../../dados';
 import { anoAceito, dataExiste } from '../../regras/calendario';
 import { fmtCentavos } from '../../regras/caixa';
+import { nestePeriodo } from '../../regras/numerosDoFinanceiro';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
 import { Campo, CampoData, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
@@ -48,7 +49,8 @@ function FormPagar({ repasse, contas, hoje, aoTerminar, aoCancelar }: { repasse:
   </form>;
 }
 
-export function Repasses({ lista, admin, contas, hoje, aoMudar }: { lista: Repasse[]; admin: boolean; contas: ContaFinanceira[]; hoje: string; aoMudar: () => void }) {
+/** Os repasses do período escolhido no alto do Financeiro: um mês ("aaaa-mm") ou o ano todo ("aaaa"). */
+export function Repasses({ lista, periodo, admin, contas, hoje, aoMudar }: { lista: Repasse[]; periodo: string; admin: boolean; contas: ContaFinanceira[]; hoje: string; aoMudar: () => void }) {
   const [pagando, setPagando] = useState<Repasse | null>(null);
   const terminou = () => { setPagando(null); aoMudar(); };
   async function desfazer(r: Repasse) {
@@ -59,7 +61,7 @@ export function Repasses({ lista, admin, contas, hoje, aoMudar }: { lista: Repas
       terminou();
     } catch (e) { falha(e); }
   }
-  if (!lista.length) return <Vazio>{admin ? 'Nenhum repasse a pagar, nem pago neste mês.' : 'Nenhum repasse para você neste mês.'}</Vazio>;
+  if (!lista.length) return <Vazio>{admin ? `Nenhum repasse a pagar, nem pago ${nestePeriodo(periodo)}.` : `Nenhum repasse para você ${nestePeriodo(periodo)}.`}</Vazio>;
   return <>
     {pagando && <FormPagar key={pagando.id} repasse={pagando} contas={contas} hoje={hoje} aoTerminar={terminou} aoCancelar={() => setPagando(null)} />}
     <div className="tabela"><table aria-label="Repasses">

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   ajusteNovo, CATEGORIAS_DO_AJUSTE_NOVO, ondeMuda, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, partesDoDinheiro, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
+  nomeDaCategoria, paraCentavos, partesDoDinheiro, transferenciaNova, buscaDoLancamento, mesPedido, PARAMETROS_DO_LANCAMENTO, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
   CONTA_COM_LANCAMENTOS, CONTA_COM_REPASSES, CONTA_NAO_ARQUIVADA, motivoParaNaoExcluirConta, type FormDoLancamento } from './caixa';
 import { normal } from './texto';
 
@@ -139,6 +139,22 @@ describe('O mês do caixa', () => {
     expect(mesValido('2026-13')).toBe(false);
     expect(mesValido('')).toBe(false);
     expect(mesDe(HOJE)).toBe('2026-11');
+  });
+
+  it('dado um lançamento de um mês passado, quando monta o endereço da aba, então ele leva o mês e o lançamento', () => {
+    // Quando
+    const busca = new URLSearchParams(buscaDoLancamento({ id: 'l7', data: '2026-03-10' }));
+    // Então
+    expect(busca.get(PARAMETROS_DO_LANCAMENTO.mes)).toBe('2026-03');
+    expect(busca.get(PARAMETROS_DO_LANCAMENTO.lancamento)).toBe('l7');
+  });
+
+  it('quando lê o mês pedido no endereço, então só vale um mês de verdade', () => {
+    // Então
+    expect(mesPedido('2026-03')).toBe('2026-03');
+    expect(mesPedido('2026-13')).toBeNull();
+    expect(mesPedido('')).toBeNull();
+    expect(mesPedido(null)).toBeNull();
   });
 
   it('quando há lançamentos, então cada linha mostra o saldo, e o último do dia fica marcado, para comparar com o banco', () => {

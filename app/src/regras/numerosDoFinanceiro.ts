@@ -24,6 +24,9 @@ const indiceDoMes = (mes: string) => Number(mes.slice(5, 7)) - 1;
 /** O nome curto do período, como no alto da página: "Nov/2026" ou "2026". */
 export const nomeDoPeriodo = (periodo: string) => ehAno(periodo) ? periodo : `${MESES_DO_ANO[indiceDoMes(periodo)]}/${periodo.slice(0, 4)}`;
 
+/** Como os avisos falam do período ("Nenhum repasse… neste ano", #419): o ano todo é "neste ano"; um mês, "neste mês". */
+export const nestePeriodo = (periodo: string) => ehAno(periodo) ? 'neste ano' : 'neste mês';
+
 /** O período de antes: o mês anterior (de janeiro, o dezembro do ano anterior) ou, para o ano todo, o ano anterior. */
 export const periodoAnterior = (periodo: string) => ehAno(periodo) ? String(Number(periodo) - 1) : somarMeses(periodo + '-01', -1).slice(0, 7);
 

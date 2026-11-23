@@ -931,7 +931,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/parcelas.spec.ts`
 - `/financeiro/obrigacoes/` (HubDoFinanceiro): [Parcelas e recebimentos](#parcelas)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/regras/enderecosAntigos.test.ts, src/regras/enderecosAntigos.ts, src/ui/MenuFinanceiro.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/contrato-exclui-em-cascata.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts`
 - `/financeiro/saidas/` (HubDoFinanceiro): [Financeiro](#financeiro)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/paginas/financeiro/Graficos.tsx, src/ui/MenuFinanceiro.test.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
