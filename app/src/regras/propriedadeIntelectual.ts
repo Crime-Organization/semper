@@ -17,10 +17,11 @@
 // Os prazos de meses e anos terminam no dia de mesmo número do dia do início (Código Civil, art. 132, §3º); o dia que não existe no
 // mês de chegada vira o último dia dele (29/02 + 1 ano = 28/02). Prazo que vence em dia sem expediente no INPI vai para o próximo
 // dia útil (Manual de Marcas, cap. 1): a conta mostra a data da lei, e o cartão avisa para conferir.
-import type { ApresentacaoMarca, NaturezaMarca, PapelDaParte, Processo, TipoProtecao } from '../dados/tipos';
-import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
-import { somarMeses } from './repeticao';
-import { somarDias } from './prazos';
+import type { ApresentacaoMarca, CompromissoLigado, NaturezaMarca, PapelDaParte, Processo, RegraDeRepeticao, TipoProtecao } from '../dados/tipos';
+import { CLASSE_NICE_MAIOR, DEMANDA_DO_COMPROMISSO, TAMANHO_COMPROMISSO, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
+import type { CamposCompromisso } from './compromisso';
+import { descreverRepeticao, somarMeses } from './repeticao';
+import { diasEntre, somarDias } from './prazos';
 import { fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 
@@ -100,7 +101,14 @@ interface TipoDeProtecao {
   /** O que o cadastro explica sobre o tipo. */
   nota: string;
   prazos: (d: DatasDaProtecao, hoje: string) => PrazosDaProtecao;
+  /** Como os prazos viram um compromisso que se repete na agenda (parte C, com a #307); null: o tipo não tem prazo a acompanhar. */
+  acompanhar: ComoAcompanhar | null;
 }
+/**
+ * Os prazos que entram no compromisso que se repete: de que tipos, de quantos em quantos anos e se a série não tem fim (a marca prorroga
+ * sem limite). O título é o do compromisso na agenda (e o da demanda de cada data).
+ */
+interface ComoAcompanhar { titulo: string; tipos: TipoDoPrazo[]; aCadaAnos: number; semFim: boolean }
 
 const semData = (falta: string): PrazosDaProtecao => ({ validade: null, datas: [], falta });
 
@@ -169,26 +177,32 @@ const ordenar = (datas: PrazoDaProtecao[]) => datas.toSorted((a, b) => a.fim.loc
 export const TIPOS_DE_PROTECAO: Record<TipoProtecao, TipoDeProtecao> = {
   marca: {
     nome: 'Marca', campos: ['deposito', 'concessao', 'apresentacaoMarca', 'naturezaMarca', 'classesNice', 'especificacao'], papeis: ['titular'],
-    nota: 'A validade da marca conta da concessão. O titular entra no cartão, em "Pessoas do processo".', prazos: prazosDaMarca
+    nota: 'A validade da marca conta da concessão. O titular entra no cartão, em "Pessoas do processo".', prazos: prazosDaMarca,
+    acompanhar: { titulo: 'Prorrogação da marca', tipos: ['prorrogacao'], aCadaAnos: PRAZOS_DO_INPI.periodoDaMarca, semFim: true }
   },
   patente_invencao: {
     nome: 'Patente de invenção', campos: ['deposito', 'publicacao', 'concessao'], papeis: ['titular', 'inventor'],
     nota: 'A validade e as anuidades contam do depósito. O titular e os inventores entram no cartão, em "Pessoas do processo".',
-    prazos: prazosDaPatente(PRAZOS_DO_INPI.vigenciaDaPatente)
+    prazos: prazosDaPatente(PRAZOS_DO_INPI.vigenciaDaPatente),
+    acompanhar: { titulo: 'Anuidade da patente', tipos: ['anuidade'], aCadaAnos: 1, semFim: false }
   },
   modelo_utilidade: {
     nome: 'Modelo de utilidade', campos: ['deposito', 'publicacao', 'concessao'], papeis: ['titular', 'inventor'],
     nota: 'A validade e as anuidades contam do depósito. O titular e os inventores entram no cartão, em "Pessoas do processo".',
-    prazos: prazosDaPatente(PRAZOS_DO_INPI.vigenciaDoModelo)
+    prazos: prazosDaPatente(PRAZOS_DO_INPI.vigenciaDoModelo),
+    acompanhar: { titulo: 'Anuidade do modelo de utilidade', tipos: ['anuidade'], aCadaAnos: 1, semFim: false }
   },
   desenho_industrial: {
     nome: 'Desenho industrial', campos: ['deposito', 'concessao', 'variacoes'], papeis: ['titular', 'autor_da_criacao'],
-    nota: 'A validade e as prorrogações contam do depósito. O titular e o autor entram no cartão, em "Pessoas do processo".', prazos: prazosDoDesenho
+    nota: 'A validade e as prorrogações contam do depósito. O titular e o autor entram no cartão, em "Pessoas do processo".', prazos: prazosDoDesenho,
+    // O 2º quinquênio (no 5º ano) e as prorrogações (aos 10, 15 e 20 anos) caem de 5 em 5 anos: cabem numa série só.
+    acompanhar: { titulo: 'Quinquênio ou prorrogação do desenho', tipos: ['quinquenio', 'prorrogacao'], aCadaAnos: PRAZOS_DO_INPI.prorrogacaoDoDesenho, semFim: false }
   },
   programa_computador: {
     nome: 'Programa de computador', campos: ['criacao', 'publicacao', 'linguagem'], papeis: ['titular', 'autor_da_criacao'],
     nota: 'A proteção não depende do registro e conta da publicação (ou, sem ela, da criação). O titular e o autor entram no cartão, em "Pessoas do processo".',
-    prazos: prazosDoPrograma
+    prazos: prazosDoPrograma,
+    acompanhar: null
   }
 };
 export const TIPOS_DE_PROTECAO_EM_ORDEM = Object.keys(TIPOS_DE_PROTECAO) as TipoProtecao[];
@@ -321,3 +335,63 @@ export const prazosPorVir = (datas: readonly PrazoDaProtecao[], hoje: string) =>
 /** Como o prazo aparece no cartão: "de 10/03/2022 a 10/06/2022 (com taxa extra até 10/12/2022)". */
 export const prazoPorExtenso = (x: PrazoDaProtecao) =>
   `de ${fmtData(x.inicio)} a ${fmtData(x.fim)}${x.fimExtra ? ` (com taxa extra até ${fmtData(x.fimExtra)})` : ''}`;
+
+// ---------- acompanhar na agenda (parte C, com os compromissos que se repetem da #307) ----------
+/**
+ * O compromisso que se repete com os prazos do processo de PI, como o cadastro do compromisso recebe: cada data é o último dia do prazo
+ * normal; a primeira é a do primeiro prazo que ainda não acabou, e as seguintes vêm a cada N anos (a anuidade todo ano, o desenho de 5
+ * em 5, a marca de 10 em 10 e sem fim). A demanda de cada data nasce quando o prazo abre (os dias do prazo normal, até o máximo aceito).
+ */
+export interface AcompanhamentoDaProtecao {
+  titulo: string;
+  /** A primeira data (aaaa-mm-dd). */
+  data: string;
+  /** Como as datas seguintes se repetem; null quando só resta um prazo (o compromisso não se repete). */
+  regra: RegraDeRepeticao | null;
+  /** Dias corridos antes de cada data em que nasce a demanda. */
+  diasAntes: number;
+  observacoes: string;
+}
+/** Os prazos que o compromisso acompanha (os do tipo que ainda não acabaram), ou null se o processo não tem o que acompanhar. */
+export function acompanhamentoDaProtecao(p: DatasDaProtecao & { area?: string | null; numero?: string | null }, hoje: string): AcompanhamentoDaProtecao | null {
+  const prazos = prazosDaProtecao(p, hoje), como = p.protecao ? TIPOS_DE_PROTECAO[p.protecao].acompanhar : null;
+  if (!prazos || !como) return null;
+  const porVir = prazos.datas.filter(x => como.tipos.includes(x.tipo) && x.fim >= hoje);
+  const primeiro = porVir[0];
+  if (!primeiro) return null;
+  const vezes = como.semFim ? null : porVir.length;
+  const regra: RegraDeRepeticao | null = vezes === 1 ? null : { frequencia: 'ano', intervalo: como.aCadaAnos, ate: null, vezes };
+  return {
+    titulo: [como.titulo, p.numero?.trim()].filter(Boolean).join(' ').slice(0, TAMANHO_COMPROMISSO.titulo),
+    data: primeiro.fim, regra,
+    diasAntes: Math.min(diasEntre(primeiro.inicio, primeiro.fim), DEMANDA_DO_COMPROMISSO.diasMaximos),
+    observacoes: `Prazos do INPI calculados a partir das datas do processo, de ${primeiro.nome.toLowerCase()} em diante: cada data é o último dia do prazo `
+      + `normal (há ainda o prazo extra, com taxa). ${AVISO_DO_ACOMPANHAMENTO}`
+  };
+}
+/** O aviso que vai nas observações do compromisso: as datas são da lei. */
+export const AVISO_DO_ACOMPANHAMENTO = 'Datas calculadas pela lei: confira sempre na Revista da Propriedade Industrial (RPI).';
+
+const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+/** O que o botão do cartão vai criar: "Anuidade da patente a partir de 10/06/2027 (todo ano, 13 vezes), com a demanda 92 dias antes de cada data." */
+export function descreverAcompanhamento(a: AcompanhamentoDaProtecao, comDemanda: boolean) {
+  const repete = a.regra ? ` (${minuscula(descreverRepeticao(a.regra))})` : '';
+  const demanda = comDemanda && a.regra ? `, com a demanda ${a.diasAntes} dias antes de cada data, quando o prazo abre` : '';
+  return `Cria na agenda "${a.titulo}" a partir de ${fmtData(a.data)}${repete}${demanda}.`;
+}
+
+/** Os campos do cadastro do compromisso já preenchidos com o acompanhamento (tipo "Outro", o dia todo). */
+export const camposDoAcompanhamento = (a: AcompanhamentoDaProtecao): Partial<CamposCompromisso> => ({
+  tipo: 'outro', titulo: a.titulo, data: fmtData(a.data), hora: '', horaFim: '', observacoes: a.observacoes,
+  ...(a.regra
+    ? { repetir: a.regra.frequencia, aCada: String(a.regra.intervalo), termina: a.regra.vezes ? 'vezes' : 'nunca', repetirVezes: a.regra.vezes ? String(a.regra.vezes) : '',
+      demandaDiasAntes: String(a.diasAntes) }
+    : { repetir: '' })
+});
+
+/** O compromisso ativo do processo que já acompanha esses prazos (o de mesmo título), para o cartão não oferecer criar outro. */
+export const compromissoDoAcompanhamento = <T extends Pick<CompromissoLigado, 'titulo' | 'arquivado_em'>>(ligados: readonly T[], a: Pick<AcompanhamentoDaProtecao, 'titulo'>) =>
+  ligados.find(c => !c.arquivado_em && c.titulo === a.titulo) ?? null;
+/** No endereço do cadastro do compromisso (?acompanhar=protecao, com ?processo=): abre já preenchido com os prazos do processo. */
+export const PARAMETRO_ACOMPANHAR = 'acompanhar';
+export const ACOMPANHAR_PROTECAO = 'protecao';

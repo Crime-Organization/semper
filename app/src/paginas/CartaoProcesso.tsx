@@ -40,7 +40,7 @@ import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, hojeISO, relativo } from '../ui/util';
-import { prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
+import { ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, PARAMETRO_ACOMPANHAR, prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
 import { ValidadeDaProtecao } from './processo/ValidadeDaProtecao';
 import { CartoesLigados } from './CartoesLigados';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
@@ -121,6 +121,12 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // em qualquer processo). Nunca com o processo arquivado. O "+" do título e o "+ Novo compromisso" de baixo seguem esta regra.
   const podeCriarCompromisso = !p.arquivado_em && (podeAlterar || advogado);
   const novoCompromisso = '/agenda/novo/?processo=' + p.id;
+  // Propriedade intelectual (#317, parte C): os prazos do INPI viram um compromisso que se repete (#307), com a mesma regra de criar
+  // compromisso e o módulo Compromissos ligado. O cadastro abre já preenchido (?acompanhar=protecao).
+  const prazosNaAgenda = podeCriarCompromisso && modulos?.compromissos ? acompanhamentoDaProtecao(p, hoje) : null;
+  const acompanharNaAgenda = prazosNaAgenda && {
+    processoId: p.id, acompanhamento: prazosNaAgenda, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PROTECAO}`, comDemanda: !!modulos?.demandas
+  };
   // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
   const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
@@ -228,7 +234,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo. O número: os prazos por vir. */}
     {protecao && <Recolhivel titulo="Validade e anuidades" icone="relogio" preferencia="processos.cartao.validade" contador={prazosPorVir(protecao.datas, hoje)}>
-      <ValidadeDaProtecao prazos={protecao} hoje={hoje} />
+      <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} />
     </Recolhivel>}
 
     {/* As outras pessoas do processo, com o papel de cada uma (#316). O "+" do título abre o formulário de baixo. Nos de PI, também

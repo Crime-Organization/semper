@@ -1,0 +1,153 @@
+// Propriedade intelectual (#317, parte C): os prazos do INPI do processo viram um compromisso que se repete na agenda (#307).
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
+import { describe, expect, it } from 'vitest';
+import {
+  acompanhamentoDaProtecao, AREA_DA_PI, AVISO_DO_ACOMPANHAMENTO, camposDoAcompanhamento, compromissoDoAcompanhamento, descreverAcompanhamento, prazosDaProtecao,
+  TIPOS_DE_PROTECAO, type DatasDaProtecao
+} from './propriedadeIntelectual';
+import { compromissoVazio, repeticaoDoCompromisso, validarCompromisso } from './compromisso';
+import { dataDaVez } from './repeticao';
+import { diasEntre, somarDias } from './prazos';
+
+const HOJE = '2026-11-04';
+/** Um processo de PI com as datas dadas (e o número, se houver). */
+const processo = (d: Partial<DatasDaProtecao>, numero: string | null = null) =>
+  ({ protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, area: AREA_DA_PI, numero, ...d });
+
+describe('Acompanhar os prazos do INPI na agenda', () => {
+  it('dada uma patente depositada em 10/03/2020, quando a pessoa acompanha na agenda, então a série começa na próxima anuidade e vai até a 20ª', () => {
+    // Quando
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }, 'BR 10 2020 004567-8'), HOJE)!;
+    // Então: a 7ª (até 10/06/2026) já acabou; a 8ª vence em 10/06/2027, e faltam 13 (da 8ª à 20ª).
+    expect(a.titulo).toBe('Anuidade da patente BR 10 2020 004567-8');
+    expect(a.data).toBe('2027-06-10');
+    expect(a.regra).toEqual({ frequencia: 'ano', intervalo: 1, ate: null, vezes: 13 });
+    // E a demanda nasce quando o prazo abre: de 10/03 a 10/06 são 92 dias.
+    expect(a.diasAntes).toBe(92);
+    expect(a.observacoes).toContain('de 8ª anuidade em diante');
+    expect(a.observacoes).toContain(AVISO_DO_ACOMPANHAMENTO);
+  });
+
+  it('dado um modelo de utilidade, quando a pessoa acompanha, então a série vai até a 15ª anuidade', () => {
+    // Quando
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'modelo_utilidade', deposito: '2020-03-10' }), HOJE)!;
+    // Então
+    expect(a.titulo).toBe('Anuidade do modelo de utilidade');
+    expect(a.regra).toEqual({ frequencia: 'ano', intervalo: 1, ate: null, vezes: 8 });
+  });
+
+  it('dada uma marca concedida em 10/05/2015, quando a pessoa acompanha, então a prorrogação se repete a cada 10 anos, sem fim', () => {
+    // Quando
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'marca', concessao: '2015-05-10' }), HOJE)!;
+    // Então: o primeiro período terminou em 10/05/2025; o segundo termina em 10/05/2035. A prorrogação abre um ano antes.
+    expect(a.titulo).toBe('Prorrogação da marca');
+    expect(a.data).toBe('2035-05-10');
+    expect(a.regra).toEqual({ frequencia: 'ano', intervalo: 10, ate: null, vezes: null });
+    expect(a.diasAntes).toBe(365);
+  });
+
+  it.each([
+    ['2025-01-15', '2030-01-15', 4],
+    ['2018-01-15', '2028-01-15', 3]
+  ] as const)('dado um desenho depositado em %s, quando a pessoa acompanha, então o quinquênio e as prorrogações vêm de 5 em 5 anos, a partir de %s, %i vezes',
+    (deposito, data, vezes) => {
+      // Quando
+      const a = acompanhamentoDaProtecao(processo({ protecao: 'desenho_industrial', deposito }), HOJE)!;
+      // Então
+      expect(a.titulo).toBe('Quinquênio ou prorrogação do desenho');
+      expect(a.data).toBe(data);
+      expect(a.regra).toEqual({ frequencia: 'ano', intervalo: 5, ate: null, vezes });
+    });
+
+  it('dada uma patente com uma só anuidade por vir, quando a pessoa acompanha, então o compromisso não se repete', () => {
+    // Quando: depositada em 10/12/2007, a 20ª anuidade vai de 10/12/2026 a 10/03/2027.
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2007-12-10' }), HOJE)!;
+    // Então
+    expect(a.data).toBe('2027-03-10');
+    expect(a.regra).toBeNull();
+    expect(camposDoAcompanhamento(a).repetir).toBe('');
+  });
+
+  it.each([
+    ['o programa de computador, que não tem prazo a pagar', { protecao: 'programa_computador', criacao: '2020-01-01' }],
+    ['a patente sem depósito', { protecao: 'patente_invencao' }],
+    ['o processo sem tipo de proteção', {}],
+    ['a patente que já acabou', { protecao: 'patente_invencao', deposito: '2000-01-10' }]
+  ] as const)('dado %s, quando o cartão abre, então não há o que acompanhar', (_, d) => {
+    // Então
+    expect(acompanhamentoDaProtecao(processo(d), HOJE)).toBeNull();
+  });
+
+  it('dado um processo de outra área, quando o cartão abre, então não há o que acompanhar', () => {
+    // Então
+    expect(acompanhamentoDaProtecao({ ...processo({ protecao: 'marca', concessao: '2015-05-10' }), area: 'Cível' }, HOJE)).toBeNull();
+  });
+
+  // A série do compromisso conta cada data a partir da primeira (regras/repeticao.ts). Nos depósitos de fim de mês, isso pode dar um dia
+  // antes da data da lei (ex.: 29/02), nunca depois: o lembrete não chega atrasado.
+  it.each(['patente_invencao', 'modelo_utilidade', 'desenho_industrial'] as const)(
+    'dado um processo (%s) depositado em qualquer dia de 2024, quando a série é criada, então cada data dela cai no dia da lei ou até 3 dias antes', protecao => {
+      const tipos = TIPOS_DE_PROTECAO[protecao].acompanhar!.tipos;
+      for (let deposito = '2024-01-01'; deposito < '2025-01-01'; deposito = somarDias(deposito, 1)) {
+        // Dado
+        const d = processo({ protecao, deposito });
+        const a = acompanhamentoDaProtecao(d, deposito)!;
+        const daLei = prazosDaProtecao(d, deposito)!.datas.filter(x => tipos.includes(x.tipo)).map(x => x.fim);
+        // Quando
+        const daSerie = daLei.map((_, n) => dataDaVez({ frequencia: 'ano', intervalo: a.regra!.intervalo, inicio: a.data }, n));
+        // Então
+        expect(a.regra!.vezes).toBe(daLei.length);
+        daSerie.forEach((data, n) => {
+          expect(data <= daLei[n], `${deposito}, vez ${n}: ${data} depois de ${daLei[n]}`).toBe(true);
+          expect(diasEntre(data, daLei[n])).toBeLessThanOrEqual(3);
+        });
+      }
+    });
+
+  it('quando o cadastro do compromisso abre pelo cartão, então vem com o tipo "Outro", a repetição e a demanda, e passa nas conferências', () => {
+    // Dado
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }), HOJE)!;
+    // Quando
+    const c = { ...compromissoVazio(), responsavelId: 'u-mauro', ...camposDoAcompanhamento(a) };
+    // Então
+    expect(c).toMatchObject({ tipo: 'outro', data: '10/06/2027', hora: '', repetir: 'ano', aCada: '1', termina: 'vezes', repetirVezes: '13', demandaDiasAntes: '92' });
+    expect(validarCompromisso(c)).toEqual({});
+    expect(repeticaoDoCompromisso(c)).toEqual(a.regra);
+  });
+
+  it('dada a marca, quando o cadastro abre, então a repetição não tem fim', () => {
+    // Dado
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'marca', concessao: '2015-05-10' }), HOJE)!;
+    // Quando
+    const c = { ...compromissoVazio(), responsavelId: 'u-mauro', ...camposDoAcompanhamento(a) };
+    // Então
+    expect(c).toMatchObject({ termina: 'nunca', aCada: '10', repetirVezes: '' });
+    expect(validarCompromisso(c)).toEqual({});
+  });
+
+  it('quando o cartão descreve o que vai criar, então diz a primeira data, a repetição e, com o módulo Demandas, a demanda', () => {
+    // Dado
+    const a = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }), HOJE)!;
+    // Então
+    expect(descreverAcompanhamento(a, true))
+      .toBe('Cria na agenda "Anuidade da patente" a partir de 10/06/2027 (todo ano, 13 vezes), com a demanda 92 dias antes de cada data, quando o prazo abre.');
+    expect(descreverAcompanhamento(a, false)).toBe('Cria na agenda "Anuidade da patente" a partir de 10/06/2027 (todo ano, 13 vezes).');
+  });
+
+  it('dado um compromisso do processo com o mesmo título, quando o cartão abre, então ele já acompanha os prazos (o arquivado não conta)', () => {
+    // Dado
+    const a = { titulo: 'Anuidade da patente' };
+    const ativo = { titulo: 'Anuidade da patente', arquivado_em: null }, arquivado = { titulo: 'Anuidade da patente', arquivado_em: '2026-01-01T00:00:00Z' };
+    // Então
+    expect(compromissoDoAcompanhamento([arquivado, ativo], a)).toBe(ativo);
+    expect(compromissoDoAcompanhamento([arquivado, { titulo: 'Reunião', arquivado_em: null }], a)).toBeNull();
+  });
+});
+
+describe('Dias entre duas datas', () => {
+  it.each([['2026-03-10', '2026-06-10', 92], ['2024-02-28', '2024-03-01', 2], ['2026-06-10', '2026-03-10', -92], ['2026-01-01', '2026-01-01', 0]] as const)(
+    'dadas %s e %s, quando conta os dias, então são %i', (de, ate, dias) => {
+      // Então
+      expect(diasEntre(de, ate)).toBe(dias);
+    });
+});
