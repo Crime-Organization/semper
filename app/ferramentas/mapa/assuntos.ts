@@ -25,8 +25,15 @@ export interface Assunto {
   dados?: string[];
   /** As rotas, como estão em app/src/App.tsx ("pessoas", "pessoas/nova", "/"). */
   rotas?: string[];
-  /** O que costuma dar errado ou precisa mudar junto. */
+  /** O que costuma dar errado ou precisa mudar junto. Caminho citado entre crases ("`regras/quadro.ts`") precisa existir. */
   armadilhas?: string[];
+  /**
+   * Testes de outros assuntos que uma mudança neste costuma quebrar (mesmo jeito de "arquivos"): entram só nos comandos de
+   * testes deste assunto, não nas listas.
+   */
+  testes?: Padrao[];
+  /** Um texto que, achado numa migração, a põe no assunto, com o teste do banco de mesmo nome (ex.: as rotinas do pg_cron). */
+  conteudo?: RegExp;
 }
 
 /** Todos os arquivos de uma pasta (a partir da raiz do projeto). */
@@ -44,7 +51,7 @@ export const COMUM: Assunto = {
     'index', 'tipos', 'supabase', 'falso', arquivo('app/src/dados/contrato'), 'erros', 'limites', pasta('app/src/testes'),
     pasta('app/src/ui/base'), pasta('app/src/ui/painel'), arquivo('app/src/ui/Graficos'),
     'Avatar', 'AvisoAoSair', 'Botoes', 'Casca', 'CampoComSugestoes', 'ErroDaTela', 'Icone', 'Menu', 'MaisDoMenu', 'PaginaModulo',
-    'Paginacao', 'PainelCartao', 'Recolhivel', 'SecaoArquivados', 'SubmenuLateral', 'abrirItem', 'arrastar', 'avisos', 'barraDeRolagem',
+    'Paginacao', 'PainelCartao', 'Recolhivel', 'SubmenuLateral', 'abrirItem', 'arrastar', 'avisos', 'barraDeRolagem',
     'janela', 'loja', 'ordem', 'preferencias', 'rolagem', 'sessao', 'tema', 'tempos', 'useCartaoNaUrl', 'useParametroLido', 'useQuantos',
     'useSelecao', 'util',
     'texto', 'csv', 'formatacao', 'tituloDaAba', 'enderecosAntigos', 'qualBanco', 'campoData', 'escalaDosGraficos', 'filtroDoPainel',
@@ -59,8 +66,14 @@ export const COMUM: Assunto = {
     'Os testes de tela e o `npm run teste` usam o banco fictício (`falso.ts`): o que só existe em `supabase.ts` não aparece neles.',
     'Tamanho de campo em `dados/limites.ts` marcado como exigido pelo banco: muda junto com uma migração nova.',
     'Tabela nova: `escritorio_id` e regras RLS, como em `20261024000001_base.sql`; a migração só acrescenta (nada de apagar ou renomear no mesmo passo).',
-    '`PaginaModulo`, `ui/base`, `PainelCartao`, `estilo.css` e `ui/quadro` afetam todos os módulos: depois de mexer, rode a bateria completa de telas.',
-    'Endereço que muda de lugar: uma entrada em `regras/enderecosAntigos.ts`, para os links antigos continuarem valendo. Cadastro novo em janela: a tabela `CADASTROS` de `App.tsx`.',
+    'Mudou como algo se grava? A versão anterior do site (e quem chama a API direto) continua gravando do jeito antigo: um gatilho converte ou recusa, e o teste do banco testa o caminho antigo (ex.: o gatilho `exclusao_direta` da migração `contrato_exclui_em_cascata`).',
+    'Regra que está no banco (gatilho ou função da migração) e numa regra de `regras/` que o `falso.ts` usa: mude as duas, e cada caso do teste do banco ganha o caso igual em `dados/contrato.test.ts`.',
+    'Restrição nova no banco (check, raise) ganha a frase em português em `dados/erros.ts`, reaproveitando a da regra.',
+    '`PaginaModulo`, `ui/base`, `PainelCartao`, `SecaoArquivados`, `estilo.css` e `ui/quadro` afetam todos os módulos: depois de mexer, rode a bateria completa de telas.',
+    'Campo novo num tipo de lista (`TarefaLista`, `CompromissoLista`…, em `dados/tipos.ts`) quebra os testes que montam a lista à mão (ex.: `paginas/Inicio.test.tsx`): procure o tipo nos *.test.tsx.',
+    'Lista do escritório lida em todas as telas (etiquetas, funções da tarefa): carrega em `ui/sessao.tsx` (`iniciarEtiquetas`, `iniciarFuncoes`).',
+    'Contas de datas aaaa-mm-dd (`somarDias`, `diasEntre`, `DIAS_NA_SEMANA`) ficam em `regras/prazos.ts`, que não depende de nenhum módulo: use dali, não recrie.',
+    'Endereço que sai ou muda: veja [Rotas e endereços](#rotas) (quem escreve o endereço, como `regras/painelInicial.ts` e `e2e/ajudantes.ts`, e os testes que vão direto a ele) e ponha o antigo em `regras/enderecosAntigos.ts`. Cadastro novo em janela: a tabela `CADASTROS` de `App.tsx`.',
     'Mudança que o usuário percebe: uma novidade em `app/novidades/proxima/<tarefa>-<palavras>.json` no mesmo commit.',
     'Datas no horário de Brasília: os testes fixam o fuso (`vite.config.ts`, `playwright.config.ts`); não use `new Date()` solto nas regras.'
   ]
@@ -76,7 +89,7 @@ export const ASSUNTOS: Assunto[] = [
       'Pessoas', 'NovaPessoa', 'CartaoPessoa', 'VinculosPessoa', 'ProcessosDaPessoa', 'EquipeDaPessoaNoTopo', 'PessoasNosItens', pasta('app/src/paginas/novaPessoa'),
       'pessoa', 'cadastro', 'vinculos', 'origemDaPessoa', 'responsaveisDaPessoa', 'conviteDaPessoa', 'clienteAoContrato',
       'BuscaPessoa', 'consultas', 'planilhaAntiga',
-      'pessoas', 'responsaveis-da-pessoa', 'nova-pessoa-no-cartao', 'planilha-provisoria', 'convidar-pelo-cartao', arquivo('app/e2e/quadro'),
+      'pessoas', 'responsaveis-da-pessoa', 'nova-pessoa-no-cartao', 'planilha-provisoria', 'convidar-pelo-cartao', arquivo('app/e2e/quadro'), 'novo-padrao-das-secoes',
       'exportacoes', 'lgpd_exclusao', 'cnpj_com_letras'
     ],
     tabelas: ['pessoas', 'pessoa_historico', 'pessoa_responsaveis', 'pessoa_sigilos', 'pessoa_sigilo_acessos', 'pessoa_vinculos', 'vinculo_tipos'],
@@ -86,7 +99,7 @@ export const ASSUNTOS: Assunto[] = [
       'A validação de cada etapa do cadastro é a tabela `VALIDACAO` de `regras/cadastro.ts` (e `AO_ENTRAR`); etapa nova = entrada nova, um componente em `paginas/novaPessoa/etapas.tsx`.',
       'Pessoa repetida se acha pelo CPF/CNPJ (`pessoaPorDocumento`) e, sem documento, pelos telefones (`pessoasPorTelefones`).',
       '`improvisos/planilhaAntiga.ts` (PROVISORIO-219) manda as pessoas novas também para a planilha antiga; sai com o `e2e/planilha-provisoria.spec.ts`.',
-      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`): não guarde nome de pessoa em outro lugar sem pensar na exclusão.'
+      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`; veja [Registro de ações e LGPD](#registro)): não guarde nome de pessoa em outro lugar sem pensar na exclusão.'
     ]
   },
   {
@@ -97,7 +110,7 @@ export const ASSUNTOS: Assunto[] = [
     arquivos: [
       'Contratos', 'NovoContrato', 'NovoContratoPelaOrigem', 'CartaoContrato', 'ContratosDoProcesso', 'ParticipantesDoContrato', 'ExclusaoDoContrato',
       'EquipeDoContratoNoTopo', 'equipeDoContrato', 'clienteAoContrato',
-      'contrato', 'contratoAbreDemandas', 'arquivarContrato', 'exclusaoDoContrato',
+      arquivo('app/src/regras/contrato'), 'contratoAbreDemandas', 'arquivarContrato', 'exclusaoDoContrato',
       'contratos', 'cliente-ao-contrato', 'contrato-abre-demandas', 'contrato-arquiva-em-cascata', 'contrato-exclui-em-cascata', 'visibilidade-contratos',
       'inicio-das-negociacoes', 'nascer-ligado-demanda-contrato', 'novo-padrao-das-secoes',
       'numeracao_por_ano', 'ano_do_contrato_importado', 'visibilidade_dos_contratos', 'visibilidade_contratos', 'cliente_ao_contrato', 'contrato_abre_demandas',
@@ -109,9 +122,16 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['contratos', 'contratos/novo'],
     armadilhas: [
       'Arquivar e excluir em cascata estão duas vezes: no banco (gatilhos das migrações `contrato_arquiva_em_cascata` e `contrato_exclui_em_cascata`) e em `regras/arquivarContrato.ts` e `regras/exclusaoDoContrato.ts` (o fictício usa as regras): mude os dois.',
+      'Arquivar vários de uma vez é um update só no banco, e os gatilhos rodam com todos já arquivados: o `falso.ts` precisa gravar todos antes da cascata.',
+      'Uma tarefa pode ter vários contratos e demandas (`tarefa_contratos` e `tarefa_demandas`, de [Tarefas](#tarefas)): conte cada tarefa uma vez só, com a lista inteira.',
+      'A cascata não leva a demanda contínua, e a tarefa avulsa ligada ao contrato volta para ela (leia a coluna `demandas.continua` de verdade; veja [Demandas](#demandas)): testes `contrato_cascata_com_a_continua` (banco) e `e2e/contrato-arquiva-em-cascata.spec.ts`.',
+      'A cópia escondida do que saiu (`financeiro_excluidos`) precisa guardar o que Lucros e Meus valores leem, como o sócio do recebimento (`privado.socio_do_recebimento`).',
+      'O Excluir do ⋯ e a pergunta própria do contrato passam pelo cartão (`ui/TopoDoCartao.tsx`, `ui/AcoesDoCartao.tsx`, o texto do arquivado em `regras/topoDoCartao.ts`; veja [Cartão dos itens](#cartao)) e pela seção Arquivados (`perguntarAntesDeExcluir` em `ui/SecaoArquivados.tsx`; veja [Quadros](#quadros)).',
+      'O resumo da exclusão no registro de ações: `detalheDaExclusaoDoContrato`, na tabela `DETALHES` de `paginas/Equipe.tsx` (veja [Registro de ações e LGPD](#registro)).',
       'Os valores do contrato só aparecem para quem é parte quando a chave do escritório está ligada (`contratoVer`, Equipe vê tudo).',
       'Parcelas e recebimentos do contrato estão em [Parcelas e recebimentos](#parcelas); objetos, em [Objetos de contrato](#objetos).'
-    ]
+    ],
+    testes: ['SecaoArquivados', 'topo-do-cartao', 'arquivados', arquivo('app/e2e/equipe')]
   },
   {
     id: 'objetos',
@@ -119,9 +139,15 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos) e a demanda que nasce de cada objeto.\n'
       + 'As funções de dados ficam em `DadosContratos` (veja Contratos).',
     arquivos: ['ObjetosDeContrato', 'objetos', 'objetos-de-contrato', 'objetos-sem-demanda', 'contrato_objetos', 'demandas_dos_objetos', 'objetos_sem_demanda',
-      'editar_objetos_de_contrato'],
-    tabelas: ['objeto_sugestoes'],
-    armadilhas: ['Juntar dois objetos muda todos os contratos que usam o de origem: confira o aviso de uso (`regras/objetos.ts`) e o teste do banco `editar_objetos_de_contrato`.']
+      'editar_objetos_de_contrato', arquivo('supabase/migrations/20261027000017_demandas'), 'modelos_de_lista', 'cliente_ao_contrato', 'contrato_abre_demandas',
+      'contratoAbreDemandas', 'contrato-abre-demandas', 'cliente-ao-contrato', 'ModelosDeLista'],
+    tabelas: ['objeto_sugestoes', 'lista_modelos'],
+    armadilhas: [
+      'Juntar dois objetos muda todos os contratos que usam o de origem: confira o aviso de uso (`regras/objetos.ts`) e o teste do banco `editar_objetos_de_contrato`.',
+      '"A definir" é um objeto fixo, criado pelo cliente fechado (migração `cliente_ao_contrato`): não aparece na lista, não se corrige, não se junta nem se apaga.',
+      'Mudar o array `contratos.objetos` dispara o gatilho `privado.demandas_do_contrato` (migrações `demandas`, `demandas_dos_objetos`, `cliente_ao_contrato` e `objetos_sem_demanda`): corrigir um nome não pode fazer nascer demanda em contrato assinado.',
+      'O modelo de checklist se liga ao objeto pelo nome (`lista_modelos.nome`; veja [Checklists e modelos](#listas)): juntar ou corrigir objetos deixa modelos com nome que nenhum objeto usa.'
+    ]
   },
   {
     id: 'demandas',
@@ -139,8 +165,11 @@ export const ASSUNTOS: Assunto[] = [
     armadilhas: [
       'A ordem pelo prazo (`regras/ordemPorPrazo.ts`) é a mesma no banco de verdade e no fictício: mude os dois.',
       'A demanda contínua é criada pelo banco (uma por grupo da equipe e uma geral); não a crie pela tela.',
+      'A contínua é especial em todo lugar que lista, liga ou conclui demandas: `ehContinua` em `paginas/concluirDemanda.ts` (nunca se conclui), `regras/ligarExistente.ts` e `paginas/ligarNoCartao.ts` (desfazer a ligação devolve a tarefa a ela) e `demandasParaLigar` em `supabase.ts` (uma por grupo, todas contam). Veja [Ligações entre itens](#ligacoes).',
+      'Arquivar ou excluir contrato em cascata não leva a contínua, e a tarefa avulsa ligada ao contrato volta para ela: teste do banco `contrato_cascata_com_a_continua` e `e2e/contrato-arquiva-em-cascata.spec.ts` (veja [Contratos](#contratos)).',
       'Checklists da demanda estão em [Checklists e modelos](#listas).'
-    ]
+    ],
+    testes: ['ligar-existente', 'tarefa-em-varias-ligacoes', 'contrato-arquiva-em-cascata', 'contrato_cascata_com_a_continua', 'ligarExistente']
   },
   {
     id: 'listas',
@@ -151,7 +180,10 @@ export const ASSUNTOS: Assunto[] = [
     tabelas: ['demanda_listas', 'demanda_lista_itens', 'demanda_lista_grupos', 'lista_modelos'],
     dados: ['DadosListas', 'DadosModelos'],
     rotas: ['modelos-de-lista'],
-    armadilhas: ['As tabelas se chamam `demanda_listas…`, mas valem também para tarefas e contratos (coluna do cartão).']
+    armadilhas: [
+      'As tabelas se chamam `demanda_listas…`, mas valem também para tarefas e contratos (coluna do cartão).',
+      'O nome do modelo é o nome do objeto de contrato que ele acompanha (`lista_modelos.nome`; veja [Objetos de contrato](#objetos)).'
+    ]
   },
   {
     id: 'tarefas',
@@ -168,8 +200,14 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['tarefas', 'tarefas/nova'],
     armadilhas: [
       'Concluir a tarefa que cumpre um prazo pergunta se o prazo foi cumprido (`regras/prazoDaTarefa.ts`, `paginas/situacaoDoItem.tsx`): teste pelos caminhos do ✓ do cartão e do círculo da miniatura.',
-      'Tarefa sem demanda vai para a demanda contínua (veja [Demandas](#demandas)). O cronômetro e os registros de tempo estão em [Tempo nas tarefas](#tempo).'
-    ]
+      'Tarefa sem demanda vai para a demanda contínua (veja [Demandas](#demandas)). O cronômetro e os registros de tempo estão em [Tempo nas tarefas](#tempo).',
+      'A função de cada participante aparece e se troca nas bolinhas do topo do cartão (`ui/TopoDoCartao.tsx`, de [Cartão](#cartao); as bolinhas são de [Equipe](#equipe): `ui/EquipeDoCartao.tsx`, `paginas/EquipeNoTopo.tsx`, `paginas/equipeNoCartao.ts`, `regras/equipeNoCartao.ts`) e no cadastro (`ui/EscolhaDaEquipe.tsx`, `ui/BuscaNaEquipe.tsx`). A lista de funções se edita nas Configurações (`FuncoesDosParticipantes`, em `paginas/Configuracoes.tsx`) e carrega em `ui/sessao.tsx` (`iniciarFuncoes`).',
+      'O nome das bolinhas e os títulos das seções do cadastro e da edição da tarefa são lidos por testes de Equipe, Mensagens e Processos (já no comando abaixo).',
+      'Estado novo da tarefa = coluna reconhecida pelo sistema: `regras/quadro.ts` (`COLUNA_DE_APROVACAO`, `explicacaoDaColuna`), `regras/colunasPadrao.ts`, `ui/quadro/Kanban.tsx` e `paginas/situacaoDoItem.tsx` (veja [Quadros](#quadros)); mexeu no Kanban, rode a bateria completa.',
+      'A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).',
+      'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.'
+    ],
+    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro')]
   },
   {
     id: 'tempo',
@@ -185,7 +223,7 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'processos',
     titulo: 'Processos',
-    resumo: 'Os processos (judicial, administrativo, extrajudicial e investigação): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.',
+    resumo: 'Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.',
     arquivos: [
       'Processos', 'NovoProcesso', 'CartaoProcesso', 'CamposDoProcesso', 'PainelProcessos', 'PartesDoProcesso', 'ProcessosDaDemanda', 'ProcessosDaPessoa',
       'ProcessosDoCartao', 'ProcessosRelacionados', 'ContratosDoProcesso', 'prazoDaTarefa', pasta('app/src/paginas/processo'),
@@ -202,17 +240,28 @@ export const ASSUNTOS: Assunto[] = [
     dados: ['DadosProcessos', 'DadosAcompanhamento'],
     rotas: ['processos', 'processos/judicial', 'processos/administrativo', 'processos/extrajudicial', 'processos/investigacao', 'processos/novo'],
     armadilhas: [
-      'Cada tipo tem o seu quadro (rota própria, `key` em `App.tsx`): mudança no quadro vale para os quatro.',
+      'Cada tipo tem o seu quadro (rota própria, `key` em `App.tsx`): mudança no quadro vale para todos os tipos de `TIPOS_PROCESSO`.',
+      'Tipo de processo novo ou que sai: `TIPOS_PROCESSO` (`regras/processo.ts`), as rotas em `App.tsx`, os links em `ui/Casca.tsx`, os grupos em `regras/buscaGeral.ts`, `ui/BuscaGeral.tsx` (`ICONE_DO_GRUPO`) e `ui/fontesDaBuscaGeral.ts`, `ONDE_APARECE` em `regras/camposDeProcesso.ts`, `regras/graficosDeProcessos.ts`, `regras/ajuda.ts` e `regras/enderecosAntigos.ts` (veja [Rotas e endereços](#rotas)).',
+      'Colunas novas num quadro que já existe: o escritório pode ter renomeado colunas e grupos ou deixado um grupo vazio (ou o quadro não ter grupos); ache pelo código fixo (`regras/quadro.ts`) e siga `regras/colunasPadrao.ts` (o precedente é `COLUNAS_NOVAS_DOS_PROCESSOS`, #315; veja [Quadros](#quadros)).',
+      'Conversão que está na migração e numa regra que o `falso.ts` usa (como o grupo da fase e a coluna equivalente): mude as duas, com o mesmo caso no teste do banco e no `dados/contrato.test.ts`.',
       'A contagem de prazos (dias úteis, feriados) está em [Calendário e prazos](#calendario); a propriedade intelectual, em [Propriedade intelectual](#propriedade-intelectual).'
-    ]
+    ],
+    testes: ['buscaGeral', 'BuscaGeral', 'enderecosAntigos', 'busca-geral', 'menu-lateral', 'ajuda', 'colunas-padrao', 'propriedade-intelectual', 'colunasPadrao']
   },
   {
     id: 'propriedade-intelectual',
     titulo: 'Propriedade intelectual',
-    resumo: 'O processo da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção, a validade e os prazos do INPI na agenda.',
+    resumo: 'O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,\n'
+      + 'os papéis titular e inventor nas partes, a validade e os prazos do INPI na agenda.',
     arquivos: ['CamposDaProtecao', 'ValidadeDaProtecao', 'propriedadeIntelectual', 'propriedadeIntelectualNaAgenda',
-      'propriedade-intelectual', 'propriedade-intelectual-na-agenda', 'propriedade_intelectual'],
-    armadilhas: ['É um processo com campos a mais: as tabelas e as funções de dados são as de [Processos](#processos).']
+      'propriedade-intelectual', 'propriedade-intelectual-na-agenda', 'propriedade_intelectual',
+      'processo', 'CartaoProcesso', 'NovoProcesso', 'PartesDoProcesso'],
+    armadilhas: [
+      'É um processo com campos a mais: as tabelas, as funções de dados e as telas são as de [Processos](#processos) (área `AREA_DA_PI`; campos e validação em `regras/processo.ts`; papéis em `paginas/PartesDoProcesso.tsx`).',
+      'O "Acompanhar na agenda" preenche o cadastro do compromisso que se repete (`compromissoRepetir`, `paginas/NovoCompromisso.tsx`; veja [Agenda e compromissos](#agenda)).',
+      'A ordem das datas (a concessão depois do depósito) é conferida no banco e no `falso.ts`; a frase (`CONCESSAO_ANTES_DO_DEPOSITO`, em `regras/propriedadeIntelectual.ts`) traduz o erro do banco em `dados/erros.ts`.'
+    ],
+    testes: ['processos', 'processo-partes-e-recursos', 'compromissos-que-se-repetem', 'repeticao']
   },
   {
     id: 'agenda',
@@ -230,8 +279,12 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['agenda', 'agenda/novo'],
     armadilhas: [
       'O conflito de horário das salas é conferido no banco e em `regras/sala.ts` (o fictício): mude os dois.',
-      'Cada data de um compromisso que se repete é um cartão; só quem pode mudar as datas mexe na repetição (teste do banco `repeticao_so_quem_muda_as_datas`).'
-    ]
+      'Cada data de um compromisso que se repete é um cartão; só quem pode mudar as datas mexe na repetição (teste do banco `repeticao_so_quem_muda_as_datas`).',
+      'O `falso.ts` reescreve à mão as regras da série (repetir, mudar "esta e as seguintes", arquivar as seguintes, só a próxima data no quadro): cada caso do teste do banco precisa do caso igual em `dados/contrato.test.ts`.',
+      'A demanda que nasce de cada data avisa o responsável: o aviso aparece em `paginas/Mensagens.tsx` (`ItemDaDemandaDoCompromisso`; veja [Mensagens e avisos](#mensagens)).',
+      'As datas seguintes e as demandas de cada data também nascem de rotinas do banco, sem ninguém logado (veja [Rotinas automáticas](#rotinas)). As contas de datas ficam em `regras/prazos.ts`.'
+    ],
+    testes: ['mensagens', 'Mensagens']
   },
   {
     id: 'calendario',
@@ -241,7 +294,11 @@ export const ASSUNTOS: Assunto[] = [
     tabelas: ['dias_sem_expediente', 'orgaos'],
     dados: ['DadosCalendario'],
     rotas: ['calendario'],
-    armadilhas: ['Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.']
+    armadilhas: [
+      'Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.',
+      '`regras/prazos.ts` não depende de nenhum módulo (Agenda e Propriedade intelectual importam dele `somarDias`, `diasEntre` e `DIAS_NA_SEMANA`): não importe um módulo dali, para não criar importação circular.'
+    ],
+    testes: ['agenda', 'repeticao', 'propriedadeIntelectualNaAgenda']
   },
   {
     id: 'lembretes',
@@ -279,14 +336,16 @@ export const ASSUNTOS: Assunto[] = [
     dados: ['DadosFinanceiro'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],
     armadilhas: [
-      'Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.'
-    ]
+      'Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.',
+      'O Hub e as abas (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx` e `TELAS_DO_FINANCEIRO` de `e2e/ajudantes.ts`) abrem Parcelas, Lucros, Meus valores e Conferência: mexeu no Hub ou nos endereços, rode os testes dessas telas (já no comando abaixo) e veja [Rotas e endereços](#rotas).'
+    ],
+    testes: ['parcelas', 'lucros', 'meus-valores', 'conferencia', 'contrato-exclui-em-cascata', 'topo-do-cartao', 'mais-no-titulo-das-secoes']
   },
   {
     id: 'parcelas',
     titulo: 'Parcelas e recebimentos',
     resumo: 'As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.',
-    arquivos: [arquivo('app/src/paginas/financeiro/Parcelas'), 'APassar', 'Repasses', 'CorrigirRecebimento', 'parcelas', 'recebimento', arquivo('app/src/regras/financeiro'),
+    arquivos: [arquivo('app/src/paginas/financeiro/Parcelas'), arquivo('app/src/paginas/financeiro/Hub'), 'AbasDoFinanceiro', 'APassar', 'Repasses', 'CorrigirRecebimento', 'parcelas', 'recebimento', arquivo('app/src/regras/financeiro'),
       'financeiro_parcelas', 'financeiro_descontos', 'a_passar_quem_paga', 'quem_recebeu_marca_o_pagamento', 'quem_recebeu_marca', 'parcela_antiga_recebida',
       'corrigir_parcela_importada', 'rapidez_das_parcelas', 'recebimento_completo', 'correcao_de_recebimento'],
     tabelas: ['contrato_parcelas', 'contrato_parcelas_historico', 'financeiro_recebimentos', 'financeiro_repasses', 'financeiro_terceiros_pagos',
@@ -295,8 +354,10 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['financeiro/direitos', 'financeiro/obrigacoes'],
     armadilhas: [
       'A divisão de cada recebimento (`regras/financeiro.ts`) foi confirmada pelo escritório com exemplos (`financeiro.test.ts`): mudar uma conta muda Meus valores e Lucros também.',
-      'O endereço antigo `/parcelas/` leva a Direitos (`regras/enderecosAntigos.ts`).'
-    ]
+      'O endereço antigo `/parcelas/` leva a Direitos (`regras/enderecosAntigos.ts`). Direitos e Obrigações são abas do Hub do Financeiro (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx`).',
+      'O excluir contrato em cascata vai a Obrigações e usa a tabela Repasses (`e2e/contrato-exclui-em-cascata.spec.ts`, já no comando abaixo).'
+    ],
+    testes: ['contrato-exclui-em-cascata', 'topo-do-cartao', 'mais-no-titulo-das-secoes', 'financeiro', 'lucros', 'meus-valores']
   },
   {
     id: 'lucros',
@@ -326,7 +387,7 @@ export const ASSUNTOS: Assunto[] = [
     id: 'equipe',
     titulo: 'Equipe, grupos e permissões',
     resumo: 'Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)\n'
-      + 'e a equipe de cada item (as bolinhas no topo do cartão).',
+      + 'e a equipe de cada item (as bolinhas no topo do cartão). O registro de ações, também nesta tela, está em Registro de ações e LGPD.',
     arquivos: [
       'Equipe', 'UsuarioDaEquipe', 'GrupoDaEquipe', 'GruposDaEquipe', 'GruposNoTopo', 'EquipeNoTopo', 'equipeNoCartao', 'FaseDeAdaptacao',
       'equipe', 'equipeVeTudo', 'gruposDaEquipe', 'acessoPeloGrupo', 'menuDaBolinha', 'conviteDaPessoa', 'reservaDeConta', 'trocaDeEmail', 'avisoDaTroca',
@@ -337,12 +398,13 @@ export const ASSUNTOS: Assunto[] = [
       'desativar_encerra_as_sessoes', 'desativar_encerra_sessoes', 'reativar_tira_a_senha_de_uso', 'reativar_tira_a_senha', 'conta_reservada', 'equipe_nome',
       'equipe_ve_tudo', 'fase_de_adaptacao', 'excluir_usuario', 'grupos_da_equipe'
     ],
-    tabelas: ['perfis', 'convites', 'grupos_da_equipe', 'grupo_integrantes', 'auditoria', 'privado.mudancas_na_equipe'],
+    tabelas: ['perfis', 'convites', 'grupos_da_equipe', 'grupo_integrantes', 'privado.mudancas_na_equipe'],
     dados: ['DadosEquipe', 'DadosGrupos'],
     rotas: ['equipe'],
     armadilhas: [
       'Função (advogado, administrativo, estagiário) é diferente de papel (administrador): quem não é administrador vê só o que criou ou em que foi posto.',
-      'Quem vê e altera cada item é decidido pelas regras RLS do banco; o fictício imita em `falso.ts`. Mudou uma regra de acesso: rode os testes do banco (`supabase test db`).',
+      'Quem vê e altera cada item é decidido pelas regras RLS do banco; o fictício imita em `falso.ts`. Mudou uma regra de acesso: rode os testes do banco (`npx supabase test db`).',
+      'Regra que vale para quem executa ou para quem pede (como a aprovação da tarefa): decida e teste também o caso do administrador, que pela RLS altera tudo, e o de quem só altera o item.',
       'Trocar o e-mail de alguém e reservar conta passam por funções do servidor (`equipe-trocar-email`, `equipe-reservar-conta`), testadas em `app/src/regras/*.test.ts`.'
     ]
   },
@@ -366,7 +428,18 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['configuracoes'],
     armadilhas: [
       'O SEMPER é de vários escritórios: nada do primeiro escritório no código; nome e logomarca vêm das Configurações.',
-      'As partes das Configurações de outros assuntos (salas, objetos, funções, Google, fase de adaptação) estão nos assuntos deles.'
+      'As partes das Configurações de outros assuntos estão nos assuntos deles: salas (Agenda), objetos (Objetos de contrato), funções dos participantes da tarefa (`FuncoesDosParticipantes`, Tarefas), conta Google (Conta Google e contatos) e fase de adaptação (Equipe). A função de cada pessoa da equipe (advogado, estagiário) é de Equipe.'
+    ]
+  },
+  {
+    id: 'registro',
+    titulo: 'Registro de ações e LGPD',
+    resumo: 'O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.',
+    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes'],
+    tabelas: ['auditoria'],
+    armadilhas: [
+      'O gatilho `privado.auditar` (em `20261024000001_base.sql`) já grava uma linha por linha criada, mudada ou apagada: tabela nova ganha o gatilho na migração dela. Numa ação em cascata, o resumo vai nessa mesma linha (não grave outra).',
+      'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).'
     ]
   },
   {
@@ -378,7 +451,11 @@ export const ASSUNTOS: Assunto[] = [
     tabelas: ['mensagens', 'mensagens_de_compromisso', 'mensagens_de_grupo', 'mensagens_de_inclusao', 'mensagens_de_participacao', 'pedidos_de_participacao'],
     dados: ['DadosMensagens', 'DadosPedidos'],
     rotas: ['mensagens'],
-    armadilhas: ['Quem recebe cada aviso é decidido no banco (gatilhos); as palavras de cada módulo ficam em `regras/inclusao.ts` e `regras/pedidoDeParticipacao.ts`.']
+    armadilhas: [
+      'Quem recebe cada aviso é decidido no banco (gatilhos); as palavras de cada módulo ficam em `regras/inclusao.ts` e `regras/pedidoDeParticipacao.ts`.',
+      'Tipo de aviso novo = tabela `mensagens_de_<x>` (migração), entrada em `regras/mensagens.ts` e um `ItemDe<x>` em `paginas/Mensagens.tsx` (como `ItemDaDemandaDoCompromisso`, da Agenda).',
+      'O que uma rotina do banco cria sem ninguém logado não pode disparar o aviso ao ser incluído (veja [Rotinas automáticas](#rotinas)).'
+    ]
   },
   {
     id: 'comentarios',
@@ -404,16 +481,19 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.',
     arquivos: ['CartoesLigados', 'PessoasNosItens', 'ligarNoCartao', 'ItensLigados', 'LigadosNoCadastro', 'LigarDoModulo', 'LigarExistente', 'LigarItem', 'LigarProcesso',
       'ligacoesDoItem', 'ligarExistente', 'nascerLigado', 'origemDoCadastro', 'ligar-existente', 'nascer-ligado-demanda-contrato', 'criar-processo-e-tarefa-ligados',
-      'ligar_processo_existente'],
+      'ligar_processo_existente', 'novo-padrao-das-secoes', 'tarefa-em-varias-ligacoes'],
     dados: ['DadosParaLigar'],
-    armadilhas: ['A tela lê a lista gravada no item logo antes de gravar (para não apagar a ligação de outra pessoa): siga o mesmo jeito ao ligar um módulo novo.']
+    armadilhas: [
+      'A tela lê a lista gravada no item logo antes de gravar (para não apagar a ligação de outra pessoa): siga o mesmo jeito ao ligar um módulo novo.',
+      'Ligar ou desligar uma tarefa de demanda mexe na demanda contínua (desfazer devolve a tarefa a ela): veja [Demandas](#demandas).'
+    ]
   },
   {
     id: 'quadros',
     titulo: 'Quadros (kanban) e situação',
     resumo: 'O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.\n'
       + 'Peça comum: mexer aqui muda todos os módulos.',
-    arquivos: [pasta('app/src/ui/quadro'), 'situacaoDoItem', 'quadro', 'colunasPadrao', 'conclusaoNoCartao', 'ligacoesDoItem',
+    arquivos: [pasta('app/src/ui/quadro'), 'situacaoDoItem', 'quadro', 'colunasPadrao', 'conclusaoNoCartao', 'ligacoesDoItem', 'SecaoArquivados',
       'arquivados', 'colunas-fora-da-tela', 'colunas-padrao', 'grupos-colunas', 'grupos-entre-colunas', 'nome-da-coluna-inteiro', 'nomes-em-maiusculas',
       'concluir-na-miniatura', 'ligacoes-no-quadro',
       'colunas_marco', 'grupos_de_colunas', 'grupos_entre_colunas', 'leitura_rapida_dos_quadros'],
@@ -421,6 +501,9 @@ export const ASSUNTOS: Assunto[] = [
     dados: ['DadosQuadros'],
     armadilhas: [
       'As colunas-marco têm código fixo (`regras/quadro.ts`): o sistema as acha pelo código, mesmo renomeadas. Coluna padrão nova chega por `regras/colunasPadrao.ts` e migração.',
+      'Colunas novas num quadro que já existe: o escritório pode ter renomeado colunas e grupos, deixado um grupo vazio ou não ter grupos; ache pelo código fixo e siga `planoDasColunasNovas` (`regras/colunasPadrao.ts`), como `COLUNAS_NOVAS_DOS_PROCESSOS` (#315).',
+      'Não crie marco novo para uma coluna reconhecida: a versão anterior do site não conhece o marco. Use uma bandeira, como `de_aprovacao` (a decisão está em `regras/quadro.ts`).',
+      'A seção Arquivados (`ui/SecaoArquivados.tsx`, com a pergunta própria de cada módulo em `perguntarAntesDeExcluir`) é de todos os módulos: depois de mexer, rode a bateria completa de telas.',
       'Mudou `Kanban`, `useColunas` ou `PaginaModulo`: rode a bateria completa de telas, não só a deste assunto.'
     ]
   },
@@ -440,7 +523,7 @@ export const ASSUNTOS: Assunto[] = [
     titulo: 'Busca geral',
     resumo: 'A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).',
     arquivos: ['BuscaGeral', 'fontesDaBuscaGeral', 'buscaGeral', 'busca-geral'],
-    armadilhas: ['Módulo novo entra na busca por uma fonte em `ui/fontesDaBuscaGeral.ts`.']
+    armadilhas: ['Módulo novo, ou tipo novo de um módulo (como um tipo de processo), entra na busca por uma fonte em `ui/fontesDaBuscaGeral.ts`, um grupo em `regras/buscaGeral.ts` e o ícone do grupo (`ICONE_DO_GRUPO`, em `ui/BuscaGeral.tsx`); tipo que sai, tire dos três.']
   },
   {
     id: 'painel-inicial',
@@ -501,6 +584,18 @@ export const ASSUNTOS: Assunto[] = [
     titulo: 'Ajuda e atalhos',
     resumo: 'A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).',
     arquivos: ['ajuda', 'atalhos'],
-    armadilhas: ['Módulo novo com página de módulo ganha os textos de ajuda em `regras/ajuda.ts`.']
+    armadilhas: ['Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.']
+  },
+  {
+    id: 'rotinas',
+    titulo: 'Rotinas automáticas',
+    resumo: 'O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,\n'
+      + 'contatos do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.',
+    arquivos: [],
+    conteudo: /cron\.schedule/,
+    armadilhas: [
+      'A rotina roda sem ninguém logado (`auth.uid()` nulo): o teste do banco limpa o login antes de chamá-la, e o que ela cria não pode disparar os gatilhos de aviso ao ser incluído.',
+      'A rotina chama uma função `privado.…` da mesma migração: mudou a regra, mude a função (numa migração nova) e o caso do teste do banco.'
+    ]
   }
 ];

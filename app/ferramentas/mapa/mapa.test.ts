@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  chaveDoArquivo, citadosQueNaoExistem, gerarMapa, lerProjeto, partesDoContrato, primeiraFrase, rotasDoApp, semAssunto, tabelasDaMigracao,
+  caminhosCitados, chaveDoArquivo, citadosQueNaoExistem, enderecosCitados, gerarMapa, lerProjeto, partesDoContrato, primeiraFrase, rotasDoApp, semAssunto, tabelasDaMigracao,
   type Projeto
 } from './gerar';
 
@@ -40,6 +40,74 @@ describe('Mapa do sistema', () => {
       const citados = citadosQueNaoExistem(projeto);
       // Então
       expect(citados).toEqual([]);
+    });
+
+    it('quando procura o que não tem assunto, então não acha nada (classifique em assuntos.ts o que aparecer)', () => {
+      // Quando
+      const sobra = semAssunto(projeto);
+      // Então
+      expect(sobra, 'Sem assunto no mapa: classifique na tabela app/ferramentas/mapa/assuntos.ts').toEqual([]);
+    });
+  });
+
+  describe('Dado um projeto com testes de outros assuntos, funções de dados, testes do banco e endereços', () => {
+    const projeto = projetoCom({
+      'app/src/App.tsx': '<Route path="pessoas" element={<Pessoas />} />\n<Route path="agenda" element={<Compromissos />} />',
+      'app/src/dados/tipos.ts': 'export interface DadosPessoas {\n  pessoasListar(): Promise<void>;\n}\nexport interface Dados extends DadosPessoas {}',
+      'app/src/dados/contrato.test.ts': '',
+      'app/src/paginas/Pessoas.tsx': "const volta = '/agenda/?cartao=1';",
+      'app/e2e/pessoas.spec.ts': "await page.goto('/pessoas/');",
+      'app/e2e/salas.spec.ts': "await page.goto('/agenda/');",
+      'app/e2e/mensagens.spec.ts': '',
+      'supabase/tests/vinculos.test.sql': ''
+    });
+    const mapa = gerarMapa(projeto).get('docs/MAPA.md')!;
+    const secaoDe = (id: string, depois: string) => mapa.slice(mapa.indexOf(`<a id="${id}">`), mapa.indexOf(`<a id="${depois}">`));
+
+    it('quando gera o mapa, então o assunto com funções de dados roda também o teste do contrato', () => {
+      // Então
+      expect(secaoDe('pessoas', 'contratos')).toContain('`npx vitest run src/dados/contrato.test.ts`');
+    });
+
+    it('quando gera o mapa, então o assunto tem o comando dos testes do banco', () => {
+      // Então
+      expect(secaoDe('pessoas', 'contratos')).toContain('`npx supabase test db supabase/tests/vinculos.test.sql`');
+    });
+
+    it('quando gera o mapa, então o comando de tela de Agenda inclui o teste de outro assunto que ela costuma quebrar', () => {
+      // Dado: o salas.spec.ts é da Agenda; o mensagens.spec.ts é de Mensagens, que a Agenda lista nos testes de fora
+      const agenda = secaoDe('agenda', 'calendario');
+      // Então
+      expect(agenda).toContain('`npx playwright test e2e/mensagens.spec.ts e2e/salas.spec.ts`');
+    });
+
+    it('quando gera a seção das rotas, então cada endereço diz a tela, o assunto e quem o escreve', () => {
+      // Quando
+      const rotas = secaoDe('rotas', 'sem-assunto');
+      // Então
+      expect(rotas).toContain('- `/agenda/` (Compromissos): [Agenda e compromissos](#agenda)');
+      expect(rotas).toContain('escrevem o endereço: (app/) src/paginas/Pessoas.tsx');
+      expect(rotas).toContain('`npx playwright test e2e/salas.spec.ts`');
+    });
+  });
+
+  describe('Dado um texto de código', () => {
+    it('quando escreve endereços, então acha cada um sem as barras, também num modelo com ${}', () => {
+      // Dado
+      const codigo = "navegar('/financeiro/direitos/?cartao=1'); const a = `/processos/${tipo}/`; const b = \"/\"; const c = '/inicio';";
+      // Quando
+      const enderecos = enderecosCitados(codigo);
+      // Então
+      expect([...enderecos]).toEqual(['financeiro/direitos', 'processos', 'inicio']);
+    });
+
+    it('quando um texto à mão cita arquivos entre crases, então acha só os caminhos com pasta e extensão', () => {
+      // Dado
+      const texto = 'Veja `regras/quadro.ts`, `ui/quadro`, `falso.ts`, `app/novidades/proxima/<tarefa>.json` e `paginas/Equipe.tsx`.';
+      // Quando
+      const caminhos = caminhosCitados(texto);
+      // Então
+      expect(caminhos).toEqual(['regras/quadro.ts', 'paginas/Equipe.tsx']);
     });
   });
 

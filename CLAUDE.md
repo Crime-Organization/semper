@@ -13,13 +13,15 @@ O `docs/MAPA.md` diz, para cada assunto (pessoas, contratos, financeiro…), as 
 as telas, as rotas, os testes e as armadilhas. Ele é gerado do código e de uma tabela de assuntos.
 
 - **Antes de procurar no código, leia o assunto no mapa.** O índice no topo diz as linhas de cada um; leia só essas.
-- **Durante o trabalho, rode só os testes do assunto** (o comando de tela e o de unitários estão no mapa, para rodar na
-  pasta `app`). A bateria completa (`npm run verificar` e `npm run testar-telas`), uma vez, antes de enviar um lote ao
-  `main` ou publicar. Mexeu numa peça comum (`PaginaModulo`, `ui/quadro`, `ui/base`, `estilo.css`): bateria completa.
+- **Durante o trabalho, rode só os testes do assunto** (os comandos de tela, de unitários e do banco estão no mapa e já
+  trazem os testes de outros assuntos que ele costuma quebrar). A bateria completa (`npm run verificar` e
+  `npm run testar-telas`), uma vez, antes de enviar um lote ao `main` ou publicar. Mexeu numa peça comum
+  (`PaginaModulo`, `ui/quadro`, `ui/base`, `SecaoArquivados`, `estilo.css`): bateria completa. Endereço que sai ou
+  muda: a seção "Rotas e endereços" do mapa diz quem o escreve.
 - **Ao criar arquivo, tabela, rota ou assunto novo**, classifique-o na tabela `app/ferramentas/mapa/assuntos.ts` e rode
-  `npm run mapa --prefix app`. O que ficar sem assunto aparece na seção "Sem assunto" do mapa. Um teste confere que o
-  mapa está em dia (o `git push` recusa se não estiver). Conflito no `docs/MAPA.md` ao juntar ramos: não resolva à mão,
-  rode `npm run mapa --prefix app`.
+  `npm run mapa --prefix app`. Um teste confere que o mapa está em dia, que nada ficou sem assunto e que os textos da
+  tabela não citam arquivo que não existe (o `git push` recusa se falhar). Conflito no `docs/MAPA.md` ao juntar ramos:
+  não resolva à mão, rode `npm run mapa --prefix app`; resumo e armadilhas que mudaram de sentido se corrigem à mão na tabela.
 
 ## Toda mudança tem uma tarefa no quadro
 
