@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Exclusao, Pagina } from '../dados';
 import { avisar, falha, feito } from './avisos';
-import { BotaoDuplo } from './Botoes';
+import { Botao, BotaoDuplo } from './Botoes';
 import { Aviso, Carregando, estiloBotao } from './base';
 import { Icone, ICONE_DO_BOTAO_PEQUENO } from './Icone';
 import { Recolhivel } from './Recolhivel';
@@ -23,6 +23,11 @@ interface Props<T extends { id: string }> {
   listar: (pagina: number) => Promise<Pagina<T>>;
   arquivar: (ids: string[], arquivar: boolean) => Promise<number>;
   excluir: (ids: string[]) => Promise<Exclusao>;
+  /**
+   * A pergunta própria antes de excluir os selecionados, no lugar da confirmação em dois cliques (o contrato mostra o que sai junto
+   * e os valores, #284). Diz se a pessoa confirmou.
+   */
+  perguntarAntesDeExcluir?: (ids: string[]) => Promise<boolean>;
   /** A tabela do módulo, com a página dos arquivados, a seleção e a troca de página. */
   tabela: (pagina: Pagina<T>, numeroDaPagina: number, selecao: Selecao, aoPaginar: (n: number) => void) => ReactNode;
   /** Muda quando algo mudou na página (ex.: arquivaram itens na tabela de cima): relê a lista. */
@@ -39,7 +44,7 @@ export function SecaoArquivados<T extends { id: string }>(props: Props<T>) {
   </div>;
 }
 
-function ListaDeArquivados<T extends { id: string }>({ nome, listar, arquivar, excluir, tabela, versao, aoMudar }: Props<T>) {
+function ListaDeArquivados<T extends { id: string }>({ nome, listar, arquivar, excluir, perguntarAntesDeExcluir, tabela, versao, aoMudar }: Props<T>) {
   const [pagina, setPagina] = useState(0);
   const [lista, setLista] = useState<Pagina<T> | string | null>(null);
   const [recarga, setRecarga] = useState(0);
@@ -79,7 +84,10 @@ function ListaDeArquivados<T extends { id: string }>({ nome, listar, arquivar, e
     {n > 0 && <div className="arquivados-acoes" role="group" aria-label="Ações nos arquivados selecionados">
       <span><b>{numero(n)}</b> {n === 1 ? `selecionad${o}` : `selecionad${o}s`}</span>
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={desarquivar}><Icone nome="arquivoAberto" tam={ICONE_DO_BOTAO_PEQUENO} /> Desarquivar</button>
-      <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${numero(n)}`} aoConfirmar={excluirSelecionados}><Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir</BotaoDuplo>
+      {perguntarAntesDeExcluir
+        ? <Botao forma="mini" variante="perigo" onClick={async () => { if (await perguntarAntesDeExcluir([...selecao.selecionadas])) await excluirSelecionados(); }}>
+          <Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir</Botao>
+        : <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${numero(n)}`} aoConfirmar={excluirSelecionados}><Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir</BotaoDuplo>}
       <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => selecao.limpar()}>limpar</button>
     </div>}
     {tabela(lista, pagina, selecao, p => { selecao.limpar(); setPagina(p); })}

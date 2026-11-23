@@ -108,6 +108,8 @@ interface Props {
   aoArquivar?: () => unknown;
   /** Excluir, no ⋯ do arquivado, para quem pode (pergunta antes). */
   aoExcluir?: () => unknown;
+  /** A pergunta própria antes de excluir, no lugar da de sempre (o contrato mostra o que sai junto, #284). */
+  perguntarAntesDeExcluir?: () => Promise<boolean>;
   /** As ações a mais do ⋯, antes de Arquivar (ex.: "Copiar para outra demanda", na tarefa, #312; "Convidar para a equipe", na pessoa, #327). */
   extras?: AcaoDoTopo[];
   /** O lápis (só com o item ativo): o nome ("Editar", "Editar sem os valores") e o que faz. */
@@ -116,7 +118,7 @@ interface Props {
   situacao?: ReactNode;
 }
 
-export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, extras, lapis, situacao }: Props) {
+export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, perguntarAntesDeExcluir, extras, lapis, situacao }: Props) {
   const etiquetas = useEtiquetasDoCartao(modulo, id);
   const textos = TOPO_DO_CARTAO[modulo];
   const menu = useFocoAoDesarquivar(arquivado);
@@ -124,7 +126,7 @@ export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, 
     editando={editando} situacao={situacao} botoes={<>
       {lapis && !arquivado && <LapisDoCartao rotulo={lapis.rotulo} aoEditar={lapis.aoEditar} />}
       <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar} refDoBotao={menu} extras={extras}
-        excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir } : undefined} />
+        excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir, perguntar: perguntarAntesDeExcluir } : undefined} />
     </>} />;
 }
 

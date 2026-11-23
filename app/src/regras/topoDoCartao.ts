@@ -55,6 +55,7 @@ export const TOPO_DO_CARTAO: Record<ModuloDoTopo, TextosDoTopo> = {
     oQue: 'o contrato', menu: 'Mais ações do contrato',
     arquivado: {
       podeExcluir: `Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente ${EXCLUIR_PELO_MENU}. `
+        + 'Excluí-lo apaga junto as demandas, as tarefas, as parcelas e os recebimentos dele; antes, uma janela mostra o que sai e os valores. '
         + 'Se for o último contrato do ano, o número dele volta a ser usado.',
       naoPode: 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'
     }

@@ -1,0 +1,5 @@
+{
+  "titulo": "Excluir um contrato exclui junto o que está ligado a ele",
+  "texto": "Antes de excluir um contrato arquivado, uma janela mostra quantas demandas, tarefas, parcelas e recebimentos saem junto e os valores. Os recebimentos saem do Caixa e só um administrador exclui contrato com dinheiro recebido; se já houve pagamento a alguém, é preciso desfazê-lo antes.",
+  "ondeAchar": "Contratos > cartão do contrato arquivado > menu ⋯ > Excluir, ou a seção Arquivados embaixo da tabela, com o botão Excluir."
+}

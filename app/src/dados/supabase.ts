@@ -32,6 +32,8 @@ import { fmtHora, MODULOS_DO_COMPROMISSO, nomeDoCompromisso, papeisNoCompromisso
 import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
 import { outraDaRelacao, parDaRelacao, type LinhaDaRelacao } from '../regras/demandasRelacionadas';
 import type { DemandaRelacionada } from './tipos';
+import type { PreviaExclusaoContrato } from './tipos';
+import { RECUSA_DA_EXCLUSAO } from '../regras/exclusaoDoContrato';
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
 import { processosComPartes, relacionadosDoProcesso } from '../regras/processo';
@@ -1077,10 +1079,11 @@ export const SD: Dados = {
       .in('id', ids).select('id'));
     return data.length;
   },
+  contratoExclusaoPrevia: ids => rpc('contrato_exclusao_previa', { p_ids: ids }) as Promise<PreviaExclusaoContrato>,
+  // Em cascata (#284): as demandas, as tarefas que só pertencem a eles, as parcelas e o dinheiro no Financeiro saem juntos.
   async contratosExcluir(ids) {
-    const { data } = await rodar(sb.from('contratos').delete().in('id', ids).select('id'));
-    const excluidas = data.length;
-    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
+    const excluidas = await rpc('contratos_excluir', { p_ids: ids }) as number;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? RECUSA_DA_EXCLUSAO.nenhum : '' };
   },
   async contratoMover(id, etapaId, ordem) {
     const { data } = await rodar(sb.from('contratos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle());
