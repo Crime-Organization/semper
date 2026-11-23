@@ -54,6 +54,14 @@ export const grupoPeloGatilho = (gruposDaPessoa: readonly string[]) => gruposDaP
 export const semAContinuaComDemanda = (ids: readonly string[], continua: (id: string) => boolean) =>
   ids.some(id => !continua(id)) ? ids.filter(id => !continua(id)) : [...ids];
 
+/**
+ * A tarefa volta à contínua (o Desfazer de ligá-la a uma demanda): antes ela não estava em nenhuma contínua, e depois fica só em
+ * contínuas (sem nenhuma demanda de verdade). Quem altera a tarefa pode devolvê-la mesmo sem usar aquela contínua (sem estar no grupo
+ * dela): a contínua não abre a tarefa a ninguém. `antes` nulo: a tarefa é nova (aí vale a regra de quem usa a contínua).
+ */
+export const voltaAContinua = (antes: readonly string[] | null, depois: readonly string[], continua: (id: string) => boolean) =>
+  !!antes && !antes.some(continua) && depois.length > 0 && depois.every(continua);
+
 /** Quem pode usar a contínua (ligar a tarefa a ela e vê-la): na Geral, toda a equipe; na de um grupo, quem está nele e o administrador. */
 export const usaAContinua = (d: Pick<Demanda, 'continua' | 'continua_grupo_id'>, ehAdmin: boolean, meusGrupos: readonly string[]) =>
   !!d.continua && (!d.continua_grupo_id || ehAdmin || meusGrupos.includes(d.continua_grupo_id));

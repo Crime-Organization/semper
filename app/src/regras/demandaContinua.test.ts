@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { GrupoDaEquipe } from '../dados/tipos';
 import {
   CONTINUA_GERAL, continuaInicial, ehContinua, grupoDaContinuaAoGravar, grupoPeloGatilho, NOME_DA_GERAL, opcoesDaContinua, semAContinuaComDemanda, tituloDaContinua,
-  usaAContinua
+  usaAContinua, voltaAContinua
 } from './demandaContinua';
 
 const CIVEL: GrupoDaEquipe = { id: 'g-civel', nome: 'Núcleo Cível', integrantes: ['u-bia', 'u-caio'] };
@@ -63,6 +63,20 @@ describe('A demanda contínua (#313)', () => {
     expect(semAContinuaComDemanda(['c1', 'd1'], continua)).toEqual(['d1']);
     expect(semAContinuaComDemanda(['c1'], continua)).toEqual(['c1']);
     expect(semAContinuaComDemanda([], continua)).toEqual([]);
+  });
+
+  it.each([
+    ['ligada a uma demanda, volta só à contínua (o Desfazer)', ['d1'], ['c1'], true],
+    ['sem nenhuma demanda, entra só na contínua', [], ['c1'], true],
+    ['vai de uma contínua para outra', ['c1'], ['c2'], false],
+    ['fica com a contínua e uma demanda', ['d1'], ['c1', 'd1'], false],
+    ['é nova', null, ['c1'], false],
+    ['fica sem nada', ['d1'], [], false]
+  ])('dada a tarefa que %s, então é a volta à contínua = %s', (_caso, antes, depois, volta) => {
+    // Dado
+    const continua = (id: string) => id.startsWith('c');
+    // Então
+    expect(voltaAContinua(antes as string[] | null, depois as string[], continua)).toBe(volta);
   });
 
   it('dado o nome do grupo, então o título é o do banco; e só a marcada é contínua', () => {

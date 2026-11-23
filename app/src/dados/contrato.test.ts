@@ -9626,6 +9626,22 @@ describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => 
     expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([d.id]);
   });
 
+  it('dada a tarefa avulsa na contínua de um grupo de que o Bruno não faz parte, quando ele a liga a uma demanda dele e desfaz, então ela volta à contínua', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Trabalhista');
+    const continua = await SD.demandaContinua(grupo);
+    const { id } = await SD.tarefaCriar({ titulo: 'Calcular as verbas', responsavel_id: 'u-bruno', demanda_ids: [continua], participantes: [], pessoas: [] });
+    entrarComo('u-bruno');
+    const d = await SD.demandaCriar({ titulo: 'Reclamação', responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua, d.id] });
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([d.id]);
+    // Quando: o Desfazer
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua] });
+    // Então
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([continua]);
+  });
+
   it('dado um grupo com contínua, quando é renomeado e depois excluído, então a contínua acompanha o nome e as tarefas dela vão para a Geral', async () => {
     // Dado
     const grupo = await nucleoComBruno('Núcleo A');

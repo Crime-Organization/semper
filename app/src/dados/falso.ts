@@ -32,7 +32,7 @@ import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDe
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import {
-  CONTINUA_NAO_CONCLUI, CONTINUA_NAO_EXCLUI, CONTINUA_SEM_EQUIPE, DESCRICAO_DA_CONTINUA, grupoPeloGatilho, NOME_DA_GERAL, semAContinuaComDemanda, tituloDaContinua, usaAContinua
+  CONTINUA_NAO_CONCLUI, CONTINUA_NAO_EXCLUI, CONTINUA_SEM_EQUIPE, DESCRICAO_DA_CONTINUA, grupoPeloGatilho, NOME_DA_GERAL, semAContinuaComDemanda, tituloDaContinua, usaAContinua, voltaAContinua
 } from '../regras/demandaContinua';
 import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
 import { DEMANDAS_RELACIONADAS } from './limites';
@@ -1535,9 +1535,12 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
   const demandas = listaAoGravar(t.demanda_ids, t.demanda_id, atual && { lista: demandasDaTarefa(atual), principal: atual.demanda_id });
   if (demandas) {
     if (demandas.some(id => !bd.demandas!.some(d => d.id === id))) throw new Error('Demanda não encontrada neste escritório.');
-    // A contínua que entra (#313): só quem pode usá-la (como a conferência de ligacoes_da_tarefa).
+    // A contínua que entra (#313): só quem pode usá-la (como a conferência de ligacoes_da_tarefa), menos a volta da tarefa à contínua
+    // (o Desfazer de ligá-la a uma demanda), que quem altera a tarefa faz mesmo fora do grupo dela.
     const antes = atual ? demandasDaTarefa(atual) : [];
-    if (demandas.some(id => !antes.includes(id) && bd.demandas!.some(d => d.id === id && d.continua && !usoAContinuaNoFalso(d)))) {
+    const ehContinuaNoFalso = (id: string) => bd.demandas!.some(d => d.id === id && d.continua);
+    if (!voltaAContinua(atual ? antes : null, demandas, ehContinuaNoFalso)
+      && demandas.some(id => !antes.includes(id) && bd.demandas!.some(d => d.id === id && d.continua && !usoAContinuaNoFalso(d)))) {
       throw new Error('Demanda não encontrada neste escritório.');
     }
     if (demandas.length > DEMANDAS_POR_TAREFA) throw new Error(DEMANDAS_DA_TAREFA_CHEIA);

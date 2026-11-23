@@ -71,6 +71,17 @@ select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000008'), '{d000000
 -- E o Desfazer, que a devolve à contínua, é aceito
 update public.tarefas set demanda_ids = array[pg_temp.continua('Núcleo A')] where id = '70000000-0000-0000-0000-000000000008';
 select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000008'), array[pg_temp.continua('Núcleo A')], 'A tarefa volta à contínua do grupo');
+-- Dada a tarefa avulsa que a Bia pôs na contínua do Núcleo A com a Eva (fora do grupo) como responsável
+insert into public.tarefas (id, titulo, responsavel_id, criado_por) values ('70000000-0000-0000-0000-000000000009', 'Da Eva no núcleo', pg_temp.id(5), auth.uid());
+-- Quando a Eva a liga a uma demanda dela e desfaz, então a tarefa volta à contínua (a contínua não abre a tarefa a ninguém)
+select pg_temp.entrar(5);
+insert into public.demandas (id, titulo, responsavel_id, criado_por) values ('d0000000-0000-0000-0000-000000000002', 'Da Eva', auth.uid(), auth.uid());
+update public.tarefas set demanda_ids = demanda_ids || 'd0000000-0000-0000-0000-000000000002'::uuid where id = '70000000-0000-0000-0000-000000000009';
+select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000009'), '{d0000000-0000-0000-0000-000000000002}'::uuid[], 'A tarefa da Eva sai da contínua');
+select lives_ok(format('update public.tarefas set demanda_ids = array[%L]::uuid[] where id = %L', pg_temp.continua('Núcleo A'), '70000000-0000-0000-0000-000000000009'),
+  'Quem altera a tarefa e não está no grupo desfaz a ligação');
+select is(pg_temp.demandas_da('70000000-0000-0000-0000-000000000009'), array[pg_temp.continua('Núcleo A')], 'A tarefa volta à contínua de onde saiu');
+select pg_temp.entrar(2);
 
 -- ---------- quem vê continua o mesmo ----------
 -- Dado o Caio, também do Núcleo A, então ele vê a contínua do grupo, mas não a tarefa da Bia (a contínua só agrupa)
