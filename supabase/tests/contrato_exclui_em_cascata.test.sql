@@ -220,6 +220,8 @@ select is((select jsonb_array_length(copia -> 'lancamentos') from public.finance
 -- E a auditoria tem o resumo com os valores
 select is((select resumo -> 'cascata' ->> 'recebido' from public.auditoria where registro_id = 'c0000000-0000-0000-0000-000000000001' and resumo ? 'cascata'), '100000',
   'A auditoria guarda o resumo com os valores');
+select is((select count(*) from public.auditoria where tabela = 'contratos' and acao = 'exclusao' and registro_id = 'c0000000-0000-0000-0000-000000000001'),
+  1::bigint, 'A exclusão do contrato fica numa linha só do registro de ações, com o resumo');
 
 -- ===== Quem lê a cópia escondida =====
 select pg_temp.entrar(1); set local role authenticated;

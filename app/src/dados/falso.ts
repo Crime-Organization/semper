@@ -741,7 +741,7 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
   mudarFuncao: (id: string, funcao: Funcao) => { bd.funcoesDeTeste = { ...bd.funcoesDeTeste, [id]: funcao }; EQUIPE.find(m => m.id === id)!.funcao = funcao; gravar(); }
 };
 
-const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
+const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor' | 'cascata'>) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo, ...detalhes }, feito_por: eu, em: agora() });
 const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
@@ -3360,11 +3360,11 @@ export const SD: Dados = {
     const r = resumoDaExclusaoNoFalso(ok);
     if (r.pagos.length) return erro(RECUSA_DA_EXCLUSAO.pagamento);
     if ((r.recebimentos > 0 || r.importadas > 0) && !souAdmin()) return erro(RECUSA_DA_EXCLUSAO.administrador);
-    // O resumo de cada contrato, na auditoria, antes de apagar.
-    ok.forEach(id => {
+    // O resumo de cada contrato, contado antes de apagar; entra na linha da exclusão dele, como no banco (uma linha só).
+    const resumos = new Map(ok.map(id => {
       const { pagos: _p, junto: _j, ...cascata } = resumoDaExclusaoNoFalso([id]);
-      bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'contratos', registro_id: id, acao: 'exclusao', resumo: { codigo: acharContrato(id).codigo, cascata }, feito_por: eu, em: agora() });
-    });
+      return [id, cascata];
+    }));
     // O Financeiro: a cópia escondida de cada recebimento (também o estornado) e de cada parcela importada como paga; depois, tudo sai.
     const recebimentos = bd.recebimentos!.filter(x => ok.includes(x.contrato_id)), idsDosRecebimentos = new Set(recebimentos.map(x => x.id));
     const repasses = bd.repasses!.filter(x => idsDosRecebimentos.has(x.recebimento_id));
@@ -3400,7 +3400,7 @@ export const SD: Dados = {
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       // Como o banco (#283): o contrato sai da lista de cada tarefa; a tarefa continua, ligada aos outros.
       bd.tarefas!.forEach(t => { if (contratosDaTarefa(t).includes(id)) Object.assign(t, prepararTarefa({ contrato_ids: contratosDaTarefa(t).filter(x => x !== id) }, t)); });
-      auditar('contratos', 'exclusao', k); excluidas++;
+      auditar('contratos', 'exclusao', k, { cascata: resumos.get(id) }); excluidas++;
     });
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? RECUSA_DA_EXCLUSAO.nenhum : '' });

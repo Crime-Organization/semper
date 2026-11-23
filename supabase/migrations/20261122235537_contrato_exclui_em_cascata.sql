@@ -22,7 +22,7 @@
 --     como paga não passou pelo Caixa: a janela mostra o valor dela à parte, avisando que não mexe no saldo.
 --   A prévia (public.contrato_exclusao_previa) diz tudo isso antes da confirmação, para a janela; os valores só aparecem para
 --   quem já os vê (administrador ou responsável pelo contrato).
---   A auditoria ganha, além da linha de cada item excluído (privado.auditar), uma linha por contrato com o resumo e os valores.
+--   Na auditoria, a linha da exclusão de cada contrato (gravada por privado.auditar) ganha o resumo do que saiu junto e os valores.
 --
 -- Só acrescenta (uma tabela, funções e um gatilho novos). A versão anterior do site continua funcionando: ela exclui com o delete
 -- direto, como antes. Esse caminho continua recusando o contrato com recebimento (a chave estrangeira não muda) e passa a recusar,
@@ -172,6 +172,7 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_escritorio uuid := privado.meu_escritorio();
   v_ok uuid[]; v_rec uuid[]; v_lanc uuid[]; v_dem uuid[]; v_tar uuid[]; v_r jsonb; v_k public.contratos;
+  v_resumos jsonb := '{}';   -- o resumo do que sai com cada contrato, pelo id, para a linha da auditoria
 begin
   if v_escritorio is null then raise exception 'Entre no sistema de novo.' using errcode = '42501'; end if;
   -- Trava os contratos e os recebimentos e repasses deles: quem está pagando ou recebendo agora termina primeiro.
@@ -190,11 +191,10 @@ begin
     raise exception 'Este contrato tem dinheiro recebido: só um administrador o exclui.' using errcode = '42501';
   end if;
 
-  -- O resumo de cada contrato, na auditoria, antes de apagar (depois não há mais o que contar).
+  -- O resumo de cada contrato, contado antes de apagar (depois não há mais o que contar). Ele entra na linha da exclusão que o
+  -- gatilho privado.auditar grava (abaixo, depois do delete): uma linha só por contrato no registro de ações.
   for v_k in select * from public.contratos where id = any(v_ok) order by codigo loop
-    insert into public.auditoria (escritorio_id, tabela, registro_id, acao, resumo, feito_por)
-    values (v_k.escritorio_id, 'contratos', v_k.id::text, 'exclusao',
-            jsonb_build_object('codigo', v_k.codigo, 'cascata', privado.resumo_da_exclusao(v_escritorio, array[v_k.id]) - 'pagos'), auth.uid());
+    v_resumos := v_resumos || jsonb_build_object(v_k.id::text, privado.resumo_da_exclusao(v_escritorio, array[v_k.id]) - 'pagos');
   end loop;
 
   -- A cópia escondida: cada recebimento (também o estornado), com tudo o que ele criou, e cada parcela importada como paga.
@@ -235,6 +235,10 @@ begin
   delete from public.tarefas where id = any(v_tar);
   delete from public.demandas where id = any(v_dem);
   delete from public.contratos where id = any(v_ok);
+  -- A linha "exclusão" de cada contrato, gravada agora pelo gatilho privado.auditar, ganha o resumo do que saiu junto.
+  update public.auditoria a set resumo = coalesce(a.resumo, '{}') || jsonb_build_object('cascata', v_resumos -> a.registro_id)
+   where a.escritorio_id = v_escritorio and a.tabela = 'contratos' and a.acao = 'exclusao' and a.registro_id = any(v_ok::text[])
+     and not coalesce(a.resumo ? 'cascata', false);
   return cardinality(v_ok);
 end $$;
 revoke execute on function public.contratos_excluir(uuid[]) from public, anon;

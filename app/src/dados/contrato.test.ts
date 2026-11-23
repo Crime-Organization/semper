@@ -4920,6 +4920,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.tarefaObter(c.daDemanda.id)).toBeNull();
         expect((await SD.tarefaObter(c.comOutro.id))!.contrato_ids).toEqual([c.outro.id]);
       });
+
+      it('dado um contrato excluído em cascata, quando abre o registro de ações, então a exclusão aparece numa linha só, com o resumo', async () => {
+        // Dado
+        const c = await cenario();
+        await SD.contratosArquivar([c.k.id], true);
+        // Quando
+        await SD.contratosExcluir([c.k.id]);
+        // Então
+        const linhas = (await SD.auditoriaListar()).filter(l => l.tabela === 'contratos' && l.acao === 'exclusao' && l.registro_id === c.k.id);
+        expect(linhas).toHaveLength(1);
+        expect(linhas[0].resumo).toMatchObject({ codigo: c.k.codigo, cascata: { demandas: 1, tarefas: 2 } });
+      });
     });
 
     describe('Meu tempo trabalhado', () => {
