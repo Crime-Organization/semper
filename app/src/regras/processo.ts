@@ -11,6 +11,10 @@ import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroC
 import { fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 import { estaPeloGrupo } from './gruposDaEquipe';
+import {
+  AREA_DA_PI, APRESENTACOES_DA_MARCA, camposDaProtecao, dadosDaProtecao, erroDaProtecao, fmtClassesNice, NATUREZAS_DA_MARCA, PAPEIS_DA_PI, papeisDaProtecao,
+  PROTECAO_VAZIA, TIPOS_DE_PROTECAO, type CampoDaProtecao, type CamposProtecao
+} from './propriedadeIntelectual';
 
 /** Rótulo dos processos fora das colunas do quadro. */
 export const SEM_SITUACAO_PROCESSO = 'Sem situação';
@@ -40,7 +44,7 @@ export const GRATUIDADES: Record<GratuidadeProcesso, string> = { nao_pedida: 'N�
 export const OPCOES_PRONTAS: Record<CampoDeOpcao, string[]> = {
   sistema: ['PJe', 'eproc', 'Projudi', 'SEEU', 'JPe', 'CPE (STJ)', 'SEI', 'e-SAJ', 'e-INSS', 'e-Marcas', 'e-Patentes', 'Físico (sem sistema)'],
   natureza: ['Procedimento comum', 'Procedimento especial', 'Juizado especial', 'Execução', 'Cumprimento de sentença', 'Mandado de segurança', 'Ação trabalhista', 'Ação penal'],
-  area: ['Cível', 'Consumidor', 'Empresarial', 'Família e sucessões', 'Previdenciário', 'Propriedade intelectual', 'Trabalhista', 'Tributário', 'Penal', 'Administrativo']
+  area: ['Cível', 'Consumidor', 'Empresarial', 'Família e sucessões', 'Previdenciário', AREA_DA_PI, 'Trabalhista', 'Tributário', 'Penal', 'Administrativo']
 };
 /** O nome de cada lista no cadastro. */
 export const LISTAS_DO_PROCESSO: Record<CampoDeOpcao, { rotulo: string }> = {
@@ -67,8 +71,8 @@ export const opcaoNaLista = (lista: string[], texto: string) => {
 };
 
 // ---------- formulário ----------
-/** Campos do formulário de processo, como digitados. */
-export interface CamposProcesso {
+/** Campos do formulário de processo, como digitados. Os de propriedade intelectual (#317) vêm de CamposProtecao. */
+export interface CamposProcesso extends CamposProtecao {
   tipo: TipoProcesso;
   numero: string;
   /** Número antigo, de antes do padrão do CNJ: o sistema não confere o formato. */
@@ -108,7 +112,7 @@ export interface CamposProcesso {
 export const processoVazio = (tipo: TipoProcesso): CamposProcesso => ({
   tipo, numero: '', numeroAntigo: false, titulo: '', orgao: '', responsavelId: '', colaboradores: [], clientes: [''], polo: '', sistema: '', meio: '', area: '',
   natureza: '', gratuidade: '', comarca: '', vara: '', classe: '', assunto: '', juiz: '', distribuicao: '', valorCausa: '', instancia: '', segredo: false,
-  advogadoContrario: '', observacoes: '', extras: {}, origemId: '', ligacao: ''
+  advogadoContrario: '', observacoes: '', extras: {}, origemId: '', ligacao: '', ...PROTECAO_VAZIA
 });
 
 type DefineONumero = Pick<CamposProcesso, 'tipo' | 'numero' | 'numeroAntigo'>;
@@ -134,6 +138,8 @@ export function aoMudarNumero(c: CamposProcesso, mudanca: Partial<DefineONumero>
 }
 
 type Conferencia = (c: CamposProcesso) => string | null;
+/** Os campos de propriedade intelectual do cadastro (#317): cada tipo de proteção mostra os seus (TIPOS_DE_PROTECAO). */
+const CAMPOS_DA_PI: CampoDaProtecao[] = ['deposito', 'concessao', 'publicacao', 'criacao', 'apresentacaoMarca', 'naturezaMarca', 'classesNice', 'especificacao', 'variacoes', 'linguagem'];
 const escolhidos = (lista: string[]) => lista.filter(Boolean);
 const repetido = (lista: string[]) => new Set(escolhidos(lista)).size < escolhidos(lista).length;
 const ateTamanho = (campo: keyof typeof TAMANHO_PROCESSO, nome: string): Conferencia => c => {
@@ -180,7 +186,9 @@ const CONFERENCIAS: Partial<Record<keyof CamposProcesso, Conferencia[]>> = {
   distribuicao: [soNoJudicial(semErroAoLer(c => lerData(c.distribuicao)))],
   valorCausa: [soNoJudicial(semErroAoLer(c => {
     if ((lerDinheiro(c.valorCausa) ?? 0) >= VALOR_CAUSA_LIMITE) throw new Error('Esse valor é grande demais: confira o valor da causa.');
-  }))]
+  }))],
+  // Propriedade intelectual (#317): cada campo só conta no processo de PI, com um tipo de proteção que o tenha.
+  ...Object.fromEntries(CAMPOS_DA_PI.map(campo => [campo, [(c: CamposProcesso) => erroDaProtecao(c, campo)]]))
 };
 
 /** Erros do cadastro, por campo. Vazio: pode salvar. */
@@ -210,7 +218,7 @@ export function dadosDoProcesso(c: CamposProcesso): DadosProcesso {
     numero: conferirCNJ(c) ? fmtCNJ(c.numero) : c.numero.trim(), titulo: textoOuNulo(c.titulo), orgao: textoOuNulo(c.orgao), responsavel_id: c.responsavelId,
     colaboradores: [...new Set(escolhidos(c.colaboradores))].filter(id => id !== c.responsavelId), clientes: [...new Set(escolhidos(c.clientes))],
     polo: c.polo || null, sistema: textoOuNulo(c.sistema), meio: c.meio || null, area: textoOuNulo(c.area), observacoes: textoOuNulo(c.observacoes),
-    ...soDoJudicial(c)
+    ...soDoJudicial(c), ...dadosDaProtecao(c)
   };
 }
 
@@ -235,7 +243,7 @@ export const camposDoProcesso = (p: Processo): CamposProcesso => ({
   sistema: p.sistema || '', meio: p.meio || '', area: p.area || '', natureza: p.natureza || '', gratuidade: p.gratuidade || '', comarca: p.comarca || '', vara: p.vara || '',
   classe: p.classe || '', assunto: p.assunto || '', juiz: p.juiz || '', distribuicao: fmtData(p.distribuicao), valorCausa: dinheiroNoCampo(p.valor_causa),
   instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || '', extras: {},
-  origemId: p.origem_id || '', ligacao: p.ligacao || ''
+  origemId: p.origem_id || '', ligacao: p.ligacao || '', ...camposDaProtecao(p)
 });
 
 // ---------- etapas do cadastro ----------
@@ -246,7 +254,8 @@ export const ETAPAS_PROCESSO: DefinicaoEtapaProcesso[] = [
   { id: 'processo', titulo: 'O processo', texto: 'O tipo, o número e, se quiser, um nome para o cartão.', campos: ['ligacao', 'tipo', 'numero', 'numeroAntigo', 'titulo', 'orgao'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'De quais clientes é o processo e quem da equipe cuida dele.', campos: ['clientes', 'polo', 'responsavelId', 'colaboradores'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.',
-    campos: ['sistema', 'meio', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valorCausa', 'instancia', 'segredo', 'advogadoContrario', 'observacoes'] }
+    campos: ['sistema', 'meio', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valorCausa', 'instancia', 'segredo', 'advogadoContrario',
+      'protecao', ...CAMPOS_DA_PI, 'observacoes'] }
 ];
 /** Erros só dos campos de uma etapa (o que impede de seguir para a próxima). */
 export function errosDaEtapaProcesso(etapa: EtapaProcesso, c: CamposProcesso): Partial<Record<keyof CamposProcesso, string>> {
@@ -282,7 +291,10 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   polo: 'Polo do cliente', area: 'Área do direito', meio: 'Meio de tramitação', natureza: 'Natureza processual', gratuidade: 'Gratuidade de justiça', comarca: 'Comarca',
   vara: 'Vara', classe: 'Classe', assunto: 'Assunto', juiz: 'Juiz ou relator', distribuicao: 'Distribuição', valor_causa: 'Valor da causa', instancia: 'Instância',
   segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento',
-  partes: 'Pessoas do processo', origem_id: 'Processo de origem'
+  partes: 'Pessoas do processo', origem_id: 'Processo de origem',
+  // Propriedade intelectual (#317).
+  protecao: 'Tipo de proteção', deposito: 'Depósito', concessao: 'Concessão', publicacao: 'Publicação', criacao: 'Criação', apresentacao_marca: 'Apresentação da marca',
+  natureza_marca: 'Natureza da marca', classes_nice: 'Classes de Nice', especificacao: 'Especificação', variacoes: 'Variações do desenho', linguagem: 'Linguagem de programação'
 };
 /** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem só fica vazia quando é excluída (#316). */
 const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'excluído' };
@@ -296,17 +308,23 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
   polo: naLista(POLOS), meio: naLista(MEIOS), gratuidade: naLista(GRATUIDADES), distribuicao: v => fmtData(String(v)), arquivado_em: v => fmtData(String(v)),
   valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não', partes: parteNoHistorico,
   // O histórico guarda o id da origem: o recurso mostra só que estava ligado (o processo de origem já não existe).
-  origem_id: () => 'ligado'
+  origem_id: () => 'ligado',
+  protecao: v => TIPOS_DE_PROTECAO[v as keyof typeof TIPOS_DE_PROTECAO]?.nome ?? String(v), apresentacao_marca: naLista(APRESENTACOES_DA_MARCA),
+  natureza_marca: naLista(NATUREZAS_DA_MARCA), deposito: v => fmtData(String(v)), concessao: v => fmtData(String(v)), publicacao: v => fmtData(String(v)),
+  criacao: v => fmtData(String(v)), classes_nice: v => Array.isArray(v) && v.length ? fmtClassesNice(v as number[]) : '—'
 };
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelProcesso = (campo: string, v: unknown) =>
   v === null || v === undefined || v === '' ? VAZIO_NO_HISTORICO[campo] ?? '—' : (FORMATOS[campo] ?? String)(v);
 
 /** Os campos da seção de dados do cartão, na ordem. */
-const CAMPOS_NO_CARTAO: (keyof Processo)[] = ['numero', 'orgao', 'sistema', 'meio', 'polo', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valor_causa', 'instancia', 'segredo', 'advogado_contrario', 'observacoes'];
+const CAMPOS_NO_CARTAO: (keyof Processo)[] = ['numero', 'orgao', 'sistema', 'meio', 'polo', 'area', 'protecao', 'deposito', 'publicacao', 'concessao', 'criacao',
+  'apresentacao_marca', 'natureza_marca', 'classes_nice', 'especificacao', 'variacoes', 'linguagem', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valor_causa', 'instancia', 'segredo', 'advogado_contrario', 'observacoes'];
+/** O dado está preenchido: nem vazio, nem falso (segredo de justiça), nem lista vazia (classes de Nice). */
+const preenchido = (v: unknown) => ![null, undefined, '', false].includes(v as never) && !(Array.isArray(v) && !v.length);
 /** Os dados do cartão, só os preenchidos (segredo de justiça aparece só quando há). */
 export const linhasDoProcesso = (p: Processo): [string, string][] => CAMPOS_NO_CARTAO
-  .filter(campo => ![null, undefined, '', false].includes(p[campo] as never))
+  .filter(campo => preenchido(p[campo]))
   .map(campo => [CAMPOS_PROCESSO[campo], valorLegivelProcesso(campo, p[campo])]);
 
 // ---------- pessoas do processo ----------
@@ -317,9 +335,19 @@ export const PAPEIS_NO_PROCESSO: Record<PapelNoProcesso, string> = { cliente: 'C
  */
 export const PAPEIS_DA_PARTE: Record<PapelDaParte, string> = {
   autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro interessado', testemunha: 'Testemunha', perito: 'Perito', assistente_tecnico: 'Assistente técnico',
-  vitima: 'Vítima', investigado: 'Investigado', advogado_contrario: 'Advogado da parte contrária', outro: 'Outro papel'
+  vitima: 'Vítima', investigado: 'Investigado', advogado_contrario: 'Advogado da parte contrária', outro: 'Outro papel',
+  // Só nos processos de propriedade intelectual (#317): veja papeisParaEscolher.
+  titular: 'Titular', inventor: 'Inventor', autor_da_criacao: 'Autor da criação'
 };
 export const PAPEIS = Object.keys(PAPEIS_DA_PARTE) as PapelDaParte[];
+/**
+ * Os papéis que o formulário oferece no processo: os de qualquer processo e, nos de propriedade intelectual, os do tipo de
+ * proteção (#317; ex.: inventor só em patente e modelo de utilidade). O "Outro papel" fica por último.
+ */
+export function papeisParaEscolher(p: { area?: string | null; protecao?: Processo['protecao'] }): PapelDaParte[] {
+  const comuns = PAPEIS.filter(x => !PAPEIS_DA_PI.includes(x) && x !== 'outro');
+  return [...comuns, ...papeisDaProtecao(p), 'outro'];
+}
 /** A recusa de pôr a pessoa com um papel que ela já tem no processo (a mesma no banco e no fictício). */
 export const PAPEL_REPETIDO = 'Esta pessoa já tem esse papel neste processo.';
 /** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316). */

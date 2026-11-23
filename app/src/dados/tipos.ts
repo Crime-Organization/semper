@@ -854,7 +854,14 @@ export type TipoProcesso = 'judicial' | 'administrativo' | 'extrajudicial' | 'in
 /** Como o processo nasceu de outro (#316): recurso ou incidental. */
 export type LigacaoDeProcesso = 'recurso' | 'incidental';
 /** O papel de uma pessoa no processo, além dos clientes (#316). A lista do banco é a mesma (processo_partes). */
-export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro';
+export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro'
+  /** Só nos processos de propriedade intelectual (#317). */
+  | 'titular' | 'inventor' | 'autor_da_criacao';
+/** O tipo de proteção do processo de propriedade intelectual (#317). A lista do banco é a mesma (migração propriedade_intelectual). */
+export type TipoProtecao = 'marca' | 'patente_invencao' | 'modelo_utilidade' | 'desenho_industrial' | 'programa_computador';
+/** Como a marca se apresenta e a natureza dela (#317, as listas do Manual de Marcas do INPI). */
+export type ApresentacaoMarca = 'nominativa' | 'mista' | 'figurativa' | 'tridimensional' | 'posicao';
+export type NaturezaMarca = 'produto' | 'servico' | 'coletiva' | 'certificacao';
 export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
@@ -878,6 +885,13 @@ export interface Processo {
   /** O processo de que este nasceu, como recurso ou incidental (#316). Gravados só ao criar; excluída a origem, origem_id fica vazio. */
   origem_id: string | null;
   ligacao: LigacaoDeProcesso | null;
+  /**
+   * Propriedade intelectual (#317): só nos processos da área "Propriedade intelectual"; vazios nos outros. As datas (aaaa-mm-dd) são
+   * as de que os prazos do INPI partem (regras/propriedadeIntelectual.ts). Os processos de antes da migração vêm com tudo vazio.
+   */
+  protecao?: TipoProtecao | null; deposito?: string | null; concessao?: string | null; publicacao?: string | null; criacao?: string | null;
+  apresentacao_marca?: ApresentacaoMarca | null; natureza_marca?: NaturezaMarca | null; classes_nice?: number[];
+  especificacao?: string | null; variacoes?: number | null; linguagem?: string | null;
 }
 /** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
 export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }

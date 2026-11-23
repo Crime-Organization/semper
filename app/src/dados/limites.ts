@@ -189,6 +189,14 @@ export const OPCOES_POR_CAMPO = 50;
 export const PROCESSOS_LIGADOS = 200;
 /** Quantas pessoas com papel (autor, réu, testemunha...) cabem num processo (#316; exigido pelo banco: privado.partes_maximas). */
 export const PARTES_MAXIMAS = 50;
+/**
+ * Propriedade intelectual (#317; exigidos pelo banco: supabase/migrations/20261123003604_propriedade_intelectual.sql): o tamanho da
+ * especificação da marca e da linguagem do programa, a maior classe da Classificação de Nice (são 45: 1 a 34 de produtos, 35 a 45
+ * de serviços) e quantas variações cabem num pedido de desenho industrial (até 20, art. 104 da Lei 9.279/96).
+ */
+export const TAMANHO_PROTECAO = { especificacao: 2000, linguagem: 120 };
+export const CLASSE_NICE_MAIOR = 45;
+export const VARIACOES_DO_DESENHO = 20;
 /** Quantos contratos entram na lista do cartão do processo. */
 export const CONTRATOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */

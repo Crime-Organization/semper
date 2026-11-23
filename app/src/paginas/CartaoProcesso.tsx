@@ -16,7 +16,7 @@ import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/c
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
 import { advogadoNaAdaptacao, equipeEditaTudo, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import {
-  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
+  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, papeisParaEscolher, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -39,7 +39,9 @@ import { novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
-import { dataCurta, relativo } from '../ui/util';
+import { dataCurta, hojeISO, relativo } from '../ui/util';
+import { prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
+import { ValidadeDaProtecao } from './processo/ValidadeDaProtecao';
 import { CartoesLigados } from './CartoesLigados';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
@@ -109,6 +111,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!p) return <Vazio>Este processo não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
+  // Propriedade intelectual (#317): os prazos do INPI (null fora da área ou sem o tipo de proteção).
+  const hoje = hojeISO(), protecao = prazosDaProtecao(p, hoje);
   const meus = meusGrupos(ctx.grupos, ctx.perfil.id), podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m, meus));
   const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil, meus) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
@@ -222,10 +226,16 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).embaixo} />}
     </Recolhivel>
 
-    {/* As outras pessoas do processo, com o papel de cada uma (#316). O "+" do título abre o formulário de baixo. */}
+    {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo. O número: os prazos por vir. */}
+    {protecao && <Recolhivel titulo="Validade e anuidades" icone="relogio" preferencia="processos.cartao.validade" contador={prazosPorVir(protecao.datas, hoje)}>
+      <ValidadeDaProtecao prazos={protecao} hoje={hoje} />
+    </Recolhivel>}
+
+    {/* As outras pessoas do processo, com o papel de cada uma (#316). O "+" do título abre o formulário de baixo. Nos de PI, também
+        titular, inventor e autor da criação (#317). */}
     <Recolhivel titulo="Pessoas do processo" icone="pessoas" preferencia="processos.cartao.partes" contador={partes?.length}
       novo={podeLigar ? { rotulo: LIGAR_PARTE_NO_TITULO } : undefined}>
-      <PartesDoProcesso processoId={p.id} partes={partes} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
+      <PartesDoProcesso processoId={p.id} partes={partes} papeis={papeisParaEscolher(p)} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>
 
     {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos. */}

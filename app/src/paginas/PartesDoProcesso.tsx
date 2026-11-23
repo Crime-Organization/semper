@@ -1,10 +1,10 @@
 // As pessoas com papel no processo (#316): autor, réu, testemunha, perito, assistente técnico... além dos clientes. Cada uma num
 // quadrinho (ItensLigados) que abre o cartão dela, com o papel embaixo; o "x" ao lado a tira do papel. Embaixo, "Ligar pessoa com
-// papel": escolhe o papel (a lista de PAPEIS_DA_PARTE) e a pessoa do cadastro. O "+" do título da seção abre o mesmo formulário.
+// papel": escolhe o papel (papeisParaEscolher; nos processos de PI, também titular, inventor e autor da criação, #317) e a pessoa do cadastro. O "+" do título da seção abre o mesmo formulário.
 // Pôr e tirar têm Desfazer no aviso. Quem só lê o processo (ou com ele arquivado) só vê a lista.
 import { useId, useState, type FormEvent } from 'react';
 import { SD, type PapelDaParte, type ParteDoProcesso, type PessoaLista } from '../dados';
-import { cabeOutraParte, PAPEIS, PAPEIS_DA_PARTE } from '../regras/processo';
+import { cabeOutraParte, PAPEIS_DA_PARTE, papeisParaEscolher } from '../regras/processo';
 import { falha, feito } from '../ui/avisos';
 import { Campo, Carregando, Nota, propsDoCampo } from '../ui/base';
 import { Botao } from '../ui/Botoes';
@@ -17,18 +17,22 @@ import { usePedidoDeNovo } from '../ui/Recolhivel';
 export const LIGAR_PARTE = 'Ligar pessoa com papel';
 /** O nome do "+" do título da seção, que abre o mesmo formulário (como "Nova demanda deste processo" ao lado de "Nova demanda"). */
 export const LIGAR_PARTE_NO_TITULO = 'Ligar pessoa com papel a este processo';
+/** Os papéis de qualquer processo (sem os de propriedade intelectual). */
+const PAPEIS_FORA_DA_PI = papeisParaEscolher({});
 
 interface Props {
   processoId: string;
   /** undefined: ainda lendo. */
   partes: ParteDoProcesso[] | undefined;
+  /** Os papéis que o formulário oferece (papeisParaEscolher: nos processos de PI, também titular, inventor e autor, #317). Sem eles, os de qualquer processo. */
+  papeis?: PapelDaParte[];
   /** Quem altera o processo, com ele ativo: põe e tira. */
   podeMudar: boolean;
   /** Algo mudou: o cartão lê a lista, o contador e o histórico de novo. */
   aoMudar: () => void;
 }
 
-export function PartesDoProcesso({ processoId, partes: lidas, podeMudar, aoMudar }: Props) {
+export function PartesDoProcesso({ processoId, partes: lidas, papeis = PAPEIS_FORA_DA_PI, podeMudar, aoMudar }: Props) {
   const idDoPapel = useId();
   const [aberto, setAberto] = useState(false);
   const [papel, setPapel] = useState<PapelDaParte | ''>('');
@@ -78,7 +82,7 @@ export function PartesDoProcesso({ processoId, partes: lidas, podeMudar, aoMudar
         <Campo rotulo="Papel no processo" para={idDoPapel} obrigatorio erro={erro && !papel ? erro : undefined}>
           <select {...propsDoCampo(idDoPapel, { erro: erro && !papel ? erro : undefined })} value={papel} onChange={e => { setPapel(e.target.value as PapelDaParte | ''); setErro(''); }}>
             <option value="">Escolha o papel</option>
-            {PAPEIS.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
+            {papeis.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
           </select>
         </Campo>
         <BuscaPessoa rotulo="Pessoa" escolhida={pessoa} aoEscolher={p => { setPessoa(p); setErro(''); }} desativar={jaTem} />

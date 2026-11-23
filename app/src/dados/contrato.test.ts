@@ -2161,6 +2161,53 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Processos de propriedade intelectual (#317)', () => {
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'administrativo', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], area: 'Propriedade intelectual', ...extra });
+      };
+
+      it('quando o processo de PI é criado sem os campos dela, então eles vêm vazios; quando a marca é preenchida, então volta como foi gravada', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: null, deposito: null, classes_nice: [], variacoes: null });
+        // Quando
+        await SD.processoAtualizar(id, { protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', apresentacao_marca: 'mista', natureza_marca: 'servico',
+          classes_nice: [35, 45], especificacao: 'Serviços jurídicos' });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', classes_nice: [35, 45], especificacao: 'Serviços jurídicos' });
+        expect((await SD.processoHistorico(id))[0].alteracoes.protecao).toEqual({ de: null, para: 'marca' });
+      });
+
+      it('quando o tipo, a classe, as variações ou a concessão estão fora da regra, então é recusado, como no banco', async () => {
+        // Dado
+        const { id } = await novoProcesso({ deposito: '2020-03-10' });
+        // Quando
+        const pedidos = await Promise.allSettled([
+          SD.processoAtualizar(id, { protecao: 'segredo' as never }),
+          SD.processoAtualizar(id, { classes_nice: [9, 46] }),
+          SD.processoAtualizar(id, { variacoes: 21 }),
+          SD.processoAtualizar(id, { concessao: '2019-01-01' })
+        ]);
+        // Então
+        expect(pedidos.map(r => r.status)).toEqual(['rejected', 'rejected', 'rejected', 'rejected']);
+        expect(pedidos[3]).toMatchObject({ reason: { message: 'A concessão não pode ser antes do depósito.' } });
+        expect(await SD.processoObter(id)).toMatchObject({ protecao: null, classes_nice: [], variacoes: null, concessao: null });
+      });
+
+      it('quando a pessoa ganha o papel de titular, inventor ou autor da criação, então ela aparece no processo com ele', async () => {
+        // Dado
+        const processo = await novoProcesso({ protecao: 'patente_invencao' });
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        await SD.processoParteIncluir(processo.id, pessoa, 'titular');
+        await SD.processoParteIncluir(processo.id, pessoa, 'inventor');
+        await SD.processoParteIncluir(processo.id, pessoa, 'autor_da_criacao');
+        // Então
+        expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['titular', 'inventor', 'autor_da_criacao']);
+      });
+    });
+
     describe('Processos: pessoas com papel, recursos e incidentais, tipos novos (#316)', () => {
       const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
         const { id: cliente } = await criar(marca());

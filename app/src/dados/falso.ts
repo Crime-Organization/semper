@@ -48,6 +48,8 @@ import {
   LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, type QuadroDeProcesso
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
+import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -2379,7 +2381,7 @@ function conferirOrigemDoProcesso(d: DadosProcesso) {
   if (!d.ligacao || !(d.ligacao in LIGACOES)) throw new Error(FORMATO_INVALIDO);
   if (!bd.processos!.some(p => p.id === d.origem_id && vejoNoModulo('processos', p.id))) throw new Error('O processo de origem não foi encontrado neste escritório.');
 }
-const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
+const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...PI_VAZIA, ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [], cliente_nome: nomesDosClientes(p.clientes),
   orgao: p.orgao, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
@@ -2406,6 +2408,8 @@ const ORDENS_PROCESSO: Record<Ordem, (a: ProcessoGuardado, b: ProcessoGuardado) 
 const acharProcesso = (id: string) => {
   const p = bd.processos!.find(x => x.id === id);
   if (!p) throw new Error('Processo não encontrado.');
+  // O processo guardado antes da #317 ganha os campos de PI vazios, como a migração faz (o histórico não vê mudança onde não houve).
+  for (const [campo, vazio] of Object.entries(PI_VAZIA)) if (!(campo in p)) (p as Record<string, unknown>)[campo] = vazio;
   return p;
 };
 /** Como a regra da migração: a coluna precisa ser do quadro do tipo do processo. */
@@ -2415,6 +2419,7 @@ function conferirQuadroDoProcesso(tipo: TipoProcesso, etapaId: string | null | u
 /** Como o gatilho preparar e o índice de número único da migração. */
 function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: ProcessoGuardado): DadosProcesso {
   const d: DadosProcesso = { ...dados };
+  conferirProtecao(d, atual);
   if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   conferirQuadroDoProcesso(tipo, d.etapa_id);
   const limpar = (v: string | null | undefined) => (v ?? '').trim() || null;
@@ -2442,6 +2447,22 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
     d.colaboradores = lista;
   }
   return d;
+}
+/** Os campos de propriedade intelectual vazios (#317), como nascem no banco. */
+const PI_VAZIA = { protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, apresentacao_marca: null, natureza_marca: null,
+  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null };
+/** As regras check da migração propriedade_intelectual (#317): as listas, as classes de 1 a 45, os tamanhos e a concessão depois do depósito. */
+function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
+  const naLista = (v: string | null | undefined, lista: object) => v === undefined || v === null || Object.hasOwn(lista, v);
+  const ateTamanho = (v: string | null | undefined, max: number) => !v || v.length <= max;
+  const classes = d.classes_nice;
+  const valido = naLista(d.protecao, TIPOS_DE_PROTECAO) && naLista(d.apresentacao_marca, APRESENTACOES_DA_MARCA) && naLista(d.natureza_marca, NATUREZAS_DA_MARCA)
+    && (classes === undefined || (classes.length <= CLASSE_NICE_MAIOR && classes.every(n => Number.isInteger(n) && n >= 1 && n <= CLASSE_NICE_MAIOR)))
+    && ateTamanho(d.especificacao, TAMANHO_PROTECAO.especificacao) && ateTamanho(d.linguagem, TAMANHO_PROTECAO.linguagem)
+    && (d.variacoes === undefined || d.variacoes === null || (Number.isInteger(d.variacoes) && d.variacoes >= 1 && d.variacoes <= VARIACOES_DO_DESENHO));
+  if (!valido) throw new Error(FORMATO_INVALIDO);
+  const deposito = d.deposito !== undefined ? d.deposito : atual?.deposito, concessao = d.concessao !== undefined ? d.concessao : atual?.concessao;
+  if (deposito && concessao && concessao < deposito) throw new Error(CONCESSAO_ANTES_DO_DEPOSITO);
 }
 /** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
 const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
@@ -4894,7 +4915,7 @@ export const SD: Dados = {
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
-      origem_id: null, ligacao: null,
+      origem_id: null, ligacao: null, ...PI_VAZIA,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
     bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
