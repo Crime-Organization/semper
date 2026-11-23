@@ -56,12 +56,6 @@ export function candidatosDeGrupo(grupos: readonly GrupoDaEquipe[] | undefined, 
   return (grupos ?? []).filter(g => !jaNoItem.includes(g.id) && normal(g.nome).includes(t));
 }
 
-/**
- * O filtro "Grupo da equipe" em ids: 'meus' são os grupos de quem está logado; um id, ele mesmo; a Geral, nenhum grupo; vazio,
- * nenhum filtro (null). Os grupos de pedidoDoFiltroDeGrupo.
- */
-export const gruposDoFiltro = (filtro: string | undefined, meus: readonly string[]) => pedidoDoFiltroDeGrupo(filtro, meus)?.grupos ?? null;
-
 /** O valor do filtro "Grupo da equipe" que mostra a demanda contínua Geral e as tarefas dela (#416): o mesmo da escolha do cadastro. */
 export const FILTRO_DA_GERAL = CONTINUA_GERAL;
 

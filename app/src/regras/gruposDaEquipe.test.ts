@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import {
-  avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, entraNoPedido, estaPeloGrupo, filtroQueVale, FILTRO_DA_GERAL, FILTRO_DOS_MEUS_GRUPOS, gruposDoFiltro,
+  avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, entraNoPedido, estaPeloGrupo, filtroQueVale, FILTRO_DA_GERAL, FILTRO_DOS_MEUS_GRUPOS,
   INTEGRANTES_NA_DICA, pedidoDoFiltroDeGrupo,
   integrantesAtivos, itensPorModulo, meusGrupos, textoDoGrupo, AVISO_DOS_GRUPOS, desfazerNosGrupos, dicaDaPilula, gruposDoItem, GRUPOS_DEMAIS, linhaDosGruposNoLapis,
   maisGrupos, MUDANCAS_NOS_GRUPOS, corpoDaExclusao, linksDoGrupo, ondeOGrupoEsta, quantasPessoas, rotuloDoGrupoNoQuadro, textoDaMensagemDeGrupo, tituloDaExclusao, nomeDoGrupo, notaDaContagem, notaDeQuemEstaPeloGrupo, notaDoGrupoNoTopo, saiComOGrupo, soPeloGrupo, type QuemEstaNoCartao
@@ -74,12 +74,10 @@ describe('Grupos da equipe (#378)', () => {
     expect(candidatosDeGrupo([nucleoA], '', cheio)).toEqual([]);
   });
 
-  it('dado o filtro "Grupo da equipe", então ele vira os ids dos grupos; vazio, nenhum filtro', () => {
+  it('dado o filtro "Grupo da equipe" sem valor ou vazio, então não há filtro', () => {
     // Então
-    expect(gruposDoFiltro(FILTRO_DOS_MEUS_GRUPOS, ['ga', 'gb'])).toEqual(['ga', 'gb']);
-    expect(gruposDoFiltro('gb', ['ga'])).toEqual(['gb']);
-    expect(gruposDoFiltro(undefined, ['ga'])).toBeNull();
-    expect(gruposDoFiltro('', ['ga'])).toBeNull();
+    expect(pedidoDoFiltroDeGrupo(undefined, ['ga'])).toBeNull();
+    expect(pedidoDoFiltroDeGrupo('', ['ga'])).toBeNull();
   });
 
   it('dado um filtro guardado de um grupo que não existe mais, então ele volta a "Todos os grupos"', () => {
@@ -102,7 +100,6 @@ describe('Grupos da equipe (#378)', () => {
     expect(pedidoDoFiltroDeGrupo(FILTRO_DOS_MEUS_GRUPOS, ['ga', 'gb'])).toEqual({ grupos: ['ga', 'gb'], geral: false });
     expect(pedidoDoFiltroDeGrupo(FILTRO_DA_GERAL, ['ga'])).toEqual({ grupos: [], geral: true });
     expect(pedidoDoFiltroDeGrupo('', ['ga'])).toBeNull();
-    expect(gruposDoFiltro(FILTRO_DA_GERAL, ['ga'])).toEqual([]);
   });
 
   it.each([
