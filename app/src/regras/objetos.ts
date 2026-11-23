@@ -12,6 +12,8 @@ export const OBJETO_LONGO = `O objeto pode ter até ${TAMANHO_CONTRATO.objeto} c
 export const OBJETO_RESERVADO = `"${OBJETO_A_DEFINIR}" não pode ser o nome de um objeto.`;
 export const OBJETO_REPETIDO = 'Já existe um objeto com esse nome. Para unir os dois, marque-os e use Juntar.';
 export const JUNTAR_SO_UM = 'Marque ao menos dois objetos para juntar.';
+/** O "A definir" antigo que tenha ficado na lista: mudá-lo trocaria o "A definir" de todos os contratos do escritório. */
+export const OBJETO_A_DEFINIR_FIXO = `"${OBJETO_A_DEFINIR}" não pode ser corrigido, juntado nem apagado.`;
 
 /** Quantos contratos, por extenso: "1 contrato", "3 contratos". */
 export const quantosContratos = (n: number) => `${n} ${n === 1 ? 'contrato' : 'contratos'}`;

@@ -15,7 +15,7 @@ import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LI
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
-import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
+import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -9454,5 +9454,39 @@ describe('Primeira sincronização com o Google Contatos (banco fictício)', () 
     // Então
     expect(r).toEqual({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira_por_fazer: true });
     expect((await SD.sincronizacaoGoogle())?.primeira_em).toBeNull();
+  });
+});
+
+// O "A definir" antigo na lista de objetos (#281): o banco fictício só o tem se ele for posto direto na aba, como a linha que
+// ficou em objeto_sugestoes de antes de 20261108000016. No banco de verdade, a regra é provada em
+// supabase/tests/editar_objetos_de_contrato.test.sql.
+describe('O "A definir" antigo na lista de objetos (banco fictício)', () => {
+  let SD: Dados;
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+
+  it('dada uma linha "A definir" antiga na lista, quando o administrador abre a lista, corrige, junta ou apaga com ela, então ela não aparece e tudo é recusado', async () => {
+    // Dado
+    const k = await SD.contratoCriar({ clientes: ['p-ana'], responsavel_id: 'u-master', objetos: ['Consulta antiga', 'A definir'], categoria: 'pro_labore' });
+    const consulta = (await SD.objetosDoEscritorio()).find(o => o.descricao === 'Consulta antiga')!;
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { objetoSugestoes: { id: string; descricao: string }[] };
+    bd.objetoSugestoes.push({ id: 'o-a-definir', descricao: 'a definir' });
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    SD = await reabrir();
+    // Quando
+    const lista = await SD.objetosDoEscritorio();
+    // Então
+    expect(lista.map(o => o.id)).not.toContain('o-a-definir');
+    await expect(SD.objetoRenomear('o-a-definir', 'Consultoria')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetosJuntar([consulta.id], 'o-a-definir')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetosJuntar(['o-a-definir'], consulta.id)).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetoApagar('o-a-definir')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    expect((await SD.contratoObter(k.id))!.objetos).toEqual(['Consulta antiga', 'A definir']);
+    expect((await SD.objetosDoEscritorio()).map(o => o.id)).toContain(consulta.id);
   });
 });

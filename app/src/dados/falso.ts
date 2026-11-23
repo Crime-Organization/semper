@@ -49,7 +49,7 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
-import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM } from '../regras/objetos';
+import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO } from '../regras/objetos';
 import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
 import { COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas } from '../regras/colunasPadrao';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
@@ -2803,11 +2803,12 @@ const guardarObjetos = (objetos: string[]) => objetosDefinidos(objetos).forEach(
   if (!bd.objetoSugestoes!.some(s => mesmoObjeto(s.descricao, o))) bd.objetoSugestoes!.push({ id: novoId(), descricao: o });
 });
 // ---------- a lista de objetos editável (como supabase/migrations/20261122232558_editar_objetos_de_contrato.sql, #281) ----------
-/** Como privado.objeto_para_mudar: só administradores, e o objeto precisa estar na lista. */
+/** Como privado.objeto_para_mudar: só administradores, o objeto precisa estar na lista e não pode ser o "A definir" antigo. */
 function objetoParaMudar(id: string) {
   if (!souAdmin()) throw new Error(SEM_PERMISSAO);
   const s = bd.objetoSugestoes!.find(x => x.id === id);
   if (!s) throw new Error('Objeto não encontrado.');
+  if (mesmoObjeto(s.descricao, OBJETO_A_DEFINIR)) throw new Error(OBJETO_A_DEFINIR_FIXO);
   return s;
 }
 /** Os contratos (ativos e arquivados) que usam o objeto. */
@@ -3328,7 +3329,8 @@ export const SD: Dados = {
     if (!souAdmin()) return erro(SEM_PERMISSAO);
     // Como o banco: o objeto que está num contrato e ficou fora da lista entra nela agora.
     bd.contratos!.forEach(k => guardarObjetos(k.objetos)); gravar();
-    return espera(bd.objetoSugestoes!.map((s): ObjetoDoEscritorio => {
+    // O "A definir" antigo que tenha ficado na lista não aparece (como o banco).
+    return espera(bd.objetoSugestoes!.filter(s => !mesmoObjeto(s.descricao, OBJETO_A_DEFINIR)).map((s): ObjetoDoEscritorio => {
       const contratos = contratosComObjeto(s.descricao);
       return { id: s.id, descricao: s.descricao, contratos_ativos: contratos.filter(k => !k.arquivado_em).length,
         contratos_arquivados: contratos.filter(k => k.arquivado_em).length, demandas: bd.demandas!.filter(d => mesmoObjeto(d.objeto, s.descricao)).length };
@@ -3349,6 +3351,7 @@ export const SD: Dados = {
     if (!outros.length) return erro(JUNTAR_SO_UM);
     const saem = bd.objetoSugestoes!.filter(s => outros.includes(s.id));
     if (saem.length !== outros.length) return erro('Objeto não encontrado.');
+    if (saem.some(s => mesmoObjeto(s.descricao, OBJETO_A_DEFINIR))) return erro(OBJETO_A_DEFINIR_FIXO);
     bd.objetoSugestoes = bd.objetoSugestoes!.filter(s => !outros.includes(s.id));
     const troca = trocarObjetosNoFalso(saem.map(s => s.descricao), f.descricao); gravar();
     return espera(troca);

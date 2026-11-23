@@ -194,5 +194,27 @@ select lives_ok($$ select public.objeto_apagar(pg_temp.objeto('e0000000-0000-000
 reset role;
 select is(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Parecer'), null, 'E some da lista');
 
+-- ---------- o "A definir" antigo ----------
+-- Dada uma linha "A definir" antiga na lista (de antes de 20261108000016, quando ela ainda entrava nas sugestões)
+set local session_replication_role = replica;
+insert into public.objeto_sugestoes (escritorio_id, descricao) values ('e0000000-0000-0000-0000-000000000001', 'a definir');
+set local session_replication_role = origin;
+-- Quando a Ana abre a lista, então ela não aparece; e corrigir, juntar ou apagar com ela é recusado
+select pg_temp.entrar(1); set local role authenticated;
+select ok(not exists (select 1 from public.objetos_do_escritorio() where lower(descricao) = 'a definir'), 'O "A definir" antigo não aparece na lista');
+select throws_ok($$ select public.objeto_renomear(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'a definir'), 'Consultoria') $$,
+  'P0001', '"A definir" não pode ser corrigido, juntado nem apagado.', 'O "A definir" antigo não se corrige');
+select throws_ok($$ select public.objetos_juntar(array[pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Oposição ao registro')],
+  pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'a definir')) $$,
+  'P0001', '"A definir" não pode ser corrigido, juntado nem apagado.', 'Os objetos não viram "A definir" ao juntar');
+select throws_ok($$ select public.objetos_juntar(array[pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'a definir')],
+  pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Oposição ao registro')) $$,
+  'P0001', '"A definir" não pode ser corrigido, juntado nem apagado.', 'O "A definir" não vira um objeto ao juntar');
+select throws_ok($$ select public.objeto_apagar(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'a definir')) $$,
+  'P0001', '"A definir" não pode ser corrigido, juntado nem apagado.', 'O "A definir" antigo não se apaga');
+reset role;
+select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000001'), 'Registro de marca no INPI | A definir / Registro de marca no INPI; A definir',
+  'O "A definir" dos contratos ficou como estava');
+
 select * from finish();
 rollback;

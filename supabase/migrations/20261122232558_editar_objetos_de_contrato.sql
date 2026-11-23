@@ -13,6 +13,9 @@
 --      ficaram com duas demandas do mesmo objeto.
 --   4. public.objeto_apagar(id): tira da lista o objeto que nenhum contrato usa; o que está em uso é recusado, com quantos
 --      contratos o usam.
+--   O "A definir" não é objeto de verdade: não aparece na lista, não se corrige, não se junta e não se apaga, nem a linha
+--   antiga que tenha ficado em objeto_sugestoes de antes de 20261108000016 (corrigi-la trocaria o "A definir" de todos os
+--   contratos do escritório).
 --   A troca vale primeiro nas demandas e depois nos contratos: no contrato assinado que tinha "A definir", o gatilho
 --   privado.demandas_do_contrato criaria uma demanda repetida se a ordem fosse a outra. Na lista, a troca vem antes dos
 --   contratos, para o gatilho privado.guardar_objetos não pôr o nome novo como um item à parte.
@@ -74,7 +77,8 @@ begin
 end $$;
 revoke execute on function privado.trocar_objetos(uuid, text[], text) from public, anon, authenticated;
 
--- O objeto da lista, no escritório de quem está logado, travado para a mudança. Recusa quem não é administrador.
+-- O objeto da lista, no escritório de quem está logado, travado para a mudança. Recusa quem não é administrador e o "A definir"
+-- antigo (a mesma mensagem de OBJETO_A_DEFINIR_FIXO, em app/src/regras/objetos.ts).
 create function privado.objeto_para_mudar(p_id uuid) returns public.objeto_sugestoes
 language plpgsql security definer set search_path = '' as $$
 declare s public.objeto_sugestoes;
@@ -82,6 +86,7 @@ begin
   if not privado.sou_admin() then raise exception 'Você não tem permissão para fazer isso.'; end if;
   select * into s from public.objeto_sugestoes where id = p_id and escritorio_id = privado.meu_escritorio() for update;
   if s.id is null then raise exception 'Objeto não encontrado.'; end if;
+  if privado.mesmo_objeto(s.descricao, 'A definir') then raise exception '"A definir" não pode ser corrigido, juntado nem apagado.'; end if;
   return s;
 end $$;
 revoke execute on function privado.objeto_para_mudar(uuid) from public, anon, authenticated;
@@ -115,7 +120,7 @@ begin
   from public.objeto_sugestoes s
   left join usos u on u.chave = privado.sem_acento(btrim(s.descricao))
   left join nas_demandas nd on nd.chave = privado.sem_acento(btrim(s.descricao))
-  where s.escritorio_id = e
+  where s.escritorio_id = e and not privado.mesmo_objeto(s.descricao, 'A definir')
   order by privado.sem_acento(btrim(s.descricao));
 end $$;
 
@@ -150,6 +155,9 @@ begin
   select coalesce(array_agg(o.descricao), '{}') into v_nomes from (
     select descricao from public.objeto_sugestoes where id = any(v_ids) and escritorio_id = fica.escritorio_id order by id for update) o;
   if cardinality(v_nomes) <> cardinality(v_ids) then raise exception 'Objeto não encontrado.'; end if;
+  if exists (select 1 from unnest(v_nomes) x where privado.mesmo_objeto(x, 'A definir')) then
+    raise exception '"A definir" não pode ser corrigido, juntado nem apagado.';
+  end if;
   -- Os que saem deixam a lista antes da troca nos contratos.
   delete from public.objeto_sugestoes where id = any(v_ids);
   return privado.trocar_objetos(fica.escritorio_id, v_nomes, fica.descricao);
