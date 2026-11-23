@@ -64,6 +64,25 @@ test.describe('Solicitante e funções dos participantes (#313)', () => {
     await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Ana Teste Lima, Participante · Executa', exact: true })).toBeVisible();
   });
 
+  test('quando alguém entra pelo "+" do cartão com a função "Executa", então a bolinha dele já vem com essa função', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Renovar a procuração' }) });
+    const equipe = cartao.getByRole('group', { name: 'Equipe', exact: true });
+    // Quando
+    await equipe.getByRole('button', { name: /^Pôr participante/ }).click();
+    const funcao = page.getByRole('group', { name: 'Função de quem entra' });
+    await expect(funcao.getByRole('radio', { name: 'Acompanha' })).toBeChecked();
+    await funcao.getByText('Executa', { exact: true }).click();
+    const achado = page.getByRole('list', { name: /^(Equipe|Pessoas)$/ }).getByRole('button').first();
+    const nome = (await achado.textContent())!.trim();
+    await achado.click();
+    // Então
+    await expect(equipe.getByRole('button', { name: `${nome}, Participante · Executa`, exact: true })).toBeVisible();
+  });
+
   test('quando a função de um participante é trocada no menu da bolinha, então a tarefa passa a estar entre as "Delegadas a mim"', async ({ page }) => {
     // Dado: na "Renovar a procuração", o Mauro (quem está logado) acompanha
     await page.goto('/tarefas/');

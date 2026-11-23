@@ -15,14 +15,14 @@
 // bolinha como a de um participante, sem a bolinha do responsável nem o traço, e o "+" põe mais um.
 // Na tarefa (#313), cada participante tem uma função: ela aparece com o papel ("Participante · Executa"), a bolinha de quem executa
 // ganha um anel na cor de destaque e, para quem altera, o menu da bolinha traz a escolha da função.
-import { useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router';
 import type { GrupoDaEquipe, Membro } from '../dados';
 import { GRUPOS_DEMAIS, nomeDoGrupo, numeroDoGrupo } from '../regras/gruposDaEquipe';
 import { NOME_DA_ACAO, type AcaoDaBolinha, type PerfilNaBolinha } from '../regras/menuDaBolinha';
 import { GruposNoCartao } from './GruposDoItem';
 import { Avatar } from './Avatar';
-import { propsDaDica } from './base';
+import { Escolhas, propsDaDica } from './base';
 import { BuscaNaEquipe, BuscaPresa } from './BuscaNaEquipe';
 import { Icone, type NomeIcone } from './Icone';
 import { MenuFlutuante } from './Menu';
@@ -37,6 +37,8 @@ const ICONE_DA_VAZIA = 16;
 const ICONE_DO_MENU = 15;
 /** O motivo das ações que mudam a equipe enquanto outra mudança ainda grava (e a dica do "+", nessa hora). */
 const GRAVANDO_A_EQUIPE = 'Gravando a mudança na equipe…';
+/** O título da escolha da função de quem entra pelo "+" da tarefa (#313). */
+export const ENTRA_COMO = 'Função de quem entra';
 /** O nome da busca que troca (ou escolhe) o responsável. */
 const TROCAR_O_RESPONSAVEL = NOME_DA_ACAO.trocarResponsavel;
 /** O que a bolinha vazia diz, quando o cartão está sem responsável. */
@@ -85,11 +87,16 @@ export interface MudarALista {
    * motivo no lugar do "Tirar", em vez de oferecer uma ação que seria recusada. undefined: tira.
    */
   impedeTirar?: (p: PessoaDaEquipe) => string | undefined;
-  aoPor: (m: Membro) => unknown;
+  /** Quem entra pelo "+"; na tarefa (#313), com a função escolhida no alto da busca (sem funções, só a pessoa). */
+  aoPor: (m: Membro, funcao?: string) => unknown;
   aoTirar: (p: PessoaDaEquipe) => unknown;
-  /** A função de cada participante (#313): as opções, a de cada um e a troca, no menu da bolinha. Sem isto, o menu não as mostra. */
+  /**
+   * A função de cada participante (#313): as opções, a de cada um e a troca, no menu da bolinha; e, no "+", a escolha da função de
+   * quem entra, que começa na `padrao`. Sem isto, nem o menu nem o "+" as mostram.
+   */
   funcoes?: {
     opcoes: readonly { id: string; nome: string }[];
+    padrao?: string | null;
     de: (p: PessoaDaEquipe) => string | null;
     aoTrocar: (p: PessoaDaEquipe, funcao: string) => unknown;
   };
@@ -225,6 +232,9 @@ export function EquipeDoCartao(props: Props) {
   const doResponsavel = useRef<HTMLButtonElement>(null);
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
   const focarNoResponsavel = () => setTimeout(() => doResponsavel.current?.focus(), 0);
+  // A função de quem entra pelo "+" (#313): começa na padrão a cada vez que alguém entra.
+  const [funcaoDeQuemEntra, setFuncaoDeQuemEntra] = useState<string | null>(null);
+  const nomeDasFuncoes = useId();
   // Só a lista, para quem só vê, e ninguém nela: nada a mostrar (nem um grupo vazio para o leitor de tela).
   if (props.semPrincipal && !mudar && !participantes.length && !grupos?.doItem.length) return null;
   // Com grupos no escritório, a lista de pessoas cheia não desliga o "+" enquanto houver grupo para pôr (e vice-versa).
@@ -234,6 +244,9 @@ export function EquipeDoCartao(props: Props) {
   const semGrupos = !(comGrupos && !comGrupos.cheio && comGrupos.candidatos('').length);
   const motivoComGrupos = semPessoas && semGrupos ? mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined) : undefined;
   const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : comGrupos ? motivoComGrupos : mudar?.cheia;
+  // Com mais de uma função no escritório, o "+" da tarefa pergunta a de quem entra (#313: "escolhe-se ao adicionar a pessoa").
+  const comFuncao = mudar?.funcoes && mudar.funcoes.opcoes.length > 1 ? mudar.funcoes : undefined;
+  const funcaoEscolhida = funcaoDeQuemEntra ?? comFuncao?.padrao ?? null;
   const menuDe = (m: MudarALista, p: PessoaDaEquipe, acoes: readonly AcaoDaBolinha[]) => montarMenu(acoes, { p, lista: m, equipe, focarNoMais, focarNoResponsavel });
   return <div className="equipe-cartao" role="group" aria-label="Equipe" style={MEDIDA_DA_BOLINHA}>
     {!props.semPrincipal && <>
@@ -251,7 +264,17 @@ export function EquipeDoCartao(props: Props) {
     {grupos && <GruposNoCartao grupos={grupos.doItem} equipe={grupos.equipe} eu={grupos.eu} nota={grupos.nota} ocupado={mudar?.ocupado}
       tirar={comGrupos ? g => { focarNoMais(); return comGrupos.aoTirar(g); } : undefined} impedeTirar={comGrupos?.impedeTirar} />}
     {mudar && <BuscaNaEquipe bolinha={{ tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoMais }} desligado={!!motivoDoMais} adicionar={comGrupos ? comGrupos.por : mudar.por}
-      buscar={termo => comGrupos && mudar.cheia ? [] : mudar.candidatos(termo)} aoEscolher={m => void mudar.aoPor(m)} botao={mais}
+      buscar={termo => comGrupos && mudar.cheia ? [] : mudar.candidatos(termo)} botao={mais}
+      aoEscolher={m => {
+        if (!comFuncao) { void mudar.aoPor(m); return; }
+        void mudar.aoPor(m, funcaoEscolhida ?? undefined);
+        setFuncaoDeQuemEntra(null);
+      }}
+      cabeca={comFuncao && <Escolhas rotulo={ENTRA_COMO} arranjo="coluna-unica">
+        {comFuncao.opcoes.map(f => <label key={f.id}>
+          <input type="radio" name={nomeDasFuncoes} checked={funcaoEscolhida === f.id} onChange={() => setFuncaoDeQuemEntra(f.id)} /> {f.nome}
+        </label>)}
+      </Escolhas>}
       motivoSemPessoas={comGrupos ? mudar.cheia : undefined}
       grupos={comGrupos ? {
         buscar: termo => comGrupos.cheio ? [] : comGrupos.candidatos(termo), aoEscolher: g => void comGrupos.aoPor(g),

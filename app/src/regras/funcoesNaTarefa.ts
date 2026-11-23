@@ -87,3 +87,10 @@ export function errosDaFuncao(f: FormDaFuncao, funcoes: readonly FuncaoNaTarefa[
   const erro = conferencias.map(c => c()).find(Boolean);
   return erro ? { nome: erro } : {};
 }
+
+/**
+ * As funções a gravar quando alguém entra na tarefa pelo "+" com a função escolhida (#313): as de agora e a dele. O banco confere a
+ * função e dá a padrão a quem ficou sem.
+ */
+export const comAFuncaoDeQuemEntra = (atuais: Readonly<Record<string, string>> | undefined, perfil: string, funcao: string): Record<string, string> =>
+  ({ ...atuais, [perfil]: funcao });

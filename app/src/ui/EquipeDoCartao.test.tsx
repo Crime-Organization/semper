@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Membro } from '../dados';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import { ACOES_NA_BOLINHA, acoesSem } from '../regras/menuDaBolinha';
-import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarALista } from './EquipeDoCartao';
+import { ENTRA_COMO, EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarALista } from './EquipeDoCartao';
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
 const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · 10%' };
@@ -465,6 +465,23 @@ describe('Equipe do cartão: a função de cada participante da tarefa (#313)', 
     // Então
     expect(aoTrocar).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-mauro' }), 'f-exe');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('quando quem altera abre o "+", então escolhe a função de quem entra (começa na padrão), e quem chama recebe a pessoa com a função', async () => {
+    // Dado
+    const carla = { id: 'u-carla', nome: 'Carla Teste Reis', ativo: true };
+    const m: MudarAEquipe = { ...mudar(), candidatos: () => [carla], funcoes: { ...mudar().funcoes!, padrao: 'f-aco' } };
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[acompanha]} mudar={m} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Pôr participante' }));
+    const funcao = screen.getByRole('group', { name: ENTRA_COMO });
+    // Então
+    expect(within(funcao).getByRole('radio', { name: 'Acompanha' })).toBeChecked();
+    // Quando
+    await userEvent.click(within(funcao).getByRole('radio', { name: 'Executa' }));
+    await userEvent.click(within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Carla Teste Reis' }));
+    // Então
+    expect(m.aoPor).toHaveBeenCalledWith(carla, 'f-exe');
   });
 
   it('quando outra mudança ainda grava, então as funções ficam desligadas, com o motivo', async () => {

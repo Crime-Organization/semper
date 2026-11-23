@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { FuncaoNaTarefa } from '../dados/tipos';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
 import {
-  errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso, funcaoPadrao, funcoesAoGravar, idsDoFiltroDeFuncao,
+  comAFuncaoDeQuemEntra, errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso, funcaoPadrao, funcoesAoGravar, idsDoFiltroDeFuncao,
   opcoesDoFiltroDeFuncao, participantesComFuncao, temAFuncao
 } from './funcoesNaTarefa';
 
@@ -91,6 +91,16 @@ describe('Funções dos participantes da tarefa (#313)', () => {
       // Então
       expect(funcaoEmUso('Executa', 1)).toBe('A função "Executa" está em 1 tarefa. Troque a função dessas pessoas antes de apagá-la.');
       expect(funcaoEmUso('Executa', 3)).toContain('em 3 tarefas');
+    });
+  });
+
+  describe('Dada a busca do "+" no cartão da tarefa', () => {
+    it('quando alguém entra com a função escolhida, então ela vai junto com as de quem já estava', () => {
+      // Quando
+      const r = comAFuncaoDeQuemEntra({ 'u-ana': 'f-aco' }, 'u-bruno', 'f-exe');
+      // Então
+      expect(r).toEqual({ 'u-ana': 'f-aco', 'u-bruno': 'f-exe' });
+      expect(comAFuncaoDeQuemEntra(undefined, 'u-bruno', 'f-exe')).toEqual({ 'u-bruno': 'f-exe' });
     });
   });
 });

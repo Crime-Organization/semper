@@ -80,9 +80,14 @@ interface Props {
   grupos?: GruposNaBusca;
   /** Por que ninguém pode entrar (a lista de pessoas está cheia), na parte das pessoas: a lista cheia não impede os grupos. */
   motivoSemPessoas?: string;
+  /**
+   * O que vem no alto da busca, antes do campo (na tarefa, #313: a função de quem entra). Fica dentro da busca: ir dele ao campo
+   * ou aos achados, pelo clique ou pelo Tab, não a fecha.
+   */
+  cabeca?: ReactNode;
 }
 
-export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao: botaoDeFora, focoReserva, focarAoEscolher, desligado, bolinha, grupos, motivoSemPessoas }: Props) {
+export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao: botaoDeFora, focoReserva, focarAoEscolher, desligado, bolinha, grupos, motivoSemPessoas, cabeca }: Props) {
   // Na bolinha, a busca aberta fica presa ao botão que a abriu (o painel por cima); no botão "+ Adicionar…", ela toma o lugar dele.
   const [aberta, setAberta] = useState<HTMLElement | null>(null);
   const botaoProprio = useRef<HTMLButtonElement>(null);
@@ -122,7 +127,7 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
       </button>
       {/* O painel fecha sozinho no clique fora e no Esc (que devolve o foco à bolinha); sair dele pelo Tab também a devolve. */}
       {aberta && <BuscaPresa botao={aberta} buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir}
-        fechar={devolverFoco => devolverFoco ? fechar() : setAberta(null)} grupos={comGrupos} motivoSemPessoas={motivoSemPessoas} />}
+        fechar={devolverFoco => devolverFoco ? fechar() : setAberta(null)} grupos={comGrupos} motivoSemPessoas={motivoSemPessoas} cabeca={cabeca} />}
     </>;
   }
 
@@ -142,7 +147,7 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
  * painel já cuida do foco).
  */
 export function BuscaPresa({ botao, fechar, ...caixa }: { botao: HTMLElement; fechar: (devolverFoco: boolean) => void } &
-  Pick<PropsDaCaixa, 'buscar' | 'adicionar' | 'descricao' | 'aoEscolher' | 'grupos' | 'motivoSemPessoas'>) {
+  Pick<PropsDaCaixa, 'buscar' | 'adicionar' | 'descricao' | 'aoEscolher' | 'grupos' | 'motivoSemPessoas' | 'cabeca'>) {
   return <MenuFlutuante botao={botao} painel rotulo={caixa.adicionar} aoFechar={() => fechar(false)}>
     <div className="pergunta"><CaixaDaBusca {...caixa} aoFechar={() => fechar(true)} aoSair={() => fechar(true)} /></div>
   </MenuFlutuante>;
@@ -161,10 +166,11 @@ interface PropsDaCaixa {
   fecharAoClicarFora?: boolean;
   grupos?: GruposNaBusca;
   motivoSemPessoas?: string;
+  cabeca?: ReactNode;
 }
 
 /** O campo de busca e a lista dos achados, com o teclado: Enter escolhe o primeiro, as setas andam na lista, Esc fecha. */
-function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSair, fecharAoClicarFora = false, grupos, motivoSemPessoas }: PropsDaCaixa) {
+function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSair, fecharAoClicarFora = false, grupos, motivoSemPessoas, cabeca }: PropsDaCaixa) {
   const [termo, setTermo] = useState('');
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
@@ -198,6 +204,7 @@ function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSa
     const destino = e.relatedTarget as Node | null;
     if (destino && !raiz.current?.contains(destino)) aoSair();
   }}>
+    {cabeca}
     <input ref={campo} type="text" aria-label={`Buscar na equipe: ${adicionar.toLowerCase()}`} aria-describedby={descricao}
       placeholder="Digite o nome" autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)}
       onKeyDown={e => {

@@ -6,10 +6,10 @@
 // Os grupos da equipe do item (#378) vêm em pílulas depois dos participantes; quem altera o cartão os põe pelo "+" e os tira pela
 // lista da pílula (useGruposNoTopo, que serve também ao contrato).
 // Na tarefa (#313), cada participante tem uma função (`funcoes`): ela vai no papel da bolinha, quem executa fica em destaque e quem
-// altera o cartão troca a função no menu da bolinha.
+// altera o cartão troca a função no menu da bolinha e escolhe a de quem entra pelo "+".
 import { useRef, useState } from 'react';
 import type { FuncaoNaTarefa, GrupoDaEquipe, ModuloDoPedido } from '../dados';
-import { funcaoDe } from '../regras/funcoesNaTarefa';
+import { funcaoDe, funcaoPadrao } from '../regras/funcoesNaTarefa';
 import {
   candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDoGrupoNoTopo, SAIRIA_SEM_O_GRUPO, saiComOGrupo,
   type TipoDeMudancaNosGrupos
@@ -159,12 +159,13 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar, funcoes }: Pro
     ocupado,
     // Quem foi desativado continua na lista, mas não assume o item (a busca de trocar o responsável também não o acha).
     impedeTornar: p => impedeResponder(p.id, ctx.equipe),
-    aoPor: x => pedir({ tipo: 'por', id: x.id, nome: x.nome }),
+    // Na tarefa (#313), com a função escolhida no "+".
+    aoPor: (x, funcao) => pedir({ tipo: 'por', id: x.id, nome: x.nome, funcao }),
     aoTirar: p => pedir({ tipo: 'tirar', id: p.id, nome: p.nome }),
     aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome }),
     aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome }),
     funcoes: funcoes && {
-      opcoes: funcoes.opcoes, de: p => funcoes.de[p.id] ?? null,
+      opcoes: funcoes.opcoes, padrao: funcaoPadrao(funcoes.opcoes)?.id, de: p => funcoes.de[p.id] ?? null,
       aoTrocar: (p, f) => umaDeCadaVez(async () => { await funcoes.trocar(p.id, f); mudar.depois(); }, mudar.depois)
     }
   }} />;
