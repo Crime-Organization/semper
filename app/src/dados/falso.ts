@@ -49,6 +49,8 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
+import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO } from '../regras/objetos';
+import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
 import { COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas } from '../regras/colunasPadrao';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
@@ -173,7 +175,9 @@ interface Banco {
   escritorio?: DadosEscritorio;
   contratos?: ContratoGuardado[];
   historicoContratos?: (Historico & { contrato_id: string })[];
-  /** Lista de objetos do escritório (objeto_sugestoes no banco). */
+  /** Lista de objetos do escritório (objeto_sugestoes no banco), cada um com o id, como no banco (#281). */
+  objetoSugestoes?: { id: string; descricao: string }[];
+  /** A lista de antes da edição dos objetos (#281), só com os nomes: passa para objetoSugestoes ao abrir. */
   objetosSugeridos?: string[];
   comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string; autor_sem_vinculo?: boolean;
     /** No contrato: quem foi mencionado estando num grupo dele (#378); para essas pessoas, a menção não dá os valores. */
@@ -459,7 +463,8 @@ bd.historicoContratos ??= [];
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
 // Sessões abertas antes do início das negociações (#311): a data fica vazia, como a coluna nova do banco.
 bd.contratos.forEach(k => { k.negociacao_inicio ??= null; });
-bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
+bd.objetoSugestoes ??= objetosDefinidos(bd.objetosSugeridos ?? bd.contratos.flatMap(k => k.objetos)).map(descricao => ({ id: novoId(), descricao }));
+delete bd.objetosSugeridos;
 // Sessões abertas antes dos vários participantes: o participante antigo entra na lista (como a migração 012).
 // E antes dos vários clientes: o cliente entra na lista (como a migração 013).
 bd.contratos.forEach(k => { k.clientes ??= [k.cliente_id]; });
@@ -2794,7 +2799,51 @@ function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 // "A definir" não entra nas sugestões (como privado.guardar_objetos).
-const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetosDefinidos(objetos)]); };
+const guardarObjetos = (objetos: string[]) => objetosDefinidos(objetos).forEach(o => {
+  if (!bd.objetoSugestoes!.some(s => mesmoObjeto(s.descricao, o))) bd.objetoSugestoes!.push({ id: novoId(), descricao: o });
+});
+// ---------- a lista de objetos editável (como supabase/migrations/20261122232558_editar_objetos_de_contrato.sql, #281) ----------
+/** Como privado.objeto_para_mudar: só administradores, o objeto precisa estar na lista e não pode ser o "A definir" antigo. */
+function objetoParaMudar(id: string) {
+  if (!souAdmin()) throw new Error(SEM_PERMISSAO);
+  const s = bd.objetoSugestoes!.find(x => x.id === id);
+  if (!s) throw new Error('Objeto não encontrado.');
+  if (mesmoObjeto(s.descricao, OBJETO_A_DEFINIR)) throw new Error(OBJETO_A_DEFINIR_FIXO);
+  return s;
+}
+/** Os contratos (ativos e arquivados) que usam o objeto. */
+const contratosComObjeto = (descricao: string) => bd.contratos!.filter(k => k.objetos.some(o => mesmoObjeto(o, descricao)));
+/**
+ * Como privado.trocar_objetos: os nomes de `de` viram `para` nas demandas (e no título que ainda é igual ao nome antigo), depois
+ * nos contratos (sem repetir) e no modelo de lista de mesmo nome. Cada demanda e cada contrato ganham a mudança no histórico.
+ */
+function trocarObjetosNoFalso(de: string[], para: string): TrocaDeObjetos {
+  const casa = (t: string | null) => de.some(x => mesmoObjeto(t, x));
+  const contratos = bd.contratos!.filter(k => k.objetos.some(casa));
+  const demandas = bd.demandas!.filter(d => casa(d.objeto) && d.objeto !== para);
+  demandas.forEach(d => {
+    const mudanca = { objeto: para, titulo: mesmoObjeto(d.titulo, d.objeto) ? para : d.titulo };
+    historicoDemanda(d, mudanca);
+    Object.assign(d, mudanca, { atualizado_em: agora() });
+  });
+  const mudaram = contratos.filter(k => {
+    const objetos = limparObjetos(k.objetos.map(o => casa(o) ? para : o));
+    if (JSON.stringify(objetos) === JSON.stringify(k.objetos)) return false;
+    const mudanca = { objetos, servico: objetos.join('; ') };
+    historicoContrato(k, mudanca);
+    Object.assign(k, mudanca, { atualizado_em: agora(), atualizado_por: eu });
+    return true;
+  });
+  // O modelo mais antigo com um nome que sai, se ainda não há modelo com o nome novo e o nome cabe no modelo.
+  const modelo = para.length <= TAMANHO_LISTA && !bd.modelos!.some(m => mesmoObjeto(m.nome, para)) ? bd.modelos!.find(m => casa(m.nome)) : undefined;
+  if (modelo) Object.assign(modelo, { nome: para, atualizado_em: agora() });
+  return {
+    contratos: mudaram.length, demandas: demandas.length, modelos: modelo ? 1 : 0,
+    // Os modelos que ficaram com um nome que saiu: as demandas seguintes não ganham as tarefas deles (a tela avisa).
+    modelos_sem_objeto: bd.modelos!.filter(m => casa(m.nome) && !mesmoObjeto(m.nome, para)).length,
+    contratos_com_duas_demandas: contratos.filter(k => bd.demandas!.filter(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, para)).length > 1).length
+  };
+}
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
 const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
   [...k.clientes, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
@@ -3277,7 +3326,44 @@ export const SD: Dados = {
     Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k, antes); parcelasDoContratoAssinado(k); gravar();
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id && vejoContratoDoId(id))),
-  objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
+  objetosSugeridos: () => espera(bd.objetoSugestoes!.map(s => s.descricao).sort((a, b) => a.localeCompare(b, 'pt-BR'))),
+  async objetosDoEscritorio() {
+    if (!souAdmin()) return erro(SEM_PERMISSAO);
+    // Como o banco: o objeto que está num contrato e ficou fora da lista entra nela agora.
+    bd.contratos!.forEach(k => guardarObjetos(k.objetos)); gravar();
+    // O "A definir" antigo que tenha ficado na lista não aparece (como o banco).
+    return espera(bd.objetoSugestoes!.filter(s => !mesmoObjeto(s.descricao, OBJETO_A_DEFINIR)).map((s): ObjetoDoEscritorio => {
+      const contratos = contratosComObjeto(s.descricao);
+      return { id: s.id, descricao: s.descricao, contratos_ativos: contratos.filter(k => !k.arquivado_em).length,
+        contratos_arquivados: contratos.filter(k => k.arquivado_em).length, demandas: bd.demandas!.filter(d => mesmoObjeto(d.objeto, s.descricao)).length };
+    }).sort((a, b) => normal(a.descricao).localeCompare(normal(b.descricao), 'pt-BR')));
+  },
+  async objetoRenomear(id, nome) {
+    const s = objetoParaMudar(id), novo = nome.trim();
+    const recusa = erroDoNomeDoObjeto(novo, bd.objetoSugestoes!, id);
+    if (recusa) return erro(recusa);
+    if (novo === s.descricao) return espera({ contratos: 0, demandas: 0, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 });
+    const antigo = s.descricao;
+    s.descricao = novo;
+    const troca = trocarObjetosNoFalso([antigo], novo); gravar();
+    return espera(troca);
+  },
+  async objetosJuntar(ids, fica) {
+    const f = objetoParaMudar(fica), outros = [...new Set(ids)].filter(x => x !== fica);
+    if (!outros.length) return erro(JUNTAR_SO_UM);
+    const saem = bd.objetoSugestoes!.filter(s => outros.includes(s.id));
+    if (saem.length !== outros.length) return erro('Objeto não encontrado.');
+    if (saem.some(s => mesmoObjeto(s.descricao, OBJETO_A_DEFINIR))) return erro(OBJETO_A_DEFINIR_FIXO);
+    bd.objetoSugestoes = bd.objetoSugestoes!.filter(s => !outros.includes(s.id));
+    const troca = trocarObjetosNoFalso(saem.map(s => s.descricao), f.descricao); gravar();
+    return espera(troca);
+  },
+  async objetoApagar(id) {
+    const s = objetoParaMudar(id), usam = contratosComObjeto(s.descricao).length;
+    if (usam) return erro(avisoDoObjetoEmUso(usam));
+    bd.objetoSugestoes = bd.objetoSugestoes!.filter(x => x.id !== id); gravar();
+    return espera(undefined);
+  },
   contratosDaPessoa: (pessoaId, perfilId = null) => espera(bd.contratos!
     .filter(alcancoContrato)
     .map(k => ({ k, papeis: papeisNoContrato({ ...k, indicador_id: vejoContrato(k) ? k.indicador_id : null, participantes: k.participantes.map(p => p.pessoa_id) }, pessoaId, perfilId) }))

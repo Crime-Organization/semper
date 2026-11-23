@@ -15,6 +15,7 @@ import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LI
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
+import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -298,6 +299,128 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const lista = await SD.objetosSugeridos();
         expect(lista.filter(o => o.toLowerCase() === objeto.toLowerCase())).toEqual([objeto]);
         expect(lista).toContain('Registro de marca');
+      });
+
+      describe('na lista de objetos do escritório (#281)', () => {
+        const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+        afterEach(() => entrarComo('u-master'));
+        const naLista = async (descricao: string) => (await SD.objetosDoEscritorio()).find(o => o.descricao === descricao);
+
+        it('quando o administrador abre a lista, então vê cada objeto com os contratos ativos, os arquivados e as demandas; quem não é administrador não vê', async () => {
+          // Dado
+          const objeto = 'Objeto ' + marca();
+          const [a, b] = [await novoContrato({ objetos: [objeto] }), await novoContrato({ objetos: [objeto, 'Outro ' + marca()] })];
+          await SD.contratosArquivar([b.id]);
+          await SD.contratoCriarDemanda(a.id, objeto);
+          // Quando
+          const o = await naLista(objeto);
+          // Então
+          expect(o).toMatchObject({ descricao: objeto, contratos_ativos: 1, contratos_arquivados: 1, demandas: 1 });
+          expect((await SD.objetosDoEscritorio()).some(x => x.descricao === 'A definir')).toBe(false);
+          entrarComo('u-bruno');
+          await expect(SD.objetosDoEscritorio()).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.objetoRenomear(o!.id, marca())).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('quando o administrador corrige um nome, então ele muda na lista, nos contratos, nas demandas (e no título igual ao nome antigo) e no modelo de lista', async () => {
+          // Dado
+          const errado = 'Objeto errado ' + marca(), certo = 'Objeto certo ' + marca();
+          const k = await novoContrato({ objetos: [errado, 'A definir'] });
+          const d = await SD.contratoCriarDemanda(k.id, errado);
+          await SD.modeloCriar(errado, arvoreDosItens(['Primeiro passo']));
+          const o = (await naLista(errado))!;
+          // Quando
+          const troca = await SD.objetoRenomear(o.id, `  ${certo} `);
+          // Então
+          expect(troca).toEqual({ contratos: 1, demandas: 1, modelos: 1, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 });
+          expect(await naLista(errado)).toBeUndefined();
+          expect(await naLista(certo)).toMatchObject({ id: o.id, contratos_ativos: 1, demandas: 1 });
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([certo, 'A definir']);
+          expect(await SD.demandaObter(d.id)).toMatchObject({ titulo: certo, objeto: certo });
+          expect((await SD.modelosListar()).some(m => m.nome === certo)).toBe(true);
+          expect((await SD.contratoHistorico(k.id))[0].alteracoes.servico).toEqual({ de: `${errado}; A definir`, para: `${certo}; A definir` });
+          // E o nome de outro objeto da lista, ou o "A definir", é recusado
+          const outro = 'Outro ' + marca();
+          await novoContrato({ objetos: [outro] });
+          await expect(SD.objetoRenomear(o.id, outro.toLowerCase())).rejects.toThrow(OBJETO_REPETIDO);
+          await expect(SD.objetoRenomear(o.id, 'a definir')).rejects.toThrow(OBJETO_RESERVADO);
+        });
+
+        it('quando o administrador junta dois objetos, então fica um só em cada contrato, as duas demandas ficam com o que ficou, e o que saiu some da lista', async () => {
+          // Dado
+          const fica = 'Fica ' + marca(), sai = 'Sai ' + marca();
+          const ambos = await novoContrato({ objetos: [sai, fica] });
+          const soSai = await novoContrato({ objetos: [sai] });
+          await SD.contratoCriarDemanda(ambos.id, sai);
+          await SD.contratoCriarDemanda(ambos.id, fica);
+          const [oFica, oSai] = [(await naLista(fica))!, (await naLista(sai))!];
+          // Quando
+          const troca = await SD.objetosJuntar([oSai.id, oFica.id], oFica.id);
+          // Então
+          expect(troca).toEqual({ contratos: 2, demandas: 1, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 1 });
+          expect((await SD.contratoObter(ambos.id))!.objetos).toEqual([fica]);
+          expect((await SD.contratoObter(soSai.id))!.objetos).toEqual([fica]);
+          expect((await SD.demandasDoContrato(ambos.id)).map(d => d.objeto)).toEqual([fica, fica]);
+          expect(await naLista(sai)).toBeUndefined();
+          expect(await naLista(fica)).toMatchObject({ contratos_ativos: 2, demandas: 2 });
+          expect(await SD.objetosSugeridos()).not.toContain(sai);
+          // Juntar um só é recusado
+          await expect(SD.objetosJuntar([oFica.id], oFica.id)).rejects.toThrow(JUNTAR_SO_UM);
+        });
+
+        it('quando o administrador apaga um objeto em uso, então é recusado com quantos contratos o usam; sem uso, ele some da lista', async () => {
+          // Dado
+          const objeto = 'Apagar ' + marca();
+          const k = await novoContrato({ objetos: [objeto] });
+          const o = (await naLista(objeto))!;
+          // Quando / Então
+          await expect(SD.objetoApagar(o.id)).rejects.toThrow(avisoDoObjetoEmUso(1));
+          await SD.contratoAtualizar(k.id, { objetos: ['Registro de marca'] });
+          await SD.objetoApagar(o.id);
+          expect(await naLista(objeto)).toBeUndefined();
+          expect(await SD.objetosSugeridos()).not.toContain(objeto);
+        });
+
+        it('dado um modelo de checklist para cada objeto, quando o administrador junta os dois, então só o do que sai muda de nome se o que fica não tiver modelo, e a resposta conta os que ficaram com o nome antigo', async () => {
+          // Dado
+          const fica = 'Fica ' + marca(), sai1 = 'Sai um ' + marca(), sai2 = 'Sai dois ' + marca();
+          await novoContrato({ objetos: [fica, sai1, sai2] });
+          await SD.modeloCriar(sai1, arvoreDosItens(['Primeiro passo']));
+          await SD.modeloCriar(sai2, arvoreDosItens(['Outro passo']));
+          const [oFica, oSai1, oSai2] = [(await naLista(fica))!, (await naLista(sai1))!, (await naLista(sai2))!];
+          // Quando
+          const troca = await SD.objetosJuntar([oSai1.id, oSai2.id], oFica.id);
+          // Então: o modelo mais antigo passa a ter o nome do que fica; o outro fica com o nome antigo
+          expect(troca).toMatchObject({ modelos: 1, modelos_sem_objeto: 1 });
+          const nomes = (await SD.modelosListar()).map(m => m.nome);
+          expect(nomes).toContain(fica);
+          expect(nomes).toContain(sai2);
+          expect(nomes).not.toContain(sai1);
+        });
+
+        it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {
+          // Dado: a demanda do objeto foi excluída
+          const velho = 'Velho ' + marca(), outro = 'Outro ' + marca(), novo = 'Novo ' + marca();
+          const k = await novoContrato({ objetos: ['A definir'] });
+          await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!.id, 1);
+          await SD.contratoAtualizar(k.id, { objetos: [velho, 'A definir'] });
+          const [d] = await SD.demandasDoContrato(k.id);
+          await SD.demandasArquivar([d.id]);
+          await SD.demandasExcluir([d.id]);
+          await novoContrato({ objetos: [outro] });
+          const o = (await naLista(velho))!;
+          // Quando
+          await SD.objetoRenomear(o.id, novo);
+          // Então
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([novo, 'A definir']);
+          expect(await SD.demandasDoContrato(k.id)).toEqual([]);
+          // Quando: o nome corrigido é juntado a outro
+          const fica = (await naLista(outro))!;
+          await SD.objetosJuntar([o.id, fica.id], fica.id);
+          // Então
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([outro, 'A definir']);
+          expect(await SD.demandasDoContrato(k.id)).toEqual([]);
+        });
       });
 
       it('quando o contrato tem vários participantes, então voltam na ordem, com os percentuais', async () => {
@@ -9372,5 +9495,39 @@ describe('Primeira sincronização com o Google Contatos (banco fictício)', () 
     // Então
     expect(r).toEqual({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira_por_fazer: true });
     expect((await SD.sincronizacaoGoogle())?.primeira_em).toBeNull();
+  });
+});
+
+// O "A definir" antigo na lista de objetos (#281): o banco fictício só o tem se ele for posto direto na aba, como a linha que
+// ficou em objeto_sugestoes de antes de 20261108000016. No banco de verdade, a regra é provada em
+// supabase/tests/editar_objetos_de_contrato.test.sql.
+describe('O "A definir" antigo na lista de objetos (banco fictício)', () => {
+  let SD: Dados;
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+
+  it('dada uma linha "A definir" antiga na lista, quando o administrador abre a lista, corrige, junta ou apaga com ela, então ela não aparece e tudo é recusado', async () => {
+    // Dado
+    const k = await SD.contratoCriar({ clientes: ['p-ana'], responsavel_id: 'u-master', objetos: ['Consulta antiga', 'A definir'], categoria: 'pro_labore' });
+    const consulta = (await SD.objetosDoEscritorio()).find(o => o.descricao === 'Consulta antiga')!;
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { objetoSugestoes: { id: string; descricao: string }[] };
+    bd.objetoSugestoes.push({ id: 'o-a-definir', descricao: 'a definir' });
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    SD = await reabrir();
+    // Quando
+    const lista = await SD.objetosDoEscritorio();
+    // Então
+    expect(lista.map(o => o.id)).not.toContain('o-a-definir');
+    await expect(SD.objetoRenomear('o-a-definir', 'Consultoria')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetosJuntar([consulta.id], 'o-a-definir')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetosJuntar(['o-a-definir'], consulta.id)).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    await expect(SD.objetoApagar('o-a-definir')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
+    expect((await SD.contratoObter(k.id))!.objetos).toEqual(['Consulta antiga', 'A definir']);
+    expect((await SD.objetosDoEscritorio()).map(o => o.id)).toContain(consulta.id);
   });
 });
