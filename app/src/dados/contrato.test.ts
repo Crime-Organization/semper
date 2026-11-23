@@ -16,6 +16,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
+import { CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
 import { FUNCAO_REPETIDA, funcaoEmUso } from '../regras/funcoesNaTarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
@@ -4588,7 +4589,9 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(codigo).toMatch(/^[0-9A-F]{8}$/);
         expect(await SD.tarefaObter(id)).toMatchObject({ titulo: 'Pedir documentos', responsavel_id: 'u-ana', participantes: ['u-bruno'],
-          pessoas: [{ id: pessoa }], demanda: null, contrato: null });
+          pessoas: [{ id: pessoa }], contrato: null });
+        // Sem demanda, a tarefa entra na demanda contínua (#313), que só a agrupa.
+        expect((await SD.tarefaObter(id))?.demanda).toMatchObject({ continua: true });
       });
 
       it('quando a tarefa é ligada a uma demanda, então guarda o código dela e aparece entre as tarefas da demanda', async () => {
@@ -4887,7 +4890,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         entrarComo('u-bruno');
         const naLista = (await SD.tarefasListar({ porPagina: 100 })).linhas.find(t => t.id === id);
         // Então
-        expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [] }]);
+        expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [], continua: false }]);
       });
     });
 
@@ -7937,7 +7940,7 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       expect(lida?.contrato).toMatchObject({ id, participantes: ['p-bruno'] });
       expect(daTarefa?.demanda).toMatchObject({ contrato_id: id, contrato: { id, participantes: ['p-bruno'] } });
       // Desde a #378, quem está na demanda inclui os grupos da equipe dela (como o banco lê equipe_da_demanda).
-      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [], grupos: [] });
+      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [], grupos: [], continua: false });
     });
 
     it('dada a demanda de um contrato que quem lê não pode abrir, quando ele abre a tarefa dela, então o contrato da demanda vem vazio', async () => {
@@ -9501,5 +9504,130 @@ describe('Primeira sincronização com o Google Contatos (banco fictício)', () 
     // Então
     expect(r).toEqual({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira_por_fazer: true });
     expect((await SD.sincronizacaoGoogle())?.primeira_em).toBeNull();
+  });
+});
+
+describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  /** A tarefa avulsa (sem demanda) de quem está logado. */
+  const avulsa = async (titulo: string, eu: string) => (await SD.tarefaCriar({ titulo, responsavel_id: eu, participantes: [], pessoas: [] })).id;
+  const demandaDe = async (tarefa: string) => (await SD.tarefaObter(tarefa))?.demanda ?? null;
+  /** A Ana (administradora) cria um grupo com o Bruno. */
+  const nucleoComBruno = async (nome = 'Núcleo Cível') => {
+    entrarComo('u-ana');
+    const id = await SD.grupoDaEquipeCriar(nome);
+    await SD.grupoDaEquipeIncluir(id, 'u-bruno');
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => { falso().fecharVisibilidade(false); entrarComo('u-master'); });
+
+  it('dado o Bruno sem grupo, quando cria uma tarefa sem demanda, então ela entra na contínua Geral, com o master como responsável', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando
+    const id = await avulsa('Pagar a guia', 'u-bruno');
+    // Então
+    const d = await demandaDe(id);
+    expect(d).toMatchObject({ titulo: tituloDaContinua('Geral'), continua: true, responsavel_id: 'u-master', criado_por: 'u-master' });
+    expect(await SD.demandaObter(d!.id)).toMatchObject({ continua: true, continua_grupo_id: null, contrato_id: null });
+  });
+
+  it('dado o Bruno num grupo só, quando cria uma tarefa sem demanda, então ela entra na contínua do grupo; pedir a contínua de novo devolve a mesma', async () => {
+    // Dado
+    const grupo = await nucleoComBruno();
+    entrarComo('u-bruno');
+    // Quando
+    const id = await avulsa('Ligar para o cartório', 'u-bruno');
+    // Então
+    const d = await demandaDe(id);
+    expect(d).toMatchObject({ titulo: tituloDaContinua('Núcleo Cível'), continua: true });
+    expect(await SD.demandaContinua(grupo)).toBe(d!.id);
+    expect(await SD.demandaContinua(grupo)).toBe(d!.id);
+  });
+
+  it('dado o Bruno fora de um grupo, quando pede a contínua dele, então é recusado; a Geral ele usa', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Penal');
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.demandaContinua(grupo)).rejects.toThrow('Você não tem permissão para fazer isso.');
+    await expect(SD.tarefaCriar({ titulo: 'X', responsavel_id: 'u-bruno', demanda_ids: [await adminPede(grupo)] })).rejects.toThrow('Demanda não encontrada neste escritório.');
+    expect(await SD.demandaContinua(null)).toBeTruthy();
+  });
+  /** A Ana pede a contínua do grupo (e volta ao Bruno). */
+  async function adminPede(grupo: string) {
+    entrarComo('u-ana');
+    const id = await SD.demandaContinua(grupo);
+    entrarComo('u-bruno');
+    return id;
+  }
+
+  it('dada a tarefa avulsa da Ana na Geral, quando o Bruno lê, então vê a contínua, mas não a tarefa dela (a contínua só agrupa)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const id = await avulsa('Tarefa da Ana', 'u-ana');
+    const geral = (await demandaDe(id))!.id;
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.demandaObter(geral)).toMatchObject({ continua: true });
+    expect(await SD.tarefaObter(id)).toBeNull();
+    expect((await SD.tarefasDaDemanda(geral)).map(t => t.id)).not.toContain(id);
+  });
+
+  it('dada a contínua, quando alguém tenta arquivá-la, concluí-la ou pôr colaboradores nela, então nada disso acontece', async () => {
+    // Dado
+    const id = await avulsa('Revisar', 'u-master');
+    const continua = (await demandaDe(id))!.id;
+    const concluida = (await SD.colunasListar('demandas')).find(c => c.marco === 'concluido')!.id;
+    // Quando / Então
+    expect(await SD.demandasArquivar([continua])).toBe(0);
+    expect((await SD.demandaObter(continua))?.arquivado_em).toBeNull();
+    await expect(SD.demandaMover(continua, concluida, 1)).rejects.toThrow(CONTINUA_NAO_CONCLUI);
+    await expect(SD.demandaAtualizar(continua, { colaboradores: ['u-bruno'] })).rejects.toThrow(CONTINUA_SEM_EQUIPE);
+    expect(await SD.demandaAtualizar(continua, { descricao: 'As soltas' })).toMatchObject({ id: continua });
+  });
+
+  it('dada uma tarefa avulsa, quando ganha uma demanda de verdade, então sai da contínua', async () => {
+    // Dado
+    const id = await avulsa('Juntar certidões', 'u-master');
+    const d = await SD.demandaCriar({ titulo: 'Inventário', responsavel_id: 'u-master' });
+    const continua = (await demandaDe(id))!.id;
+    // Quando
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua, d.id] });
+    // Então
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([d.id]);
+  });
+
+  it('dado um grupo com contínua, quando é renomeado e depois excluído, então a contínua acompanha o nome e as tarefas dela vão para a Geral', async () => {
+    // Dado
+    const grupo = await nucleoComBruno('Núcleo A');
+    entrarComo('u-bruno');
+    const id = await avulsa('Do núcleo', 'u-bruno');
+    const doGrupo = (await demandaDe(id))!.id;
+    entrarComo('u-ana');
+    // Quando
+    await SD.grupoDaEquipeRenomear(grupo, 'Núcleo Cível');
+    // Então
+    expect((await SD.demandaObter(doGrupo))?.titulo).toBe(tituloDaContinua('Núcleo Cível'));
+    // Quando
+    await SD.grupoDaEquipeExcluir(grupo);
+    // Então
+    const agora = await demandaDe(id);
+    expect(agora).toMatchObject({ titulo: tituloDaContinua('Geral'), continua: true });
+    expect(await SD.demandaObter(doGrupo)).toBeNull();
   });
 });

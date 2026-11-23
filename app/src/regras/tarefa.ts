@@ -10,6 +10,7 @@ import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao 
 import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
 import { estaPeloGrupo } from './gruposDaEquipe';
 import { SO_LEITURA_FORA_DO_CARTAO } from './equipeVeTudo';
+import { ehContinua, SEM_GRUPO_DA_CONTINUA } from './demandaContinua';
 
 /** Rótulo das tarefas fora das colunas do quadro. */
 export const SEM_SITUACAO_TAREFA = 'Sem situação';
@@ -45,10 +46,15 @@ export interface CamposTarefa {
   solicitanteId: string;
   /** A função de cada participante (#313): o id do participante → o id da função. */
   funcoes: Record<string, string>;
+  /**
+   * O grupo da demanda contínua da tarefa avulsa (#313): o id do grupo, CONTINUA_GERAL ou vazio (ainda não escolhido). Só no cadastro
+   * novo e só vale sem demanda; null: não se pergunta (ao mudar uma tarefa que já existe).
+   */
+  grupoDaContinua: string | null;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
   titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', participantes: [], pessoas: [''], demandas: [], contratos: [], processoId: '',
-  diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {}
+  diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {}, grupoDaContinua: null
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -80,6 +86,7 @@ const CONFERENCIAS: Partial<Record<keyof CamposTarefa, Conferencia[]>> = {
     c => c.diligencia && c.motivoDaDiligencia.trim().length > TAMANHO_TAREFA.motivoDaDiligencia ? MOTIVO_DA_DILIGENCIA_LONGO : null
   ],
   demandas: [c => c.demandas.length > DEMANDAS_POR_TAREFA ? DEMANDAS_DA_TAREFA_CHEIA : null],
+  grupoDaContinua: [c => c.grupoDaContinua === '' && !c.demandas.length ? SEM_GRUPO_DA_CONTINUA : null],
   contratos: [c => c.contratos.length > CONTRATOS_POR_TAREFA ? CONTRATOS_DA_TAREFA_CHEIA : null]
 };
 
@@ -180,7 +187,8 @@ export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), ...horaELembreteDoCartao(t), inicio: fmtData(t.data_inicio), responsavelId: t.responsavel_id,
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
   demandas: demandasDaTarefa(t), contratos: contratosDaTarefa(t), processoId: t.processo_id || '',
-  diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || '', solicitanteId: t.solicitante_id ?? '', funcoes: { ...t.funcoes }
+  diligencia: !!t.diligencia, motivoDaDiligencia: t.diligencia_motivo || '', solicitanteId: t.solicitante_id ?? '', funcoes: { ...t.funcoes },
+  grupoDaContinua: null
 });
 
 // ---------- etapas do cadastro ----------
@@ -197,7 +205,7 @@ export interface DefinicaoEtapaTarefa {
  */
 export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
-    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'diligencia', 'motivoDaDiligencia', 'demandas', 'contratos', 'processoId'],
+    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'diligencia', 'motivoDaDiligencia', 'demandas', 'grupoDaContinua', 'contratos', 'processoId'],
     tituloNoLapis: 'Diligência, demanda, contrato e processo' },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem a pediu, quem da equipe participa (e com que função) e, se houver, as pessoas do cadastro ligadas a ela.',
     campos: ['responsavelId', 'solicitanteId', 'participantes', 'funcoes', 'pessoas'] }
@@ -296,10 +304,12 @@ export const papeisNaTarefa = (t: PessoasDaTarefa, pessoaId: string, perfilId: s
   (Object.keys(CONFERE_PAPEL) as PapelNaTarefa[]).filter(papel => CONFERE_PAPEL[papel](t, pessoaId, perfilId));
 
 type QuemEstaNaTarefa = Pick<Tarefa, 'criado_por' | 'responsavel_id' | 'participantes' | 'grupos'>;
-type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
+type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> & Partial<Pick<Demanda, 'continua'>>;
 /** As demandas ligadas que quem pergunta pode ver: uma (a principal), várias (#283) ou nenhuma. */
 type DemandasVistas<D> = D | readonly D[] | null;
-const emLista = <D>(d: DemandasVistas<D>): readonly D[] => d === null ? [] : Array.isArray(d) ? d as readonly D[] : [d as D];
+/** As demandas ligadas que abrem a tarefa: todas, menos a contínua (#313), que só agrupa as tarefas avulsas. */
+const emLista = <D extends Partial<Pick<Demanda, 'continua'>>>(d: DemandasVistas<D>): readonly D[] =>
+  (d === null ? [] : Array.isArray(d) ? d as readonly D[] : [d as D]).filter(x => !ehContinua(x));
 /**
  * Na lista: a tarefa está aí só para ler? Altera quem está nela ou em qualquer uma das demandas ligadas (`equipe_da_demanda`, a
  * principal, e `equipes_das_outras_demandas`, #283, que vêm quando quem lê pode ver cada demanda). Quem a vê só pelo contrato, o dela

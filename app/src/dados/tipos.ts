@@ -337,6 +337,13 @@ export interface Demanda {
   colaboradores: string[];         // perfis da equipe, sem o responsável
   /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
   grupos?: string[];
+  /**
+   * A demanda contínua (#313): reúne as tarefas avulsas (sem demanda) de um grupo da equipe, ou de todos na "Geral". O banco a cria;
+   * ela nunca é arquivada, concluída nem excluída, e estar nela não abre as tarefas dela. Ausente: demanda comum.
+   */
+  continua?: boolean;
+  /** O grupo da contínua (null na Geral e nas demandas comuns). */
+  continua_grupo_id?: string | null;
   /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
   cliente_nome: string;
   contrato_id: string | null;
@@ -381,7 +388,7 @@ export interface DemandaRelacionada {
 export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'colaboradores' | 'grupos' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
-export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome'
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
@@ -480,7 +487,7 @@ export interface Tarefa {
  * O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). O contrato da demanda vem
  * com quem está nele, se quem vê a tarefa também pode abri-lo (quem está nele pode ser mencionado na tarefa, #326).
  */
-export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'contrato_id'>
+export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua' | 'contrato_id'>
   & { contrato: EquipeDoContrato | null };
 /** Uma demanda ou um contrato ligado à tarefa (#283): o id e o código sempre; o item, se quem lê pode abri-lo (senão null). */
 export interface LigadoNaTarefa<T> { id: string; codigo: string; item: T | null }
@@ -501,12 +508,12 @@ export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'p
    * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a
    * demanda só pelo contrato dela lê as tarefas dela, mas não as altera (#326).
    */
-  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> | null;
+  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua'> | null;
   /**
    * Quem está em cada uma das outras demandas ligadas (#283), além da principal, das que quem lê pode ver: quem está em qualquer uma
    * delas também altera a tarefa, como no banco e no cartão.
    */
-  equipes_das_outras_demandas?: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>[];
+  equipes_das_outras_demandas?: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua'>[];
 };
 export interface FiltroTarefas {
   termo?: string;
@@ -692,6 +699,11 @@ export interface DadosDemandas {
    * e a demanda criada assim não se repete quando o contrato for assinado.
    */
   contratoCriarDemanda(contratoId: string, objeto: string): Promise<{ id: string; codigo: string }>;
+  /**
+   * A demanda contínua do grupo (#313; null: a "Geral"), criada na primeira vez: o cadastro liga a ela a tarefa sem demanda. Só quem
+   * está no grupo (e o administrador); a Geral, toda a equipe. Devolve o id da demanda.
+   */
+  demandaContinua(grupoId: string | null): Promise<string>;
   /**
    * As demandas relacionadas a esta (#310), nos dois sentidos, na ordem em que foram ligadas, até DEMANDAS_RELACIONADAS. Quem vê
    * esta demanda vê todas, com o número; o conteúdo, só das que ele também pode ver.

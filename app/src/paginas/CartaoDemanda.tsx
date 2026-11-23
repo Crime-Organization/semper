@@ -34,6 +34,7 @@ import { colunaComMarco } from '../regras/quadro';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
+import { ehContinua, NOTA_DA_CONTINUA, SELO_DA_CONTINUA } from '../regras/demandaContinua';
 import NovaDemanda from './NovaDemanda';
 import { relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
@@ -102,14 +103,18 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (d === undefined) return <Carregando />;
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
-  const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
+  // A demanda contínua (#313) reúne as tarefas avulsas: nunca é arquivada, concluída nem excluída, e não recebe equipe, clientes nem contrato.
+  const continua = ehContinua(d);
+  const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin) && !continua;
   const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)), m => contratosEmQueEsta([d.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // Ligar à demanda um item que já existe (#341): quem altera a demanda, com ela ativa. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !d.arquivado_em;
+  /** Ligar pessoas, contrato e tarefas que já existem: nunca na contínua (ela só reúne as tarefas avulsas novas). */
+  const ligaNaDemanda = podeLigar && !continua;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   // O contrato, ligado (o que existe) ou criado já ligado (#376): um só, e só enquanto a demanda não tem.
-  const ligaContrato = podeLigar && !d.contrato_id && !!ctx.escritorio?.modulos?.contratos, novoContrato = '/contratos/novo/?demanda=' + d.id;
+  const ligaContrato = ligaNaDemanda && !d.contrato_id && !!ctx.escritorio?.modulos?.contratos, novoContrato = '/contratos/novo/?demanda=' + d.id;
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
@@ -179,14 +184,15 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
           <span className="codigo">{d.codigo}</span>
           <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={quadro.pronto ? colunaComMarco(quadro.colunas, d.etapa_id, 'concluido') && 'demandas' : null} />
           {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+          {continua && <Selo>{SELO_DA_CONTINUA}</Selo>}
         </>}
-        equipe={<EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} grupos={d.grupos} mudar={mudaNoLugar ? {
+        equipe={<EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} grupos={d.grupos} mudar={mudaNoLugar && !continua ? {
           saida: { podeSair: gravaForaDoCartao(ctx, d.criado_por === eu) }, depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
-        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
-        situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, d.etapa_id)} soParaVer={!!d.arquivado_em || !podeAlterar}
+        aoArquivar={podeAlterar && !continua ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        lapis={podeAlterar && !continua ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
+        situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, d.etapa_id)} soParaVer={!!d.arquivado_em || !podeAlterar || continua}
           aoAgir={concluirOuReabrir} />}>
           <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
         </SituacaoDoCartao>} />}
@@ -215,7 +221,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
 
-    {soLeitura && <Nota>{soLeitura}</Nota>}
+    {soLeitura && !continua && <Nota>{soLeitura}</Nota>}
+    {continua && <Nota>{NOTA_DA_CONTINUA}</Nota>}
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {d.arquivado_em && <FaixaDoArquivado modulo="demandas" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
@@ -224,7 +231,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}
       novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
-      {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa' }}>
+      {ligaNaDemanda && <AcoesDosLigados novo={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa' }}>
         {/* A tarefa pode estar em várias demandas (#283): a de outra demanda também entra nesta, e continua na outra. */}
         <LigarDoModulo modulo="tarefas" motivo={t => t.demanda_id === d.id ? 'já ligada a esta demanda' : ''}
           aviso="Quem está nesta demanda passa a ver a tarefa que você ligar. A tarefa leva o contrato da demanda e, se ainda não tem pessoas, os clientes dela."
@@ -238,9 +245,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length} novo={novaPessoaNoItem('demandas', d.id, d.clientes, podeLigar).titulo} atalho="ligacao">
+    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length} novo={novaPessoaNoItem('demandas', d.id, d.clientes, ligaNaDemanda).titulo} atalho="ligacao">
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('demandas', d.id, d.clientes, podeLigar).embaixo}
+      {ligaNaDemanda && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('demandas', d.id, d.clientes, ligaNaDemanda).embaixo}
         aviso={d.contrato_id ? 'Esta demanda é de um contrato: confira se a pessoa também é parte dele.' : undefined} />}
     </Recolhivel>
 

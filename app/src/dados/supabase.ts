@@ -339,7 +339,7 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
 }
 
 // ---------- demandas ----------
-const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, colaboradores, grupos, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
+const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, colaboradores, grupos, continua, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 /** Quem está no contrato (#326), para saber no cartão quem pode ser mencionado. A lista gravada traz as pessoas com o %. */
 const EQUIPE_DO_CONTRATO = 'id, criado_por, responsavel_id, participantes';
@@ -347,7 +347,7 @@ type EquipeLida<K extends EquipeDoContrato> = Omit<K, 'participantes'> & { parti
 const comAEquipe = <K extends EquipeDoContrato>(k: EquipeLida<K> | null): K | null =>
   k && { ...k, participantes: k.participantes.map(p => p.pessoa_id) } as K;
 // O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
-const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, colaboradores, grupos, cliente_nome, contrato_id, contrato_codigo, objeto, '
+const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, colaboradores, grupos, continua, continua_grupo_id, cliente_nome, contrato_id, contrato_codigo, objeto, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO})`;
 type DemandaLida = Omit<Demanda, 'clientes' | 'contrato'> & { clientela: { ordem: number; pessoa: PessoaResumida }[]; contrato: EquipeLida<ContratoDoCartao> | null };
@@ -608,7 +608,7 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 
 // ---------- tarefas ----------
 // Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
-const EQUIPE_DA_DEMANDA = 'criado_por, responsavel_id, colaboradores, grupos';
+const EQUIPE_DA_DEMANDA = 'criado_por, responsavel_id, colaboradores, grupos, continua';
 const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, diligencia, pessoa_nome, demanda_codigo, contrato_codigo, '
   + `etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, demanda_ids, equipe_da_demanda:demandas(${EQUIPE_DA_DEMANDA})`;
 type EquipeDaDemanda = NonNullable<TarefaLista['equipe_da_demanda']>;
@@ -626,7 +626,7 @@ async function comAsOutrasDemandas(linhas: (Omit<TarefaLista, 'equipes_das_outra
 }
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 // A demanda da tarefa (a principal ou cada uma das ligadas, #283), com quem está no contrato dela.
-const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
+const DEMANDA_DA_TAREFA = `id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, continua, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})`;
 const CONTRATO_DA_TAREFA = `codigo, servico, ${EQUIPE_DO_CONTRATO}`;
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, diligencia, diligencia_motivo, solicitante_id, funcoes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, demanda_ids, contrato_ids, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
@@ -1154,11 +1154,14 @@ export const SD: Dados = {
     return data;
   },
   async demandasArquivar(ids, arquivar = true) {
-    const { data } = await rodar(sb.from('demandas')
+    const q = sb.from('demandas')
       .update({ arquivado_em: arquivar ? new Date().toISOString() : null, arquivado_por: arquivar ? uid() : null })
-      .in('id', ids).select('id'));
+      .in('id', ids);
+    // A contínua (#313) nunca é arquivada: fica de fora, como a que quem arquiva não pode alterar (o banco recusaria todas juntas).
+    const { data } = await rodar((arquivar ? q.eq('continua', false) : q).select('id'));
     return data.length;
   },
+  demandaContinua: grupoId => rpc('demanda_continua', { p_grupo: grupoId }) as Promise<string>,
   async demandasExcluir(ids) {
     const { data } = await rodar(sb.from('demandas').delete().in('id', ids).select('id'));
     const excluidas = data.length;
@@ -1594,9 +1597,13 @@ export const SD: Dados = {
   async tarefasParaLigar(f) {
     // O contrato da demanda vem pela regra de leitura das demandas: quem não vê a demanda recebe null.
     type Lida = Omit<TarefaParaEscolher, 'contrato_da_demanda'> & { criado_em: string; demanda: { contrato_id: string | null } | null };
-    const ler = async (filtro: (q: Livre) => Livre) => (await rodar(paraLigar(filtro(soOsMeus(sb.from('tarefas')
-      .select('id, codigo, titulo, pessoa_nome, prazo, demanda_id, demanda_codigo, contrato_id, processo_id, pessoas, criado_em, demanda:demandas(contrato_id)'), 'participantes')),
-      f, { pessoas: 'pessoas', sem: { demandas: 'demanda_id', contratos: 'contrato_id', processos: 'processo_id' } }))).data as Lida[];
+    // "Sem demanda" (#313): sem nenhuma, ou só na contínua (a tarefa avulsa, que sai dela ao ganhar uma demanda de verdade).
+    const semDemanda = f.sem === 'demandas';
+    const continuas = semDemanda ? ((await rodar(sb.from('demandas').select('id').eq('continua', true))).data as { id: string }[]).map(d => d.id) : [];
+    const avulsas = (q: Livre) => semDemanda ? q.or(`demanda_id.is.null${continuas.length ? `,demanda_id.in.(${continuas.join(',')})` : ''}`) : q;
+    const ler = async (filtro: (q: Livre) => Livre) => (await rodar(paraLigar(filtro(avulsas(soOsMeus(sb.from('tarefas')
+      .select('id, codigo, titulo, pessoa_nome, prazo, demanda_id, demanda_codigo, contrato_id, processo_id, pessoas, criado_em, demanda:demandas(contrato_id)'), 'participantes'))),
+      semDemanda ? { ...f, sem: undefined } : f, { pessoas: 'pessoas', sem: { contratos: 'contrato_id', processos: 'processo_id' } }))).data as Lida[];
     // As deste processo e as sem processo: duas leituras, juntas na mesma ordem.
     const listas = f.doProcesso ? await Promise.all([ler(q => q.eq('processo_id', f.doProcesso)), ler(q => q.is('processo_id', null))]) : [await ler(q => q)];
     return juntarOsAchados(...listas).map(({ demanda, ...t }) => ({ ...t, contrato_da_demanda: demanda?.contrato_id ?? null }));

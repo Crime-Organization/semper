@@ -9,6 +9,7 @@ import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao,
 import { fmtHora } from './compromisso';
 import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
 import { estaPeloGrupo } from './gruposDaEquipe';
+import { usaAContinua } from './demandaContinua';
 
 /** Rótulo das demandas fora das colunas do quadro. */
 export const SEM_SITUACAO_DEMANDA = 'Sem situação';
@@ -17,7 +18,8 @@ export const SEM_SITUACAO_DEMANDA = 'Sem situação';
  * Contratos ligado no escritório: sem ele (um núcleo de inovação, por exemplo), nenhuma demanda teria contrato, e o selo não diz nada.
  */
 export const SEM_CONTRATO = 'Sem contrato';
-export const semContrato = (d: { contrato_codigo: string | null }, comContratos: boolean) => comContratos && !d.contrato_codigo;
+export const semContrato = (d: { contrato_codigo: string | null; continua?: boolean }, comContratos: boolean) =>
+  comContratos && !d.contrato_codigo && !d.continua;   // a contínua (#313) nunca tem contrato: não é pendência
 
 // ---------- formulário ----------
 /** Campos do formulário de demanda, como digitados. */
@@ -193,9 +195,11 @@ export const doContratoEmQueEsta = (contratoId: string | null | undefined, contr
  * Quem vê a demanda (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato ligado a ela
  * (`contratosEmQueEsta`: os contratos que a pessoa criou, de que é responsável ou participante; a menção não conta).
  */
-export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> & { contrato_id?: string | null }, m: Membro,
-  contratosEmQueEsta: readonly string[] = [], meusGrupos: readonly string[] = []) =>
-  estaNaDemanda(d, m, meusGrupos) || doContratoEmQueEsta(d.contrato_id, contratosEmQueEsta);
+export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> & Partial<Pick<Demanda, 'continua' | 'continua_grupo_id'>>
+  & { contrato_id?: string | null }, m: Membro, contratosEmQueEsta: readonly string[] = [], meusGrupos: readonly string[] = []) =>
+  estaNaDemanda(d, m, meusGrupos) || doContratoEmQueEsta(d.contrato_id, contratosEmQueEsta)
+  // A contínua (#313): quem pode usá-la a vê (a Geral, toda a equipe; a de um grupo, quem está nele), sem ver as tarefas dela.
+  || usaAContinua(d, m.papel === 'master' || m.papel === 'admin', meusGrupos);
 /**
  * Por que o membro não pode ser mencionado na demanda (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está
  * no contrato dela). O contrato vem com quem está nele (`contrato`) quando quem comenta pode abri-lo; sem ele, conta só quem está

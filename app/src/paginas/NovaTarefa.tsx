@@ -28,6 +28,7 @@ import {
 } from '../regras/tarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { funcoesAoGravar } from '../regras/funcoesNaTarefa';
+import { continuaInicial, grupoDaContinuaAoGravar, opcoesDaContinua } from '../regras/demandaContinua';
 import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -69,8 +70,13 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // A anotação de onde a tarefa nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada à tarefa nova.
   const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'tarefa');
 
+  // A tarefa avulsa (sem demanda) entra na demanda contínua de um grupo da equipe (#313): os grupos de quem cadastra, ou a Geral para
+  // quem não está em grupo nenhum. No cadastro novo, já vem marcado se há uma opção só. Sem o módulo Demandas, o banco escolhe sozinho.
+  const opcoesDaContinuaDaPessoa = opcoesDaContinua(ctx.grupos, ctx.perfil.id);
+  const perguntaAContinua = !idAtualizar && !!ctx.escritorio?.modulos?.demandas;
   // Quem cadastra já vem como responsável e como quem pediu a tarefa (o solicitante, #313).
-  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id, solicitanteId: ctx.perfil.id }));
+  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id, solicitanteId: ctx.perfil.id,
+    grupoDaContinua: perguntaAContinua ? continuaInicial(opcoesDaContinuaDaPessoa) : null }));
   // As funções dos participantes do escritório (#313): quem entra ganha a padrão, e a pessoa troca ao lado do nome.
   const funcoes = useFuncoesNaTarefa();
   const [alvo, setAlvo] = useState<Tarefa | null>(null);   // tarefa sendo atualizada
@@ -298,7 +304,9 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       } else {
         // Sem coluna escolhida, a tarefa nova entra na coluna-marco de início ("Para fazer").
         const coluna = etapaInicial || await colunaInicial('tarefas');
-        const r = await SD.tarefaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        // Sem demanda, a tarefa entra na demanda contínua do grupo escolhido (#313).
+        const continua = !dados.demanda_ids?.length && c.grupoDaContinua ? await SD.demandaContinua(grupoDaContinuaAoGravar(c.grupoDaContinua)) : null;
+        const r = await SD.tarefaCriar({ ...dados, ...(continua ? { demanda_ids: [continua] } : {}), etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Tarefa ${r.codigo} cadastrada.`, 'cadastro da tarefa', async () => {
           await SD.tarefasArquivar([r.id], true);
           const x = await SD.tarefasExcluir([r.id]);
@@ -389,6 +397,13 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.demandas} escolhidos={c.demandas.map(id => ({ id, texto: rotuloDemanda(id) }))} erro={erros.demandas}
         aoTirar={tirarDemanda} busca={<CampoComSugestoes id="demanda" aria-describedby="demanda-dica" placeholder="Buscar demanda…" valor={buscaDemanda}
           aoMudar={digitarDemanda} sugestoes={demandas.filter(d => !c.demandas.includes(d.id)).map(d => ({ valor: rotuloDaDemanda(d) }))} />} />
+      {/* Sem demanda, a tarefa entra na demanda contínua do grupo (#313): só agrupa, e quem vê a tarefa continua o mesmo. */}
+      {c.grupoDaContinua !== null && !c.demandas.length && <Escolhas rotulo="Grupo da tarefa avulsa" obrigatorio erro={erros.grupoDaContinua}
+        dica="Sem demanda, a tarefa entra na demanda contínua do grupo. Quem vê a tarefa continua o mesmo.">
+        {opcoesDaContinuaDaPessoa.map(o => <label key={o.valor}>
+          <input type="radio" name="grupoDaContinua" checked={c.grupoDaContinua === o.valor} onChange={() => mudar({ grupoDaContinua: o.valor })} />{o.nome}
+        </label>)}
+      </Escolhas>}
       <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.contratos} escolhidos={c.contratos.map(id => ({ id, texto: rotuloContrato(id) }))} erro={erros.contratos}
         aoTirar={id => mudar({ contratos: c.contratos.filter(x => x !== id) })} busca={<CampoComSugestoes id="contrato" aria-describedby="contrato-dica"
           placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}

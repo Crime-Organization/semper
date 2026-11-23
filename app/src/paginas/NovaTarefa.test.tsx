@@ -4,16 +4,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Processo, type Tarefa } from '../dados';
 import { feito } from '../ui/avisos';
 import NovaTarefa from './NovaTarefa';
 
 vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('../ui/avisos')>(), feito: vi.fn() }));
-const sessao = vi.hoisted(() => ({ ehAdmin: false, escritorio: undefined as { modulos: Record<string, boolean> } | undefined }));
+const sessao = vi.hoisted(() => ({ ehAdmin: false, escritorio: undefined as { modulos: Record<string, boolean> } | undefined,
+  grupos: undefined as { id: string; nome: string; integrantes: string[] }[] | undefined }));
 vi.mock('../ui/sessao', () => ({
   useCtx: () => ({
-    perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin, escritorio: sessao.escritorio,
+    perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin, escritorio: sessao.escritorio, grupos: sessao.grupos,
     equipe: [{ id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }, { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }, { id: 'u-caio', nome: 'Caio Teste', ativo: true }]
   })
 }));
@@ -357,5 +358,70 @@ describe('Tarefa que nasce do "+ Nova tarefa" de um processo (#376)', () => {
     // Então
     expect(await screen.findByText('Foi para /processos/judicial/?id=p1')).toBeInTheDocument();
     expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ processo_id: 'p1', pessoas: ['x1'] }));
+  });
+});
+
+describe('Tarefa avulsa na demanda contínua do grupo (#313)', () => {
+  const criarTarefa = vi.fn<typeof SD.tarefaCriar>();
+  const pedirContinua = vi.fn<typeof SD.demandaContinua>();
+  function Destino() {
+    const { pathname, search } = useLocation();
+    return <p>Foi para {pathname + search}</p>;
+  }
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    sessao.escritorio = { modulos: { demandas: true } };
+    sessao.grupos = [{ id: 'g-penal', nome: 'Núcleo Penal', integrantes: ['u-bruno'] }, { id: 'g-civel', nome: 'Núcleo Cível', integrantes: ['u-bruno'] }];
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'colunasListar').mockResolvedValue([]);
+    vi.spyOn(SD, 'gruposListar').mockResolvedValue([]);
+    criarTarefa.mockReset().mockResolvedValue({ id: 't9', codigo: 'T9' });
+    vi.spyOn(SD, 'tarefaCriar').mockImplementation(criarTarefa);
+    pedirContinua.mockReset().mockResolvedValue('c-penal');
+    vi.spyOn(SD, 'demandaContinua').mockImplementation(pedirContinua);
+  });
+  afterEach(() => { sessao.grupos = undefined; });
+  async function abrir() {
+    const roteador = createMemoryRouter([{ path: '/tarefas/nova/', element: <NovaTarefa /> }, { path: '*', element: <Destino /> }], { initialEntries: ['/tarefas/nova/'] });
+    render(<RouterProvider router={roteador} />);
+    await userEvent.type(await screen.findByLabelText(/Título/), 'Organizar a pasta');
+  }
+
+  it('dado alguém em dois grupos, quando segue sem escolher o grupo, então o cadastro pede; escolhido, a tarefa nasce na contínua dele', async () => {
+    // Dado
+    await abrir();
+    const grupo = screen.getByRole('group', { name: /Grupo da tarefa avulsa/ });
+    expect(grupo).toHaveTextContent('Núcleo Cível');
+    expect(grupo).toHaveTextContent('Núcleo Penal');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    // Então
+    expect(await screen.findByText('Escolha o grupo da tarefa avulsa.')).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('radio', { name: 'Núcleo Penal' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Salvar tarefa' }));
+    // Então
+    expect(await screen.findByText('Foi para /tarefas/?id=t9')).toBeInTheDocument();
+    expect(pedirContinua).toHaveBeenCalledWith('g-penal');
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ demanda_ids: ['c-penal'] }));
+  });
+
+  it('dado alguém sem grupo, quando cadastra sem demanda, então a Geral já vem marcada e a tarefa nasce nela', async () => {
+    // Dado
+    sessao.grupos = [];
+    pedirContinua.mockResolvedValue('c-geral');
+    await abrir();
+    // Então
+    expect(screen.getByRole('radio', { name: 'Geral' })).toBeChecked();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Salvar tarefa' }));
+    // Então
+    expect(await screen.findByText('Foi para /tarefas/?id=t9')).toBeInTheDocument();
+    expect(pedirContinua).toHaveBeenCalledWith(null);
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ demanda_ids: ['c-geral'] }));
   });
 });

@@ -101,7 +101,7 @@ export async function ligarTarefaNaDemanda(tarefaId: string, demandaId: string):
   await SD.tarefaAtualizar(tarefaId, r.dados);
   return async () => {
     const agora = await SD.tarefaObter(tarefaId);
-    const volta = agora && desfazerTarefaEmMaisUmaDemanda(tarefaParaADemanda(agora), r);
+    const volta = agora && desfazerTarefaEmMaisUmaDemanda(tarefaParaADemanda(agora), r, tarefaParaADemanda(t).demanda_ids);
     if (volta) await SD.tarefaAtualizar(tarefaId, volta);
   };
 }

@@ -130,15 +130,17 @@ describe('A tarefa e a demanda', () => {
     const k = await contrato(), cliente = await pessoa();
     const d = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k.id, clientes: [cliente] });
     const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+    // Sem demanda, a tarefa nasce na demanda contínua (#313); ao ganhar uma demanda de verdade, sai dela
+    const continua = (await SD.tarefaObter(id))?.demanda_id;
     // Quando
     const desfazer = await ligarTarefaNaDemanda(id, d.id);
     // Então
-    expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d.id, contrato_id: k.id, pessoas: [expect.objectContaining({ id: cliente })] });
+    expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: d.id, demanda_ids: [d.id], contrato_id: k.id, pessoas: [expect.objectContaining({ id: cliente })] });
     expect((await SD.tarefasDaDemanda(d.id)).map(t => t.id)).toContain(id);
     // Quando
     await desfazer!();
     // Então
-    expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: null, contrato_id: null, pessoas: [] });
+    expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: continua, contrato_id: null, pessoas: [] });
   });
 
   it('dada uma tarefa que levou os clientes da demanda, quando outra pessoa pôs mais alguém nela e a ligação é desfeita, então essa pessoa fica', async () => {
@@ -146,13 +148,14 @@ describe('A tarefa e a demanda', () => {
     const k = await contrato(), [cliente, outra] = [await pessoa(), await pessoa()];
     const d = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', contrato_id: k.id, clientes: [cliente] });
     const { id } = await SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+    const continua = (await SD.tarefaObter(id))?.demanda_id;   // sem demanda, ela nasce na contínua (#313)
     const desfazer = await ligarTarefaNaDemanda(id, d.id);
     // Quando: outra pessoa pôs mais uma pessoa na tarefa, e esta ligação é desfeita
     await SD.tarefaAtualizar(id, { pessoas: [cliente, outra] });
     await desfazer!();
     // Então
     const t = (await SD.tarefaObter(id))!;
-    expect(t).toMatchObject({ demanda_id: null, contrato_id: null });
+    expect(t).toMatchObject({ demanda_id: continua, contrato_id: null });
     expect(t.pessoas.map(p => p.id)).toEqual([outra]);
   });
 

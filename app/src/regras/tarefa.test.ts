@@ -8,6 +8,7 @@ import {
   diligenciaAoGravar, MOTIVO_DA_DILIGENCIA_LONGO, SEM_MOTIVO_DA_DILIGENCIA, motivoDeSoLerATarefa, SO_LEITURA_DO_SOLICITANTE
 } from './tarefa';
 import { SO_LEITURA_FORA_DO_CARTAO } from './equipeVeTudo';
+import { SEM_GRUPO_DA_CONTINUA } from './demandaContinua';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 
 const completa = { ...TAREFA_VAZIA, titulo: 'Emitir a GRU', responsavelId: 'u-ana' };
@@ -123,7 +124,8 @@ describe('Cadastro de tarefa', () => {
     const campos = camposDaTarefa(t);
     // Então
     expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
-      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {} });
+      pessoas: ['p1'], demandas: ['d1', 'd2'], contratos: [], processoId: 'pr1', diligencia: false, motivoDaDiligencia: '', solicitanteId: '', funcoes: {},
+      grupoDaContinua: null });
   });
 
   it('dada uma tarefa gravada sem as listas (numa importação), quando volta ao formulário ou ao cartão, então conta a demanda e o contrato principais', () => {
@@ -262,6 +264,25 @@ describe('Quem está na tarefa e quem a vê', () => {
     expect(estaNaTarefa(tarefa, membro('u-eva'), [demanda, outra])).toBe(true);
     expect(veATarefa(tarefa, membro('u-davi'), [demanda, outra])).toBe(true);
     expect(estaNaTarefa(tarefa, membro('u-fora'), [demanda, outra])).toBe(false);
+  });
+
+  it('dada uma tarefa avulsa na demanda contínua (#313), quando quem consta na contínua a abre, então não está nela nem a vê (a contínua só agrupa)', () => {
+    // Dado
+    const continua = { criado_por: 'u-davi', responsavel_id: 'u-davi', colaboradores: ['u-eva'], continua: true };
+    // Então
+    expect(estaNaTarefa(tarefa, membro('u-davi'), [continua])).toBe(false);
+    expect(veATarefa(tarefa, membro('u-eva'), continua)).toBe(false);
+    expect(estaNaTarefa(tarefa, membro('u-davi'), [continua, demanda])).toBe(true);
+  });
+
+  it('dado o cadastro sem demanda (#313), quando o grupo da tarefa avulsa não foi escolhido, então pede a escolha; com demanda, ou ao mudar, não pede', () => {
+    // Dado
+    const c = { ...TAREFA_VAZIA, titulo: 'X', responsavelId: 'u-ana', grupoDaContinua: '' };
+    // Então
+    expect(validarTarefa(c).grupoDaContinua).toBe(SEM_GRUPO_DA_CONTINUA);
+    expect(validarTarefa({ ...c, demandas: ['d1'] }).grupoDaContinua).toBeUndefined();
+    expect(validarTarefa({ ...c, grupoDaContinua: 'g-civel' }).grupoDaContinua).toBeUndefined();
+    expect(validarTarefa({ ...c, grupoDaContinua: null }).grupoDaContinua).toBeUndefined();
   });
 
   it('dada na lista uma tarefa ligada a duas demandas (#283), quando quem está só na segunda olha, então a altera; quem não está em nenhuma só lê', () => {

@@ -31,6 +31,9 @@ import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
+import {
+  CONTINUA_NAO_CONCLUI, CONTINUA_NAO_EXCLUI, CONTINUA_SEM_EQUIPE, DESCRICAO_DA_CONTINUA, grupoPeloGatilho, NOME_DA_GERAL, semAContinuaComDemanda, tituloDaContinua, usaAContinua
+} from '../regras/demandaContinua';
 import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasRelacionadas';
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, diligenciaAoGravar, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
@@ -1160,10 +1163,11 @@ function horaELembreteDoBanco(dados: Pick<DadosTarefa, 'prazo_hora' | 'lembrete'
 // ---------- demandas ----------
 const nomesDosClientes = (ids: string[]) => ids.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
 const demandaCompleta = (d: DemandaGuardada): Demanda =>
-  ({ ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes), contrato: contratoDoCartao(d.contrato_id) });
+  ({ ...d, continua: !!d.continua, continua_grupo_id: d.continua_grupo_id ?? null, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes),
+    contrato: contratoDoCartao(d.contrato_id) });
 const demandaLista = (d: DemandaGuardada): DemandaLista => ({
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, data_inicio: d.data_inicio, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
-  grupos: d.grupos ?? [], cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
+  grupos: d.grupos ?? [], continua: !!d.continua, cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
   arquivado_em: d.arquivado_em, criado_por: d.criado_por, criado_em: d.criado_em, atualizado_em: d.atualizado_em
 });
 const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
@@ -1379,7 +1383,7 @@ const processoDaTarefa = (id: string | null | undefined) => {
 const demandaNaTarefa = (d: DemandaGuardada): DemandaDaTarefa => {
   const contratoDaDemanda = contratoQueVejo(d.contrato_id);
   return { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
-    colaboradores: d.colaboradores, grupos: d.grupos ?? [], contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) };
+    colaboradores: d.colaboradores, grupos: d.grupos ?? [], continua: !!d.continua, contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) };
 };
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
@@ -1394,7 +1398,8 @@ const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
     contratos_ligados: contratosDaTarefa(t).map(id => ({ id, codigo: bd.contratos!.find(k => k.id === id)?.codigo ?? '', item: contratoDoCartao(id) })),
     processo: processoDaTarefa(t.processo_id) };
 };
-const equipeNaLista = (d: DemandaGuardada) => ({ criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] });
+const equipeNaLista = (d: DemandaGuardada) => ({ criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [],
+  continua: !!d.continua });
 const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   // Como o banco, quem está na demanda ligada (as listagens do banco fictício não filtram quem vê, e quem não vê a demanda não está nela).
   const d = demandaDaTarefaNoFalso(t);
@@ -1433,6 +1438,34 @@ const acharTarefa = (id: string) => {
  * Como o gatilho preparar da migração 020: título limpo; pessoas do escritório, sem repetir; responsável e participantes
  * da equipe, sem repetir e sem o responsável entre os participantes; os códigos da demanda e do contrato copiados.
  */
+// ---------- a demanda contínua (#313), como supabase/migrations/20261123003418_demanda_continua.sql ----------
+/** Como privado.demanda_continua: acha (ou cria) a contínua do grupo (null: a Geral), com o administrador mais antigo como responsável. */
+function continuaNoFalso(grupoId: string | null): DemandaGuardada {
+  const ja = bd.demandas!.find(d => d.continua && (d.continua_grupo_id ?? null) === grupoId);
+  if (ja) return ja;
+  const g = grupoId ? bd.gruposDaEquipe!.find(x => x.id === grupoId) : null;
+  if (grupoId && !g) throw new Error('Grupo não encontrado neste escritório.');
+  const ativos = EQUIPE.filter(m => m.ativo !== false);
+  const responsavel = (ativos.find(m => m.papel === 'master') ?? ativos.find(m => m.papel === 'admin'))?.id ?? eu;
+  const d: DemandaGuardada = { ...demandaNova(), id: novoId(), codigo: codigo(), titulo: tituloDaContinua(g?.nome ?? NOME_DA_GERAL), descricao: DESCRICAO_DA_CONTINUA,
+    responsavel_id: responsavel, criado_por: responsavel, continua: true, continua_grupo_id: grupoId,
+    etapa_id: bd.colunas.find(c => c.modulo === 'demandas' && c.marco === 'inicio')?.id ?? null, etapa_ordem: Date.now() / 1000 };
+  bd.demandas!.push(d);
+  return d;
+}
+/** Como privado.uso_a_continua: quem pode ligar a tarefa à contínua (e vê-la). */
+const usoAContinuaNoFalso = (d: DemandaGuardada) => usaAContinua(d, souAdmin(), meusGruposNoFalso());
+/** Como privado.guardar_continua: a contínua não vai para as concluídas nem recebe colaboradores, grupos, clientes ou contrato. */
+function guardarContinua(d: DemandaGuardada, novos: Partial<DadosDemanda> & { etapa_id?: string | null }) {
+  if (!d.continua) return;
+  if (novos.etapa_id !== undefined && novos.etapa_id !== d.etapa_id && bd.colunas.find(c => c.id === novos.etapa_id)?.marco === 'concluido') {
+    throw new Error(CONTINUA_NAO_CONCLUI);
+  }
+  if (novos.colaboradores?.length || novos.grupos?.length || novos.clientes?.length || novos.contrato_id) throw new Error(CONTINUA_SEM_EQUIPE);
+}
+/** Como o gatilho "continua": a tarefa nova sem demanda, de alguém logado, entra na contínua do grupo dele (um só) ou na Geral. */
+const naContinuaSemDemanda = (dados: DadosTarefa): DadosTarefa => dados.demanda_id || dados.demanda_ids?.length ? dados
+  : { ...dados, demanda_ids: [continuaNoFalso(grupoPeloGatilho(meusGruposNoFalso())).id] };
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
   conferirInicio(dados);
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
@@ -1470,8 +1503,15 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
   const demandas = listaAoGravar(t.demanda_ids, t.demanda_id, atual && { lista: demandasDaTarefa(atual), principal: atual.demanda_id });
   if (demandas) {
     if (demandas.some(id => !bd.demandas!.some(d => d.id === id))) throw new Error('Demanda não encontrada neste escritório.');
+    // A contínua que entra (#313): só quem pode usá-la (como a conferência de ligacoes_da_tarefa).
+    const antes = atual ? demandasDaTarefa(atual) : [];
+    if (demandas.some(id => !antes.includes(id) && bd.demandas!.some(d => d.id === id && d.continua && !usoAContinuaNoFalso(d)))) {
+      throw new Error('Demanda não encontrada neste escritório.');
+    }
     if (demandas.length > DEMANDAS_POR_TAREFA) throw new Error(DEMANDAS_DA_TAREFA_CHEIA);
-    Object.assign(t, { demanda_ids: demandas, demanda_id: demandas[0] ?? null, demanda_codigo: bd.demandas!.find(d => d.id === demandas[0])?.codigo ?? null });
+    // A tarefa que ganha uma demanda de verdade sai da contínua (#313).
+    const finais = semAContinuaComDemanda(demandas, id => bd.demandas!.some(d => d.id === id && d.continua));
+    Object.assign(t, { demanda_ids: finais, demanda_id: finais[0] ?? null, demanda_codigo: bd.demandas!.find(d => d.id === finais[0])?.codigo ?? null });
   }
   const contratos = listaAoGravar(t.contrato_ids, t.contrato_id, atual && { lista: contratosDaTarefa(atual), principal: atual.contrato_id });
   if (contratos) {
@@ -2946,7 +2986,11 @@ export const SD: Dados = {
   },
   async grupoDaEquipeRenomear(id, nome) {
     const g = grupoDoAdministrador(id);
-    g.nome = nomeDoGrupoDaEquipe(nome, id); auditar('grupos_da_equipe', 'alteracao', { id, nome: g.nome }); gravar();
+    const antes = g.nome;
+    g.nome = nomeDoGrupoDaEquipe(nome, id); auditar('grupos_da_equipe', 'alteracao', { id, nome: g.nome });
+    // Como o gatilho renomear_continua (#313): a contínua do grupo acompanha o nome, se o título ainda é o de fábrica.
+    for (const d of bd.demandas!) if (d.continua && d.continua_grupo_id === id && d.titulo === tituloDaContinua(antes)) d.titulo = tituloDaContinua(g.nome);
+    gravar();
   },
   async grupoDaEquipeIncluir(id, perfilId) {
     const g = grupoDoAdministrador(id), m = EQUIPE.find(x => x.id === perfilId);
@@ -2980,6 +3024,17 @@ export const SD: Dados = {
         HISTORICO_DOS_GRUPOS[modulo](x.id, novos);
         Object.assign(x, novos, { atualizado_em: agora(), atualizado_por: eu });
       }
+    }
+    // Como o gatilho continua_para_a_geral (#313): as tarefas da contínua do grupo vão para a Geral, e a contínua dele some.
+    const antiga = bd.demandas!.find(d => d.continua && d.continua_grupo_id === id);
+    if (antiga) {
+      const geral = continuaNoFalso(null);
+      for (const t of bd.tarefas!.filter(x => demandasDaTarefa(x).includes(antiga.id))) {
+        const novos = prepararTarefa({ demanda_ids: demandasDaTarefa(t).map(x => x === antiga.id ? geral.id : x) }, t);
+        historicoTarefa(t, novos);
+        Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
+      }
+      bd.demandas = bd.demandas!.filter(d => d.id !== antiga.id);
     }
     bd.gruposDaEquipe = bd.gruposDaEquipe!.filter(x => x.id !== id);
     bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.grupo_id !== id);
@@ -3357,6 +3412,7 @@ export const SD: Dados = {
   },
   async demandaAtualizar(id, dados) {
     const d = acharDemanda(id), novos = prepararDemanda(dados, d), antes = equipeDoItemNoFalso('demandas', id);
+    guardarContinua(d, novos);
     historicoDemanda(d, novos);
     Object.assign(d, novos, { atualizado_em: agora(), atualizado_por: eu });
     avisarInclusao('demandas', id, antes);
@@ -3365,6 +3421,8 @@ export const SD: Dados = {
   },
   async demandasArquivar(ids, arquivar = true) {
     ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso())); });
+    // A contínua (#313) nunca é arquivada: fica de fora, como no supabase.ts.
+    if (arquivar) ids = ids.filter(id => !bd.demandas!.some(x => x.id === id && x.continua));
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
@@ -3377,6 +3435,7 @@ export const SD: Dados = {
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id);
       if (!d || !d.arquivado_em) return;
+      if (d.continua) throw new Error(CONTINUA_NAO_EXCLUI);
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
       bd.demandasRelacionadas = bd.demandasRelacionadas!.filter(l => l.demanda_a !== id && l.demanda_b !== id);
@@ -3396,6 +3455,7 @@ export const SD: Dados = {
   async demandaMover(id, etapaId, ordem) {
     const d = acharDemanda(id);
     if (soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
+    guardarContinua(d, { etapa_id: etapaId });
     historicoDemanda(d, { etapa_id: etapaId });
     Object.assign(d, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
@@ -3416,6 +3476,13 @@ export const SD: Dados = {
     const d = demandaDoObjeto(k, doContrato, Date.now() / 1000);
     auditar('demandas', 'inclusao', d); gravar();
     return espera({ id: d.id, codigo: d.codigo });
+  },
+
+  // Como public.demanda_continua (#313): quem pode usá-la (a Geral, toda a equipe; a de um grupo, quem está nele e o administrador).
+  async demandaContinua(grupoId) {
+    if (grupoId && !souAdmin() && !meusGruposNoFalso().includes(grupoId)) return erro(SEM_PERMISSAO);
+    const d = continuaNoFalso(grupoId); gravar();
+    return espera(d.id);
   },
 
   // ---------- demandas relacionadas (como supabase/migrations/20261122125913_demandas_relacionadas.sql, #310) ----------
@@ -3463,7 +3530,8 @@ export const SD: Dados = {
   },
   tarefaObter: id => { const t = bd.tarefas!.find(x => x.id === id && vejoNoModulo('tarefas', x.id)); return espera(t ? tarefaCompleta(t) : null); },
   async tarefaCriar(dados) {
-    const t: TarefaGuardada = { ...tarefaNova(), ...prepararTarefa({ pessoas: [], participantes: [], ...dados }) as Partial<TarefaGuardada>, id: novoId(), codigo: codigo() };
+    const t: TarefaGuardada = { ...tarefaNova(), ...prepararTarefa(naContinuaSemDemanda({ pessoas: [], participantes: [], ...dados })) as Partial<TarefaGuardada>,
+      id: novoId(), codigo: codigo() };
     bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null); auditar('tarefas', 'inclusao', t); gravar();
     return espera({ id: t.id, codigo: t.codigo });
   },
@@ -3515,7 +3583,8 @@ export const SD: Dados = {
   tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
   tarefasDaPessoa: (pessoaId, perfilId = null) => espera(bd.tarefas!.map(tarefaLigada(pessoaId, perfilId)).filter(t => t.papeis.length)
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, TAREFAS_LIGADAS)),
-  tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => demandasDaTarefa(t).includes(demandaId)))),
+  // Como a regra de leitura das tarefas: só as que quem lê vê (na contínua, #313, as tarefas avulsas dos outros não aparecem).
+  tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => demandasDaTarefa(t).includes(demandaId) && vejoNoModulo('tarefas', t.id)))),
   tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => contratosDaTarefa(t).includes(contratoId)))),
   // Como tarefasGraficos do supabase.ts: as tarefas que quem está logado vê (as não arquivadas e as arquivadas concluídas no período)
   // e o tempo do período, o próprio ou, para o administrador, o de todos (como as regras de leitura de tarefa_tempos).
@@ -4008,7 +4077,8 @@ export const SD: Dados = {
     .map(d => ({ id: d.id, codigo: d.codigo, titulo: d.titulo, cliente_nome: nomesDosClientes(d.clientes), contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, prazo: d.prazo, clientes: d.clientes }))),
   tarefasParaLigar: f => espera(paraLigarNoFalso(bd.tarefas!.filter(t => !f.doProcesso || !t.processo_id || t.processo_id === f.doProcesso), f, {
     altero: t => alteroNoFalso(estaNaTarefa(t, membroLogado(), null, meusGruposNoFalso())), busca: buscaTarefa, pessoas: t => t.pessoas,
-    sem: { demandas: t => t.demanda_id, contratos: t => t.contrato_id, processos: t => t.processo_id }
+    // "Sem demanda" (#313): sem nenhuma, ou só na contínua (a tarefa avulsa).
+    sem: { demandas: t => demandasDaTarefa(t).find(id => !bd.demandas!.find(d => d.id === id)?.continua) ?? null, contratos: t => t.contrato_id, processos: t => t.processo_id }
   }).map(t => {
     // O contrato da demanda vem pela regra de leitura das demandas, como a junção do banco.
     const d = demandaDaTarefaNoFalso(t);

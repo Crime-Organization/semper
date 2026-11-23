@@ -89,6 +89,16 @@ describe('A tarefa e a demanda', () => {
     expect(desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: ['c1', 'c2'], contrato_ids: ['k1'] }, r)).toEqual({ demanda_ids: [], pessoas: [], contrato_ids: [] });
   });
 
+  it('dada uma tarefa avulsa na contínua (#313), quando entra numa demanda e a ligação é desfeita, então volta para a contínua', () => {
+    // Dado: a tarefa estava na contínua c1, que saiu dela ao ganhar a d1
+    const r = tarefaEmMaisUmaDemanda({ demanda_ids: ['c1'], pessoas: [], contrato_ids: [] }, { id: 'd1', clientes: [], contrato_id: null }, MAXIMOS);
+    if ('recusa' in r) throw new Error('não devia recusar');
+    // Quando
+    const volta = desfazerTarefaEmMaisUmaDemanda({ demanda_ids: ['d1'], pessoas: [], contrato_ids: [] }, r, ['c1']);
+    // Então
+    expect(volta).toEqual({ demanda_ids: ['c1'] });
+  });
+
   it('dada uma tarefa de outra demanda e de outro contrato (#283), quando entra em mais uma, então fica nas duas e nos dois contratos; o Desfazer tira só o que entrou', () => {
     // Dado
     const t = { demanda_ids: ['d0'], pessoas: ['x'], contrato_ids: ['k0'] };

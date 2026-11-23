@@ -4,6 +4,7 @@
 import { SD } from '../dados';
 import { devePerguntarProcesso } from '../regras/processoDaDemanda';
 import { tarefasDaDemandaConcluidas } from '../regras/tarefa';
+import { ehContinua } from '../regras/demandaContinua';
 import { avisar, falha, feito } from '../ui/avisos';
 import { confirmar } from '../ui/janela';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -48,7 +49,8 @@ async function perguntar(tarefaId: string, etapaId: string | null, jaFeitas: num
     const concluida = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')?.id ?? null;
     if (!concluida || etapaId !== concluida) return false;
     const demanda = (await SD.tarefaObter(tarefaId))?.demanda;
-    if (!demanda) return false;
+    // A contínua (#313) nunca é concluída: ela reúne as tarefas avulsas.
+    if (!demanda || ehContinua(demanda)) return false;
     if (perguntas !== jaFeitas && ultimaDemanda === demanda.id) return false;
     const fim = (await SD.colunasListar('demandas')).find(c => c.marco === 'concluido');
     if (!fim || demanda.etapa_id === fim.id) return false;
