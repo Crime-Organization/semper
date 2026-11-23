@@ -1,4 +1,4 @@
--- Processo: pessoas com papel, recursos e incidentais, e os tipos extrajudicial e investigação (#316). Roda num banco local:
+-- Processo: pessoas com papel, recursos e incidentais (#316); os tipos extrajudicial e investigação saíram na #406. Roda num banco local:
 -- supabase db start && supabase test db. Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo é desfeito no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -52,38 +52,37 @@ create function pg_temp.coluna(p_modulo text, p_marco text) returns uuid languag
   select id from public.quadro_colunas where escritorio_id = 'e3160000-0000-0000-0000-000000000001' and modulo = p_modulo and marco = p_marco
 $$;
 grant execute on function pg_temp.coluna(text, text) to authenticated;
-
--- ---------- tipos novos ----------
--- Dado um escritório novo, então ele nasce com os quadros extrajudicial e de investigações, com a coluna do início e a das concluídas.
-select is(pg_temp.coluna('processos_extrajudiciais', 'inicio'), (select id from public.quadro_colunas where escritorio_id = 'e3160000-0000-0000-0000-000000000001'
-  and modulo = 'processos_extrajudiciais' and nome = 'Aberto'), 'Então o quadro extrajudicial começa em "Aberto"');
-select is((select nome from public.quadro_colunas where id = pg_temp.coluna('processos_investigacoes', 'concluido')), 'Arquivado',
-  'Então o quadro das investigações termina em "Arquivado"');
-select ok((select min(g.ordem) from public.quadro_grupos g where g.escritorio_id = 'e3160000-0000-0000-0000-000000000001' and g.modulo = 'processos_investigacoes')
-           > (select max(c.ordem) from public.quadro_colunas c where c.escritorio_id = 'e3160000-0000-0000-0000-000000000001' and c.modulo = 'processos_investigacoes'),
-  'Então os grupos ficam depois das colunas, como em todo quadro (#296)');
+-- ---------- tipos (a #406 tirou o extrajudicial e a investigação; o site antigo ainda os oferece) ----------
+-- Dado um escritório novo, então ele nasce só com os quadros judicial e administrativo (#406).
+select is((select count(*) from public.quadro_colunas where escritorio_id = 'e3160000-0000-0000-0000-000000000001'
+             and modulo in ('processos_extrajudiciais', 'processos_investigacoes')), 0::bigint,
+  'Então o escritório novo não nasce com os quadros extrajudicial e de investigações');
 select is((select count(*) from public.quadro_colunas where escritorio_id = 'e3160000-0000-0000-0000-000000000001' and modulo = 'processos_judiciais' and nome = 'Distribuído'),
   1::bigint, 'Então o quadro judicial continua com uma coluna "Distribuído" só');
 
 select pg_temp.entrar(1); set local role authenticated;
--- Quando a Ana cadastra um processo extrajudicial na coluna do quadro dele, então ele é gravado.
-select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, criado_por, etapa_id) values
-  ('73160000-0000-0000-0000-000000000011', 'extrajudicial', 'NOT-1', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid(),
-   pg_temp.coluna('processos_extrajudiciais', 'inicio')) $$, 'Quando cadastra um extrajudicial, então ele é gravado');
-select lives_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, criado_por) values
-  ('investigacao', 'IP 1/2026', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid()) $$, 'Quando cadastra uma investigação, então ela é gravada');
+-- Quando a Ana cadastra, pelo site antigo, um processo extrajudicial e uma investigação, então os dois são gravados como administrativos.
+select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, criado_por) values
+  ('73160000-0000-0000-0000-000000000011', 'extrajudicial', 'NOT-1', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid()) $$,
+  'Quando cadastra um extrajudicial, então ele é gravado');
+select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, criado_por) values
+  ('73160000-0000-0000-0000-000000000012', 'investigacao', 'IP 1/2026', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid()) $$,
+  'Quando cadastra uma investigação, então ela é gravada');
+select is((select array_agg(tipo order by numero) from public.processos where id in ('73160000-0000-0000-0000-000000000011', '73160000-0000-0000-0000-000000000012')),
+  array['administrativo', 'administrativo'], 'Então os dois ficam administrativos (#406)');
 -- Quando põe a investigação numa coluna do quadro judicial, então é recusado.
 select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, criado_por, etapa_id) values
   ('investigacao', 'IP 2/2026', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid(), pg_temp.coluna('processos_judiciais', 'inicio')) $$,
   '42501', null, 'Quando põe a investigação no quadro judicial, então é recusado');
 select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, criado_por) values
   ('outro', 'X', auth.uid(), '{13160000-0000-0000-0000-000000000001}', auth.uid()) $$, '23514', null, 'Quando o tipo não é da lista, então é recusado');
--- Então um campo do escritório pode valer só para as investigações.
+-- Quando cria um campo só para as investigações, então ele passa a valer para os administrativos (#406).
 select lives_ok($$ insert into public.processo_campos (nome, tipo, aparece_em) values ('Delegacia', 'texto', 'investigacao') $$,
-  'Então um campo pode aparecer só nas investigações');
+  'Quando cria um campo só das investigações, então não dá erro');
+select is((select aparece_em from public.processo_campos where nome = 'Delegacia'), 'administrativo', 'Então o campo vale para os administrativos');
 reset role;
-select is(privado.grupo_do_tipo_de_processo('extrajudicial'), 'extrajudiciais', 'Então a busca pelo código põe o extrajudicial no grupo dele');
-select is(privado.grupo_do_tipo_de_processo('investigacao'), 'investigacoes', 'Então a busca pelo código põe a investigação no grupo dela');
+select is(privado.grupo_do_tipo_de_processo('extrajudicial'), 'administrativos', 'Então a busca pelo código põe o extrajudicial nos administrativos (#406)');
+select is(privado.grupo_do_tipo_de_processo('administrativo'), 'administrativos', 'Então a busca pelo código põe o administrativo no grupo dele');
 
 -- ---------- recursos e incidentais ----------
 select pg_temp.entrar(2); set local role authenticated;
