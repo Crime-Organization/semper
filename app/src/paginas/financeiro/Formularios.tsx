@@ -26,8 +26,8 @@ function Acoes({ rotulo, ocupado, aoCancelar }: { rotulo: string; ocupado: boole
   </div>;
 }
 
-/** Lançamento novo, ou a mudança de um (alvo). */
-export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }: PropsDoForm<FormDoLancamento> & { alvo?: Lancamento }) {
+/** Lançamento novo, ou a mudança de um (alvo). "categorias" limita a lista (o ajuste de saldo novo, na página das contas, oferece só os ajustes). */
+export function FormLancamento({ alvo, inicial, contas, categorias, titulo, aoTerminar, aoCancelar }: PropsDoForm<FormDoLancamento> & { alvo?: Lancamento; categorias?: FormDoLancamento['categoria'][]; titulo?: string }) {
   const id = useId();
   const [f, setF] = useState(inicial);
   const [conferido, setConferido] = useState(false);
@@ -57,7 +57,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
       aoTerminar();
     } catch (e) { falha(e); setOcupado(false); }
   }
-  return <form ref={ref} className="cartao financeiro-form" noValidate aria-label={alvo ? 'Mudar lançamento' : 'Novo lançamento'} onSubmit={salvar}>
+  return <form ref={ref} className="cartao financeiro-form" noValidate aria-label={titulo ?? (alvo ? 'Mudar lançamento' : 'Novo lançamento')} onSubmit={salvar}>
     <div className="financeiro-form-linha">
       <Campo rotulo="Conta" para={id + 'conta'} erro={erros.contaId}>
         <select {...propsDoCampo(id + 'conta', { erro: erros.contaId })} value={f.contaId} onChange={e => mudar({ contaId: e.target.value })}>
@@ -69,7 +69,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
       </Campo>
       <Campo rotulo="Categoria" para={id + 'cat'}>
         <select {...propsDoCampo(id + 'cat')} value={f.categoria} onChange={e => mudar({ categoria: e.target.value as FormDoLancamento['categoria'] })}>
-          {categoriasDoFormulario(f.categoria).map(c => <option key={c} value={c}>{rotuloDaCategoria(c)}</option>)}
+          {(categorias ?? categoriasDoFormulario(f.categoria)).map(c => <option key={c} value={c}>{rotuloDaCategoria(c)}</option>)}
         </select>
       </Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>

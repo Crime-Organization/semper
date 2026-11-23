@@ -4,7 +4,7 @@
 // qualquer linha abre a janela flutuante com tudo o que se sabe dela (DetalheFinanceiro.tsx); lançar também abre ali.
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas nem o caixa.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, Navigate, useLocation } from 'react-router';
+import { Navigate, useLocation } from 'react-router';
 import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { dicaComAtalho, ATALHOS } from '../../regras/atalhos';
 import { diasDoMes, fmtCentavos } from '../../regras/caixa';
@@ -17,15 +17,15 @@ import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
 import { useAtalhosDaPagina, useAtalhosLigados } from '../../ui/atalhos';
 import { useMudancas } from '../../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 import { CabecaDoPainel } from '../../ui/painel/Painel';
 import { PainelCartao } from '../../ui/PainelCartao';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO, useTitulo } from '../../ui/util';
-import { Repasses } from '../Parcelas';
 import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
 import { ValoresAPassar } from './APassar';
+import { Repasses } from './Repasses';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
 import { LUGAR_DAS_LISTAS, PainelDoFinanceiro, type CaixaDoPainel, type DadosDoPainel } from './Graficos';
@@ -44,6 +44,16 @@ type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa
 /** O que as listas do caixa usam: as contas e os lançamentos. */
 type Caixa = Pick<CaixaDoPainel, 'contas' | 'lancamentos'>;
 type Lido = ({ ano: number } & DadosDoPainel) | { ano: number; erro: string };
+
+/**
+ * As outras telas do Financeiro, com um botão cada no alto da página (#331). A Conferência da importação sai quando a conferência do
+ * caixa antigo terminar (#49). Uma tela nova é uma linha nova aqui.
+ */
+const OUTRAS_TELAS: { para: string; rotulo: string; soAdmin: boolean }[] = [
+  { para: '/meus-valores/', rotulo: 'Meus valores', soAdmin: false },
+  { para: '/conferencia/', rotulo: 'Conferência', soAdmin: false },
+  { para: '/lucros/', rotulo: 'Lucro dos sócios', soAdmin: true }
+];
 
 /** De quem são os números: o escritório todo (o administrador, com o caixa), um advogado escolhido por ele, ou quem está logado. */
 type DeQuem = 'escritorio' | 'advogado' | 'eu';
@@ -122,6 +132,9 @@ export default function Hub() {
 
   const cabeca = <CabecaDoPainel titulo="Financeiro" frase={FRASE_DE_QUEM[deQuem](nomeDoAdvogado)}>
     <div className="financeiro-topo-acoes">
+      <nav className="financeiro-topo-acoes" aria-label="Outras telas do Financeiro">
+        {OUTRAS_TELAS.filter(t => admin || !t.soAdmin).map(t => <BotaoLink key={t.para} to={t.para}>{t.rotulo}</BotaoLink>)}
+      </nav>
       {admin && <label className="filtro-do-painel">
         <span>De quem</span>
         <select className="filtro" value={advogado} onChange={e => setAdvogado(e.target.value)}>
@@ -152,7 +165,7 @@ export default function Hub() {
   // A saída e as contas ficam ao lado das abas.
   const botoes = <div className="financeiro-acoes">
     {admin && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'saida' })}><Icone nome="mais" tam={15} /> Nova saída</button>}
-    {/* As contas do escritório (saldo inicial, DAS, ajustes): também quando ainda não há nenhuma. */}
+    {/* A página "Contas, DAS e sócios" (saldo inicial, DAS, sócios, ajustes e o extrato de cada conta): também quando ainda não há nenhuma. */}
     {admin && <BotaoLink forma="link" to="/financeiro/contas/">Contas e DAS</BotaoLink>}
   </div>;
 
@@ -291,7 +304,6 @@ function Direitos({ parcelas, usuario, aoReceber, aoAbrir }: { parcelas: Parcela
       </table></div>
       {lista.length > quantos && <button type="button" className={estiloBotao()} onClick={() => setQuantos(q => q + LINHAS_POR_VEZ)}>Mostrar mais</button>}
     </> : <Vazio>Nenhum contrato com esses filtros.</Vazio>}
-    <Nota>Também em Direitos: <Link to="/meus-valores/">Meus valores</Link> · <Link to="/conferencia/">Conferência da importação</Link></Nota>
   </section>;
 }
 
@@ -316,10 +328,13 @@ function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; con
   if (!atual) return <Carregando />;
   if ('erro' in atual) return <Aviso tipo="erro">{atual.erro}</Aviso>;
   return <section className="painel-secao" aria-label="Obrigações">
-    <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
-    <Repasses lista={atual.repasses} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
-    <TituloSecao>A passar a participantes e indicadores</TituloSecao>
-    <ValoresAPassar lista={atual.aPassar} hoje={hoje} aoMudar={aoMudar} />
-    {ctx.ehAdmin && <Nota>Também em Obrigações: <Link to="/lucros/">Lucro dos sócios</Link></Nota>}
+    <section aria-label="Repasses">
+      <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
+      <Repasses lista={atual.repasses} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
+    </section>
+    <section aria-label="A passar a participantes e indicadores">
+      <TituloSecao>A passar a participantes e indicadores</TituloSecao>
+      <ValoresAPassar lista={atual.aPassar} hoje={hoje} aoMudar={aoMudar} />
+    </section>
   </section>;
 }

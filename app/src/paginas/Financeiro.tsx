@@ -1,13 +1,18 @@
-// O caixa do escritório, só para administradores: cada conta, mês a mês, com o saldo depois de cada lançamento. O saldo marcado no
-// fim de cada dia é o que se compara com o banco. Abaixo, as contas e o DAS de cada mês. A página de módulo dá o cabeçalho.
-import { useEffect, useState } from 'react';
+// "Contas, DAS e sócios", só para administradores, aberta pelo botão "Contas e DAS" do Financeiro (até a #331, era o Caixa antigo).
+// Cada conta, mês a mês, com o saldo depois de cada lançamento: o saldo marcado no fim de cada dia é o que se compara com o banco.
+// Aqui fica o que só esta página faz: o ajuste de saldo, o repasse entre contas, as contas, o DAS de cada mês e os sócios. As
+// entradas e saídas comuns se lançam, mudam e excluem no Financeiro. A página de módulo dá o cabeçalho.
+import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento, type Socio } from '../dados';
-import { CAMPOS_DO_LANCAMENTO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, textoDosAjustes, transferenciaNova, valorNoAjuste, valorNoHistorico } from '../regras/caixa';
+import {
+  ajusteNovo, CAMPOS_DO_LANCAMENTO, CATEGORIAS_DO_AJUSTE_NOVO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, ondeMuda, textoDosAjustes,
+  transferenciaNova, valorNoAjuste, valorNoHistorico, type OndeMuda
+} from '../regras/caixa';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { PaginaModulo } from '../ui/PaginaModulo';
@@ -15,23 +20,27 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
+import { AbasDoFinanceiro, ABAS_DO_FINANCEIRO } from './financeiro/AbasDoFinanceiro';
 import { AjustesDeSaldo } from './financeiro/AjustesDeSaldo';
 import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia, ROTULO_DA_NOVA_CONTA } from './financeiro/Formularios';
 import { ROTULO_DO_NOVO_SOCIO, SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
-import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
-/** O lançamento que nasce de uma parcela só muda por lá: o caixa só mostra de onde ele veio. */
+const TITULO = 'Contas, DAS e sócios';
+/** O nome do botão do cabeçalho e o da janela do ajuste novo. */
+const ROTULO_DO_AJUSTE = 'Ajuste de saldo';
+const TITULO_DO_AJUSTE_NOVO = 'Novo ajuste de saldo';
+/** O lançamento que nasce de uma parcela só muda por lá: o extrato só mostra de onde ele veio. */
 const ORIGEM_DO_LANCAMENTO: Record<NonNullable<Lancamento['origem']>, string> = { recebimento: 'Veio de uma parcela', repasse: 'Veio de um repasse', lucro: 'Veio do lucro dos sócios' };
 
-/** O que está aberto: lançamento novo, a mudança de um lançamento ou a transferência. */
-type Aberto = { o: 'novo' } | { o: 'mudar'; lancamento: Lancamento } | { o: 'transferir' } | null;
+/** O que está aberto: o ajuste novo, a mudança de um ajuste ou o repasse entre contas. */
+type Aberto = { o: 'ajuste' } | { o: 'mudar'; lancamento: Lancamento } | { o: 'transferir' } | null;
 /** O que foi lido, e de que conta e mês: a tela só mostra o que é da conta e do mês escolhidos. */
 type Lido = { chave: string; lancamentos: Lancamento[]; saldoAnterior: number } | { chave: string; erro: string };
 
 export default function Financeiro() {
-  useTitulo('Caixa');
+  useTitulo(TITULO);
   const ctx = useCtx();
   const hoje = hojeISO();
   const [contas, setContas] = useState<ContaFinanceira[] | null>(null);
@@ -76,7 +85,7 @@ export default function Financeiro() {
   useMudancas(() => { setAberto(null); recarregar(); });
 
   if (!pode) return <Navigate to="/inicio/" replace />;
-  const cabecalho = { titulo: 'Caixa', visoes: [] };
+  const cabecalho = { titulo: TITULO, visoes: [] };
   if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
   if (contas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 
@@ -89,6 +98,22 @@ export default function Financeiro() {
       recarregar();
     } catch (e) { falha(e); }
   }
+  const botaoExcluir = (l: Lancamento) => <BotaoDuplo pequeno variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={() => excluir(l)}>
+    <Icone nome="lixeira" tam={13} /> Excluir
+  </BotaoDuplo>;
+  /** O que a última coluna de cada linha mostra, conforme onde o lançamento muda. */
+  const ACOES_DA_LINHA: Record<OndeMuda, (l: Lancamento) => ReactNode> = {
+    na_origem: l => <span className="financeiro-origem">{ORIGEM_DO_LANCAMENTO[l.origem!]}</span>,
+    repasse_entre_contas: l => <span className="financeiro-acoes">{botaoExcluir(l)}</span>,
+    ajuste: l => <span className="financeiro-acoes">
+      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o lançamento ${l.descricao}`} onClick={() => setAberto({ o: 'mudar', lancamento: l })}><Icone nome="editar" tam={13} /> Mudar</button>
+      {botaoExcluir(l)}
+    </span>,
+    no_financeiro: l => {
+      const aba = ABAS_DO_FINANCEIRO[l.tipo === 'entrada' ? 'entradas' : 'saidas'];
+      return <BotaoLink forma="link" to={aba.para} aria-label={`Mudar o lançamento ${l.descricao} em ${aba.rotulo}, no Financeiro`}>Mudar em {aba.rotulo}</BotaoLink>;
+    }
+  };
   const dataNova = mesDe(hoje) === mes ? hoje : diasDoMes(mes).de;
   const ajustes = <div className="financeiro-ajustes">
     <Recolhivel titulo="Todos os ajustes de saldo" icone="relogio" preferencia="financeiro.ajustesDeSaldo">
@@ -115,8 +140,8 @@ export default function Financeiro() {
     : 'Nenhuma conta ainda. Crie as contas do escritório, cada uma com o saldo inicial, para começar.';
 
   // As contas ficam sempre no mesmo lugar: criar a primeira não pode fechar o formulário da segunda.
-  // "Novo lançamento" é a ação principal da página (no cabeçalho e na tecla N, #86), quando há uma conta para lançar.
-  const acao = conta ? { rotulo: 'Novo lançamento', aoClicar: () => setAberto({ o: 'novo' }) } : undefined;
+  // O ajuste de saldo é a ação principal da página (no cabeçalho e na tecla N, #86), quando há uma conta para ajustar.
+  const acao = conta ? { rotulo: ROTULO_DO_AJUSTE, aoClicar: () => setAberto({ o: 'ajuste' }) } : undefined;
   return <PaginaModulo {...cabecalho} contador={conta?.nome} acao={acao}>
     <AbasDoFinanceiro />
     {!conta ? <Vazio>{vazio}</Vazio> : <>
@@ -136,7 +161,8 @@ export default function Financeiro() {
     {conta.tem_das && (dasAtual === null ? <Aviso tipo="info">Nenhum DAS lançado até este mês. Lance o percentual em "DAS de cada mês".</Aviso>
       : dasAtual.aviso ? <Aviso tipo="info">{dasAtual.aviso}</Aviso> : <Nota>DAS deste mês: {dasAtual.aliquota.toLocaleString('pt-BR')}%.</Nota>)}
 
-    {aberto?.o === 'novo' && <FormLancamento inicial={lancamentoNovo(contaAtual, dataNova)} contas={ativas} aoTerminar={mudou} aoCancelar={() => setAberto(null)} />}
+    {aberto?.o === 'ajuste' && <FormLancamento inicial={ajusteNovo(contaAtual, dataNova)} categorias={CATEGORIAS_DO_AJUSTE_NOVO} titulo={TITULO_DO_AJUSTE_NOVO} contas={ativas}
+      aoTerminar={mudou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormLancamento key={aberto.lancamento.id} alvo={aberto.lancamento} inicial={formDoLancamento(aberto.lancamento)} contas={ativas} aoTerminar={mudou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <Recolhivel titulo="Histórico deste lançamento" icone="relogio" preferencia="financeiro.historico">
       <HistoricoDoCartao key={aberto.lancamento.id} carregar={() => SD.financeiroHistorico(aberto.lancamento.id)} campos={CAMPOS_DO_LANCAMENTO} valor={valorNoHistorico} versao={versao} />
@@ -162,13 +188,10 @@ export default function Financeiro() {
           <td className="financeiro-num">{l.tipo === 'entrada' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{l.tipo === 'saida' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{fimDoDia ? <b>{fmtCentavos(saldo)}</b> : fmtCentavos(saldo)}</td>
-          <td>{l.origem ? <span className="financeiro-origem">{ORIGEM_DO_LANCAMENTO[l.origem]}</span> : <span className="financeiro-acoes">
-            {!l.par_id && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o lançamento ${l.descricao}`} onClick={() => setAberto({ o: 'mudar', lancamento: l })}><Icone nome="editar" tam={13} /> Mudar</button>}
-            <BotaoDuplo pequeno variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={() => excluir(l)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>
-          </span>}</td>
+          <td>{ACOES_DA_LINHA[ondeMuda(l)](l)}</td>
         </tr>)}</tbody>
       </table></div> : <Vazio>Nenhum lançamento nesta conta neste mês.</Vazio>}
-      <Nota>O saldo em negrito é o do fim de cada dia: compare com o extrato do banco.</Nota>
+      <Nota>O saldo em negrito é o do fim de cada dia: compare com o extrato do banco. As entradas e saídas se lançam e mudam no Financeiro.</Nota>
     </>}
     </>}
 

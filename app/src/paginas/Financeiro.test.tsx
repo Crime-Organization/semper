@@ -14,7 +14,7 @@ const abrir = () => render(<MemoryRouter initialEntries={['/financeiro/']}><Rout
   <Route path="/inicio/" element={<p>Início</p>} />
 </Routes></MemoryRouter>);
 
-describe('Quem não pode abrir o caixa', () => {
+describe('Quem não pode abrir Contas, DAS e sócios', () => {
   beforeEach(() => { sessao.ctx = { ehAdmin: false, escritorio: { modulos: { financeiro: true } } }; });
 
   it('quando quem abre não é administrador, então volta ao início, sem ver o caixa', () => {
@@ -22,7 +22,7 @@ describe('Quem não pode abrir o caixa', () => {
     abrir();
     // Então
     expect(screen.getByText('Início')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Caixa' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: /Contas, DAS e sócios/ })).toBeNull();
   });
 
   it('quando o escritório não tem o módulo ligado, então o administrador também volta ao início', () => {

@@ -1,6 +1,6 @@
 // As quatro abas do Financeiro. Entradas e Saídas: o que já entrou e saiu das contas. Direitos e Obrigações: o que ainda vai entrar e
 // sair (as parcelas a receber e o que falta pagar).
-// Saídas é só do administrador. As telas de detalhe (Caixa por conta, Lucro dos sócios, Meus valores) mostram as mesmas abas, para voltar.
+// Saídas é só do administrador. As telas de detalhe (Contas, DAS e sócios; Lucro dos sócios; Meus valores; Conferência) mostram as mesmas abas, para voltar.
 import { useLocation } from 'react-router';
 import { NavegacaoEmAbas } from '../../ui/base';
 import { useCtx } from '../../ui/sessao';

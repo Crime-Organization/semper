@@ -88,7 +88,7 @@ test.describe('Lucro dos sócios', () => {
     await expect(pagamentos).toContainText('MAURO TEIXEIRA');
 
     // E no caixa ela aparece como divisão de lucro, sem poder mudar por lá
-    await abrirNoFinanceiro(page, 'Caixa');
+    await abrirNoFinanceiro(page, 'Contas, DAS e sócios');
     const saida = page.getByRole('row').filter({ hasText: 'Divisão de lucro a' });
     await expect(saida).toContainText('Divisão de lucro');
     await expect(saida).toContainText('Veio do lucro dos sócios');
@@ -157,9 +157,16 @@ test.describe('Lucro dos sócios', () => {
     await repasse.getByLabel('Valor').fill('500,00');
     await repasse.getByRole('button', { name: 'Lançar repasse' }).click();
     await expect(repasse).toHaveCount(0);
-    // Então: o lançamento à mão não oferece a categoria
-    await page.getByRole('button', { name: 'Novo lançamento' }).click();
-    await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Categoria').getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
+    // Então: o lançamento à mão não oferece a categoria, nem no ajuste de saldo daqui, nem na saída do Financeiro (onde se lança desde a #331)
+    await page.getByRole('button', { name: 'Ajuste de saldo' }).click();
+    const ajuste = page.getByRole('form', { name: 'Novo ajuste de saldo' }).getByLabel('Categoria');
+    await expect(ajuste.getByRole('option')).toHaveCount(2);
+    await expect(ajuste.getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
+    await page.goto('/financeiro/saidas/');
+    await page.getByRole('button', { name: 'Nova saída' }).click();
+    const tipo = page.getByRole('form', { name: 'Nova saída' }).getByLabel('Tipo');
+    await expect(tipo.getByRole('option', { name: 'Despesa' })).toHaveCount(1);
+    await expect(tipo.getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
     // E o em aberto continua o mesmo
     await abrirNoFinanceiro(page, 'Lucro dos sócios');
     await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MAURO TEIXEIRA' }).getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));

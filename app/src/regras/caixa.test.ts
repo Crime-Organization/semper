@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
-  centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
+  ajusteNovo, CATEGORIAS_DO_AJUSTE_NOVO, ondeMuda, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
   nomeDaCategoria, paraCentavos, partesDoDinheiro, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
   CONTA_COM_LANCAMENTOS, CONTA_COM_REPASSES, CONTA_NAO_ARQUIVADA, motivoParaNaoExcluirConta, type FormDoLancamento } from './caixa';
 import { normal } from './texto';
@@ -214,6 +214,27 @@ describe('Ajuste de saldo', () => {
     expect(rotuloDaCategoria('despesa')).toBe('Despesa (saída)');
     expect(ehAjuste('despesa')).toBe(false);
     expect(ehAjuste('transferencia')).toBe(false);
+  });
+
+  it('dado o ajuste novo da página das contas (#331), quando abre, então começa num ajuste, e a lista só oferece os dois ajustes', () => {
+    // Quando
+    const form = ajusteNovo('c1', HOJE);
+    // Então
+    expect(form).toEqual({ contaId: 'c1', data: HOJE, categoria: 'ajuste_a_mais', valor: '', descricao: '' });
+    expect(CATEGORIAS_DO_AJUSTE_NOVO).toEqual(['ajuste_a_mais', 'ajuste_a_menos']);
+    expect(CATEGORIAS_DO_AJUSTE_NOVO.every(ehAjuste)).toBe(true);
+  });
+
+  it.each([
+    ['nasceu de uma parcela', { origem: 'recebimento' as const, par_id: null, categoria: 'recebimento' as const }, 'na_origem'],
+    ['nasceu do lucro', { origem: 'lucro' as const, par_id: null, categoria: 'divisao_lucro' as const }, 'na_origem'],
+    ['é um repasse entre contas', { origem: null, par_id: 'l2', categoria: 'transferencia' as const }, 'repasse_entre_contas'],
+    ['é um ajuste de saldo', { origem: null, par_id: null, categoria: 'ajuste_a_menos' as const }, 'ajuste'],
+    ['é uma saída comum', { origem: null, par_id: null, categoria: 'despesa' as const }, 'no_financeiro'],
+    ['tem uma categoria que esta versão não conhece', { origem: null, par_id: null, categoria: 'categoria_mais_nova' as never }, 'no_financeiro']
+  ])('dado um lançamento que %s, quando aparece no extrato da página das contas (#331), então muda em %s', (_, l, onde) => {
+    // Quando / Então
+    expect(ondeMuda(l)).toBe(onde);
   });
 
   it('dado um ajuste sem motivo, quando confere, então pede o motivo; nas outras categorias o texto continua o mesmo', () => {

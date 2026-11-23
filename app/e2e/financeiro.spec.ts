@@ -1,10 +1,14 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O caixa do escritório. Quem está logado é o Mauro (administrador). O banco fictício começa sem contas.
+// O Financeiro e a página "Contas, DAS e sócios". Quem está logado é o Mauro (administrador). O banco fictício começa sem contas.
+// Desde a #331 (aprovado pelo dono em 22/11/2026), as entradas e saídas comuns se lançam, mudam e excluem no Financeiro; a página das
+// contas (o Caixa antigo) ficou com o extrato e o saldo do dia, o ajuste de saldo, o repasse entre contas, as contas, o DAS e os sócios.
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
 /** O valor em reais como a tela mostra (o espaço depois do R$ pode ser o fino, do navegador). */
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
+/** O dia dos testes que usam os meses do Financeiro: o ano que ele mostra é o de hoje. */
+const DIA_DOS_TESTES = new Date('2026-11-22T12:00:00-03:00');
 
 /** Cria as contas PJ (recolhe DAS, com saldo) e PF, a partir de janeiro. */
 async function criarContas(page: Page) {
@@ -21,19 +25,35 @@ async function criarContas(page: Page) {
     await expect(form).toHaveCount(0);
   }
 }
-async function lancar(page: Page, { categoria, valor, descricao, data }: { categoria: string; valor: string; descricao: string; data: string }) {
-  await page.getByRole('button', { name: 'Novo lançamento' }).click();
-  const form = page.getByRole('form', { name: 'Novo lançamento' });
-  await form.getByLabel('Data').fill(data);
-  await form.getByLabel('Categoria').selectOption({ label: categoria });
-  await form.getByLabel('Valor').fill(valor);
-  await form.getByLabel('Descrição').fill(descricao);
-  await form.getByRole('button', { name: 'Lançar' }).click();
-  await expect(form).toHaveCount(0);
+
+/** Como se lança cada tipo no Financeiro: os botões até o formulário, o nome dele, o do botão que registra e o aviso. */
+const LANCAR_NO_FINANCEIRO = {
+  entrada: { abrir: ['Nova entrada', 'Entrada sem contrato'], form: 'Entrada sem contrato', registrar: 'Registrar entrada', aviso: 'Entrada registrada em' },
+  saida: { abrir: ['Nova saída'], form: 'Nova saída', registrar: 'Registrar saída', aviso: 'Saída registrada em' }
+} as const;
+type TipoNoFinanceiro = keyof typeof LANCAR_NO_FINANCEIRO;
+
+/** Abre o formulário de uma entrada sem contrato ou de uma saída, no Financeiro. */
+async function abrirLancamento(page: Page, tipo: TipoNoFinanceiro) {
+  await page.goto('/financeiro/');
+  for (const botao of LANCAR_NO_FINANCEIRO[tipo].abrir) await page.getByRole('button', { name: botao, exact: true }).click();
+  return page.getByRole('form', { name: LANCAR_NO_FINANCEIRO[tipo].form });
 }
+/** Lança uma entrada sem contrato ou uma saída comum no Financeiro (onde se lançam desde a #331) e fecha a janela. */
+async function lancar(page: Page, { tipo, valor, descricao, data, conta = 'PJ' }: { tipo: TipoNoFinanceiro; valor: string; descricao: string; data: string; conta?: string }) {
+  const form = await abrirLancamento(page, tipo);
+  await form.getByLabel('Data').fill(data);
+  await form.getByLabel('Valor').fill(valor);
+  await form.getByLabel('Conta').selectOption({ label: conta });
+  await form.getByLabel('Descrição').fill(descricao);
+  await form.getByRole('button', { name: LANCAR_NO_FINANCEIRO[tipo].registrar }).click();
+  await expect(page.getByText(`${LANCAR_NO_FINANCEIRO[tipo].aviso} ${conta}.`)).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar' }).click();
+}
+/** O ajuste de saldo, que continua na página das contas: o botão do cabeçalho abre o formulário. */
 async function lancarAjuste(page: Page, { categoria, valor, motivo, data }: { categoria: string; valor: string; motivo: string; data: string }) {
-  await page.getByRole('button', { name: 'Novo lançamento' }).click();
-  const form = page.getByRole('form', { name: 'Novo lançamento' });
+  await page.getByRole('button', { name: 'Ajuste de saldo' }).click();
+  const form = page.getByRole('form', { name: 'Novo ajuste de saldo' });
   await form.getByLabel('Data').fill(data);
   await form.getByLabel('Categoria').selectOption({ label: categoria });
   await form.getByLabel('Valor').fill(valor);
@@ -42,36 +62,51 @@ async function lancarAjuste(page: Page, { categoria, valor, motivo, data }: { ca
   await expect(form).toHaveCount(0);
 }
 const irParaMes = (page: Page, mes: string) => page.getByLabel('Mês', { exact: true }).first().fill(mes);
+/** Abre a página das contas num mês. */
+async function contasNoMes(page: Page, mes: string) {
+  await page.goto('/financeiro/contas/');
+  await irParaMes(page, mes);
+}
+/** No Financeiro, escolhe o mês do ano (Jan, Fev…). */
+const mesNoFinanceiro = (page: Page, mes: string) => page.getByRole('group', { name: 'Mês' }).getByRole('button', { name: mes, exact: true }).click();
 
-test.describe('Caixa', () => {
-  test('quando não há contas, então o Financeiro leva às contas, que pedem para criar; ao criar, mostra o caixa da conta', async ({ page }) => {
+test.describe('Contas, DAS e sócios', () => {
+  test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(DIA_DOS_TESTES); });
+
+  test('quando não há contas, então o Financeiro leva às contas, que pedem para criar; ao criar, mostra o extrato da conta, sem lançar entradas e saídas por ali', async ({ page }) => {
     // Dado
     await page.goto('/inicio/');
     // Quando: o menu leva ao Financeiro, e o link Contas e DAS, às contas
     await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Financeiro', exact: true }).click();
     await page.getByRole('link', { name: 'Contas e DAS' }).click();
     // Então
+    await expect(page.getByRole('heading', { name: /^Contas, DAS e sócios/ })).toBeVisible();
     await expect(page.getByText('Nenhuma conta ainda.', { exact: false })).toBeVisible();
     // Quando
     await criarContas(page);
     // Então
     await expect(page.getByRole('combobox', { name: 'Conta' })).toHaveValue(/.+/);
     await expect(page.getByRole('list', { name: 'Contas do escritório' })).toContainText('PJ (recolhe DAS)');
+    await expect(page.getByRole('button', { name: 'Novo lançamento' })).toHaveCount(0);
   });
 
-  test('quando lança entrada e saída, então o saldo acompanha, e o resumo do mês fecha', async ({ page }) => {
+  test('quando lança entrada e saída no Financeiro, então o saldo das contas acompanha, e o resumo do mês fecha', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await irParaMes(page, '2026-03');
     // Quando
-    await lancar(page, { categoria: 'Recebimento de cliente (entrada)', valor: '500,00', descricao: 'Honorários do cliente', data: '2026-03-10' });
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '200,50', descricao: 'Conta de luz', data: '2026-03-11' });
+    await lancar(page, { tipo: 'entrada', valor: '500,00', descricao: 'Honorários do cliente', data: '2026-03-10' });
+    await lancar(page, { tipo: 'saida', valor: '200,50', descricao: 'Conta de luz', data: '2026-03-11' });
+    await contasNoMes(page, '2026-03');
     // Então
     const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
     await expect(tabela.getByRole('row').filter({ hasText: 'Honorários do cliente' })).toContainText('1.500,00');
     await expect(tabela.getByRole('row').filter({ hasText: 'Conta de luz' })).toContainText('1.299,50');
     const resumo = page.getByRole('definition').filter({ hasText: '1.299,50' });
     await expect(resumo).toBeVisible();
+    // Então: cada uma leva à aba dela no Financeiro, onde muda
+    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Honorários do cliente em Entradas, no Financeiro' })).toHaveAttribute('href', '/financeiro/');
+    await expect(tabela.getByRole('link', { name: 'Mudar o lançamento Conta de luz em Saídas, no Financeiro' })).toHaveAttribute('href', '/financeiro/saidas/');
+    await expect(tabela.getByRole('button')).toHaveCount(0);
     // Quando: o mês seguinte começa de onde este parou
     await irParaMes(page, '2026-04');
     // Então
@@ -82,9 +117,9 @@ test.describe('Caixa', () => {
   test('quando lança um ajuste de saldo, então o saldo muda, e o resumo mostra o ajuste à parte das entradas e saídas', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await irParaMes(page, '2026-03');
+    await lancar(page, { tipo: 'entrada', valor: '500,00', descricao: 'Honorários do cliente', data: '2026-03-10' });
+    await contasNoMes(page, '2026-03');
     const resumo = page.getByLabel('Resumo do mês');
-    await lancar(page, { categoria: 'Recebimento de cliente (entrada)', valor: '500,00', descricao: 'Honorários do cliente', data: '2026-03-10' });
     // Então: sem ajuste, a linha não aparece
     await expect(resumo).toBeVisible();
     await expect(resumo.getByText('Ajustes de saldo')).toHaveCount(0);
@@ -111,12 +146,12 @@ test.describe('Caixa', () => {
     await expect(resumo.getByText('Ajustes de saldo')).toHaveCount(0);
   });
 
-  test('quando escolhe um ajuste sem dizer o motivo, então o campo pede o motivo e não lança', async ({ page }) => {
+  test('quando escolhe um ajuste sem dizer o motivo, então o campo pede o motivo e não lança; e o ajuste só oferece os dois ajustes', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await page.getByRole('button', { name: 'Novo lançamento' }).click();
-    const form = page.getByRole('form', { name: 'Novo lançamento' });
-    await expect(form.getByLabel('Descrição')).toBeVisible();
+    await page.getByRole('button', { name: 'Ajuste de saldo' }).click();
+    const form = page.getByRole('form', { name: 'Novo ajuste de saldo' });
+    await expect(form.getByLabel('Categoria').getByRole('option')).toHaveText(['Ajuste de saldo (a mais)', 'Ajuste de saldo (a menos)']);
     // Quando
     await form.getByLabel('Categoria').selectOption({ label: 'Ajuste de saldo (a menos)' });
     await form.getByLabel('Valor').fill('10,00');
@@ -167,10 +202,10 @@ test.describe('Caixa', () => {
   test('quando confere na auditoria, então todos os ajustes aparecem juntos, de todas as contas e meses', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await irParaMes(page, '2026-02');
+    await lancar(page, { tipo: 'saida', valor: '10,00', descricao: 'Papel', data: '2026-03-05' });
+    await contasNoMes(page, '2026-02');
     await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '100,00', motivo: 'Diferença de fevereiro', data: '2026-02-10' });
     await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-05' });
     await page.getByRole('combobox', { name: 'Conta' }).selectOption({ label: 'PF' });
     await lancarAjuste(page, { categoria: 'Ajuste de saldo (a menos)', valor: '30,00', motivo: 'Diferença de março', data: '2026-03-10' });
     // Quando
@@ -205,11 +240,10 @@ test.describe('Caixa', () => {
     expect(largura.pagina).toBeLessThanOrEqual(largura.tela);
   });
 
-  test('dado um lançamento com categoria que esta versão não conhece, quando abre o caixa, então a tela funciona e dá para excluir', async ({ page }) => {
+  test('dado um lançamento com categoria que esta versão não conhece, quando abre as contas e o Financeiro, então as telas funcionam e dá para excluir', async ({ page }) => {
     // Dado: é o que acontece ao voltar a versão do site depois que o banco ganhou uma categoria nova
     await criarContas(page);
-    await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await lancar(page, { tipo: 'saida', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
     await page.evaluate(() => {
       const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
       bd.lancamentos[0].categoria = 'categoria_mais_nova';
@@ -217,71 +251,88 @@ test.describe('Caixa', () => {
     });
     // Quando
     await page.reload();
-    await irParaMes(page, '2026-03');
+    await contasNoMes(page, '2026-03');
     // Então
     const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
     await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('categoria_mais_nova');
     await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('990,00');
-    // Quando
-    await page.getByRole('button', { name: 'Mudar o lançamento Papel' }).click();
+    // Quando: a linha leva à aba Saídas do Financeiro, onde ela muda
+    await tabela.getByRole('link', { name: 'Mudar o lançamento Papel em Saídas, no Financeiro' }).click();
+    await mesNoFinanceiro(page, 'Mar');
+    await page.getByRole('button', { name: 'Abrir o lançamento: Papel' }).click();
+    const janela = page.getByRole('dialog', { name: 'Lançamento' });
+    await janela.getByRole('button', { name: 'Editar lançamento' }).click();
     // Então: o formulário mostra a categoria que está guardada, não a primeira da lista
-    await expect(page.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Categoria')).toHaveValue('categoria_mais_nova');
-    await page.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(janela.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Categoria')).toHaveValue('categoria_mais_nova');
+    await janela.getByRole('button', { name: 'Cancelar' }).click();
     // Quando
-    await tabela.getByRole('button', { name: 'Excluir' }).click();
-    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    await janela.getByRole('button', { name: 'Excluir' }).click();
+    await janela.getByRole('button', { name: 'Confirmar: excluir' }).click();
     // Então
+    await expect(page.getByText('Nenhuma saída neste período.')).toBeVisible();
+    await contasNoMes(page, '2026-03');
     await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
   });
 
   test('quando esquece um campo, então avisa e não lança', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await page.getByRole('button', { name: 'Novo lançamento' }).click();
-    const form = page.getByRole('form', { name: 'Novo lançamento' });
+    const form = await abrirLancamento(page, 'saida');
     // Quando
-    await form.getByRole('button', { name: 'Lançar' }).click();
+    await form.getByRole('button', { name: 'Registrar saída' }).click();
     // Então
     await expect(form.getByText('Informe o valor.')).toBeVisible();
     await expect(form.getByText('Diga do que se trata.')).toBeVisible();
   });
 
-  test('quando muda um lançamento, então o saldo muda, o histórico registra, e desfazer volta', async ({ page }) => {
+  test('quando muda um lançamento no Financeiro, então o saldo das contas muda, o histórico registra, e desfazer volta', async ({ page }) => {
     // Dado
     await criarContas(page);
+    await lancar(page, { tipo: 'entrada', valor: '100,00', descricao: 'Reembolso', data: '2026-03-10' });
+    await mesNoFinanceiro(page, 'Mar');
+    // Quando
+    await page.getByRole('button', { name: 'Abrir o lançamento: Reembolso' }).click();
+    const janela = page.getByRole('dialog', { name: 'Lançamento' });
+    await abrirSecao(janela, 'Histórico deste lançamento');
+    await janela.getByRole('button', { name: 'Editar lançamento' }).click();
+    await janela.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Valor').fill('150,00');
+    await janela.getByRole('button', { name: 'Salvar lançamento' }).click();
+    await expect(janela).toHaveCount(0);
+    // Então: na página das contas (aberta pelo botão, sem recarregar), o saldo mudou
+    await page.getByRole('link', { name: 'Contas e DAS' }).click();
+    await expect(page.getByRole('heading', { name: /^Contas, DAS e sócios/ })).toBeVisible();
     await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Outra entrada (entrada)', valor: '100,00', descricao: 'Reembolso', data: '2026-03-10' });
     const linha = page.getByRole('table', { name: 'Lançamentos do mês' }).getByRole('row').filter({ hasText: 'Reembolso' });
-    // Quando
-    await page.getByRole('button', { name: 'Mudar o lançamento Reembolso' }).click();
-    const form = page.getByRole('form', { name: 'Mudar lançamento' });
-    await abrirSecao(page, 'Histórico deste lançamento');
-    await form.getByLabel('Valor').fill('150,00');
-    await form.getByRole('button', { name: 'Salvar lançamento' }).click();
-    // Então
     await expect(linha).toContainText('1.150,00');
-    // Quando: abre de novo
-    await page.getByRole('button', { name: 'Mudar o lançamento Reembolso' }).click();
-    // Então: o histórico mostra como estava e como ficou
-    await expect(page.getByText(/R\$\s100,00/).first()).toBeVisible();
-    await expect(page.getByText(/R\$\s150,00/).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Cancelar' }).click();
-    // Quando
-    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Quando: desfaz (Ctrl+Z, fora de um campo)
+    await page.getByRole('heading', { name: /^Contas, DAS e sócios/ }).click();
+    await page.keyboard.press('Control+z');
     // Então
     await expect(linha).toContainText('1.100,00');
+    // Quando: abre de novo no Financeiro
+    await linha.getByRole('link', { name: /^Mudar o lançamento Reembolso em Entradas/ }).click();
+    await mesNoFinanceiro(page, 'Mar');
+    await page.getByRole('button', { name: 'Abrir o lançamento: Reembolso' }).click();
+    // Então: o histórico mostra como estava e como ficou
+    const historico = page.getByRole('dialog', { name: 'Lançamento' }).getByRole('listitem').filter({ hasText: 'Valor:' });
+    await expect(historico.first()).toContainText(/R\$\s100,00/);
+    await expect(historico.first()).toContainText(/R\$\s150,00/);
   });
 
-  test('quando exclui um lançamento, então ele some, e desfazer traz de volta', async ({ page }) => {
+  test('quando exclui um lançamento no Financeiro, então ele some das contas, e desfazer traz de volta', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
-    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    await lancar(page, { tipo: 'saida', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await page.goto('/financeiro/saidas/');
+    await mesNoFinanceiro(page, 'Mar');
     // Quando
-    await tabela.getByRole('button', { name: 'Excluir' }).click();
-    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
-    // Então
+    await page.getByRole('button', { name: 'Abrir o lançamento: Papel' }).click();
+    await page.getByRole('dialog', { name: 'Lançamento' }).getByRole('button', { name: 'Excluir' }).click();
+    await page.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então: na página das contas (aberta pelo botão, sem recarregar), ele sumiu
+    await page.getByRole('link', { name: 'Contas e DAS' }).click();
+    await expect(page.getByRole('heading', { name: /^Contas, DAS e sócios/ })).toBeVisible();
+    await irParaMes(page, '2026-03');
     await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
@@ -340,18 +391,18 @@ test.describe('Caixa', () => {
     await expect(page.getByText('O DAS deste mês ainda não foi lançado. Está valendo o de 03/2026.')).toBeVisible();
   });
 
-  test('quando abre "Mudar" de outro lançamento com o formulário aberto, então ele mostra o outro, e salvar não troca um pelo outro', async ({ page }) => {
+  test('quando abre "Mudar" de outro ajuste com o formulário aberto, então ele mostra o outro, e salvar não troca um pelo outro', async ({ page }) => {
     // Dado
     await criarContas(page);
     await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Outra entrada (entrada)', valor: '150,00', descricao: 'Primeiro', data: '2026-03-10' });
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '99,00', descricao: 'Segundo', data: '2026-03-20' });
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '150,00', motivo: 'Primeiro', data: '2026-03-10' });
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a menos)', valor: '99,00', motivo: 'Segundo', data: '2026-03-20' });
     // Quando
     await page.getByRole('button', { name: 'Mudar o lançamento Primeiro' }).click();
     await page.getByRole('button', { name: 'Mudar o lançamento Segundo' }).click();
     const form = page.getByRole('form', { name: 'Mudar lançamento' });
     // Então
-    await expect(form.getByLabel('Descrição')).toHaveValue('Segundo');
+    await expect(form.getByLabel('Motivo do ajuste')).toHaveValue('Segundo');
     await expect(form.getByLabel('Valor')).toHaveValue('99,00');
     // Quando
     await form.getByRole('button', { name: 'Salvar lançamento' }).click();
@@ -362,34 +413,34 @@ test.describe('Caixa', () => {
     await expect(tabela).toContainText('Segundo');
   });
 
-  test('dadas as contas criadas, quando a pessoa aperta "N" fora de um campo, então abre o Novo lançamento, como o botão do cabeçalho (#86)', async ({ page }) => {
+  test('dadas as contas criadas, quando a pessoa aperta "N" fora de um campo, então abre o ajuste de saldo, como o botão do cabeçalho (#86)', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await expect(page.getByRole('button', { name: 'Novo lançamento' })).toHaveAttribute('title', 'Novo lançamento (N)');
-    await page.getByRole('heading', { name: 'Caixa' }).click();
+    await expect(page.getByRole('button', { name: 'Ajuste de saldo' })).toHaveAttribute('title', 'Ajuste de saldo (N)');
+    await page.getByRole('heading', { name: /^Contas, DAS e sócios/ }).click();
     // Quando
     await page.keyboard.press('n');
     // Então
-    await expect(page.getByRole('form', { name: 'Novo lançamento' })).toBeVisible();
+    await expect(page.getByRole('form', { name: 'Novo ajuste de saldo' })).toBeVisible();
   });
 
-  test('quando apaga o campo do mês e clica em "Novo lançamento", então nada quebra', async ({ page }) => {
+  test('quando apaga o campo do mês e clica em "Ajuste de saldo", então nada quebra', async ({ page }) => {
     // Dado
     await criarContas(page);
     await irParaMes(page, '2026-03');
     // Quando
     await page.getByLabel('Mês', { exact: true }).first().fill('');
-    await page.getByRole('button', { name: 'Novo lançamento' }).click();
+    await page.getByRole('button', { name: 'Ajuste de saldo' }).click();
     // Então
-    await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Data')).toHaveValue('01/03/2026');   // o campo de data mostra dd/mm/aaaa (#357)
+    await expect(page.getByRole('form', { name: 'Novo ajuste de saldo' }).getByLabel('Data')).toHaveValue('01/03/2026');   // o campo de data mostra dd/mm/aaaa (#357)
   });
 
-  test('quando exclui o lançamento que está sendo mudado, então o formulário fecha', async ({ page }) => {
+  test('quando exclui o ajuste que está sendo mudado, então o formulário fecha', async ({ page }) => {
     // Dado
     await criarContas(page);
     await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
-    await page.getByRole('button', { name: 'Mudar o lançamento Papel' }).click();
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a menos)', valor: '10,00', motivo: 'Tarifa', data: '2026-03-10' });
+    await page.getByRole('button', { name: 'Mudar o lançamento Tarifa' }).click();
     const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
     // Quando
     await tabela.getByRole('button', { name: 'Excluir', exact: true }).click();
@@ -401,12 +452,11 @@ test.describe('Caixa', () => {
   test('quando digita o ponto de milhar fora do lugar, então recusa, em vez de multiplicar o valor', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await page.getByRole('button', { name: 'Novo lançamento' }).click();
-    const form = page.getByRole('form', { name: 'Novo lançamento' });
+    const form = await abrirLancamento(page, 'saida');
     // Quando
     await form.getByLabel('Valor').fill('15.00,00');
     await form.getByLabel('Descrição').fill('Erro');
-    await form.getByRole('button', { name: 'Lançar' }).click();
+    await form.getByRole('button', { name: 'Registrar saída' }).click();
     // Então
     await expect(form.getByText('Use um valor como 1.500,00.')).toBeVisible();
   });
@@ -433,8 +483,8 @@ test.describe('Caixa', () => {
   test('quando arquiva uma conta sem lançamentos, então a lixeira a exclui no segundo clique; a que tem lançamentos explica por que não (#347)', async ({ page }) => {
     // Dado: a PJ com um lançamento, e as duas arquivadas
     await criarContas(page);
-    await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await lancar(page, { tipo: 'saida', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await contasNoMes(page, '2026-03');
     await page.getByRole('button', { name: 'Arquivar a conta PF' }).click();
     await page.getByRole('button', { name: 'Arquivar a conta PJ' }).click();
     const contas = page.getByRole('list', { name: 'Contas do escritório' });
@@ -456,8 +506,8 @@ test.describe('Caixa', () => {
   test('quando muda o início da conta para depois de um lançamento, então recusa; o saldo inicial fica registrado', async ({ page }) => {
     // Dado
     await criarContas(page);
-    await irParaMes(page, '2026-03');
-    await lancar(page, { categoria: 'Outra entrada (entrada)', valor: '10,00', descricao: 'Algo', data: '2026-03-10' });
+    await lancar(page, { tipo: 'entrada', valor: '10,00', descricao: 'Algo', data: '2026-03-10' });
+    await contasNoMes(page, '2026-03');
     await page.getByRole('button', { name: 'Mudar a conta PJ' }).click();
     const form = page.getByRole('form', { name: 'Mudar conta' });
     // Quando
@@ -493,13 +543,56 @@ test.describe('Caixa', () => {
 // com as abas Entradas, Saídas, Direitos e Obrigações.
 test('quando a pessoa abre o menu, então o Financeiro é um link só, que leva à página com as quatro abas', async ({ page }) => {
   // Quando
-  await page.goto('/parcelas/');
+  await page.goto('/inicio/');
   const secoes = page.getByRole('navigation', { name: 'Seções' });
   await expect(secoes.getByRole('button', { name: 'Financeiro' })).toHaveCount(0);
   await secoes.getByRole('link', { name: 'Financeiro', exact: true }).click();
   // Então
   const abas = page.getByRole('navigation', { name: 'Abas do financeiro' });
   for (const aba of ['Entradas', 'Saídas', 'Direitos', 'Obrigações']) await expect(abas.getByRole('link', { name: aba, exact: true })).toBeVisible();
+});
+
+// As telas que ficaram fora das abas abrem por botões no alto do Financeiro (#331, aprovado pelo dono em 22/11/2026).
+test.describe('As outras telas do Financeiro', () => {
+  const outras = (page: Page) => page.getByRole('navigation', { name: 'Outras telas do Financeiro' });
+
+  test('dado o administrador, quando abre o Financeiro, então os botões do alto levam a Meus valores, à Conferência e ao Lucro dos sócios', async ({ page }) => {
+    // Quando
+    await page.goto('/financeiro/');
+    // Então
+    await expect(outras(page).getByRole('link')).toHaveText(['Meus valores', 'Conferência', 'Lucro dos sócios']);
+    for (const [botao, endereco, titulo] of [['Meus valores', /\/meus-valores\/$/, /^Meus valores/], ['Conferência', /\/conferencia\/$/, /^Conferência/], ['Lucro dos sócios', /\/lucros\/$/, /^Lucro dos sócios/]] as const) {
+      // Quando
+      await page.goto('/financeiro/');
+      await outras(page).getByRole('link', { name: botao }).click();
+      // Então
+      await expect(page).toHaveURL(endereco);
+      await expect(page.getByRole('heading', { name: titulo })).toBeVisible();
+    }
+  });
+
+  test('dado quem não é administrador, quando abre o Financeiro, então vê Meus valores e a Conferência, sem o Lucro dos sócios', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo('u-bruno'));
+    // Quando
+    await page.goto('/financeiro/');
+    // Então
+    await expect(outras(page).getByRole('link')).toHaveText(['Meus valores', 'Conferência']);
+  });
+});
+
+// Os endereços que mudaram de lugar levam para sempre à página nova (#331): os favoritos e os links antigos continuam valendo.
+test.describe('Os endereços antigos do Financeiro', () => {
+  for (const [antigo, novo] of [['/parcelas/', /\/financeiro\/direitos\/$/], ['/financeiro/receitas/', /\/financeiro\/direitos\/$/], ['/financeiro/despesas/', /\/financeiro\/obrigacoes\/$/]] as const) {
+    test(`quando alguém abre ${antigo}, então vai para a página nova, com as abas do Financeiro`, async ({ page }) => {
+      // Quando
+      await page.goto(antigo);
+      // Então
+      await expect(page).toHaveURL(novo);
+      await expect(page.getByRole('navigation', { name: 'Abas do financeiro' })).toBeVisible();
+    });
+  }
 });
 
 test.describe('A janela de cada lançamento', () => {
