@@ -85,11 +85,34 @@ update public.quadro_colunas set grupo_id = null where grupo_id = (select id fro
   where escritorio_id = 'e4060000-0000-0000-0000-000000000002' and modulo = 'processos_administrativos' and nome = 'Análise');
 delete from public.quadro_grupos where escritorio_id = 'e4060000-0000-0000-0000-000000000002' and modulo = 'processos_administrativos' and nome = 'Análise';
 
+-- Dois escritórios de antes, só para os grupos: o C renomeou "Exigências e manifestações" para "Pendências" e esvaziou "Análise"
+-- (passou "Aguardando decisão" para "Decisão", mantendo o grupo); o D apagou todos os grupos do quadro administrativo.
+set local session_replication_role = replica;
+insert into public.escritorios (id, nome, slug) values
+  ('e4060000-0000-0000-0000-000000000004', 'Escritório C', 'teste-406-c'),
+  ('e4060000-0000-0000-0000-000000000005', 'Escritório D', 'teste-406-d');
+set local session_replication_role = origin;
+select privado.criar_quadros_de_processos(e.id), privado.grupos_depois_das_colunas(e.id, null),
+  pg_temp.quadro_antigo(e.id, 'processos_extrajudiciais', '[
+  {"nome": "Início", "colunas": ["Aberto", "Reunir documentos"]},
+  {"nome": "Andamento", "colunas": ["Notificação enviada", "Aguardando resposta", "Em negociação", "Minuta em análise"]},
+  {"nome": "Conclusão", "colunas": ["Acordo ou escritura assinada", "Registro ou averbação"]},
+  {"nome": "Encerrado", "colunas": ["Concluído/arquivado"]}]')
+from public.escritorios e where e.id in ('e4060000-0000-0000-0000-000000000004', 'e4060000-0000-0000-0000-000000000005');
+update public.quadro_grupos set nome = 'Pendências' where escritorio_id = 'e4060000-0000-0000-0000-000000000004' and modulo = 'processos_administrativos'
+  and nome = 'Exigências e manifestações';
+update public.quadro_colunas set grupo_id = (select id from public.quadro_grupos where escritorio_id = 'e4060000-0000-0000-0000-000000000004'
+  and modulo = 'processos_administrativos' and nome = 'Decisão')
+where escritorio_id = 'e4060000-0000-0000-0000-000000000004' and modulo = 'processos_administrativos' and nome = 'Aguardando decisão';
+update public.quadro_colunas set grupo_id = null where escritorio_id = 'e4060000-0000-0000-0000-000000000005' and modulo = 'processos_administrativos';
+delete from public.quadro_grupos where escritorio_id = 'e4060000-0000-0000-0000-000000000005' and modulo = 'processos_administrativos';
+
 -- As pessoas, o campo próprio e os processos de antes, gravados direto (sem os gatilhos):
 --   X1: investigação em "Oitiva ou depoimento", com cliente, vítima, andamento, prazo, valor do campo "Delegacia" e histórico;
 --   X2: investigação arquivada em "Arquivado"; X3: extrajudicial em "Aberto"; X4: extrajudicial em "Em negociação";
 --   X5: extrajudicial em "Registro ou averbação"; X6: extrajudicial com o número de um administrativo (AD1); X7: investigação
---   sem coluna; R1: recurso judicial de X1. X9: investigação do B em "Relatório final".
+--   sem coluna; R1: recurso judicial de X1. X9: investigação do B em "Relatório final". XC e XD: extrajudiciais do C e do D em
+--   "Em negociação". X3 foi alterado pela última vez em 02/01/2026, pela Ana.
 set local session_replication_role = replica;
 insert into public.pessoas (id, escritorio_id, codigo, tipo, nome, criado_por) values
   ('14060000-0000-0000-0000-000000000001', 'e4060000-0000-0000-0000-000000000001', 'C1', 'contato', 'CLIENTE TESTE', 'a4060000-0000-0000-0000-000000000001'),
@@ -119,7 +142,13 @@ insert into public.processos (id, escritorio_id, codigo, tipo, numero, responsav
   ('74060000-0000-0000-0000-000000000010', 'e4060000-0000-0000-0000-000000000001', 'R1', 'judicial', 'REC-1', 'a4060000-0000-0000-0000-000000000001', '{14060000-0000-0000-0000-000000000001}',
    'a4060000-0000-0000-0000-000000000001', null, null, '{}', '74060000-0000-0000-0000-000000000001', 'recurso'),
   ('74060000-0000-0000-0000-000000000009', 'e4060000-0000-0000-0000-000000000002', 'X9', 'investigacao', 'IP 9/2026', 'a4060000-0000-0000-0000-000000000002', '{14060000-0000-0000-0000-000000000009}',
-   'a4060000-0000-0000-0000-000000000002', pg_temp.coluna('2', 'processos_investigacoes', 'Relatório final'), null, '{"c4060000-0000-0000-0000-000000000009": "IP 9"}', null, null);
+   'a4060000-0000-0000-0000-000000000002', pg_temp.coluna('2', 'processos_investigacoes', 'Relatório final'), null, '{"c4060000-0000-0000-0000-000000000009": "IP 9"}', null, null),
+  ('74060000-0000-0000-0000-000000000011', 'e4060000-0000-0000-0000-000000000004', 'XC', 'extrajudicial', 'NOT-C', 'a4060000-0000-0000-0000-000000000001', '{14060000-0000-0000-0000-000000000001}',
+   'a4060000-0000-0000-0000-000000000001', pg_temp.coluna('4', 'processos_extrajudiciais', 'Em negociação'), null, '{}', null, null),
+  ('74060000-0000-0000-0000-000000000012', 'e4060000-0000-0000-0000-000000000005', 'XD', 'extrajudicial', 'NOT-D', 'a4060000-0000-0000-0000-000000000001', '{14060000-0000-0000-0000-000000000001}',
+   'a4060000-0000-0000-0000-000000000001', pg_temp.coluna('5', 'processos_extrajudiciais', 'Em negociação'), null, '{}', null, null);
+update public.processos set atualizado_em = '2026-01-02 03:04:05+00', atualizado_por = 'a4060000-0000-0000-0000-000000000001'
+where id = '74060000-0000-0000-0000-000000000003';
 insert into public.processo_clientes (processo_id, pessoa_id, escritorio_id) select p.id, p.clientes[1], p.escritorio_id from public.processos p
 where p.id::text like '74060000-%';
 insert into public.processo_partes (escritorio_id, processo_id, pessoa_id, papel, criado_por) values
@@ -175,14 +204,34 @@ select is((select count(*) from public.quadro_colunas where escritorio_id = 'e40
              and privado.chave_da_coluna(nome) = 'pericia'), 1::bigint, 'Então a coluna de mesmo nome não se repete');
 select is((pg_temp.colunas_do_grupo('1', 'Exigências e manifestações'))[6:], array['Avaliação social', 'PERICIA', 'Oitiva ou depoimento', 'Diligências pendentes',
   'Manifestação da defesa'], 'Então as que faltavam entram no fim do grupo, depois das que o escritório tinha');
--- Então, no B, o início vai para o grupo da coluna do início (o Protocolo renomeado), e o meio sem grupo de mesmo nome vai para o
--- último grupo antes do Encerrado.
+-- Então, no B, o início vai para o grupo renomeado (o das colunas de sempre do Protocolo), a Decisão renomeada também, e o
+-- Análise apagado vai para o grupo da fase de antes (Exigências), sem passar da Decisão.
 select is((pg_temp.colunas_do_grupo('2', 'Entrada'))[3:], array['Instaurado', 'Pedido de acesso aos autos'],
-  'Então, com o Protocolo renomeado, o início entra no grupo da coluna do início');
-select is((pg_temp.colunas_do_grupo('2', 'Concessão e vigência'))[7:], array['Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento'],
-  'Então Análise (apagado) e Decisão (renomeado) entram no último grupo antes do Encerrado');
-select is((pg_temp.colunas_do_grupo('2', 'Exigências e manifestações'))[7:], array['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa'],
-  'Então o grupo de mesmo nome recebe as suas');
+  'Então, com o Protocolo renomeado, o início entra no grupo renomeado');
+select is((pg_temp.colunas_do_grupo('2', 'Julgamento'))[5:], array['Denúncia oferecida', 'Pedido de arquivamento'],
+  'Então, com a Decisão renomeada, as dela entram no grupo renomeado (o das colunas de sempre dela)');
+select is((pg_temp.colunas_do_grupo('2', 'Exigências e manifestações'))[7:], array['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa',
+  'Relatório final'], 'Então o grupo de mesmo nome recebe as suas, e a do Análise apagado entra no fim dele, antes da Decisão');
+select is(cardinality(pg_temp.colunas_do_grupo('2', 'Concessão e vigência')), 6, 'Então nada vai para "Concessão e vigência", depois da Decisão');
+
+-- Quando passa pelo C (Exigências renomeado, Análise vazio) e pelo D (sem grupos).
+select is(privado.investigacao_no_administrativo('e4060000-0000-0000-0000-000000000004'), 9, 'Quando passa pelo C, então entram as 9');
+select is(privado.investigacao_no_administrativo('e4060000-0000-0000-0000-000000000005'), 9, 'Quando passa pelo D, então entram as 9');
+-- Então as das diligências vão para o grupo renomeado, e não para depois da Decisão.
+select is((pg_temp.colunas_do_grupo('4', 'Pendências'))[7:], array['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa'],
+  'Então, com Exigências renomeado, as dele entram no grupo renomeado');
+select is(pg_temp.colunas_do_grupo('4', 'Análise'), array['Relatório final'], 'Então o grupo vazio de mesmo nome recebe a sua');
+-- Então, no grupo vazio, a ordem do quadro todo continua a dos grupos.
+select is((select array_agg(c.nome order by c.ordem) from public.quadro_colunas c
+           where c.escritorio_id = 'e4060000-0000-0000-0000-000000000004' and c.modulo = 'processos_administrativos'),
+          (select array_agg(c.nome order by g.ordem, c.ordem) from public.quadro_colunas c join public.quadro_grupos g on g.id = c.grupo_id
+           where c.escritorio_id = 'e4060000-0000-0000-0000-000000000004' and c.modulo = 'processos_administrativos'),
+  'Então a coluna do grupo vazio fica, na ordem do quadro, entre as dos grupos de antes e as dos de depois');
+-- Então, no D, as do meio ficam sem grupo, logo antes da coluna das concluídas.
+select is((select array_agg(c.nome order by c.ordem) from public.quadro_colunas c
+           where c.escritorio_id = 'e4060000-0000-0000-0000-000000000005' and c.modulo = 'processos_administrativos')[22:],
+  array['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa', 'Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento',
+        'Arquivado/baixado'], 'Então, sem grupos, as do meio ficam logo antes da coluna das concluídas');
 select is((select count(*) from public.quadro_colunas where escritorio_id = 'e4060000-0000-0000-0000-000000000002' and modulo = 'processos_administrativos' and marco is not null),
   2::bigint, 'Então os marcos do B não mudam');
 
@@ -205,6 +254,11 @@ select is((select numero from public.processos where id = '74060000-0000-0000-00
 select is((select numero from public.processos where id = '74060000-0000-0000-0000-000000000003'), 'NOT-3', 'Então o número que não repete fica igual');
 select ok(exists (select 1 from public.processo_historico where processo_id = '74060000-0000-0000-0000-000000000006' and alteracoes -> 'numero' ->> 'para' = 'adm.1 (extrajudicial)'),
   'Então a troca do número fica no histórico');
+-- Então a data e o autor da última alteração ficam os de antes (a conversão não é uma alteração de alguém), e o carimbo volta.
+select is((select atualizado_em = '2026-01-02 03:04:05+00' and atualizado_por = 'a4060000-0000-0000-0000-000000000001' from public.processos
+  where id = '74060000-0000-0000-0000-000000000003'), true, 'Então a data e o autor da última alteração ficam os de antes');
+select is((select count(*) from pg_trigger where tgrelid = 'public.processos'::regclass and tgname = 'carimbo' and tgenabled = 'O'), 1::bigint,
+  'Então o carimbo volta a valer depois da conversão');
 -- Então tudo o que estava ligado à investigação continua com ela.
 select is((select count(*) from public.processo_partes where processo_id = '74060000-0000-0000-0000-000000000001'), 2::bigint, 'Então as pessoas com papel continuam');
 select is((select array_agg(papel::text order by papel) from public.processo_partes where processo_id = '74060000-0000-0000-0000-000000000001'), array['investigado', 'vitima'],
@@ -227,6 +281,11 @@ select privado.converter_tipos_que_sairam('e4060000-0000-0000-0000-000000000002'
 select is(pg_temp.etapa('74060000-0000-0000-0000-000000000009'), 'Relatório final', 'Então o processo do B vai para a coluna de mesmo nome do quadro dele');
 select is((select c.escritorio_id from public.quadro_colunas c join public.processos p on p.etapa_id = c.id where p.id = '74060000-0000-0000-0000-000000000009'),
   'e4060000-0000-0000-0000-000000000002'::uuid, 'Então a coluna é do quadro do próprio B');
+-- Quando converte o C e o D, então o extrajudicial "Em negociação" vai para "Exigência a cumprir": no C, a primeira do grupo
+-- renomeado; no D (sem grupos), a coluna de sempre da fase, e não a do início.
+select privado.converter_tipos_que_sairam(e) from unnest(array['e4060000-0000-0000-0000-000000000004', 'e4060000-0000-0000-0000-000000000005']::uuid[]) e;
+select is(pg_temp.etapa('74060000-0000-0000-0000-000000000011'), 'Exigência a cumprir', 'Então, com Exigências renomeado, vai para a primeira do grupo renomeado');
+select is(pg_temp.etapa('74060000-0000-0000-0000-000000000012'), 'Exigência a cumprir', 'Então, sem grupos, vai para a coluna de sempre do meio');
 
 -- ---------- o site antigo ----------
 -- A coluna "Perícia" do quadro antigo do B (a Ana não a vê; o site antigo poderia mandá-la).
@@ -243,6 +302,26 @@ select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_i
   ('74060000-0000-0000-0000-000000000022', 'extrajudicial', 'NOT-22', auth.uid(), '{14060000-0000-0000-0000-000000000001}', auth.uid(),
    '{"c4060000-0000-0000-0000-000000000002": "1º Ofício"}') $$, 'Quando o site antigo cadastra um extrajudicial com campo próprio, então não dá erro');
 select is((select tipo from public.processos where id = '74060000-0000-0000-0000-000000000022'), 'administrativo', 'Então o extrajudicial fica administrativo');
+-- Quando cadastra um extrajudicial com o número de um administrativo que já existe (o X4 convertido, "NOT-4"), então não dá erro,
+-- e o número ganha o nome do tipo de antes, como na conversão.
+select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, criado_por) values
+  ('74060000-0000-0000-0000-000000000024', 'extrajudicial', 'NOT 4', auth.uid(), '{14060000-0000-0000-0000-000000000001}', auth.uid()) $$,
+  'Quando o site antigo cadastra um extrajudicial com o número de um administrativo, então não dá erro');
+select is((select tipo || ' / ' || numero from public.processos where id = '74060000-0000-0000-0000-000000000024'), 'administrativo / NOT 4 (extrajudicial)',
+  'Então ele fica administrativo, com o nome do tipo de antes no fim do número');
+-- Quando o número com o nome do tipo também repetiria (o AD1 é "ADM-1", e o X6 convertido virou "adm.1 (extrajudicial)"), então
+-- ganha também um número.
+select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, criado_por) values
+  ('74060000-0000-0000-0000-000000000025', 'extrajudicial', 'ADM 1', auth.uid(), '{14060000-0000-0000-0000-000000000001}', auth.uid()) $$,
+  'Quando o número com o nome do tipo também repetiria, então não dá erro');
+select is((select numero from public.processos where id = '74060000-0000-0000-0000-000000000025'), 'ADM 1 (extrajudicial 2)',
+  'Então o número ganha o nome do tipo de antes e um número');
+-- Quando a tela antiga arrasta um processo convertido (X3) para uma coluna do quadro antigo, então não dá erro, e ele vai para a
+-- coluna equivalente do administrativo.
+select lives_ok($$ update public.processos set etapa_id = pg_temp.coluna('1', 'processos_investigacoes', 'Relatório final')
+  where id = '74060000-0000-0000-0000-000000000003' $$, 'Quando a tela antiga põe o processo convertido numa coluna do quadro antigo, então não dá erro');
+select is((select p.tipo || ' / ' || c.nome || ' / ' || c.modulo from public.processos p join public.quadro_colunas c on c.id = p.etapa_id
+  where p.id = '74060000-0000-0000-0000-000000000003'), 'administrativo / Relatório final / processos_administrativos', 'Então ele vai para a coluna equivalente do administrativo');
 -- Quando põe a investigação numa coluna do quadro judicial, ou do quadro de outro escritório, então é recusado.
 select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, criado_por, etapa_id) values
   ('investigacao', 'IP 23/2026', auth.uid(), '{14060000-0000-0000-0000-000000000001}', auth.uid(), pg_temp.coluna('1', 'processos_judiciais', 'Distribuído')) $$,

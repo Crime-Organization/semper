@@ -7,17 +7,25 @@
 --      (privado.chave_da_coluna: sem maiúsculas, acentos, espaços e sinais) não se repete. As colunas-marco não mudam.
 --      O grupo de cada fase (privado.grupo_da_fase), para o escritório que renomeou ou apagou grupos:
 --        a) o grupo de mesmo nome (o de menor ordem);
---        b) sem ele, no início: o grupo da coluna-marco do início;
---           no meio: o último grupo antes do grupo da coluna das concluídas (o "Encerrado");
---        c) sem nenhum: as colunas ficam sem grupo, no alto do quadro, logo depois da coluna do início (fase do início) ou
+--        b) sem ele, o grupo de uma das colunas de sempre daquele grupo (privado.colunas_de_sempre_do_grupo: as do quadro do
+--           escritório novo e as da investigação; a primeira na ordem do quadro): é o grupo renomeado;
+--        c) sem ela, no início: o grupo da coluna-marco do início;
+--           no meio: o grupo escolhido para a fase do meio de antes (Análise sem grupo vai para o de Exigências; Decisão, para o
+--           de Análise), para as fases não trocarem de lugar; na primeira do meio, o primeiro grupo depois do grupo da coluna do
+--           início e antes do grupo da coluna das concluídas;
+--        d) sem nenhum: as colunas ficam sem grupo, no alto do quadro, logo depois da coluna do início (fase do início) ou
 --           logo antes da coluna das concluídas (meio).
+--      No grupo, entram no fim dele: entre a última coluna dele e a seguinte do quadro; no grupo vazio, entre a última coluna
+--      dos grupos de antes e a primeira dos grupos de depois (a ordem do quadro todo continua a dos grupos).
 --      O "Arquivado" da investigação não vira coluna: é a coluna das concluídas ("Arquivado/baixado").
 --      As colunas do quadro extrajudicial não entram.
 --   2. Os processos extrajudiciais e as investigações viram administrativos (privado.coluna_administrativa_equivalente):
 --        a) na coluna de mesmo nome do quadro administrativo;
 --        b) sem ela, na fase equivalente: a coluna das concluídas do quadro antigo, ou do grupo dela, vai para a das concluídas;
 --           a do início, ou do grupo dela, para a primeira coluna do grupo do início; as outras, para a primeira coluna do grupo
---           do meio correspondente (privado.grupos_correspondentes; sem correspondente, "Exigências e manifestações");
+--           do meio correspondente (privado.grupos_correspondentes; sem correspondente, "Exigências e manifestações"); no meio,
+--           sem esse grupo (o quadro sem grupos, ou o grupo vazio), na primeira coluna de sempre dele, na ordem do quadro
+--           ("Exigência a cumprir", "Deferido/concedido"), e, sem ela, na coluna logo antes da das concluídas;
 --        c) sem nada disso, na coluna do início. Sem coluna (etapa vazia), continua sem coluna.
 --      Só mudam o tipo e a coluna: pessoas, papéis, andamentos, prazos, recursos e incidentais, ligações, anotações,
 --      compromissos, campos próprios e histórico estão ligados ao processo pelo id e continuam com ele. A mudança de coluna fica
@@ -25,6 +33,8 @@
 --      O número não pode repetir entre os administrativos (processos_numero_unico): se já houver um administrativo com o mesmo
 --      número, o que vem do tipo que saiu ganha, no fim do número, o nome do tipo de antes ("NOT-1 (extrajudicial)"). A troca
 --      fica no histórico do processo.
+--      A data e o autor da última alteração (atualizado_em, atualizado_por) ficam os de antes: a conversão não é uma alteração
+--      de alguém (o gatilho carimbo fica desligado só durante ela).
 --   3. Os campos próprios "Só extrajudicial" e "Só investigação" passam a "Só administrativo". O nome do campo não repete no
 --      escritório (processo_campos_nome_unico, o mesmo para todos os tipos): não há como ficar um campo igual duplicado.
 --   4. O que depende do tipo e se ajusta sozinho: a página dos avisos de prazo (privado.prazos_da_equipe é uma view, lê o tipo
@@ -33,7 +43,10 @@
 --      aconteceu), as preferências de tela das páginas que saíram (só deixam de ser lidas) e as colunas escondidas dos quadros
 --      que saíram.
 --   5. O site antigo, que ainda oferece os dois tipos: o processo que ele cria (ou o campo que ele marca) como extrajudicial ou
---      investigação vira administrativo sozinho, na coluna equivalente (gatilhos aa_tipo_que_saiu), sem erro para quem usa.
+--      investigação vira administrativo sozinho, na coluna equivalente (gatilhos aa_tipo_que_saiu), sem erro para quem usa: o
+--      número que repetiria entre os administrativos ganha o nome do tipo de antes, como na conversão. O cartão convertido que a
+--      tela antiga ainda mostra no quadro antigo, arrastado para uma coluna desse quadro, vai para a coluna equivalente do
+--      administrativo (o mesmo gatilho, na mudança de coluna).
 --   6. Escritório novo nasce só com os quadros judicial e administrativo (o de antes da #316).
 --   As mesmas regras estão em app/src/regras/investigacaoNoAdministrativo.ts (o banco fictício usa aquelas): mudou aqui, muda lá.
 --   Só acrescenta e converte: funções, gatilhos, colunas e a conversão dos processos e dos campos. As regras check (tipo,
@@ -58,31 +71,64 @@ language sql immutable set search_path = '' as $$
 $$;
 revoke execute on function privado.colunas_da_investigacao() from public, anon, authenticated;
 
--- O grupo de uma fase num quadro (grupoDaFase, no site): o de mesmo nome; sem ele, no início, o da coluna do início; no meio, o
--- último antes do grupo da coluna das concluídas. null: o quadro não tem um grupo para a fase.
-create function privado.grupo_da_fase(p_escritorio uuid, p_modulo text, p_nome text, p_fase text) returns uuid
+-- As colunas de sempre de cada grupo do quadro administrativo (as do escritório novo e as da investigação), para achar o grupo
+-- que o escritório renomeou (colunasDeSempre, no site).
+create function privado.colunas_de_sempre_do_grupo(p_grupo text) returns text[]
+language sql immutable set search_path = '' as $$
+  select array(select jsonb_array_elements_text('{
+      "Protocolo": ["Protocolado", "Publicado"],
+      "Exigências e manifestações": ["Exigência a cumprir", "Exigência cumprida", "Prazo de oposição", "Manifestar contra oposição",
+                                     "Perícia médica", "Avaliação social"],
+      "Análise": ["Aguardando decisão"],
+      "Decisão": ["Deferido/concedido", "Indeferido", "Recurso administrativo", "Ajuizar ação"]
+    }'::jsonb -> p_grupo))
+    || array(select jsonb_array_elements_text(f -> 'colunas') from jsonb_array_elements(privado.colunas_da_investigacao()) f
+             where f ->> 'grupo' = p_grupo)
+$$;
+revoke execute on function privado.colunas_de_sempre_do_grupo(text) from public, anon, authenticated;
+
+-- O grupo de uma fase num quadro (grupoDaFase, no site): a) o de mesmo nome; b) o de uma coluna de sempre dele; c) no início, o da
+-- coluna do início; no meio, p_anterior (o grupo da fase do meio de antes) ou, sem ele, o primeiro depois do grupo da coluna do
+-- início e antes do grupo da coluna das concluídas. null: o quadro não tem um grupo para a fase.
+create function privado.grupo_da_fase(p_escritorio uuid, p_modulo text, p_nome text, p_fase text, p_anterior uuid default null)
+returns uuid
 language plpgsql stable security definer set search_path = '' as $$
-declare v_grupo uuid; v_alvo double precision;
+declare v_grupo uuid; v_inicio double precision; v_alvo double precision;
 begin
   select g.id into v_grupo from public.quadro_grupos g
   where g.escritorio_id = p_escritorio and g.modulo = p_modulo and privado.chave_da_coluna(g.nome) = privado.chave_da_coluna(p_nome)
   order by g.ordem, g.id limit 1;
-  if v_grupo is not null or p_fase = 'inicio' then
-    return coalesce(v_grupo, (select g.id from public.quadro_colunas c join public.quadro_grupos g on g.id = c.grupo_id
-                              where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.marco = 'inicio'));
+  if v_grupo is null then
+    select c.grupo_id into v_grupo from public.quadro_colunas c
+    where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.grupo_id is not null
+      and privado.chave_da_coluna(c.nome) in (select privado.chave_da_coluna(x) from unnest(privado.colunas_de_sempre_do_grupo(p_nome)) x)
+    order by c.ordem, c.id limit 1;
   end if;
-  -- O lugar da coluna das concluídas no alto do quadro: o do grupo dela ou, sem grupo, o dela. Sem ela, vale o último grupo.
+  if v_grupo is not null then
+    return v_grupo;
+  end if;
+  if p_fase = 'inicio' then
+    return (select c.grupo_id from public.quadro_colunas c where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.marco = 'inicio');
+  end if;
+  if p_anterior is not null then
+    return p_anterior;
+  end if;
+  -- Entre o grupo da coluna do início e o lugar da coluna das concluídas no alto do quadro (o do grupo dela ou, sem grupo, o dela).
+  select g.ordem into v_inicio from public.quadro_colunas c join public.quadro_grupos g on g.id = c.grupo_id
+  where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.marco = 'inicio';
   select coalesce(g.ordem, c.ordem) into v_alvo from public.quadro_colunas c left join public.quadro_grupos g on g.id = c.grupo_id
   where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.marco = 'concluido';
   select g.id into v_grupo from public.quadro_grupos g
-  where g.escritorio_id = p_escritorio and g.modulo = p_modulo and (v_alvo is null or g.ordem < v_alvo)
-  order by g.ordem desc, g.id desc limit 1;
+  where g.escritorio_id = p_escritorio and g.modulo = p_modulo and (v_inicio is null or g.ordem > v_inicio)
+    and (v_alvo is null or g.ordem < v_alvo)
+  order by g.ordem, g.id limit 1;
   return v_grupo;
 end $$;
-revoke execute on function privado.grupo_da_fase(uuid, text, text, text) from public, anon, authenticated;
+revoke execute on function privado.grupo_da_fase(uuid, text, text, text, uuid) from public, anon, authenticated;
 
--- Acrescenta ao quadro as colunas que faltam (planoNoGrupo, no site), no fim do grupo: entre a última coluna dele e a coluna
--- seguinte do quadro, para a ordem geral também ficar certa. Sem grupo (p_grupo null), no alto do quadro: logo depois da coluna
+-- Acrescenta ao quadro as colunas que faltam (colunasNoGrupo, no site), no fim do grupo: entre a última coluna dele e a coluna
+-- seguinte do quadro, para a ordem geral também ficar certa; no grupo vazio, entre a última coluna dos grupos de antes e a
+-- primeira dos grupos de depois. Sem grupo (p_grupo null), no alto do quadro: logo depois da coluna
 -- do início (fase do início) ou logo antes da coluna das concluídas (ou do grupo dela); sem ela, no fim. Devolve quantas entraram.
 create function privado.acrescentar_colunas_no_grupo(p_escritorio uuid, p_modulo text, p_nomes text[], p_grupo uuid, p_fase text)
 returns int
@@ -107,8 +153,19 @@ begin
 
   if p_grupo is not null then
     select max(c.ordem) into v_anterior from public.quadro_colunas c where c.grupo_id = p_grupo;
-    select min(c.ordem) into v_seguinte from public.quadro_colunas c
-    where v_anterior is not null and c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.ordem > v_anterior;
+    if v_anterior is not null then
+      select min(c.ordem) into v_seguinte from public.quadro_colunas c
+      where c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.ordem > v_anterior;
+    else
+      -- O grupo vazio: entre a última coluna dos grupos de antes e a primeira dos grupos de depois (acima daquela).
+      select max(c.ordem) into v_anterior from public.quadro_colunas c join public.quadro_grupos g on g.id = c.grupo_id
+      where c.escritorio_id = p_escritorio and c.modulo = p_modulo
+        and (g.ordem, g.id) < (select x.ordem, x.id from public.quadro_grupos x where x.id = p_grupo);
+      select min(c.ordem) into v_seguinte from public.quadro_colunas c join public.quadro_grupos g on g.id = c.grupo_id
+      where c.escritorio_id = p_escritorio and c.modulo = p_modulo
+        and (g.ordem, g.id) > (select x.ordem, x.id from public.quadro_grupos x where x.id = p_grupo)
+        and (v_anterior is null or c.ordem > v_anterior);
+    end if;
   else
     select c.ordem into v_inicio from public.quadro_colunas c
     where p_fase = 'inicio' and c.escritorio_id = p_escritorio and c.modulo = p_modulo and c.marco = 'inicio' and c.grupo_id is null;
@@ -143,15 +200,20 @@ revoke execute on function privado.acrescentar_colunas_no_grupo(uuid, text, text
 -- como está (o preparo do escritório é que o monta). Devolve quantas colunas entraram.
 create function privado.investigacao_no_administrativo(p_escritorio uuid) returns int
 language plpgsql security definer set search_path = '' as $$
-declare f jsonb; v_total int := 0;
+declare f jsonb; v_total int := 0; v_grupo uuid; v_anterior uuid;
 begin
   if not exists (select 1 from public.quadro_colunas c where c.escritorio_id = p_escritorio and c.modulo = 'processos_administrativos') then
     return 0;
   end if;
   for f in select e.item from jsonb_array_elements(privado.colunas_da_investigacao()) with ordinality as e(item, n) order by e.n loop
+    -- No meio, o grupo da fase de antes (v_anterior) vale para a que não tem grupo.
+    v_grupo := privado.grupo_da_fase(p_escritorio, 'processos_administrativos', f ->> 'grupo', f ->> 'fase',
+                                     case when f ->> 'fase' = 'meio' then v_anterior end);
+    if f ->> 'fase' = 'meio' then
+      v_anterior := coalesce(v_grupo, v_anterior);
+    end if;
     v_total := v_total + privado.acrescentar_colunas_no_grupo(p_escritorio, 'processos_administrativos',
-      array(select jsonb_array_elements_text(f -> 'colunas')),
-      privado.grupo_da_fase(p_escritorio, 'processos_administrativos', f ->> 'grupo', f ->> 'fase'), f ->> 'fase');
+      array(select jsonb_array_elements_text(f -> 'colunas')), v_grupo, f ->> 'fase');
   end loop;
   return v_total;
 end $$;
@@ -239,6 +301,7 @@ declare
   v_coluna uuid;
   v_fase text;
   v_grupo text;
+  v_fim double precision;
 begin
   select c.id, c.modulo, c.nome, c.marco, c.grupo_id, g.nome as grupo into e
   from public.quadro_colunas c left join public.quadro_grupos g on g.id = c.grupo_id
@@ -269,6 +332,20 @@ begin
       select c.id into v_coluna from public.quadro_colunas c
       where c.grupo_id = privado.grupo_da_fase(p_escritorio, v_adm, v_grupo, v_fase)
       order by c.ordem, c.id limit 1;
+      -- O meio sem o grupo (quadro sem grupos, ou o grupo vazio): a primeira coluna de sempre dele, na ordem do quadro; sem ela, a
+      -- coluna logo antes da das concluídas.
+      if v_coluna is null and v_fase = 'meio' then
+        select c.id into v_coluna from public.quadro_colunas c
+        where c.escritorio_id = p_escritorio and c.modulo = v_adm
+          and privado.chave_da_coluna(c.nome) in (select privado.chave_da_coluna(x) from unnest(privado.colunas_de_sempre_do_grupo(v_grupo)) x)
+        order by c.ordem, c.id limit 1;
+        if v_coluna is null then
+          select c.ordem into v_fim from public.quadro_colunas c where c.escritorio_id = p_escritorio and c.modulo = v_adm and c.marco = 'concluido';
+          select c.id into v_coluna from public.quadro_colunas c
+          where c.escritorio_id = p_escritorio and c.modulo = v_adm and c.marco is null and (v_fim is null or c.ordem < v_fim)
+          order by c.ordem desc, c.id desc limit 1;
+        end if;
+      end if;
     end if;
   end if;
 
@@ -284,19 +361,44 @@ language sql immutable set search_path = '' as $$
 $$;
 revoke execute on function privado.nome_do_tipo_que_saiu(text) from public, anon, authenticated;
 
--- O site antigo: o processo que nasce (ou muda para) um dos tipos que saíram vira administrativo, na coluna equivalente. O nome
--- começa com "aa_" para rodar antes dos outros gatilhos "before" (o Postgres os roda em ordem alfabética): o dos campos próprios
--- confere o campo pelo tipo, e a regra do quadro, depois, confere a coluna pelo tipo.
+-- O número de quem vem de um tipo que saiu: se repetiria o de outro administrativo do escritório (comparado como a regra
+-- processos_numero_unico compara), ganha no fim o nome do tipo de antes; se esse também repetiria, o nome e um número
+-- ("(extrajudicial 2)") (numeroQueNaoRepete, no site).
+create function privado.numero_que_nao_repete(p_escritorio uuid, p_processo uuid, p_numero text, p_tipo text) returns text
+language plpgsql stable security definer set search_path = '' as $$
+declare v_sufixo text; v_numero text := p_numero; i int := 1;
+begin
+  while exists (select 1 from public.processos y
+                where y.escritorio_id = p_escritorio and y.tipo = 'administrativo' and y.id is distinct from p_processo
+                  and regexp_replace(upper(y.numero), '[^A-Z0-9]', '', 'g') = regexp_replace(upper(v_numero), '[^A-Z0-9]', '', 'g')) loop
+    v_sufixo := ' (' || privado.nome_do_tipo_que_saiu(p_tipo) || case when i > 1 then ' ' || i else '' end || ')';
+    -- 60: o tamanho do número (TAMANHO_PROCESSO.numero, em app/src/dados/limites.ts).
+    v_numero := left(btrim(p_numero), 60 - length(v_sufixo)) || v_sufixo;
+    i := i + 1;
+  end loop;
+  return v_numero;
+end $$;
+revoke execute on function privado.numero_que_nao_repete(uuid, uuid, text, text) from public, anon, authenticated;
+
+-- O site antigo: o processo que nasce (ou muda para) um dos tipos que saíram vira administrativo, na coluna equivalente, com o
+-- número que não repete. E o administrativo que a tela antiga põe numa coluna de um dos quadros que saíram (o cartão convertido
+-- que ela ainda mostra no quadro antigo) vai para a coluna equivalente; nas outras colunas, coluna_administrativa_equivalente
+-- devolve a mesma. O nome começa com "aa_" para rodar antes dos outros gatilhos "before" (o Postgres os roda em ordem
+-- alfabética): o dos campos próprios confere o campo pelo tipo, e a regra do quadro, depois, confere a coluna pelo tipo.
 create function privado.tipo_que_saiu_vira_administrativo() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   new.etapa_id := privado.coluna_administrativa_equivalente(new.escritorio_id, new.etapa_id);
-  new.tipo := 'administrativo';
+  if new.tipo <> 'administrativo' then
+    new.numero := privado.numero_que_nao_repete(new.escritorio_id, new.id, new.numero, new.tipo);
+    new.tipo := 'administrativo';
+  end if;
   return new;
 end $$;
 revoke execute on function privado.tipo_que_saiu_vira_administrativo() from public, anon, authenticated;
-create trigger aa_tipo_que_saiu before insert or update of tipo on public.processos
-  for each row when (new.tipo in ('extrajudicial', 'investigacao')) execute function privado.tipo_que_saiu_vira_administrativo();
+create trigger aa_tipo_que_saiu before insert or update of tipo, etapa_id on public.processos
+  for each row when (new.tipo in ('extrajudicial', 'investigacao') or (new.tipo = 'administrativo' and new.etapa_id is not null))
+  execute function privado.tipo_que_saiu_vira_administrativo();
 
 -- ---------------------------------------------------------------------
 -- 3. Os campos próprios dos tipos que saíram valem para os administrativos (o site antigo, pelo gatilho)
@@ -317,23 +419,23 @@ create trigger aa_tipo_que_saiu before insert or update of aparece_em on public.
 -- ---------------------------------------------------------------------
 create function privado.converter_tipos_que_sairam(p_escritorio uuid) returns void
 language plpgsql security definer set search_path = '' as $$
-declare p record; v_numero text; v_sufixo text;
+declare p record; v_numero text;
 begin
+  -- A conversão não é uma alteração de alguém: a data e o autor da última alteração ficam os de antes. O carimbo volta no fim
+  -- (tudo é uma transação só: um erro desfaz também o desligar).
+  alter table public.processos disable trigger carimbo;
   for p in select x.id, x.tipo, x.numero, x.etapa_id from public.processos x
            where x.escritorio_id = p_escritorio and x.tipo in ('extrajudicial', 'investigacao') order by x.criado_em, x.id loop
-    if exists (select 1 from public.processos y
-               where y.escritorio_id = p_escritorio and y.tipo = 'administrativo' and y.id <> p.id
-                 and regexp_replace(upper(y.numero), '[^A-Z0-9]', '', 'g') = regexp_replace(upper(p.numero), '[^A-Z0-9]', '', 'g')) then
-      v_sufixo := ' (' || privado.nome_do_tipo_que_saiu(p.tipo) || ')';
-      -- 60: o tamanho do número (TAMANHO_PROCESSO.numero, em app/src/dados/limites.ts).
-      v_numero := left(p.numero, 60 - length(v_sufixo)) || v_sufixo;
-      -- Antes de mudar o tipo (com o tipo de antes, o número novo não repete); só os que repetiriam passam pelo preparo do número.
+    v_numero := privado.numero_que_nao_repete(p_escritorio, p.id, p.numero, p.tipo);
+    -- Antes de mudar o tipo (com o tipo de antes, o número novo não repete); só os que repetiriam passam pelo preparo do número.
+    if v_numero <> p.numero then
       update public.processos set numero = v_numero where id = p.id;
     end if;
     update public.processos
     set tipo = 'administrativo', etapa_id = privado.coluna_administrativa_equivalente(p_escritorio, p.etapa_id)
     where id = p.id;
   end loop;
+  alter table public.processos enable trigger carimbo;
   update public.processo_campos set aparece_em = 'administrativo'
   where escritorio_id = p_escritorio and aparece_em in ('extrajudicial', 'investigacao');
 end $$;
