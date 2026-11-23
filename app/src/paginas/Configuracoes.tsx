@@ -1,7 +1,7 @@
 // Configurações (master e administradores): os dados da instituição. O nome aparece nas telas do
 // escritório (barra lateral, título da aba, mensagem de convite), a logomarca na barra lateral (#323), e os demais dados ficam prontos para
-// contratos e procurações. O SEMPER não tem nome de escritório fixo: tudo vem daqui. Aqui também ficam as salas do escritório (#308)
-// e a lista de objetos de contrato (#281).
+// contratos e procurações. O SEMPER não tem nome de escritório fixo: tudo vem daqui. Aqui também ficam as salas do escritório (#308),
+// a lista de objetos de contrato (#281) e as funções dos participantes da tarefa (#313).
 import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
@@ -17,6 +17,7 @@ import { FaseDeAdaptacao } from './FaseDeAdaptacao';
 import { LigacaoGoogle } from './LigacaoGoogle';
 import { ObjetosDeContrato } from './ObjetosDeContrato';
 import { SalasDoEscritorio } from './SalasDoEscritorio';
+import { FuncoesDosParticipantes } from './FuncoesDosParticipantes';
 import './Configuracoes.css';
 
 export default function Configuracoes() {
@@ -244,5 +245,6 @@ function Instituicao() {
     {ctx.escritorio?.modulos?.processos && <CamposDoProcesso />}
     {ctx.escritorio?.modulos?.compromissos && <SalasDoEscritorio />}
     {ctx.escritorio?.modulos?.contratos && <ObjetosDeContrato />}
+    {ctx.escritorio?.modulos?.tarefas && <FuncoesDosParticipantes />}
   </div>;
 }

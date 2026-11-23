@@ -11,10 +11,11 @@ import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { SEM_SITUACAO_TAREFA, soLeATarefaNaLista } from '../regras/tarefa';
+import { ENVIADA_PARA_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
 import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
@@ -32,6 +33,8 @@ import { filtroQueVale, gruposDoItem, meusGrupos, PARAMETRO_DO_GRUPO } from '../
 import { filtroDeGrupo } from '../ui/filtroDeGrupo';
 import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
+import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
+import { idsDoFiltroDeFuncao, opcoesDoFiltroDeFuncao } from '../regras/funcoesNaTarefa';
 import { colunaDaOrdem, dataDaOrdem, ORDENS_COM_INICIO, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
 import { filtroDoInicio } from '../ui/filtroDoInicio';
 import { limitesDoPeriodo, type PeriodoDoInicio } from '../regras/dataDeInicio';
@@ -80,7 +83,11 @@ export default function Tarefas() {
   // página aberta depois da meia-noite, "Começa hoje" passa a ser o dia novo. É o filtro com os dias (filtro) que vai ao banco.
   const [inicio, setInicio] = useState<PeriodoDoInicio>('');
   const hoje = hojeNaAgenda();
-  const filtro = useMemo<FiltroTarefas>(() => ({ ...f, ...limitesDoPeriodo(inicio, hoje) }), [f, inicio, hoje]);
+  // O filtro "Função" (#313): a função escolhida vale para a pessoa do filtro "Pessoa da equipe" ou, sem ela, para quem está logado.
+  const funcoes = useFuncoesNaTarefa();
+  const [funcao, setFuncao] = useState('');
+  const funcaoDoFiltro = useMemo(() => funcao ? { de: f.pessoa || eu, ids: idsDoFiltroDeFuncao(funcao, funcoes) } : undefined, [funcao, f.pessoa, eu, funcoes]);
+  const filtro = useMemo<FiltroTarefas>(() => ({ ...f, ...limitesDoPeriodo(inicio, hoje), funcao: funcaoDoFiltro }), [f, inicio, hoje, funcaoDoFiltro]);
   const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('tarefas.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
   const ordem = useOrdem('tarefas', 'tabela', [...ORDENS_COM_PRAZO, ...ORDENS_COM_INICIO]);   // e o prazo (#291) e o início (#357)
@@ -113,7 +120,7 @@ export default function Tarefas() {
     SD.tarefasListar({ ...filtro, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcaoDoFiltro, filtro.inicioDesde, filtro.inicioAte, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -123,10 +130,10 @@ export default function Tarefas() {
     SD.tarefasListar({ ...filtro, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcaoDoFiltro, filtro.inicioDesde, filtro.inicioAte, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.tarefasListar({ ...filtro, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || inicio);
+  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || f.solicitante || funcao || inicio);
   const mudarFiltro = (campos: Partial<FiltroTarefas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -155,7 +162,7 @@ export default function Tarefas() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, f.solicitante, funcao, funcaoDoFiltro?.de, filtro.inicioDesde, filtro.inicioAte].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -166,6 +173,11 @@ export default function Tarefas() {
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('tarefas.pessoa', pessoa); },
           opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        // Quem pediu (#313) e a função na tarefa ("Delegadas a mim", #313).
+        { id: 'solicitante', rotulo: 'Solicitante', valor: f.solicitante || '', aoMudar: solicitante => mudarFiltro({ solicitante: solicitante || undefined }),
+          opcoes: [['', 'Qualquer solicitante'], [eu, 'Pedidas por mim'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        ...(funcoes.length ? [{ id: 'funcao', rotulo: 'Função', valor: funcao, aoMudar: (v: string) => { setFuncao(v); mudarFiltro({}); },
+          opcoes: opcoesDoFiltroDeFuncao(funcoes, f.pessoa && f.pessoa !== eu ? ctx.equipe.find(m => m.id === f.pessoa)?.nome ?? null : null) }] : []),
         ...filtroDeGrupo(ctx.grupos, eu, f.grupo, grupo => { mudarFiltro({ grupo: grupo || undefined }); salvarPreferencia('tarefas.grupo', grupo); }),
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
@@ -188,15 +200,18 @@ export default function Tarefas() {
           endereco={t => endereco(t.id)}
           aoAbrir={t => abrir(t.id)}
           aoMover={async (t, m) => {
-            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.tarefasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.tarefaMover(id, etapa, ordem) };
+            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.tarefasArquivar(ids, a), mover: async (id: string, etapa: string | null, ordem: number | null) => { await SD.tarefaMover(id, etapa, ordem); } };
             if (await moverNoArquivo(t.codigo, t.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_TAREFA)) { recarregar(); return; }
             const { de, para, ordem, ordemAnterior } = m;
-            await SD.tarefaMover(t.id, para, ordem);
+            // A tarefa que precisa de aprovação, arrastada às concluídas por quem não aprova, fica na coluna de aprovação (#313): o
+            // quadro relê para mostrá-la lá.
+            const ficou = await SD.tarefaMover(t.id, para, ordem);
             const voltar = async () => { await SD.tarefaMover(t.id, de, ordemAnterior); };
-            if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
+            if (ficou !== para) { feito(`${t.codigo}: ${ENVIADA_PARA_APROVACAO}`, 'movimentação do cartão', voltar); recarregar(); }
+            else if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
             // As ofertas de quem muda a Situação por qualquer caminho (#355): o prazo do processo e a demanda da tarefa.
-            if (de !== para) void oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: ordemAnterior, ligadoADemanda: !!t.demanda_codigo }, para, navegar);
+            if (de !== ficou) void oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: ordemAnterior, ligadoADemanda: !!t.demanda_codigo }, ficou, navegar);
           }}
           aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>
@@ -224,6 +239,7 @@ function CartaoKanban({ t, ordem, concluido, circulo }: { t: TarefaLista; ordem:
     <div className="kt">{circulo}<span>{t.titulo}</span></div>
     <div className="km">
       <LigacoesNoQuadro codigo={t.codigo} ligacoes={ligacoes(t)} />
+      {t.diligencia && <Selo tipo="pend">Diligência</Selo>}
       {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
       <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -275,7 +291,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLe(ctx, t)} />
           <div className="titulo-com-circulo">{circulo(ctx, colunas, t, t.etapa_id, t.etapa_ordem)}<NomeDaLinha>{t.titulo}</NomeDaLinha></div>
-          <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoesPorExtenso(ligacoes(t)) ? ' · ' + ligacoesPorExtenso(ligacoes(t)) : ''}</div></td>
+          <div className="sub">{t.diligencia && <><Selo tipo="pend">Diligência</Selo> </>}<span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoesPorExtenso(ligacoes(t)) ? ' · ' + ligacoesPorExtenso(ligacoes(t)) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} />

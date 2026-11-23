@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Membro } from '../dados';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import { ACOES_NA_BOLINHA, acoesSem } from '../regras/menuDaBolinha';
-import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarALista } from './EquipeDoCartao';
+import { ENTRA_COMO, EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarALista } from './EquipeDoCartao';
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
 const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · 10%' };
@@ -429,5 +429,67 @@ describe('Equipe do cartão sem responsável principal (#387: os responsáveis d
     await userEvent.click(screen.getByRole('menuitem', { name: 'Tirar dos responsáveis' }));
     // Então
     expect(m.aoTirar).toHaveBeenCalledWith(ana);
+  });
+});
+
+describe('Equipe do cartão: a função de cada participante da tarefa (#313)', () => {
+  const executa = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · Executa', executa: true };
+  const acompanha = { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', papel: 'Participante · Acompanha' };
+  const OPCOES = [{ id: 'f-exe', nome: 'Executa' }, { id: 'f-aco', nome: 'Acompanha' }];
+  const mudar = (aoTrocar = vi.fn(), ocupado = false): MudarAEquipe => ({
+    por: 'Pôr participante', candidatos: () => [], responsaveis: () => [], tirar: () => 'Tirar da tarefa',
+    acoes: () => ACOES_NA_BOLINHA.participante, acoesDoResponsavel: ACOES_NA_BOLINHA.responsavel, perfil: () => null,
+    aoPor: vi.fn(), aoTirar: vi.fn(), aoTrocarResponsavel: vi.fn(), aoTornarResponsavel: vi.fn(), ocupado,
+    funcoes: { opcoes: OPCOES, de: p => p.id === 'u-bruno' ? 'f-exe' : 'f-aco', aoTrocar }
+  });
+
+  it('quando o cartão só é lido, então a função vem com o papel, e quem executa fica em destaque', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[executa, acompanha]} /></MemoryRouter>);
+    // Então
+    expect(within(grupo()).getByRole('img', { name: 'Bruno Exemplo Souza, Participante · Executa' })).toHaveClass('executa');
+    expect(within(grupo()).getByRole('img', { name: 'Mauro Teixeira Duarte, Participante · Acompanha' })).not.toHaveClass('executa');
+  });
+
+  it('quando quem altera abre o menu de um participante, então vê as funções, com a dele marcada, e escolher outra avisa quem chama', async () => {
+    // Dado
+    const aoTrocar = vi.fn();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[executa, acompanha]} mudar={mudar(aoTrocar)} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Mauro Teixeira Duarte, Participante · Acompanha' }));
+    const funcoes = within(screen.getByRole('menu')).getByRole('group', { name: 'Função de Mauro Teixeira Duarte' });
+    // Então
+    expect(within(funcoes).getByRole('menuitemradio', { name: 'Acompanha' })).toHaveAttribute('aria-checked', 'true');
+    // Quando
+    await userEvent.click(within(funcoes).getByRole('menuitemradio', { name: 'Executa' }));
+    // Então
+    expect(aoTrocar).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-mauro' }), 'f-exe');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('quando quem altera abre o "+", então escolhe a função de quem entra (começa na padrão), e quem chama recebe a pessoa com a função', async () => {
+    // Dado
+    const carla = { id: 'u-carla', nome: 'Carla Teste Reis', ativo: true };
+    const m: MudarAEquipe = { ...mudar(), candidatos: () => [carla], funcoes: { ...mudar().funcoes!, padrao: 'f-aco' } };
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[acompanha]} mudar={m} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Pôr participante' }));
+    const funcao = screen.getByRole('group', { name: ENTRA_COMO });
+    // Então
+    expect(within(funcao).getByRole('radio', { name: 'Acompanha' })).toBeChecked();
+    // Quando
+    await userEvent.click(within(funcao).getByRole('radio', { name: 'Executa' }));
+    await userEvent.click(within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Carla Teste Reis' }));
+    // Então
+    expect(m.aoPor).toHaveBeenCalledWith(carla, 'f-exe');
+  });
+
+  it('quando outra mudança ainda grava, então as funções ficam desligadas, com o motivo', async () => {
+    // Dado
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[acompanha]} mudar={mudar(vi.fn(), true)} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Mauro Teixeira Duarte, Participante · Acompanha' }));
+    // Então
+    expect(within(screen.getByRole('menu')).getByRole('menuitemradio', { name: 'Executa' })).toBeDisabled();
   });
 });

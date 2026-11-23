@@ -65,9 +65,9 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     await page.getByRole('dialog', { name: 'Pôr participante' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
     // Então
     await expect(page.getByText('Ana Teste Lima agora está na tarefa.')).toBeVisible();
-    await expect(bolinha(cartao, 'Ana Teste Lima, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Ana Teste Lima, Participante · Acompanha')).toBeVisible();
     cartao = await fecharEAbrir(cartao, () => abrirTarefa(page, 'Pedir documentos ao cliente'));
-    await expect(bolinha(cartao, 'Ana Teste Lima, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Ana Teste Lima, Participante · Acompanha')).toBeVisible();
     await abrirSecao(cartao, 'Histórico de alterações');
     await expect(cartao.getByText(/Participantes/).last()).toBeVisible();
     await expect(cartao).toContainText('Ana Teste Lima');
@@ -91,20 +91,20 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     // Dado: o Mauro participa de "Renovar a procuração"
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
-    const menu = await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante');
+    const menu = await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha');
     // Então: na própria bolinha, "Sair da tarefa" no lugar de "Tirar"
     await expect(menu).toContainText('Mauro Teixeira Duarte');
     await expect(menu).toContainText('Participante');
     await expect(menu.getByRole('menuitem')).toHaveText(['Tornar responsável', 'Sair da tarefa', 'Ver perfil']);
-    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha')).toBeVisible();
     await expect(page.getByRole('status').getByText(/saiu da tarefa/)).toHaveCount(0);
   });
 
   test('dado o menu aberto, quando tecla Esc ou clica fora, então o menu fecha e o foco volta à bolinha', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    const doMauro = bolinha(cartao, 'Mauro Teixeira Duarte, Participante');
-    await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante');
+    const doMauro = bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha');
+    await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha');
     // Quando
     await page.keyboard.press('Escape');
     // Então: só o menu fecha, e o cartão continua aberto
@@ -112,7 +112,7 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     await expect(doMauro).toBeFocused();
     await expect(cartao).toBeVisible();
     // Dado
-    await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante');
+    await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha');
     // Quando: o clique cai num canto vazio do cartão, fora do menu
     await cartao.click({ position: { x: 4, y: 4 } });
     // Então
@@ -124,38 +124,38 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     // Dado: o Mauro participa de "Renovar a procuração"
     let cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando: o Mauro é administrador, sai na hora, sem perguntar
-    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante', 'Sair da tarefa');
+    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha', 'Sair da tarefa');
     // Então
     await expect(page.getByText('Mauro Teixeira Duarte saiu da tarefa.')).toBeVisible();
-    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante')).toHaveCount(0);
+    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha')).toHaveCount(0);
     // E o Desfazer do aviso o põe de volta
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
-    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha')).toBeVisible();
     cartao = await fecharEAbrir(cartao, () => abrirTarefa(page, 'Renovar a procuração'));
-    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha')).toBeVisible();
   });
 
   test('quando escolhe "Tornar responsável" no menu de um participante, então ele passa a responder e o responsável de antes continua na tarefa; o Desfazer volta tudo', async ({ page }) => {
     // Dado: a Ana responde por "Renovar a procuração", com o Mauro de participante
     let cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
-    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante', 'Tornar responsável');
+    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha', 'Tornar responsável');
     // Então
     await expect(page.getByText('Responsável pela tarefa: Mauro Teixeira Duarte. Quem respondia antes continua na tarefa.')).toBeVisible();
     await expect(bolinha(cartao, doResponsavel('Mauro Teixeira Duarte'))).toBeVisible();
-    await expect(bolinha(cartao, 'Ana Teste Lima, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Ana Teste Lima, Participante · Acompanha')).toBeVisible();
     // Quando
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
     // Então
     await expect(bolinha(cartao, doResponsavel('Ana Teste Lima'))).toBeVisible();
-    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Mauro Teixeira Duarte, Participante · Acompanha')).toBeVisible();
     // Quando: de novo, e o cartão é aberto outra vez
-    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante', 'Tornar responsável');
+    await acaoDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Participante · Acompanha', 'Tornar responsável');
     await expect(bolinha(cartao, doResponsavel('Mauro Teixeira Duarte'))).toBeVisible();
     cartao = await fecharEAbrir(cartao, () => abrirTarefa(page, 'Renovar a procuração'));
     // Então: ficou gravado
     await expect(bolinha(cartao, doResponsavel('Mauro Teixeira Duarte'))).toBeVisible();
-    await expect(bolinha(cartao, 'Ana Teste Lima, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Ana Teste Lima, Participante · Acompanha')).toBeVisible();
   });
 
   /** Troca o responsável pelo menu da bolinha dele, que abre a busca. */
@@ -209,11 +209,11 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     // Dado: o Mauro põe o Bruno em "Renovar a procuração", que não é dele nem está numa demanda do Bruno
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     await porPelaBolinha(page, cartao, 'Pôr participante', 'bru', 'Bruno Exemplo Souza');
-    await expect(bolinha(cartao, 'Bruno Exemplo Souza, Participante')).toBeVisible();
+    await expect(bolinha(cartao, 'Bruno Exemplo Souza, Participante · Acompanha')).toBeVisible();
     await entrarComo(page, 'u-bruno');
     const doBruno = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
-    await acaoDaBolinha(page, doBruno, 'Bruno Exemplo Souza, Participante', 'Sair da tarefa');
+    await acaoDaBolinha(page, doBruno, 'Bruno Exemplo Souza, Participante · Acompanha', 'Sair da tarefa');
     const confirmacao = page.getByRole('dialog', { name: 'Sair da tarefa?' });
     await expect(confirmacao).toContainText('você pode deixar de ver este cartão');
     await confirmacao.getByRole('button', { name: 'Sair da tarefa' }).click();

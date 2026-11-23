@@ -22,17 +22,21 @@ import { depoisDeCriar, tarefaDoProcesso } from '../regras/origemDoCadastro';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import {
-  camposDaTarefa, comMaisUm, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, ligadasDaTarefa, ligadosDaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
+  camposDaTarefa, comMaisUm, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, ligadasDaTarefa, ligadosDaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, precisaDeAprovacao,
   primeiraEtapaComErroTarefa, semADemanda,
   semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
 } from '../regras/tarefa';
+import { aprovaATarefa, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
+import { funcoesAoGravar } from '../regras/funcoesNaTarefa';
+import { continuaInicial, grupoDaContinuaAoGravar, opcoesDaContinua } from '../regras/demandaContinua';
+import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -67,8 +71,15 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // A anotação de onde a tarefa nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada à tarefa nova.
   const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'tarefa');
 
-  // Quem cadastra já vem como responsável.
-  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id }));
+  // A tarefa avulsa (sem demanda) entra na demanda contínua de um grupo da equipe (#313): os grupos de quem cadastra, ou a Geral para
+  // quem não está em grupo nenhum. No cadastro novo, já vem marcado se há uma opção só. Sem o módulo Demandas, o banco escolhe sozinho.
+  const opcoesDaContinuaDaPessoa = opcoesDaContinua(ctx.grupos, ctx.perfil.id);
+  const perguntaAContinua = !idAtualizar && !!ctx.escritorio?.modulos?.demandas;
+  // Quem cadastra já vem como responsável e como quem pediu a tarefa (o solicitante, #313).
+  const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id, solicitanteId: ctx.perfil.id,
+    grupoDaContinua: perguntaAContinua ? continuaInicial(opcoesDaContinuaDaPessoa) : null }));
+  // As funções dos participantes do escritório (#313): quem entra ganha a padrão, e a pessoa troca ao lado do nome.
+  const funcoes = useFuncoesNaTarefa();
   const [alvo, setAlvo] = useState<Tarefa | null>(null);   // tarefa sendo atualizada
   const [pronto, setPronto] = useState(!idAtualizar);
   const [passo, setPasso] = useState(0);
@@ -231,6 +242,12 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // ---------- equipe ----------
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
+  // Solicitante (#313): qualquer um da equipe ativa, e quem já é o solicitante.
+  const opcoesSolicitante = ctx.equipe.filter(m => m.ativo !== false || m.id === c.solicitanteId);
+  // Na tarefa que já precisa de aprovação, só quem aprova (o solicitante ou um administrador) muda a caixa e o solicitante (#313).
+  const aprovacaoTravada = !!alvo?.precisa_aprovacao && !aprovaATarefa(alvo, ctx.perfil);
+  // Os participantes de agora, com a função de cada um (quem entrou ganha a padrão; quem saiu sai das funções).
+  const mudarParticipantes = (participantes: string[]) => mudar({ participantes, funcoes: funcoesAoGravar(participantes, c.funcoes, funcoes, c.funcoes) });
 
   // ---------- demandas e contratos (#283: mais de um de cada) ----------
   // Como cada um aparece: pelo nome da busca, pelo que veio do cartão ou, na tarefa que já existe, pelo código gravado.
@@ -290,7 +307,9 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       } else {
         // Sem coluna escolhida, a tarefa nova entra na coluna-marco de início ("Para fazer").
         const coluna = etapaInicial || await colunaInicial('tarefas');
-        const r = await SD.tarefaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        // Sem demanda, a tarefa entra na demanda contínua do grupo escolhido (#313).
+        const continua = !dados.demanda_ids?.length && c.grupoDaContinua ? await SD.demandaContinua(grupoDaContinuaAoGravar(c.grupoDaContinua)) : null;
+        const r = await SD.tarefaCriar({ ...dados, ...(continua ? { demanda_ids: [continua] } : {}), etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Tarefa ${r.codigo} cadastrada.`, 'cadastro da tarefa', async () => {
           await SD.tarefasArquivar([r.id], true);
           const x = await SD.tarefasExcluir([r.id]);
@@ -328,6 +347,15 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         {/* A data de início só ao mudar uma tarefa que já existe: a nova começa no dia em que é criada (#357). */}
         {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
       </>}
+      {/* A diligência (#313): marcada, o motivo passa a ser obrigatório. */}
+      <Escolhas rotulo="Diligência" dica="Ir a um cartório, a um fórum, a um órgão…">
+        <label><input type="checkbox" checked={c.diligencia} onChange={e => mudar({ diligencia: e.target.checked })} />Esta tarefa é uma diligência</label>
+      </Escolhas>
+      {c.diligencia && <Campo rotulo="Motivo da diligência" para="motivoDaDiligencia" obrigatorio erro={erros.motivoDaDiligencia}
+        dica="Por que a diligência é feita. Ex.: protocolar a petição no cartório.">
+        <textarea {...propsDoCampo('motivoDaDiligencia', { dica: true, erro: erros.motivoDaDiligencia })} rows={3} maxLength={TAMANHO_TAREFA.motivoDaDiligencia}
+          value={c.motivoDaDiligencia} onChange={e => mudar({ motivoDaDiligencia: e.target.value })} />
+      </Campo>}
       {/* As ligações, opcionais, na mesma etapa (#299): ligar a demanda traz as pessoas dela para a etapa seguinte. */}
       {ligacoes()}
     </>,
@@ -339,8 +367,22 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
-      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la)." adicionar="Adicionar participante"
-        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
+      <Campo rotulo="Solicitante" para="solicitanteId" erro={erros.solicitanteId} dica="Quem pediu a tarefa. Ele passa a vê-la, mas não troca o responsável.">
+        <select {...propsDoCampo('solicitanteId', { dica: true, erro: erros.solicitanteId })} value={c.solicitanteId} disabled={aprovacaoTravada}
+          onChange={e => mudar({ solicitanteId: e.target.value })}>
+          <option value="">Não informado</option>
+          {opcoesSolicitante.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+        </select>
+      </Campo>
+      {/* A aprovação interna (#313): vem marcada quando o solicitante é outra pessoa que não o responsável, até a pessoa mexer nela. */}
+      <Escolhas rotulo="Aprovação" dica={aprovacaoTravada ? SO_QUEM_PEDIU_MUDA_A_APROVACAO : 'Ao concluir, a tarefa espera na coluna de aprovação até quem a pediu (ou um administrador) aprovar ou devolver.'}>
+        <label><input type="checkbox" checked={precisaDeAprovacao(c)} disabled={aprovacaoTravada}
+          onChange={e => mudar({ precisaAprovacao: e.target.checked })} />Precisa de aprovação</label>
+      </Escolhas>
+      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} adicionar="Adicionar participante"
+        dica="Quem da equipe também trabalha na tarefa (e passa a vê-la), com a função de cada um. Ex.: Executa, para quem recebeu a tarefa para fazer."
+        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={mudarParticipantes}
+        funcoes={{ opcoes: funcoes, de: c.funcoes, aoMudar: (id, funcao) => mudar({ funcoes: { ...c.funcoes, [id]: funcao } }) }} />
       <GruposNoLapis ids={alvo?.grupos} />
       <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
@@ -364,6 +406,13 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.demandas} escolhidos={c.demandas.map(id => ({ id, texto: rotuloDemanda(id) }))} erro={erros.demandas}
         aoTirar={tirarDemanda} busca={<CampoComSugestoes id="demanda" aria-describedby="demanda-dica" placeholder="Buscar demanda…" valor={buscaDemanda}
           aoMudar={digitarDemanda} sugestoes={demandas.filter(d => !c.demandas.includes(d.id)).map(d => ({ valor: rotuloDaDemanda(d) }))} />} />
+      {/* Sem demanda, a tarefa entra na demanda contínua do grupo (#313): só agrupa, e quem vê a tarefa continua o mesmo. */}
+      {c.grupoDaContinua !== null && !c.demandas.length && <Escolhas rotulo="Grupo da tarefa avulsa" obrigatorio erro={erros.grupoDaContinua}
+        dica="Sem demanda, a tarefa entra na demanda contínua do grupo. Quem vê a tarefa continua o mesmo.">
+        {opcoesDaContinuaDaPessoa.map(o => <label key={o.valor}>
+          <input type="radio" name="grupoDaContinua" checked={c.grupoDaContinua === o.valor} onChange={() => mudar({ grupoDaContinua: o.valor })} />{o.nome}
+        </label>)}
+      </Escolhas>}
       <LigadosNoCadastro textos={LIGADOS_NO_CADASTRO.contratos} escolhidos={c.contratos.map(id => ({ id, texto: rotuloContrato(id) }))} erro={erros.contratos}
         aoTirar={id => mudar({ contratos: c.contratos.filter(x => x !== id) })} busca={<CampoComSugestoes id="contrato" aria-describedby="contrato-dica"
           placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}

@@ -5,8 +5,11 @@
 // sua (EquipeDoContratoNoTopo), porque lá cada participante tem o seu % da divisão; as duas fazem uma mudança de cada vez (useUmaMudancaDeCadaVez).
 // Os grupos da equipe do item (#378) vêm em pílulas depois dos participantes; quem altera o cartão os põe pelo "+" e os tira pela
 // lista da pílula (useGruposNoTopo, que serve também ao contrato).
+// Na tarefa (#313), cada participante tem uma função (`funcoes`): ela vai no papel da bolinha, quem executa fica em destaque e quem
+// altera o cartão troca a função no menu da bolinha e escolhe a de quem entra pelo "+".
 import { useRef, useState } from 'react';
-import type { GrupoDaEquipe, ModuloDoPedido } from '../dados';
+import type { FuncaoNaTarefa, GrupoDaEquipe, ModuloDoPedido } from '../dados';
+import { funcaoDe, funcaoPadrao } from '../regras/funcoesNaTarefa';
 import {
   candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDoGrupoNoTopo, SAIRIA_SEM_O_GRUPO, saiComOGrupo,
   type TipoDeMudancaNosGrupos
@@ -39,6 +42,8 @@ interface Props {
   grupos?: string[];
   /** null: a pessoa só lê o cartão (ou ele está arquivado), e as bolinhas são só para ver. */
   mudar: MudancaNoTopo | null;
+  /** As funções dos participantes (na tarefa, #313): as do escritório, a de cada participante e como gravar a troca. */
+  funcoes?: { opcoes: readonly FuncaoNaTarefa[]; de: Readonly<Record<string, string>>; trocar: (perfil: string, funcao: string) => Promise<void> };
 }
 
 /**
@@ -112,12 +117,16 @@ export function useGruposNoTopo(modulo: ModuloDoPedido, id: string, quem: { resp
   };
 }
 
-export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
+export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar, funcoes }: Props) {
   const ctx = useCtx();
   const m = EQUIPE_DO_MODULO[modulo], eu = ctx.perfil.id;
   // Sem responsável gravado (o usuário foi excluído), a bolinha dele aparece vazia, para escolher outro.
   const responsavel = equipe.responsavel_id ? naEquipe(ctx.equipe, equipe.responsavel_id, 'Responsável') : null;
-  const participantes = equipe.lista.map(x => naEquipe(ctx.equipe, x, m.papel));
+  // Com funções (#313): o papel diz a função ("Participante · Executa"), e quem executa fica em destaque.
+  const participantes = equipe.lista.map(x => {
+    const f = funcoes ? funcaoDe(funcoes.opcoes, funcoes.de, x) : null;
+    return { ...naEquipe(ctx.equipe, x, f ? `${m.papel} · ${f.nome}` : m.papel), executa: !!f?.executa };
+  });
   const { ocupado, umaDeCadaVez } = useUmaMudancaDeCadaVez();
   const perfil = usePerfilNaBolinha();
   // Quem também está no cartão por um grupo dele continua nele ao se tirar da lista (sem o "você pode deixar de ver").
@@ -150,9 +159,14 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
     ocupado,
     // Quem foi desativado continua na lista, mas não assume o item (a busca de trocar o responsável também não o acha).
     impedeTornar: p => impedeResponder(p.id, ctx.equipe),
-    aoPor: x => pedir({ tipo: 'por', id: x.id, nome: x.nome }),
+    // Na tarefa (#313), com a função escolhida no "+".
+    aoPor: (x, funcao) => pedir({ tipo: 'por', id: x.id, nome: x.nome, funcao }),
     aoTirar: p => pedir({ tipo: 'tirar', id: p.id, nome: p.nome }),
     aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome }),
-    aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome })
+    aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome }),
+    funcoes: funcoes && {
+      opcoes: funcoes.opcoes, padrao: funcaoPadrao(funcoes.opcoes)?.id, de: p => funcoes.de[p.id] ?? null,
+      aoTrocar: (p, f) => umaDeCadaVez(async () => { await funcoes.trocar(p.id, f); mudar.depois(); }, mudar.depois)
+    }
   }} />;
 }

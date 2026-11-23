@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { chaveDaColuna, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_DOS_PROCESSOS, ordensEntre, planoDasColunasNovas, quadroJaTem, type ColunasNovas } from './colunasPadrao';
+import { chaveDaColuna, COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_DOS_PROCESSOS, ordensEntre, planoDasColunasNovas, quadroJaTem, type ColunasNovas } from './colunasPadrao';
 
 const TAREFAS = [
   { id: 't1', nome: 'Para fazer', ordem: 1, marco: 'inicio' as const },
@@ -139,5 +139,22 @@ describe('Colunas de acompanhamento dos processos judiciais (#315)', () => {
     const quadro = [...COLUNAS, { id: 'x', nome: 'aguardando ministerio publico', ordem: 31 }];
     // Quando / Então
     expect(planoDasColunasNovas(quadro, GRUPOS, COLUNAS_NOVAS_DOS_PROCESSOS)?.colunas.map(c => c.nome)).toEqual(['Em acompanhamento']);
+  });
+});
+
+describe('A coluna de aprovação das tarefas (#313)', () => {
+  it('dado um quadro com a coluna da análise renomeada para um nome parecido, quando procura a de aprovação, então acha ela, e não a do marco', () => {
+    // Dado
+    const colunas = [...TAREFAS, { id: 't5', nome: 'Aguardando solicitante', ordem: 2.5 }, { id: 't6', nome: 'AGUARDANDO SOLICITANTE', ordem: 9 }];
+    // Quando / Então
+    expect(colunaDeAprovacaoNoQuadro(colunas)?.id).toBe('t5');
+  });
+
+  it('dado um quadro sem ela, quando procura, então não acha, e o plano a acrescenta depois de "Fazendo"', () => {
+    // Quando
+    const plano = planoDasColunasNovas(TAREFAS, [], COLUNA_DE_APROVACAO_DAS_TAREFAS);
+    // Então
+    expect(colunaDeAprovacaoNoQuadro(TAREFAS)).toBeUndefined();
+    expect(plano?.colunas).toEqual([{ nome: ANALISE, ordem: 2.5 }]);
   });
 });

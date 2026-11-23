@@ -127,6 +127,19 @@ describe('Comentários do cartão', () => {
     expect(caixa()).toHaveValue('');
   });
 
+  it('dado um rascunho na caixa, quando o cartão grava um comentário por outro caminho (a devolução da tarefa, #313), então a lista é relida e o rascunho fica', async () => {
+    // Dado
+    const { rerender } = render(<SecaoComentarios modulo="tarefas" cartaoId="t1" versao={0} />);
+    await screen.findAllByRole('listitem', { name: /Comentário de/ });
+    await userEvent.type(caixa(), 'Rascunho');
+    SD.comentariosListar.mockResolvedValue([comentario('c3', 'u-ana', 'Tarefa devolvida: falta a guia', '2026-10-30T15:00:00Z')]);
+    // Quando
+    rerender(<SecaoComentarios modulo="tarefas" cartaoId="t1" versao={1} />);
+    // Então
+    expect(await screen.findByText('Tarefa devolvida: falta a guia')).toBeInTheDocument();
+    expect(caixa()).toHaveValue('Rascunho');
+  });
+
   it.each([
     ['quem escreveu', 'Comentário de Mauro Teixeira Duarte', false, ['Editar', 'Excluir']],
     ['um administrador, no comentário de outra pessoa', 'Comentário de Ana Teste Lima', true, ['Excluir']],

@@ -10,6 +10,7 @@ import { rotuloDoPrazoComHora } from '../regras/demanda';
 import { progressoDaLista } from '../regras/listas';
 import { situacaoDoItem } from '../regras/quadro';
 import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
+import { ENVIADA_PARA_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -49,11 +50,12 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
     // Na hora: a caixa muda já; se o banco recusar, a lista volta como estava.
     setTarefas(lista => Array.isArray(lista) ? lista.map(x => x.id === t.id ? { ...x, etapa_id: para } : x) : lista);
     try {
-      await SD.tarefaMover(t.id, para, ordemNoFim());
-      feito(marcada ? `${t.titulo} foi para "${situacao(para)}".` : `${t.titulo} voltou para "${situacao(para)}".`, 'mudança de situação da tarefa',
-        async () => { await SD.tarefaMover(t.id, de, ordemNoFim()); });
+      // A tarefa que precisa de aprovação, marcada por quem não aprova, fica na coluna de aprovação (#313): vale onde ela ficou.
+      const ficou = await SD.tarefaMover(t.id, para, ordemNoFim());
+      const aviso = ficou !== para ? `${t.titulo}: ${ENVIADA_PARA_APROVACAO}` : marcada ? `${t.titulo} foi para "${situacao(para)}".` : `${t.titulo} voltou para "${situacao(para)}".`;
+      feito(aviso, 'mudança de situação da tarefa', async () => { await SD.tarefaMover(t.id, de, ordemNoFim()); });
       // As ofertas de quem muda a Situação por qualquer caminho: o prazo do processo da tarefa (#355) e, com a última, a demanda.
-      if (await oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: null, ligadoADemanda: true }, para, navegar)) aoMudar();
+      if (await oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: null, ligadoADemanda: true }, ficou, navegar)) aoMudar();
     } catch (e) { falha(e); }
     setRecarga(x => x + 1);
   }

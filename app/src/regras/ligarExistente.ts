@@ -78,11 +78,13 @@ export function tarefaEmMaisUmaDemanda(t: TarefaParaADemanda, d: DemandaQueReceb
 /**
  * O que o Desfazer de tarefaEmMaisUmaDemanda grava, com a tarefa lida de novo (`atual`): null se a tarefa já não está nesta demanda
  * (outra pessoa a tirou; nada a voltar). Senão, ela sai só desta demanda e perde só as pessoas e o contrato que a ligação pôs: as
- * outras demandas, quem outra pessoa pôs depois e o contrato tirado depois ficam como estão.
+ * outras demandas, quem outra pessoa pôs depois e o contrato tirado depois ficam como estão. `antes`: as demandas de antes da ligação;
+ * se a tarefa ficaria sem nenhuma, volta a elas (a tarefa avulsa, que saiu da demanda contínua ao ganhar esta, volta para ela, #313).
  */
-export function desfazerTarefaEmMaisUmaDemanda(atual: TarefaParaADemanda, feito: TarefaEmMaisUmaDemanda): DadosTarefa | null {
+export function desfazerTarefaEmMaisUmaDemanda(atual: TarefaParaADemanda, feito: TarefaEmMaisUmaDemanda, antes: readonly string[] = []): DadosTarefa | null {
   if (!atual.demanda_ids.includes(feito.demandaId)) return null;
-  const volta: DadosTarefa = { demanda_ids: semOId(atual.demanda_ids, feito.demandaId) };
+  const restam = semOId(atual.demanda_ids, feito.demandaId);
+  const volta: DadosTarefa = { demanda_ids: restam.length ? restam : semOId(antes, feito.demandaId) };
   if (feito.contratoId && atual.contrato_ids.includes(feito.contratoId)) volta.contrato_ids = semOId(atual.contrato_ids, feito.contratoId);
   const ficam = atual.pessoas.filter(p => !feito.pessoas.includes(p));
   if (ficam.length !== atual.pessoas.length) volta.pessoas = ficam;

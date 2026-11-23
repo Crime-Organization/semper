@@ -16,6 +16,10 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
+import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
+import { NAO_ESPERA_APROVACAO, SEM_COMENTARIO_DA_DEVOLUCAO, SO_QUEM_PEDIU_APROVA, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
+import { CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
+import { FUNCAO_REPETIDA, funcaoEmUso } from '../regras/funcoesNaTarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -4781,7 +4785,9 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(codigo).toMatch(/^[0-9A-F]{8}$/);
         expect(await SD.tarefaObter(id)).toMatchObject({ titulo: 'Pedir documentos', responsavel_id: 'u-ana', participantes: ['u-bruno'],
-          pessoas: [{ id: pessoa }], demanda: null, contrato: null });
+          pessoas: [{ id: pessoa }], contrato: null });
+        // Sem demanda, a tarefa entra na demanda contínua (#313), que só a agrupa.
+        expect((await SD.tarefaObter(id))?.demanda).toMatchObject({ continua: true });
       });
 
       it('quando a tarefa é ligada a uma demanda, então guarda o código dela e aparece entre as tarefas da demanda', async () => {
@@ -4896,6 +4902,133 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Tarefa: diligência, solicitante e funções dos participantes (#313)', () => {
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        SD.tarefaCriar({ titulo: 'Protocolar ' + marca(), responsavel_id: 'u-ana', ...extra });
+
+      it('quando a tarefa é marcada como diligência sem motivo, então é recusada; com o motivo, ele fica limpo e aparece na lista', async () => {
+        // Quando
+        const semMotivo = await novaTarefa({ diligencia: true, diligencia_motivo: '   ' }).catch((e: Error) => e.message);
+        const { id } = await novaTarefa({ diligencia: true, diligencia_motivo: '  Protocolar no cartório  ' });
+        // Então
+        expect(semMotivo).toBe(SEM_MOTIVO_DA_DILIGENCIA);
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: true, diligencia_motivo: 'Protocolar no cartório' });
+        expect((await SD.tarefasListar({ porPagina: 500 })).linhas.find(t => t.id === id)?.diligencia).toBe(true);
+      });
+
+      it('quando a tarefa deixa de ser diligência, então o motivo sai junto e o histórico registra a troca', async () => {
+        // Dado
+        const { id } = await novaTarefa({ diligencia: true, diligencia_motivo: 'Ir ao fórum' });
+        // Quando
+        await SD.tarefaAtualizar(id, { diligencia: false });
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: false, diligencia_motivo: null });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.diligencia).toEqual({ de: true, para: false });
+      });
+
+      it('quando uma tarefa comum é criada, então ela não é diligência', async () => {
+        // Quando
+        const { id } = await novaTarefa();
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ diligencia: false, diligencia_motivo: null });
+      });
+
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const funcao = async (nome: string) => (await SD.funcoesNaTarefaListar()).find(f => f.nome === nome)!;
+
+      it('dado o escritório, então as funções de fábrica são "Executa" (de execução) e "Acompanha", nessa ordem', async () => {
+        // Quando
+        const lista = await SD.funcoesNaTarefaListar();
+        // Então
+        expect(lista.slice(0, 2).map(f => [f.nome, f.executa])).toEqual([['Executa', true], ['Acompanha', false]]);
+      });
+
+      it('quando a administradora cria uma função, então ela vai para o fim da lista; o nome repetido e quem não é administrador são recusados', async () => {
+        // Dado
+        const nome = 'Revisa ' + marca();
+        // Quando
+        const nova = await SD.funcaoNaTarefaCriar({ nome: '  ' + nome + ' ', executa: false });
+        const repetida = await SD.funcaoNaTarefaCriar({ nome: nome.toLowerCase(), executa: true }).catch((e: Error) => e.message);
+        entrarComo('u-bruno');
+        const deFora = await SD.funcaoNaTarefaCriar({ nome: 'Outra ' + marca(), executa: false }).catch((e: Error) => e.message);
+        // Então
+        expect(nova.nome).toBe(nome);
+        expect((await SD.funcoesNaTarefaListar()).at(-1)?.id).toBe(nova.id);
+        expect(repetida).toBe(FUNCAO_REPETIDA);
+        expect(deFora).toBe('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando a tarefa é criada com a função de um participante, então os outros ficam com a padrão, e a troca de função vai ao histórico', async () => {
+        // Dado
+        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const { id } = await novaTarefa({ participantes: ['u-bruno', 'u-master'], funcoes: { 'u-bruno': executa.id } });
+        // Quando
+        await SD.tarefaAtualizar(id, { funcoes: { 'u-bruno': executa.id, 'u-master': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id, 'u-master': executa.id });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: ' + acompanha.nome, para: 'Mauro Teixeira Duarte: Executa' });
+      });
+
+      it('quando um participante sai, então sai também das funções; quem entra pela lista ganha a padrão', async () => {
+        // Dado
+        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const { id } = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
+        // Quando
+        await SD.tarefaAtualizar(id, { participantes: ['u-master'] });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': acompanha.id });
+      });
+
+      it('quando a função de outro escritório chega, então é recusada', async () => {
+        // Quando
+        const r = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': 'de-outro-escritorio' } }).catch((e: Error) => e.message);
+        // Então
+        expect(r).toBe('Função não encontrada neste escritório.');
+      });
+
+      it('quando a função está em uso, então não é apagada; fora de uso, é', async () => {
+        // Dado
+        const usada = await SD.funcaoNaTarefaCriar({ nome: 'Usada ' + marca(), executa: false });
+        const livre = await SD.funcaoNaTarefaCriar({ nome: 'Livre ' + marca(), executa: false });
+        await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': usada.id } });
+        // Quando
+        const recusa = await SD.funcaoNaTarefaExcluir(usada.id).catch((e: Error) => e.message);
+        await SD.funcaoNaTarefaExcluir(livre.id);
+        // Então
+        expect(recusa).toBe(funcaoEmUso(usada.nome, 1));
+        expect((await SD.funcoesNaTarefaListar()).map(f => f.id)).not.toContain(livre.id);
+      });
+
+      it('quando o filtro pede as tarefas delegadas a alguém, então vêm só as em que ele é participante com a função de execução', async () => {
+        // Dado
+        const executa = await funcao('Executa'), parte = marca();
+        const { id: delegada } = await novaTarefa({ titulo: parte + ' delegada', participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
+        await novaTarefa({ titulo: parte + ' acompanha', participantes: ['u-bruno'] });
+        // Quando
+        const r = await SD.tarefasListar({ termo: parte, funcao: { de: 'u-bruno', ids: [executa.id] } });
+        const nenhuma = await SD.tarefasListar({ termo: parte, funcao: { de: 'u-bruno', ids: [] } });
+        // Então
+        expect(r.linhas.map(t => t.id)).toEqual([delegada]);
+        expect(nenhuma.total).toBe(0);
+      });
+
+      it('quando a tarefa tem solicitante, então ele fica gravado, sem trocar o responsável, e serve de filtro; de fora da equipe é recusado', async () => {
+        // Dado
+        const parte = marca();
+        const { id } = await novaTarefa({ titulo: parte + ' pedida', solicitante_id: 'u-bruno' });
+        await novaTarefa({ titulo: parte + ' outra' });
+        // Quando
+        const r = await SD.tarefasListar({ termo: parte, solicitante: 'u-bruno' });
+        const deFora = await SD.tarefaAtualizar(id, { solicitante_id: 'u-ninguem' }).catch((e: Error) => e.message);
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ solicitante_id: 'u-bruno', responsavel_id: 'u-ana' });
+        expect(r.linhas.map(t => t.id)).toEqual([id]);
+        expect(deFora).toBe('O solicitante precisa ser alguém da equipe do escritório.');
+      });
+    });
+
     describe('Tarefa em mais de uma demanda e de um contrato (#283)', () => {
       // Quem está logado é o Mauro (administrador). O Bruno colabora só na segunda demanda.
       const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
@@ -4953,7 +5086,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         entrarComo('u-bruno');
         const naLista = (await SD.tarefasListar({ porPagina: 100 })).linhas.find(t => t.id === id);
         // Então
-        expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [] }]);
+        expect(naLista?.equipes_das_outras_demandas).toEqual([{ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: ['u-bruno'], grupos: [], continua: false }]);
       });
     });
 
@@ -8118,7 +8251,7 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       expect(lida?.contrato).toMatchObject({ id, participantes: ['p-bruno'] });
       expect(daTarefa?.demanda).toMatchObject({ contrato_id: id, contrato: { id, participantes: ['p-bruno'] } });
       // Desde a #378, quem está na demanda inclui os grupos da equipe dela (como o banco lê equipe_da_demanda).
-      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [], grupos: [] });
+      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [], grupos: [], continua: false });
     });
 
     it('dada a demanda de um contrato que quem lê não pode abrir, quando ele abre a tarefa dela, então o contrato da demanda vem vazio', async () => {
@@ -9716,5 +9849,281 @@ describe('O "A definir" antigo na lista de objetos (banco fictício)', () => {
     await expect(SD.objetoApagar('o-a-definir')).rejects.toThrow(OBJETO_A_DEFINIR_FIXO);
     expect((await SD.contratoObter(k.id))!.objetos).toEqual(['Consulta antiga', 'A definir']);
     expect((await SD.objetosDoEscritorio()).map(o => o.id)).toContain(consulta.id);
+  });
+});
+
+describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  /** A tarefa avulsa (sem demanda) de quem está logado. */
+  const avulsa = async (titulo: string, eu: string) => (await SD.tarefaCriar({ titulo, responsavel_id: eu, participantes: [], pessoas: [] })).id;
+  const demandaDe = async (tarefa: string) => (await SD.tarefaObter(tarefa))?.demanda ?? null;
+  /** A Ana (administradora) cria um grupo com o Bruno. */
+  const nucleoComBruno = async (nome = 'Núcleo Cível') => {
+    entrarComo('u-ana');
+    const id = await SD.grupoDaEquipeCriar(nome);
+    await SD.grupoDaEquipeIncluir(id, 'u-bruno');
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => { falso().fecharVisibilidade(false); entrarComo('u-master'); });
+
+  it('dado o Bruno sem grupo, quando cria uma tarefa sem demanda, então ela entra na contínua Geral, com o master como responsável', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando
+    const id = await avulsa('Pagar a guia', 'u-bruno');
+    // Então
+    const d = await demandaDe(id);
+    expect(d).toMatchObject({ titulo: tituloDaContinua('Geral'), continua: true, responsavel_id: 'u-master', criado_por: 'u-master' });
+    expect(await SD.demandaObter(d!.id)).toMatchObject({ continua: true, continua_grupo_id: null, contrato_id: null });
+  });
+
+  it('dado o Bruno num grupo só, quando cria uma tarefa sem demanda, então ela entra na contínua do grupo; pedir a contínua de novo devolve a mesma', async () => {
+    // Dado
+    const grupo = await nucleoComBruno();
+    entrarComo('u-bruno');
+    // Quando
+    const id = await avulsa('Ligar para o cartório', 'u-bruno');
+    // Então
+    const d = await demandaDe(id);
+    expect(d).toMatchObject({ titulo: tituloDaContinua('Núcleo Cível'), continua: true });
+    expect(await SD.demandaContinua(grupo)).toBe(d!.id);
+    expect(await SD.demandaContinua(grupo)).toBe(d!.id);
+  });
+
+  it('dado o Bruno fora de um grupo, quando pede a contínua dele, então é recusado; a Geral ele usa', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Penal');
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.demandaContinua(grupo)).rejects.toThrow('Você não tem permissão para fazer isso.');
+    await expect(SD.tarefaCriar({ titulo: 'X', responsavel_id: 'u-bruno', demanda_ids: [await adminPede(grupo)] })).rejects.toThrow('Demanda não encontrada neste escritório.');
+    expect(await SD.demandaContinua(null)).toBeTruthy();
+  });
+  /** A Ana pede a contínua do grupo (e volta ao Bruno). */
+  async function adminPede(grupo: string) {
+    entrarComo('u-ana');
+    const id = await SD.demandaContinua(grupo);
+    entrarComo('u-bruno');
+    return id;
+  }
+
+  it('dada a tarefa avulsa na contínua de um grupo de que o Bruno não faz parte, com ele como responsável, quando ele busca tarefas "sem demanda" para ligar, então ela aparece', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Tributário');
+    const continua = await SD.demandaContinua(grupo);
+    const { id } = await SD.tarefaCriar({ titulo: 'Conferir a guia do ITCMD', responsavel_id: 'u-bruno', demanda_ids: [continua], participantes: [], pessoas: [] });
+    entrarComo('u-bruno');
+    // Quando
+    const achadas = await SD.tarefasParaLigar({ termo: 'ITCMD', sem: 'demandas' });
+    // Então
+    expect(achadas.map(t => t.id)).toEqual([id]);
+  });
+
+  it('dada a tarefa avulsa da Ana na Geral, quando o Bruno lê, então vê a contínua, mas não a tarefa dela (a contínua só agrupa)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const id = await avulsa('Tarefa da Ana', 'u-ana');
+    const geral = (await demandaDe(id))!.id;
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.demandaObter(geral)).toMatchObject({ continua: true });
+    expect(await SD.tarefaObter(id)).toBeNull();
+    expect((await SD.tarefasDaDemanda(geral)).map(t => t.id)).not.toContain(id);
+  });
+
+  it('dada a contínua, quando alguém tenta arquivá-la, concluí-la ou pôr colaboradores nela, então nada disso acontece', async () => {
+    // Dado
+    const id = await avulsa('Revisar', 'u-master');
+    const continua = (await demandaDe(id))!.id;
+    const concluida = (await SD.colunasListar('demandas')).find(c => c.marco === 'concluido')!.id;
+    // Quando / Então
+    expect(await SD.demandasArquivar([continua])).toBe(0);
+    expect((await SD.demandaObter(continua))?.arquivado_em).toBeNull();
+    await expect(SD.demandaMover(continua, concluida, 1)).rejects.toThrow(CONTINUA_NAO_CONCLUI);
+    await expect(SD.demandaAtualizar(continua, { colaboradores: ['u-bruno'] })).rejects.toThrow(CONTINUA_SEM_EQUIPE);
+    expect(await SD.demandaAtualizar(continua, { descricao: 'As soltas' })).toMatchObject({ id: continua });
+  });
+
+  it('dada uma tarefa avulsa, quando ganha uma demanda de verdade, então sai da contínua', async () => {
+    // Dado
+    const id = await avulsa('Juntar certidões', 'u-master');
+    const d = await SD.demandaCriar({ titulo: 'Inventário', responsavel_id: 'u-master' });
+    const continua = (await demandaDe(id))!.id;
+    // Quando
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua, d.id] });
+    // Então
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([d.id]);
+  });
+
+  it('dada a tarefa avulsa na contínua de um grupo de que o Bruno não faz parte, quando ele a liga a uma demanda dele e desfaz, então ela volta à contínua', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const grupo = await SD.grupoDaEquipeCriar('Núcleo Trabalhista');
+    const continua = await SD.demandaContinua(grupo);
+    const { id } = await SD.tarefaCriar({ titulo: 'Calcular as verbas', responsavel_id: 'u-bruno', demanda_ids: [continua], participantes: [], pessoas: [] });
+    entrarComo('u-bruno');
+    const d = await SD.demandaCriar({ titulo: 'Reclamação', responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua, d.id] });
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([d.id]);
+    // Quando: o Desfazer
+    await SD.tarefaAtualizar(id, { demanda_ids: [continua] });
+    // Então
+    expect((await SD.tarefaObter(id))?.demanda_ids).toEqual([continua]);
+  });
+
+  it('dado um grupo com contínua, quando é renomeado e depois excluído, então a contínua acompanha o nome e as tarefas dela vão para a Geral', async () => {
+    // Dado
+    const grupo = await nucleoComBruno('Núcleo A');
+    entrarComo('u-bruno');
+    const id = await avulsa('Do núcleo', 'u-bruno');
+    const doGrupo = (await demandaDe(id))!.id;
+    entrarComo('u-ana');
+    // Quando
+    await SD.grupoDaEquipeRenomear(grupo, 'Núcleo Cível');
+    // Então
+    expect((await SD.demandaObter(doGrupo))?.titulo).toBe(tituloDaContinua('Núcleo Cível'));
+    // Quando
+    await SD.grupoDaEquipeExcluir(grupo);
+    // Então
+    const agora = await demandaDe(id);
+    expect(agora).toMatchObject({ titulo: tituloDaContinua('Geral'), continua: true });
+    expect(await SD.demandaObter(doGrupo)).toBeNull();
+  });
+});
+
+describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void };
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO.entrarComo(id);
+  const colunas = async () => SD.colunasListar('tarefas');
+  const coluna = async (qual: (c: Awaited<ReturnType<typeof colunas>>[number]) => boolean) => (await colunas()).find(qual)!.id;
+  /** O Mauro (administrador) pede ao Bruno uma tarefa com aprovação, em "Fazendo". */
+  const pedidaAoBruno = async (precisa = true) => {
+    entrarComo('u-master');
+    const { id } = await SD.tarefaCriar({ titulo: 'Minutar a petição', responsavel_id: 'u-bruno', solicitante_id: 'u-master', precisa_aprovacao: precisa,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => entrarComo('u-master'));
+
+  it('dado o quadro de tarefas, quando é lido, então tem uma coluna de aprovação, a "Aguardando: análise do solicitante", que não se exclui', async () => {
+    // Quando
+    const aprovacao = (await colunas()).filter(c => c.de_aprovacao);
+    // Então
+    expect(aprovacao.map(c => c.nome)).toEqual(['Aguardando: análise do solicitante']);
+    await expect(SD.colunaExcluir(aprovacao[0].id)).rejects.toThrow('A coluna de aprovação das tarefas não pode ser excluída.');
+  });
+
+  it('dada a tarefa com aprovação, quando o Bruno (quem executa) a conclui, então ela fica na coluna de aprovação, sem data de conclusão, e ele não se aprova', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => !!c.de_aprovacao));
+    expect(await SD.tarefaObter(id)).toMatchObject({ etapa_id: ficou, concluida_em: null, precisa_aprovacao: true });
+    await expect(SD.tarefaAprovar(id)).rejects.toThrow(SO_QUEM_PEDIU_APROVA);
+    await expect(SD.tarefaAtualizar(id, { precisa_aprovacao: false })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+    await expect(SD.tarefaAtualizar(id, { solicitante_id: 'u-bruno' })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+  });
+
+  it('dada a tarefa na aprovação, quando o Mauro a devolve com um comentário, então ela volta para "Fazendo" e o comentário fica no cartão', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    await expect(SD.tarefaDevolver(id, '  ')).rejects.toThrow(SEM_COMENTARIO_DA_DEVOLUCAO);
+    const voltou = await SD.tarefaDevolver(id, ' Falta o pedido de tutela. ');
+    // Então
+    expect(voltou).toBe(await coluna(c => c.nome === 'Fazendo'));
+    expect((await SD.tarefaObter(id))?.etapa_id).toBe(voltou);
+    expect((await SD.comentariosListar('tarefas', id)).map(c => [c.autor_id, c.texto])).toEqual([['u-master', 'Tarefa devolvida: Falta o pedido de tutela.']]);
+    await expect(SD.tarefaDevolver(id, 'De novo')).rejects.toThrow(NAO_ESPERA_APROVACAO);
+  });
+
+  it('dada a tarefa na aprovação, quando o Mauro aprova, então ela vai para as concluídas, com a data de conclusão', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    const foi = await SD.tarefaAprovar(id);
+    // Então
+    expect(foi).toBe(await coluna(c => c.marco === 'concluido'));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
+  });
+
+  it('dada a tarefa que o Bruno pediu à Ana (administradora), com aprovação, quando a Ana a conclui, então ela também espera a aprovação, e a Ana a aprova pelo Aprovar', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const { id } = await SD.tarefaCriar({ titulo: 'Revisar a minuta', responsavel_id: 'u-ana', solicitante_id: 'u-bruno', precisa_aprovacao: true,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    entrarComo('u-ana');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => !!c.de_aprovacao));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeNull();
+    expect(await SD.tarefaAprovar(id)).toBe(await coluna(c => c.marco === 'concluido'));
+  });
+
+  it('dada a tarefa na coluna de aprovação, quando o Mauro (administrador) a arrasta para as concluídas, então ela é aprovada', async () => {
+    // Dado
+    const id = await pedidaAoBruno();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    entrarComo('u-master');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 2);
+    // Então
+    expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
+    expect((await SD.tarefaObter(id))?.concluida_em).toBeTruthy();
+  });
+
+  it('dada a tarefa sem aprovação, quando o Bruno (quem executa) marca a caixa pelo lápis, então grava; depois, ele não a desmarca', async () => {
+    // Dado
+    const id = await pedidaAoBruno(false);
+    entrarComo('u-bruno');
+    // Quando
+    await SD.tarefaAtualizar(id, { precisa_aprovacao: true });
+    // Então
+    expect((await SD.tarefaObter(id))?.precisa_aprovacao).toBe(true);
+    await expect(SD.tarefaAtualizar(id, { precisa_aprovacao: false })).rejects.toThrow(SO_QUEM_PEDIU_MUDA_A_APROVACAO);
+  });
+
+  it('dada a tarefa sem aprovação, quando o Bruno a conclui, então ela vai direto para as concluídas (como antes)', async () => {
+    // Dado
+    const id = await pedidaAoBruno(false);
+    entrarComo('u-bruno');
+    // Quando
+    const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
   });
 });

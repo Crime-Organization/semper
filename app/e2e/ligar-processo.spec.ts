@@ -116,7 +116,7 @@ test.describe('Tarefa e processo', () => {
     // Dado
     const cartao = await abrirCartao(page, '/tarefas/', 'Renovar a procuração', 'Processo');
     await cartao.getByRole('button', { name: 'Editar' }).click();
-    await expect(cartao.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeVisible();
+    await expect(cartao.getByRole('heading', { name: 'Diligência, demanda, contrato e processo' })).toBeVisible();
     // Quando
     await ligar(cartao.getByRole('group', { name: 'Processo' }), 'marca', new RegExp(MARCA));
     await cartao.getByRole('button', { name: 'Salvar' }).click();

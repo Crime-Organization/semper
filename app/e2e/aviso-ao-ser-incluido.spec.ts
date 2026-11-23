@@ -136,10 +136,10 @@ test.describe('Aviso ao ser incluído num item', () => {
     // Dado
     const { cartao } = await abrirPelaTabela(page, '/tarefas/', 'Emitir a GRU');
     // Quando
-    await acaoDaBolinha(page, cartao, 'Bruno Exemplo Souza, Participante', 'Tirar da tarefa');
-    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante', exact: true })).toHaveCount(0);
+    await acaoDaBolinha(page, cartao, 'Bruno Exemplo Souza, Participante · Acompanha', 'Tirar da tarefa');
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · Acompanha', exact: true })).toHaveCount(0);
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
-    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante', exact: true })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · Acompanha', exact: true })).toBeVisible();
     // Então
     await entrarComo(page, 'u-bruno');
     await abrirMensagens(page);

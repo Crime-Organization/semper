@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, FOLGA_DA_ROLAGEM, maisNosLados, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacaoDoItem, situacoesDoQuadro } from './quadro';
+import { antesDeAoAndar, COLUNA_DE_APROVACAO, explicacaoDaColuna, FOLGA_DA_ROLAGEM, maisNosLados, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacaoDoItem, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -12,6 +12,16 @@ describe('Colunas-marco', () => {
     const pode = podeExcluirColuna({ marco }, ehAdmin);
     // Então
     expect(pode).toBe(esperado);
+  });
+
+  it('dada a coluna de aprovação das tarefas (#313), quando um administrador tenta excluí-la, então não pode, e o menu explica o que ela faz', () => {
+    // Dado
+    const aprovacao = { marco: null, de_aprovacao: true };
+    // Então
+    expect(podeExcluirColuna(aprovacao, true)).toBe(false);
+    expect(explicacaoDaColuna(aprovacao)).toBe(COLUNA_DE_APROVACAO.explicacao);
+    expect(explicacaoDaColuna({ marco: 'inicio' })).toBe(MARCOS.inicio.explicacao);
+    expect(explicacaoDaColuna({ marco: null })).toBeNull();
   });
 
   it.each([

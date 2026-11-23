@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Demanda, Membro } from '../dados/tipos';
 import {
   CAMPOS_DEMANDA, camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
-  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, seloDoPrazo, semContrato, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
+  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, seloDoPrazo, semContrato, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda, veADemanda
 } from './demanda';
 
 const completa = { ...DEMANDA_VAZIA, titulo: 'Pedido de registro de marca', responsavelId: 'u-ana' };
@@ -235,5 +235,24 @@ describe('Demanda sem contrato (#311)', () => {
   ])('dada uma demanda %s, quando o quadro pergunta, então o selo aparece: %s', (_caso, contrato_codigo, comContratos, esperado) => {
     // Então
     expect(semContrato({ contrato_codigo }, comContratos)).toBe(esperado);
+  });
+
+  it('dada a demanda contínua (#313), quando o quadro pergunta, então ela não tem o selo (nunca tem contrato)', () => {
+    // Então
+    expect(semContrato({ contrato_codigo: null, continua: true }, true)).toBe(false);
+  });
+});
+
+describe('Quem vê a demanda contínua (#313)', () => {
+  const membro = (id: string, papel: Membro['papel'] = 'usuario') => ({ id, nome: id, usuario: id, papel, ativo: true }) as Membro;
+  const base = { criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [] as string[], grupos: [] as string[], contrato_id: null };
+  it.each([
+    ['a Geral, alguém sem grupo', { continua: true, continua_grupo_id: null }, [], true],
+    ['a de um grupo, quem está nele', { continua: true, continua_grupo_id: 'g1' }, ['g1'], true],
+    ['a de um grupo, quem não está nele', { continua: true, continua_grupo_id: 'g1' }, ['g2'], false],
+    ['uma demanda comum, quem não está nela', { continua: false, continua_grupo_id: null }, ['g1'], false]
+  ])('dada %s, então vê: %s', (_caso, d, meus, esperado) => {
+    // Então
+    expect(veADemanda({ ...base, ...d }, membro('u-bia'), [], meus)).toBe(esperado);
   });
 });

@@ -11,6 +11,7 @@ import { falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
 import { oferecerConcluirDemanda, oferecerProcesso } from './concluirDemanda';
 import { oferecerPrazoDoProcesso } from './prazoDaTarefa';
+import { ENVIADA_PARA_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { ConcluirItem, concluirOuReabrirItem, mudarSituacaoDoItem, oferecerDepoisDeMudar, type ItemQueMuda } from './situacaoDoItem';
 
 vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('../ui/avisos')>(), feito: vi.fn(), falha: vi.fn(), sinalizarMudanca: vi.fn() }));
@@ -21,6 +22,8 @@ const coluna = (id: string, nome: string, marco: Coluna['marco'] = null): Coluna
 const COLUNAS = [coluna('c-fazer', 'Para fazer', 'inicio'), coluna('c-fazendo', 'Fazendo'), coluna('c-feita', 'Concluída', 'concluido')];
 const TAREFA: ItemQueMuda = { id: 't1', titulo: 'Emitir a GRU', etapa_id: 'c-fazendo', etapa_ordem: 3, ligadoADemanda: false };
 const navegar = vi.fn();
+/** O banco grava a tarefa na coluna pedida e devolve onde ela ficou. */
+const gravaOndePediu = async (_id: string, etapa: string | null) => etapa;
 
 describe('Mudar a Situação de um item (gravação comum)', () => {
   beforeEach(() => {
@@ -34,7 +37,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
 
   it('dada uma tarefa em "Fazendo", quando ela é concluída, então vai para a coluna das concluídas, com o aviso, e o Desfazer a devolve ao lugar', async () => {
     // Dado
-    const mover = vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const mover = vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     // Quando
     const gravou = await concluirOuReabrirItem('tarefas', COLUNAS, TAREFA, 'concluir', navegar);
     // Então
@@ -45,9 +48,23 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
     expect(mover).toHaveBeenLastCalledWith('t1', 'c-fazendo', 3);
   });
 
+  it('dada uma tarefa que precisa de aprovação (#313), quando quem não aprova a conclui e o banco a deixa na aprovação, então o aviso, a tela e as ofertas seguem a coluna em que ela ficou', async () => {
+    // Dado
+    vi.spyOn(SD, 'tarefaMover').mockResolvedValue('c-aprovacao');
+    const depois = vi.fn();
+    // Quando
+    await concluirOuReabrirItem('tarefas', COLUNAS, { ...TAREFA, ligadoADemanda: true }, 'concluir', navegar, depois);
+    // Então
+    expect(feito).toHaveBeenCalledWith(ENVIADA_PARA_APROVACAO, 'mudança de situação', expect.any(Function));
+    expect(depois).toHaveBeenCalledWith(expect.any(Number), 'c-aprovacao');
+    expect(oferecerPrazoDoProcesso).toHaveBeenCalledWith('t1', 'c-fazendo', 'c-aprovacao');
+    expect(oferecerConcluirDemanda).toHaveBeenCalledWith('t1', 'c-aprovacao', navegar);
+    vi.mocked(oferecerConcluirDemanda).mockClear();
+  });
+
   it('dada uma tarefa concluída, quando ela é reaberta, então volta para a coluna do início, com o nome dela no aviso', async () => {
     // Dado
-    const mover = vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const mover = vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     // Quando
     await concluirOuReabrirItem('tarefas', COLUNAS, { ...TAREFA, etapa_id: 'c-feita' }, 'reabrir', navegar);
     // Então
@@ -60,7 +77,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
     [false, 0]
   ])('dada uma tarefa ligada a uma demanda = %s, quando ela muda de coluna, então a pergunta de concluir a demanda é feita %s vez', async (ligada, vezes) => {
     // Dado
-    vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     // Quando
     await concluirOuReabrirItem('tarefas', COLUNAS, { ...TAREFA, ligadoADemanda: ligada }, 'concluir', navegar);
     // Então
@@ -97,7 +114,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
 
   it('dado um quadro sem a coluna das concluídas, quando alguém pede para concluir, então nada é gravado', async () => {
     // Dado
-    const mover = vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const mover = vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     // Quando
     const gravou = await concluirOuReabrirItem('tarefas', COLUNAS.filter(c => c.marco !== 'concluido'), TAREFA, 'concluir', navegar);
     // Então
@@ -109,7 +126,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
 describe('O círculo ligado à gravação comum (#350)', () => {
   it('dada uma tarefa que a pessoa altera, quando ela clica no círculo, então a tarefa é concluída e a página é avisada para reler', async () => {
     // Dado
-    const mover = vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const mover = vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     render(<MemoryRouter><ConcluirItem modulo="tarefas" colunas={COLUNAS} item={TAREFA} podeAgir /></MemoryRouter>);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Concluir Emitir a GRU' }));
@@ -131,7 +148,7 @@ describe('O círculo ligado à gravação comum (#350)', () => {
     ['o teclado', async (b: HTMLElement) => { b.focus(); await userEvent.keyboard('{Enter}'); }, true]
   ])('dada uma tarefa no quadro, quando ela é concluída pelo círculo com %s, então a miniatura só muda de coluna na tela, sem a página reler', async (_, agir, focar) => {
     // Dado
-    vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     const moverNaTela = vi.fn();
     render(<MemoryRouter><MoverNoQuadro.Provider value={moverNaTela}>
       <ConcluirItem modulo="tarefas" colunas={COLUNAS} item={TAREFA} podeAgir />
@@ -152,7 +169,7 @@ describe('As ofertas depois de mudar de coluna, por qualquer caminho (#355)', ()
 
   it('dada uma tarefa ligada a uma demanda, quando ela é concluída, então a pergunta do prazo do processo vem antes da pergunta da demanda, com a coluna de onde ela saiu', async () => {
     // Dado
-    vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    vi.spyOn(SD, 'tarefaMover').mockImplementation(gravaOndePediu);
     const ordem: string[] = [];
     vi.mocked(oferecerPrazoDoProcesso).mockImplementationOnce(async () => { ordem.push('prazo'); return true; });
     vi.mocked(oferecerConcluirDemanda).mockImplementationOnce(async () => { ordem.push('demanda'); return false; });

@@ -3,6 +3,7 @@
 // a mudança como registra a do lápis). As regras de cada passo estão em regras/equipeNoCartao.ts.
 import { SD, type GrupoDaEquipe, type ModuloDoPedido } from '../dados';
 import { AVISO_DOS_GRUPOS, desfazerNosGrupos, MUDANCAS_NOS_GRUPOS, type TipoDeMudancaNosGrupos } from '../regras/gruposDaEquipe';
+import { comAFuncaoDeQuemEntra } from '../regras/funcoesNaTarefa';
 import {
   AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, planoDaMudanca, saidaPelaBolinhaFalhou, type EquipeAGravar, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe,
   type SaidaDaPessoa
@@ -14,7 +15,8 @@ import { ITEM_SUMIU } from './ligarNoCartao';
 interface EquipeDoItem {
   /** A equipe gravada agora (null: o item não foi encontrado). */
   ler: (id: string) => Promise<EquipeGravada | null>;
-  gravar: (id: string, e: EquipeAGravar) => Promise<unknown>;
+  /** Grava a equipe; `pedido` (só na mudança pedida, não no Desfazer) leva, na tarefa, a função de quem entra (#313). */
+  gravar: (id: string, e: EquipeAGravar, pedido?: PedidoNaEquipe) => Promise<unknown>;
   /** O sinal de "dados mudaram" depois de desfazer, como o do lápis. */
   mudanca: string;
 }
@@ -23,10 +25,18 @@ const comResponsavel = (e: EquipeAGravar) => e.responsavel_id ? { responsavel_id
 const equipe = (x: { responsavel_id: string } | null, lista: string[] | undefined): EquipeGravada | null =>
   x && { responsavel_id: x.responsavel_id, lista: lista ?? [] };
 
+/** Na tarefa (#313), quem entra pelo "+" com uma função escolhida: as funções de agora (lidas logo antes) e a dele. Sem função, nada. */
+async function funcaoDeQuemEntra(id: string, pedido?: PedidoNaEquipe): Promise<{ funcoes?: Record<string, string> }> {
+  if (pedido?.tipo !== 'por' || !pedido.funcao) return {};
+  const t = await SD.tarefaObter(id);
+  return { funcoes: comAFuncaoDeQuemEntra(t?.funcoes, pedido.id, pedido.funcao) };
+}
+
 /** Onde fica a equipe de cada item: os participantes da tarefa, do compromisso e da anotação; os colaboradores da demanda e do processo. */
 const EQUIPE_DO_ITEM: Record<ModuloDaEquipe, EquipeDoItem> = {
   tarefas: { ler: async id => { const t = await SD.tarefaObter(id); return equipe(t, t?.participantes); },
-    gravar: (id, e) => SD.tarefaAtualizar(id, { ...comResponsavel(e), participantes: e.lista }), mudanca: 'tarefaAtualizada' },
+    gravar: async (id, e, pedido) => SD.tarefaAtualizar(id, { ...comResponsavel(e), participantes: e.lista, ...await funcaoDeQuemEntra(id, pedido) }),
+    mudanca: 'tarefaAtualizada' },
   demandas: { ler: async id => { const d = await SD.demandaObter(id); return equipe(d, d?.colaboradores); },
     gravar: (id, e) => SD.demandaAtualizar(id, { ...comResponsavel(e), colaboradores: e.lista }), mudanca: 'demandaAtualizada' },
   processos: { ler: async id => { const p = await SD.processoObter(id); return equipe(p, p?.colaboradores); },
@@ -53,7 +63,7 @@ export async function mudarAEquipe(modulo: ModuloDaEquipe, itemId: string, pedid
     avisar(plano.aviso, plano.tipo);
     return 'nada';
   }
-  await l.gravar(itemId, plano.gravar);
+  await l.gravar(itemId, plano.gravar, pedido);
   if (plano.sai) {
     // A falha da saída vem com o texto do lápis ("Salve de novo"), e aqui não há Salvar: o aviso diz como sair pela bolinha.
     await sairDoCartao(modulo, itemId, `Você saiu ${m.doItem}, e a saída ficou no histórico.`).catch(() => { throw new Error(saidaPelaBolinhaFalhou(modulo)); });

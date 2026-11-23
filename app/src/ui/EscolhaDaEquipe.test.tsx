@@ -174,3 +174,27 @@ describe('Equipe do item: adicionar e tirar', () => {
     expect(screen.getByRole('textbox')).toHaveFocus();
   });
 });
+
+describe('Equipe do item: a função de cada participante da tarefa (#313)', () => {
+  const FUNCOES = [{ id: 'f-exe', nome: 'Executa', executa: true, ordem: 1 }, { id: 'f-aco', nome: 'Acompanha', executa: false, ordem: 2 }];
+
+  it('quando há funções, então cada escolhido tem ao lado a escolha da função, com a dele marcada, e a troca avisa quem chama', async () => {
+    // Dado
+    const trocar = vi.fn();
+    render(<EscolhaDaEquipe rotulo="Participantes" equipe={EQUIPE} escolhidos={['u-ana', 'u-bruno']} adicionar="Adicionar participante" aoMudar={vi.fn()}
+      funcoes={{ opcoes: FUNCOES, de: { 'u-ana': 'f-aco' }, aoMudar: trocar }} />);
+    // Quando
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Função de Ana Teste Lima' }), 'Executa');
+    // Então
+    expect(trocar).toHaveBeenCalledWith('u-ana', 'f-exe');
+    expect(screen.getByRole('combobox', { name: 'Função de Bruno Exemplo Souza' })).toHaveValue('');
+    expect(screen.getByRole('option', { name: 'Sem função' })).toBeInTheDocument();
+  });
+
+  it('quando não há funções, então não aparece a escolha', () => {
+    // Quando
+    render(<Formulario inicio={['u-ana']} />);
+    // Então
+    expect(screen.queryByRole('combobox', { name: /Função de/ })).not.toBeInTheDocument();
+  });
+});

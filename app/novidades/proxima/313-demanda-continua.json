@@ -1,0 +1,5 @@
+{
+  "titulo": "Tarefas avulsas na demanda contínua do grupo",
+  "texto": "A tarefa sem demanda passa a entrar na demanda contínua do seu grupo da equipe (ou na \"Geral\", para quem não está em grupo). Ela só junta as tarefas: cada pessoa continua vendo só as tarefas em que está, e a contínua nunca é arquivada nem concluída.",
+  "ondeAchar": "Tarefas > Nova tarefa, campo \"Grupo da tarefa avulsa\" (aparece quando não há demanda); a contínua fica em Demandas, com o selo \"Contínua\"."
+}

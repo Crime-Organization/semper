@@ -27,8 +27,10 @@ import { ESPERA_AO_DIGITAR } from './tempos';
 /** O tamanho da bolinha de cada pessoa na lista do @. */
 const BOLINHA_DA_MENCAO = 22;
 
-export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso, buscarItens = buscarItensParaMencionar }: {
+export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso, buscarItens = buscarItensParaMencionar, versao = 0 }: {
   modulo: ModuloComentado; cartaoId: string;
+  /** Muda quando o cartão grava um comentário por outro caminho (a devolução da tarefa, #313): a lista é relida, sem perder o rascunho. */
+  versao?: number;
   /** Onde a lista do ! procura os itens (os testes trocam). */
   buscarItens?: BuscarItensParaMencionar;
   /** O que a menção faz neste cartão (ex.: em contratos, dá acesso a ele). */
@@ -51,7 +53,7 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso, bus
     try { setLista(await SD.comentariosListar(modulo, cartaoId)); }
     catch (e) { falha(e); setLista([]); }
   }, [modulo, cartaoId]);
-  useEffect(() => { void carregar(); }, [carregar]);
+  useEffect(() => { void carregar(); }, [carregar, versao]);
 
   // Os itens chamados com ! nos comentários (regras/comentarios.ts): só os que quem lê vê voltam. Os códigos são consultados de novo a
   // cada mudança da lista (abrir, comentar, editar, excluir), então um item arquivado, excluído ou que deixou de ser visível com o

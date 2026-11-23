@@ -10,6 +10,7 @@ import { SD, type Coluna, type ContextoAtivo, type DemandaLista, type FiltroDema
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { seloDoPrazo, SEM_CONTRATO, SEM_SITUACAO_DEMANDA, semContrato, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
+import { SELO_DA_CONTINUA } from '../regras/demandaContinua';
 import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -235,6 +236,7 @@ function CartaoKanban({ d, ordem, concluido, circulo }: { d: DemandaLista; ordem
     <div className="km">
       <LigacoesNoQuadro codigo={d.codigo} ligacoes={ligacoes(d)} />
       {semContrato(d, !!ctx.escritorio?.modulos?.contratos) && <Selo tipo="pend">{SEM_CONTRATO}</Selo>}
+      {d.continua && <Selo>{SELO_DA_CONTINUA}</Selo>}
       {d.cliente_nome && <span>{clientesPorExtenso(d.cliente_nome)}</span>}
       <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -287,7 +289,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
         <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLe(ctx, d)} />
           <div className="titulo-com-circulo">{circulo(ctx, colunas, d, d.etapa_id, d.etapa_ordem)}<NomeDaLinha>{d.titulo}</NomeDaLinha></div>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · ' + ligacoesPorExtenso(ligacoes(d)) : ''}
-            {semContrato(d, !!ctx.escritorio?.modulos?.contratos) && <> <Selo tipo="pend">{SEM_CONTRATO}</Selo></>}</div></td>
+            {semContrato(d, !!ctx.escritorio?.modulos?.contratos) && <> <Selo tipo="pend">{SEM_CONTRATO}</Selo></>}
+            {d.continua && <> <Selo>{SELO_DA_CONTINUA}</Selo></>}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} />

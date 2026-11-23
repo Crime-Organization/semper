@@ -36,7 +36,7 @@ const PAINEL_VAZIO: PainelDeProcessos = {
 };
 const prazo = (id: string, data: string): PrazoNaAgenda => ({ origem: 'tarefas', id, codigo: 'C-' + id, titulo: 'Prazo ' + id, prazo: data, responsavel_id: 'u1', hora: null });
 const tarefa = (id: string, titulo: string, etapa_id: string, prazo: string | null = null): TarefaLista => ({
-  id, codigo: 'T-' + id, titulo, prazo, prazo_hora: null, data_inicio: HOJE, responsavel_id: 'u1', participantes: [], pessoa_nome: '', demanda_codigo: null, contrato_codigo: null,
+  id, codigo: 'T-' + id, titulo, prazo, prazo_hora: null, data_inicio: HOJE, responsavel_id: 'u1', participantes: [], diligencia: false, pessoa_nome: '', demanda_codigo: null, contrato_codigo: null,
   etapa_id, etapa_ordem: 1, arquivado_em: null, criado_por: 'u1', criado_em: HOJE, atualizado_em: HOJE, equipe_da_demanda: null
 });
 const compromisso = (id: string, titulo: string, hora: string | null): CompromissoLista => ({

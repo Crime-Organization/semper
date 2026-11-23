@@ -203,7 +203,11 @@ export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao:
 
 /** Código fixo das colunas que marcam um ponto do fluxo (regras/quadro.ts). */
 export type MarcoColuna = 'assinado' | 'inicio' | 'concluido' | 'contrato_fechado' | 'aguardando_assinatura';
-export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null }
+export interface Coluna {
+  id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null;
+  /** A coluna em que a tarefa espera a aprovação (#313): uma só, no quadro de tarefas; renomeia-se, mas não se exclui. */
+  de_aprovacao?: boolean;
+}
 /** Grupo de colunas de um quadro, que abre e fecha. Do escritório: só os administradores mudam. comeca_fechado: aparece fechado até a pessoa abrir. */
 export interface GrupoDeColunas { id: string; nome: string; ordem: number; comeca_fechado: boolean }
 
@@ -337,6 +341,13 @@ export interface Demanda {
   colaboradores: string[];         // perfis da equipe, sem o responsável
   /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
   grupos?: string[];
+  /**
+   * A demanda contínua (#313): reúne as tarefas avulsas (sem demanda) de um grupo da equipe, ou de todos na "Geral". O banco a cria;
+   * ela nunca é arquivada, concluída nem excluída, e estar nela não abre as tarefas dela. Ausente: demanda comum.
+   */
+  continua?: boolean;
+  /** O grupo da contínua (null na Geral e nas demandas comuns). */
+  continua_grupo_id?: string | null;
   /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
   cliente_nome: string;
   contrato_id: string | null;
@@ -381,7 +392,7 @@ export interface DemandaRelacionada {
 export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'colaboradores' | 'grupos' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
-export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome'
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
@@ -427,6 +438,22 @@ export interface Tarefa {
   participantes: string[];         // perfis da equipe, sem o responsável
   /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
   grupos?: string[];
+  /** É uma diligência (#313): ir a um cartório, a um fórum, a um órgão... Marcada, o motivo é obrigatório. */
+  diligencia: boolean;
+  /** Por que a diligência é feita (só na diligência; null nas outras). */
+  diligencia_motivo: string | null;
+  /** Quem pediu a tarefa (#313): alguém da equipe, que a vê (lê e comenta) sem trocar o responsável. null: não informado. */
+  solicitante_id: string | null;
+  /**
+   * A função de cada participante (#313): o id do participante → o id da função (FuncaoNaTarefa). O banco dá a função padrão a quem
+   * entra sem ela e tira quem sai. A função é só um rótulo: não muda quem vê nem quem altera.
+   */
+  funcoes: Record<string, string>;
+  /**
+   * Precisa de aprovação (#313): concluída por quem não aprova (o solicitante ou um administrador), a tarefa espera na coluna de
+   * aprovação até ser aprovada ou devolvida.
+   */
+  precisa_aprovacao: boolean;
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
   /** A demanda principal: a primeira de demanda_ids (a versão anterior do site só conhece esta). */
@@ -469,7 +496,7 @@ export interface Tarefa {
  * O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). O contrato da demanda vem
  * com quem está nele, se quem vê a tarefa também pode abri-lo (quem está nele pode ser mencionado na tarefa, #326).
  */
-export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'contrato_id'>
+export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua' | 'contrato_id'>
   & { contrato: EquipeDoContrato | null };
 /** Uma demanda ou um contrato ligado à tarefa (#283): o id e o código sempre; o item, se quem lê pode abri-lo (senão null). */
 export interface LigadoNaTarefa<T> { id: string; codigo: string; item: T | null }
@@ -481,20 +508,21 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 }
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
-  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'demanda_ids' | 'contrato_ids' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'
+  | 'diligencia' | 'diligencia_motivo' | 'solicitante_id' | 'funcoes' | 'precisa_aprovacao'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
-export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome'
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome' | 'diligencia'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
   /**
    * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a
    * demanda só pelo contrato dela lê as tarefas dela, mas não as altera (#326).
    */
-  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> | null;
+  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua'> | null;
   /**
    * Quem está em cada uma das outras demandas ligadas (#283), além da principal, das que quem lê pode ver: quem está em qualquer uma
    * delas também altera a tarefa, como no banco e no cartão.
    */
-  equipes_das_outras_demandas?: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>[];
+  equipes_das_outras_demandas?: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'continua'>[];
 };
 export interface FiltroTarefas {
   termo?: string;
@@ -508,6 +536,10 @@ export interface FiltroTarefas {
   grupo?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
+  /** Um usuário da equipe: as tarefas que ele pediu (#313). */
+  solicitante?: string;
+  /** As tarefas em que o usuário `de` é participante com uma das funções `ids` (#313: "Delegadas a mim"). ids vazio: nenhuma. */
+  funcao?: { de: string; ids: string[] };
   /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
   inicioDesde?: string;
   inicioAte?: string;
@@ -746,6 +778,11 @@ export interface DadosDemandas {
    */
   contratoCriarDemanda(contratoId: string, objeto: string): Promise<{ id: string; codigo: string }>;
   /**
+   * A demanda contínua do grupo (#313; null: a "Geral"), criada na primeira vez: o cadastro liga a ela a tarefa sem demanda. Só quem
+   * está no grupo (e o administrador); a Geral, toda a equipe. Devolve o id da demanda.
+   */
+  demandaContinua(grupoId: string | null): Promise<string>;
+  /**
    * As demandas relacionadas a esta (#310), nos dois sentidos, na ordem em que foram ligadas, até DEMANDAS_RELACIONADAS. Quem vê
    * esta demanda vê todas, com o número; o conteúdo, só das que ele também pode ver.
    */
@@ -770,7 +807,12 @@ export interface DadosTarefas {
   tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
   tarefasExcluir(ids: string[]): Promise<Exclusao>;
-  tarefaMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  /** Devolve a coluna em que a tarefa ficou (a de aprovação, se ela precisa de aprovação e quem conclui não aprova, #313). */
+  tarefaMover(id: string, etapaId: string | null, ordem: number | null): Promise<string | null>;
+  /** Aprova a tarefa que espera na coluna de aprovação (só o solicitante ou um administrador): ela vai para as concluídas. Devolve a coluna. */
+  tarefaAprovar(id: string): Promise<string>;
+  /** Devolve a tarefa que espera aprovação, com o comentário (obrigatório) no cartão: ela volta para "Fazendo". Devolve a coluna. */
+  tarefaDevolver(id: string, comentario: string): Promise<string>;
   tarefaHistorico(id: string): Promise<Historico[]>;
   /** Tarefas em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também as em que é responsável ou participante. */
   tarefasDaPessoa(pessoaId: string, perfilId?: string | null): Promise<TarefaLigada[]>;
@@ -1624,6 +1666,26 @@ export interface Sala {
 export type DadosSala = Pick<Sala, 'nome' | 'capacidade'>;
 /** Um compromisso que ocupa a sala num dia. Sem título (null): quem lê não vê esse compromisso, e fica só o código e o horário. */
 export interface OcupacaoDaSala { id: string; codigo: string; tipo: TipoCompromisso; hora: string | null; hora_fim: string | null; titulo: string | null }
+/** Uma função dos participantes da tarefa (#313): a lista é de cada escritório, nas Configurações. */
+export interface FuncaoNaTarefa {
+  id: string;
+  nome: string;
+  /** Quem tem esta função recebeu a tarefa para fazer ("Delegadas a mim"). */
+  executa: boolean;
+  /** A posição na lista (a da criação, dada pelo banco). */
+  ordem: number;
+}
+/** O que o cadastro de função grava. */
+export type DadosFuncaoNaTarefa = Pick<FuncaoNaTarefa, 'nome' | 'executa'>;
+/** As funções dos participantes (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql). Só administradores mudam a lista. */
+export interface DadosFuncoesNaTarefa {
+  /** As funções do escritório, na ordem da lista. */
+  funcoesNaTarefaListar(): Promise<FuncaoNaTarefa[]>;
+  funcaoNaTarefaCriar(dados: DadosFuncaoNaTarefa): Promise<FuncaoNaTarefa>;
+  funcaoNaTarefaAtualizar(id: string, dados: Partial<DadosFuncaoNaTarefa>): Promise<void>;
+  /** A função em uso numa tarefa é recusada: troca-se antes a função dessas pessoas. */
+  funcaoNaTarefaExcluir(id: string): Promise<void>;
+}
 /** Salas (supabase/migrations/20261122132438_salas_do_escritorio.sql). */
 export interface DadosSalas {
   /** Todas as salas do escritório, ativas e desativadas, por nome. */
@@ -2246,4 +2308,4 @@ export interface DadosGrupos {
   itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
-export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}

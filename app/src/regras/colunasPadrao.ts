@@ -118,3 +118,15 @@ export const COLUNAS_NOVAS_POR_TAREFA: { tarefa: number; modulo: Modulo; novas: 
   { tarefa: 314, modulo: 'tarefas', novas: COLUNAS_NOVAS_DAS_TAREFAS },
   { tarefa: 315, modulo: 'processos_judiciais', novas: COLUNAS_NOVAS_DOS_PROCESSOS }
 ];
+
+/**
+ * A coluna de aprovação das tarefas (#313), como privado.marcar_coluna_de_aprovacao: a primeira coluna comum (sem marco, pela ordem)
+ * com o nome de "Aguardando: análise do solicitante" ou um dos parecidos. undefined: o quadro não a tem (a migração a cria antes,
+ * depois de "Fazendo", com planoDasColunasNovas).
+ */
+export function colunaDeAprovacaoNoQuadro<C extends ColunaDoQuadro>(colunas: readonly C[]): C | undefined {
+  const padrao = COLUNAS_NOVAS_DAS_TAREFAS.colunas[0];
+  return [...colunas].sort((a, b) => a.ordem - b.ordem).find(c => !c.marco && quadroJaTem([c.nome], padrao));
+}
+/** Só a coluna de "Aguardando: análise do solicitante", para acrescentar ao quadro que não a tem mais (#313). */
+export const COLUNA_DE_APROVACAO_DAS_TAREFAS: ColunasNovas = { depoisDe: 'Fazendo', colunas: [COLUNAS_NOVAS_DAS_TAREFAS.colunas[0]] };

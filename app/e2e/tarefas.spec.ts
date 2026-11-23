@@ -81,7 +81,7 @@ test.describe('Cadastro de tarefas', () => {
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
     await expect(equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Responsável', exact: true })).toBeVisible();
-    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante · Acompanha', exact: true })).toBeVisible();
     await abrirSecao(cartao, 'Pessoas');
     await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
@@ -270,7 +270,7 @@ test.describe('Editar no cartão', () => {
     await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toHaveCount(0);
     await expect(edicao.getByRole('heading', { name: 'Pessoas' })).toBeVisible();
-    await expect(edicao.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeVisible();
+    await expect(edicao.getByRole('heading', { name: 'Diligência, demanda, contrato e processo' })).toBeVisible();
     await edicao.getByLabel(/Responsável/).selectOption({ label: 'Bruno Exemplo Souza' });
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
@@ -597,7 +597,7 @@ test.describe('Equipe da tarefa', () => {
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
     const ana = equipe.getByRole('button', { name: 'Ana Teste Lima, Responsável', exact: true });
-    const mauro = equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Participante', exact: true });
+    const mauro = equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Participante · Acompanha', exact: true });
     await expect(ana).toHaveText('AL');
     await expect(mauro).toHaveText('MD');
     // Quando

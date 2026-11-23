@@ -20,6 +20,8 @@ describe('A cópia da tarefa em outra demanda (#312)', () => {
     // Dado
     const original = await tarefaComChecklist();
     const [demanda] = await SD.demandasParaLigar({});
+    // A original, sem demanda, está na demanda contínua (#313)
+    const daOriginal0 = (await SD.tarefaObter(original))?.demanda_id;
     // Quando
     const copia = await copiarTarefa(original, demanda);
     // Então
@@ -30,7 +32,7 @@ describe('A cópia da tarefa em outra demanda (#312)', () => {
     expect(lista.itens.map(i => [i.texto, i.feito_em, i.prazo])).toEqual([['Gerar o boleto', null, '2030-11-20'], ['Pagar', null, null]]);
     const [daOriginal] = await SD.listasDoCartao('tarefas', original);
     expect(daOriginal.itens[0].feito_em).not.toBeNull();
-    expect((await SD.tarefaObter(original))?.demanda_id).toBeNull();
+    expect((await SD.tarefaObter(original))?.demanda_id).toBe(daOriginal0);
   });
 
   it('dado o banco recusando o checklist, quando a tarefa é copiada, então avisa o erro e a cópia pela metade sai', async () => {
