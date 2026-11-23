@@ -2839,6 +2839,8 @@ function trocarObjetosNoFalso(de: string[], para: string): TrocaDeObjetos {
   if (modelo) Object.assign(modelo, { nome: para, atualizado_em: agora() });
   return {
     contratos: mudaram.length, demandas: demandas.length, modelos: modelo ? 1 : 0,
+    // Os modelos que ficaram com um nome que saiu: as demandas seguintes não ganham as tarefas deles (a tela avisa).
+    modelos_sem_objeto: bd.modelos!.filter(m => casa(m.nome) && !mesmoObjeto(m.nome, para)).length,
     contratos_com_duas_demandas: contratos.filter(k => bd.demandas!.filter(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, para)).length > 1).length
   };
 }
@@ -3340,7 +3342,7 @@ export const SD: Dados = {
     const s = objetoParaMudar(id), novo = nome.trim();
     const recusa = erroDoNomeDoObjeto(novo, bd.objetoSugestoes!, id);
     if (recusa) return erro(recusa);
-    if (novo === s.descricao) return espera({ contratos: 0, demandas: 0, modelos: 0, contratos_com_duas_demandas: 0 });
+    if (novo === s.descricao) return espera({ contratos: 0, demandas: 0, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 });
     const antigo = s.descricao;
     s.descricao = novo;
     const troca = trocarObjetosNoFalso([antigo], novo); gravar();

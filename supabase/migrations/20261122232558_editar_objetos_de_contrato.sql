@@ -7,7 +7,8 @@
 --   1. public.objetos_do_escritorio(): a lista, com quantos contratos ativos e arquivados e quantas demandas usam cada objeto.
 --      Antes de contar, põe na lista o objeto que está num contrato e ficou fora dela (os contratos importados sem o gatilho).
 --   2. public.objeto_renomear(id, nome): corrige o nome na lista, nos contratos, nas demandas (e no título delas que ainda é
---      igual ao nome antigo) e no modelo de lista de mesmo nome.
+--      igual ao nome antigo) e no modelo de lista de mesmo nome. A resposta diz quantos modelos ficaram com o nome antigo (o
+--      modelo de mesmo nome que não mudou porque já havia um com o nome novo, ou os outros modelos dos objetos juntados).
 --   3. public.objetos_juntar(ids, fica): os objetos de "ids" viram o objeto "fica" em todo lugar e saem da lista. O contrato
 --      que tinha os dois fica com um só. As demandas dos dois ficam (ligadas ao que ficou), e a resposta diz quantos contratos
 --      ficaram com duas demandas do mesmo objeto.
@@ -31,7 +32,7 @@
 -- conferiu a permissão e o nome novo. Devolve o que mudou.
 create function privado.trocar_objetos(p_escritorio uuid, p_de text[], p_para text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare v_contratos uuid[]; n_contratos int; n_demandas int; n_modelos int := 0; n_duas int; v_modelo uuid;
+declare v_contratos uuid[]; n_contratos int; n_demandas int; n_modelos int := 0; n_modelos_sem int; n_duas int; v_modelo uuid;
 begin
   -- A trava nos contratos afetados: quem estiver salvando um deles espera, e ninguém grava o nome antigo no meio da troca.
   perform 1 from public.contratos k
@@ -72,6 +73,11 @@ begin
       n_modelos := 1;
     end if;
   end if;
+  -- Os modelos que ficaram com um nome que saiu (já havia um modelo com o nome novo, ou cada objeto juntado tinha o seu): as
+  -- demandas seguintes não ganham as tarefas deles, e a tela avisa para a pessoa conferir em Modelos de checklist.
+  select count(*) into n_modelos_sem from public.lista_modelos m
+  where m.escritorio_id = p_escritorio and not privado.mesmo_objeto(m.nome, p_para)
+    and exists (select 1 from unnest(p_de) x where privado.mesmo_objeto(m.nome, x));
 
   -- Os contratos que ficaram com mais de uma demanda do mesmo objeto (ao juntar, as duas ficam).
   select count(*) into n_duas from (
@@ -80,7 +86,8 @@ begin
     group by d.contrato_id having count(*) > 1) s;
 
   perform set_config('semper.troca_de_objetos', '', true);
-  return jsonb_build_object('contratos', n_contratos, 'demandas', n_demandas, 'modelos', n_modelos, 'contratos_com_duas_demandas', n_duas);
+  return jsonb_build_object('contratos', n_contratos, 'demandas', n_demandas, 'modelos', n_modelos, 'modelos_sem_objeto', n_modelos_sem,
+                            'contratos_com_duas_demandas', n_duas);
 end $$;
 revoke execute on function privado.trocar_objetos(uuid, text[], text) from public, anon, authenticated;
 
@@ -144,7 +151,7 @@ begin
     raise exception 'Já existe um objeto com esse nome. Para unir os dois, marque-os e use Juntar.';
   end if;
   if v_nome = s.descricao then
-    return jsonb_build_object('contratos', 0, 'demandas', 0, 'modelos', 0, 'contratos_com_duas_demandas', 0);
+    return jsonb_build_object('contratos', 0, 'demandas', 0, 'modelos', 0, 'modelos_sem_objeto', 0, 'contratos_com_duas_demandas', 0);
   end if;
   -- A lista antes dos contratos: assim o gatilho privado.guardar_objetos já acha o nome novo nela.
   update public.objeto_sugestoes set descricao = v_nome where id = s.id;

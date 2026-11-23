@@ -6,7 +6,7 @@ import { SD, type ObjetoDoEscritorio } from '../dados';
 import { TAMANHO_CONTRATO } from '../dados/limites';
 import {
   alcanceDaJuncao, avisoDaTroca, avisoDoObjetoEmUso, contratosDoObjeto, erroDoNomeDoObjeto, objetosNaBusca, parecidos, quantasDemandas, quantosContratos, quemFica,
-  semUso, textoDosContratos
+  semUso, textoDosContratos, trocaPedeConferencia
 } from '../regras/objetos';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
@@ -68,7 +68,7 @@ export function ObjetosDeContrato() {
     const ficaNome = objetos!.find(o => o.id === ficaDeVerdade)?.descricao ?? '';
     const troca = await SD.objetosJuntar(marcados, ficaDeVerdade);
     // Juntar não tem desfazer: não dá para saber depois qual contrato tinha qual nome.
-    avisar(avisoDaTroca('juntar', ficaNome, troca), troca.contratos_com_duas_demandas ? 'info' : 'ok');
+    avisar(avisoDaTroca('juntar', ficaNome, troca), trocaPedeConferencia(troca) ? 'info' : 'ok');
     setMarcados([]); setFica('');
     await ler();
   }

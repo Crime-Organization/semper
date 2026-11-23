@@ -128,7 +128,7 @@ select throws_ok($$ select public.objeto_renomear(pg_temp.objeto('e0000000-0000-
 -- Quando a Ana corrige "Registro de marca" para "Registro de marca no INPI", então o nome muda na lista, nos contratos (o
 -- arquivado também), nas demandas e no título delas; o contrato assinado com "A definir" não ganha demanda repetida
 select is(public.objeto_renomear(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro de marca'), ' Registro de marca no INPI '),
-  '{"contratos": 2, "demandas": 2, "modelos": 0, "contratos_com_duas_demandas": 0}'::jsonb, 'A correção diz o que mudou');
+  '{"contratos": 2, "demandas": 2, "modelos": 0, "modelos_sem_objeto": 0, "contratos_com_duas_demandas": 0}'::jsonb, 'A correção diz o que mudou');
 reset role;
 select ok(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro de marca no INPI') is not null
   and pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro de marca') is null, 'A lista tem o nome novo, e não o antigo');
@@ -162,7 +162,7 @@ select throws_ok($$ select public.objetos_juntar(array[pg_temp.objeto('e0000000-
   pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Parecer')) $$, 'P0001', 'Marque ao menos dois objetos para juntar.', 'Juntar um só é recusado');
 select is(public.objetos_juntar(array[pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro da marca')],
   pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro de marca no INPI')),
-  '{"contratos": 2, "demandas": 2, "modelos": 1, "contratos_com_duas_demandas": 1}'::jsonb, 'A junção diz o que mudou e quantos contratos ficaram com duas demandas');
+  '{"contratos": 2, "demandas": 2, "modelos": 1, "modelos_sem_objeto": 0, "contratos_com_duas_demandas": 1}'::jsonb, 'A junção diz o que mudou e quantos contratos ficaram com duas demandas');
 reset role;
 select is(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Registro da marca'), null, 'O que saiu não está mais na lista');
 select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000003'), 'Registro de marca no INPI / Registro de marca no INPI', 'O contrato que tinha os dois ficou com um só');
@@ -233,9 +233,15 @@ select is(public.objeto_renomear(pg_temp.objeto('e0000000-0000-0000-0000-0000000
 reset role;
 select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000005'), 0::bigint,
   'Corrigir o nome no contrato assinado com "A definir" não cria demanda');
+-- (E a Consultoria tem um modelo de checklist, mas o que fica já tem o dele: o da Consultoria fica com o nome antigo, e a
+-- resposta diz isso para a tela avisar)
+insert into public.lista_modelos (escritorio_id, nome, itens, criado_por) values
+  ('e0000000-0000-0000-0000-000000000001', 'Consultoria', '{Reunião}', 'a0000000-0000-0000-0000-000000000001');
 select pg_temp.entrar(1); set local role authenticated;
 select is(public.objetos_juntar(array[pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Consultoria')],
-  pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Oposição ao registro')) ->> 'contratos', '1', 'A junção mudou o K5');
+  pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Oposição ao registro')),
+  '{"contratos": 1, "demandas": 0, "modelos": 0, "modelos_sem_objeto": 1, "contratos_com_duas_demandas": 0}'::jsonb,
+  'A junção mudou o K5 e diz que um modelo ficou com o nome antigo');
 reset role;
 select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000005'), 'Oposição ao registro | A definir / Oposição ao registro; A definir', 'O K5 tem o que ficou');
 select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000005'), 0::bigint,

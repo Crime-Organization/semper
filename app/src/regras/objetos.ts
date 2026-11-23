@@ -99,13 +99,19 @@ const INICIO_DO_AVISO: Record<TrocaFeita, (nome: string) => string> = {
   corrigir: nome => `Objeto corrigido: "${nome}".`,
   juntar: nome => `Objetos juntados em "${nome}".`
 };
+/** O que a troca deixou para a pessoa conferir: os modelos com o nome antigo e os contratos com duas demandas do mesmo objeto. */
+export const trocaPedeConferencia = (r: TrocaDeObjetos) => r.modelos_sem_objeto > 0 || r.contratos_com_duas_demandas > 0;
 /**
- * O aviso depois de corrigir ou juntar: em quantos contratos e demandas o nome mudou e, se for o caso, o modelo de lista e os
- * contratos que ficaram com duas demandas do mesmo objeto (para a pessoa conferir).
+ * O aviso depois de corrigir ou juntar: em quantos contratos e demandas o nome mudou e, se for o caso, o modelo de checklist que
+ * mudou junto, os que ficaram com o nome antigo (as demandas seguintes não ganham as tarefas deles) e os contratos que ficaram
+ * com duas demandas do mesmo objeto (para a pessoa conferir).
  */
 export function avisoDaTroca(acao: TrocaFeita, nome: string, r: TrocaDeObjetos) {
   const partes = [INICIO_DO_AVISO[acao](nome), `Mudou em ${quantosContratos(r.contratos)} e ${quantasDemandas(r.demandas)}.`];
-  if (r.modelos) partes.push('O modelo de lista mudou junto.');
+  if (r.modelos) partes.push('O modelo de checklist mudou junto.');
+  if (r.modelos_sem_objeto) {
+    partes.push(`${r.modelos_sem_objeto === 1 ? '1 modelo de checklist ficou' : `${r.modelos_sem_objeto} modelos de checklist ficaram`} com o nome antigo: confira em Modelos de checklist.`);
+  }
   if (r.contratos_com_duas_demandas) {
     partes.push(`${r.contratos_com_duas_demandas === 1 ? '1 contrato ficou' : `${r.contratos_com_duas_demandas} contratos ficaram`} com duas demandas do mesmo objeto: confira.`);
   }

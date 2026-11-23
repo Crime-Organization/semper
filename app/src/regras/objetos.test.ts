@@ -4,7 +4,7 @@ import type { ObjetoDoEscritorio } from '../dados/tipos';
 import { TAMANHO_CONTRATO } from '../dados/limites';
 import {
   alcanceDaJuncao, avisoDaTroca, avisoDoObjetoEmUso, chaveParecida, contratosDoObjeto, erroDoNomeDoObjeto, OBJETO_LONGO, OBJETO_REPETIDO, OBJETO_RESERVADO,
-  OBJETO_SEM_NOME, objetosNaBusca, parecidos, quemFica, semUso, textoDosContratos
+  OBJETO_SEM_NOME, objetosNaBusca, parecidos, quemFica, semUso, textoDosContratos, trocaPedeConferencia
 } from './objetos';
 
 const objeto = (id: string, descricao: string, campos: Partial<ObjetoDoEscritorio> = {}): ObjetoDoEscritorio =>
@@ -91,13 +91,26 @@ describe('Juntar objetos', () => {
 describe('O aviso depois da troca', () => {
   it('quando um objeto é corrigido, então o aviso diz em quantos contratos e demandas mudou', () => {
     // Dado / Quando / Então
-    expect(avisoDaTroca('corrigir', 'Parecer', { contratos: 1, demandas: 0, modelos: 0, contratos_com_duas_demandas: 0 }))
+    expect(avisoDaTroca('corrigir', 'Parecer', { contratos: 1, demandas: 0, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 }))
       .toBe('Objeto corrigido: "Parecer". Mudou em 1 contrato e 0 demandas.');
   });
 
   it('quando objetos são juntados, então o aviso diz também o modelo de lista e os contratos com duas demandas', () => {
     // Dado / Quando / Então
-    expect(avisoDaTroca('juntar', 'Registro de marca', { contratos: 2, demandas: 3, modelos: 1, contratos_com_duas_demandas: 2 }))
-      .toBe('Objetos juntados em "Registro de marca". Mudou em 2 contratos e 3 demandas. O modelo de lista mudou junto. 2 contratos ficaram com duas demandas do mesmo objeto: confira.');
+    expect(avisoDaTroca('juntar', 'Registro de marca', { contratos: 2, demandas: 3, modelos: 1, modelos_sem_objeto: 0, contratos_com_duas_demandas: 2 }))
+      .toBe('Objetos juntados em "Registro de marca". Mudou em 2 contratos e 3 demandas. O modelo de checklist mudou junto. 2 contratos ficaram com duas demandas do mesmo objeto: confira.');
+  });
+
+  it('quando modelos de checklist ficam com o nome antigo, então o aviso diz quantos e onde conferir, e a troca pede conferência', () => {
+    // Dado
+    const sem = { contratos: 2, demandas: 0, modelos: 1, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 };
+    // Quando / Então
+    expect(avisoDaTroca('juntar', 'Parecer', { ...sem, modelos_sem_objeto: 1 }))
+      .toBe('Objetos juntados em "Parecer". Mudou em 2 contratos e 0 demandas. O modelo de checklist mudou junto. 1 modelo de checklist ficou com o nome antigo: confira em Modelos de checklist.');
+    expect(avisoDaTroca('corrigir', 'Parecer', { ...sem, modelos: 0, modelos_sem_objeto: 2 }))
+      .toBe('Objeto corrigido: "Parecer". Mudou em 2 contratos e 0 demandas. 2 modelos de checklist ficaram com o nome antigo: confira em Modelos de checklist.');
+    expect(trocaPedeConferencia(sem)).toBe(false);
+    expect(trocaPedeConferencia({ ...sem, modelos_sem_objeto: 1 })).toBe(true);
+    expect(trocaPedeConferencia({ ...sem, contratos_com_duas_demandas: 1 })).toBe(true);
   });
 });

@@ -16,7 +16,7 @@ const LISTA = [
   objeto('o2', 'Registro da marca.', { contratos_ativos: 1, demandas: 1 }),
   objeto('o3', 'Parecer')
 ];
-const SEM_TROCA = { contratos: 0, demandas: 0, modelos: 0, contratos_com_duas_demandas: 0 };
+const SEM_TROCA = { contratos: 0, demandas: 0, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 };
 const linha = (nome: string) => screen.getByRole('row', { name: new RegExp(`^Marcar ${nome} para juntar`) });
 
 beforeEach(() => {

@@ -686,6 +686,8 @@ export interface TrocaDeObjetos {
   contratos: number;
   demandas: number;
   modelos: number;
+  /** Os modelos de lista que ficaram com um nome que saiu (já havia um com o nome novo, ou cada objeto juntado tinha o seu). */
+  modelos_sem_objeto: number;
   contratos_com_duas_demandas: number;
 }
 

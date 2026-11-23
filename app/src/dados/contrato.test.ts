@@ -332,7 +332,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Quando
           const troca = await SD.objetoRenomear(o.id, `  ${certo} `);
           // Então
-          expect(troca).toEqual({ contratos: 1, demandas: 1, modelos: 1, contratos_com_duas_demandas: 0 });
+          expect(troca).toEqual({ contratos: 1, demandas: 1, modelos: 1, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 });
           expect(await naLista(errado)).toBeUndefined();
           expect(await naLista(certo)).toMatchObject({ id: o.id, contratos_ativos: 1, demandas: 1 });
           expect((await SD.contratoObter(k.id))!.objetos).toEqual([certo, 'A definir']);
@@ -357,7 +357,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Quando
           const troca = await SD.objetosJuntar([oSai.id, oFica.id], oFica.id);
           // Então
-          expect(troca).toEqual({ contratos: 2, demandas: 1, modelos: 0, contratos_com_duas_demandas: 1 });
+          expect(troca).toEqual({ contratos: 2, demandas: 1, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 1 });
           expect((await SD.contratoObter(ambos.id))!.objetos).toEqual([fica]);
           expect((await SD.contratoObter(soSai.id))!.objetos).toEqual([fica]);
           expect((await SD.demandasDoContrato(ambos.id)).map(d => d.objeto)).toEqual([fica, fica]);
@@ -379,6 +379,23 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await SD.objetoApagar(o.id);
           expect(await naLista(objeto)).toBeUndefined();
           expect(await SD.objetosSugeridos()).not.toContain(objeto);
+        });
+
+        it('dado um modelo de checklist para cada objeto, quando o administrador junta os dois, então só o do que sai muda de nome se o que fica não tiver modelo, e a resposta conta os que ficaram com o nome antigo', async () => {
+          // Dado
+          const fica = 'Fica ' + marca(), sai1 = 'Sai um ' + marca(), sai2 = 'Sai dois ' + marca();
+          await novoContrato({ objetos: [fica, sai1, sai2] });
+          await SD.modeloCriar(sai1, arvoreDosItens(['Primeiro passo']));
+          await SD.modeloCriar(sai2, arvoreDosItens(['Outro passo']));
+          const [oFica, oSai1, oSai2] = [(await naLista(fica))!, (await naLista(sai1))!, (await naLista(sai2))!];
+          // Quando
+          const troca = await SD.objetosJuntar([oSai1.id, oSai2.id], oFica.id);
+          // Então: o modelo mais antigo passa a ter o nome do que fica; o outro fica com o nome antigo
+          expect(troca).toMatchObject({ modelos: 1, modelos_sem_objeto: 1 });
+          const nomes = (await SD.modelosListar()).map(m => m.nome);
+          expect(nomes).toContain(fica);
+          expect(nomes).toContain(sai2);
+          expect(nomes).not.toContain(sai1);
         });
 
         it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {
