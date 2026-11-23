@@ -1,7 +1,7 @@
 // Em Configurações, as funções dos participantes da tarefa (#313): a lista do escritório, que diz por que cada participante está na
-// tarefa ("Executa", "Acompanha"...). Só administradores chegam aqui. A função de execução conta em "Delegadas a mim". A função em uso
-// não se apaga (o banco recusa e diz em quantas tarefas ela está): troca-se antes a função dessas pessoas. As regras do formulário
-// ficam em regras/funcoesNaTarefa.ts; a lista que as outras telas usam, em ui/funcoesNaTarefa.ts.
+// tarefa ("Executa", a de fábrica, e as que o escritório cria, #421). Só administradores chegam aqui. A função de execução conta em
+// "Delegadas a mim". A função em uso não se apaga (o banco recusa e diz em quantas tarefas ela está): troca-se antes a função dessas
+// pessoas. As regras do formulário ficam em regras/funcoesNaTarefa.ts; a lista que as outras telas usam, em ui/funcoesNaTarefa.ts.
 import { useEffect, useState, type FormEvent } from 'react';
 import { SD, type FuncaoNaTarefa } from '../dados';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
@@ -84,7 +84,7 @@ export function FuncoesDosParticipantes() {
     </table></div> : <Nota>Nenhuma função cadastrada: os participantes ficam sem função.</Nota>}
 
     {edicao ? <form className="config-campos-form" noValidate aria-label={edicao.id ? 'Mudar função' : 'Nova função'} onSubmit={salvar}>
-      <Campo rotulo="Nome da função" para="funcao-nome" obrigatorio erro={erros.nome} dica="Ex.: Executa, Acompanha, Revisa.">
+      <Campo rotulo="Nome da função" para="funcao-nome" obrigatorio erro={erros.nome} dica="Ex.: Executa.">
         <input type="text" {...propsDoCampo('funcao-nome', { dica: true, erro: erros.nome })} maxLength={TAMANHO_FUNCAO_NA_TAREFA.nome} value={form.nome}
           onChange={e => mudar({ nome: e.target.value })} />
       </Campo>

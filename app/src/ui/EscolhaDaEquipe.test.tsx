@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -188,7 +188,21 @@ describe('Equipe do item: a função de cada participante da tarefa (#313)', () 
     // Então
     expect(trocar).toHaveBeenCalledWith('u-ana', 'f-exe');
     expect(screen.getByRole('combobox', { name: 'Função de Bruno Exemplo Souza' })).toHaveValue('');
-    expect(screen.getByRole('option', { name: 'Sem função' })).toBeInTheDocument();
+    expect(within(screen.getByRole('combobox', { name: 'Função de Bruno Exemplo Souza' })).getByRole('option', { name: 'Sem função', selected: true })).toBeInTheDocument();
+  });
+
+  it('quando o escolhido tem função, então também pode ficar sem nenhuma (#421)', async () => {
+    // Dado
+    const trocar = vi.fn();
+    render(<EscolhaDaEquipe rotulo="Participantes" equipe={EQUIPE} escolhidos={['u-ana']} adicionar="Adicionar participante" aoMudar={vi.fn()}
+      funcoes={{ opcoes: FUNCOES.slice(0, 1), de: { 'u-ana': 'f-exe' }, aoMudar: trocar }} />);
+    const escolha = screen.getByRole('combobox', { name: 'Função de Ana Teste Lima' });
+    // Então
+    expect(within(escolha).getAllByRole('option').map(o => o.textContent)).toEqual(['Sem função', 'Executa']);
+    // Quando
+    await userEvent.selectOptions(escolha, 'Sem função');
+    // Então
+    expect(trocar).toHaveBeenCalledWith('u-ana', '');
   });
 
   it('quando não há funções, então não aparece a escolha', () => {

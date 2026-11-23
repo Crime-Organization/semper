@@ -5214,11 +5214,11 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       afterEach(() => entrarComo('u-master'));
       const funcao = async (nome: string) => (await SD.funcoesNaTarefaListar()).find(f => f.nome === nome)!;
 
-      it('dado o escritório, então as funções de fábrica são "Executa" (de execução) e "Acompanha", nessa ordem', async () => {
+      it('dado o escritório, então a única função de fábrica é "Executa", de execução (#421)', async () => {
         // Quando
         const lista = await SD.funcoesNaTarefaListar();
         // Então
-        expect(lista.slice(0, 2).map(f => [f.nome, f.executa])).toEqual([['Executa', true], ['Acompanha', false]]);
+        expect(lista.map(f => [f.nome, f.executa])).toEqual([['Executa', true]]);
       });
 
       it('quando a administradora cria uma função, então ela vai para o fim da lista; o nome repetido e quem não é administrador são recusados', async () => {
@@ -5236,25 +5236,34 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(deFora).toBe('Você não tem permissão para fazer isso.');
       });
 
-      it('quando a tarefa é criada com a função de um participante, então os outros ficam com a padrão, e a troca de função vai ao histórico', async () => {
-        // Dado
-        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+      it('quando a tarefa é criada com a função de um participante, então os outros ficam sem função, e a troca de função vai ao histórico', async () => {
+        // Dado: o escritório tem também uma função que não é de execução, e ela não é posta sozinha (#421)
+        await SD.funcaoNaTarefaCriar({ nome: 'Revisa ' + marca(), executa: false });
+        const executa = await funcao('Executa');
         const { id } = await novaTarefa({ participantes: ['u-bruno', 'u-master'], funcoes: { 'u-bruno': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id });
         // Quando
         await SD.tarefaAtualizar(id, { funcoes: { 'u-bruno': executa.id, 'u-master': executa.id } });
         // Então
         expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id, 'u-master': executa.id });
-        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: ' + acompanha.nome, para: 'Mauro Teixeira Duarte: Executa' });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: Sem função', para: 'Mauro Teixeira Duarte: Executa' });
+        // Quando: o Bruno fica sem função
+        await SD.tarefaAtualizar(id, { funcoes: { 'u-master': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': executa.id });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Bruno Exemplo Souza: Executa', para: 'Bruno Exemplo Souza: Sem função' });
       });
 
-      it('quando um participante sai, então sai também das funções; quem entra pela lista ganha a padrão', async () => {
+      it('quando um participante sai, então sai também das funções; quem entra pela lista fica sem função', async () => {
         // Dado
-        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const executa = await funcao('Executa');
         const { id } = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
         // Quando
         await SD.tarefaAtualizar(id, { participantes: ['u-master'] });
         // Então
-        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': acompanha.id });
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({});
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toBeUndefined();
       });
 
       it('quando a função de outro escritório chega, então é recusada', async () => {
