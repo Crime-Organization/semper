@@ -3836,6 +3836,25 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await SD.contratosExcluir([k.id])).excluidas).toBe(1);
         });
 
+        it('dado um indicador já marcado como pago, quando pede para excluir, então ninguém exclui até a marcação ser desfeita', async () => {
+          // Dado
+          const k = await assinado({ indicador_id: 'p-bruno', indicador_percentual: 10 }), conta = await contaPJ();
+          const id = await receber(k.parcelas[0].id, conta.id);
+          const indicador = (await SD.financeiroRecebimento(id))!.terceiros.find(t => t.id === 'p-bruno')!;
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          await SD.contratosArquivar([k.id]);
+          // Quando / Então
+          expect(await SD.contratoExclusaoPrevia([k.id])).toMatchObject({ tem_pagamento: true,
+            pagos: [{ codigo: k.codigo, parcela: 1, nome: indicador.nome, valor: indicador.valor }] });
+          await expect(SD.contratosExcluir([k.id])).rejects.toThrow('Já há pagamento feito');
+          expect(await SD.financeiroRecebimento(id)).not.toBeNull();
+          // Quando o administrador desfaz a marcação
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          // Então
+          expect((await SD.contratosExcluir([k.id])).excluidas).toBe(1);
+          expect(await SD.financeiroRecebimento(id)).toBeNull();
+        });
+
         it('dado dinheiro recebido ou parcela importada como paga, quando quem cadastrou e não é administrador pede, então não exclui', async () => {
           // Dado dois contratos cadastrados pelo Bruno (da equipe), um com recebimento e outro com a parcela importada como paga
           falso().entrarComo('u-bruno');

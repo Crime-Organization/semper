@@ -26,6 +26,7 @@ insert into auth.sessions (id, user_id, created_at, updated_at) select ('5000000
 set local session_replication_role = replica;
 insert into public.pessoas (id, escritorio_id, codigo, tipo, nome, criado_por) values
   ('10000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'P1', 'contato', 'CLIENTE', 'a0000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'P2', 'contato', 'INDICADOR', 'a0000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000009', 'e0000000-0000-0000-0000-000000000002', 'P9', 'contato', 'OUTRO CLIENTE', 'a0000000-0000-0000-0000-000000000003');
 -- Os contratos, todos arquivados e cadastrados pela Bia (responsável por eles), menos o K9, do Davi:
 --   K1 terá recebimentos; K2 nenhum dinheiro; K3 só uma parcela importada como paga; K4 um recebimento (para o delete direto);
@@ -238,6 +239,35 @@ select pg_temp.entrar(1); set local role authenticated;
 select throws_ok($$ delete from public.contratos where id = 'c0000000-0000-0000-0000-000000000004' $$, '23503', null,
   'O delete direto (site antigo) recusa o contrato com recebimento, mesmo do administrador');
 reset role;
+
+-- ===== Participante ou indicador já marcado como pago: ninguém exclui até desfazer a marcação =====
+-- Dado o recebimento do K4 com um indicador (R$ 40,00), que a Ana marca como pago
+set local session_replication_role = replica;
+update public.financeiro_recebimentos
+   set terceiros = '[{"id": "10000000-0000-0000-0000-000000000002", "nome": "INDICADOR", "tipo": "indicador", "percentual": 10, "valor": 4000}]'
+ where id = (select r4 from rec);
+set local session_replication_role = origin;
+select pg_temp.entrar(1); set local role authenticated;
+select public.financeiro_terceiro_marcar_pago((select r4 from rec), '10000000-0000-0000-0000-000000000002', date '2030-03-20');
+-- Quando a Ana pede a prévia do K4
+create temp table previa_k4 as select public.contrato_exclusao_previa('{c0000000-0000-0000-0000-000000000004}') as p;
+-- Então ela diz que há pagamento feito, com o nome e o valor de quem foi marcado como pago
+select is((select (p ->> 'tem_pagamento')::boolean from previa_k4), true, 'A prévia vê o indicador marcado como pago');
+select is((select p -> 'pagos' from previa_k4), '[{"codigo": "AA11-0004-2030", "parcela": 1, "nome": "INDICADOR", "valor": 4000}]'::jsonb,
+  'A prévia diz quem foi marcado como pago e quanto');
+-- Quando ela tenta excluir o K4
+select throws_ok($$ select public.contratos_excluir('{c0000000-0000-0000-0000-000000000004}') $$, null,
+  'Já há pagamento feito do dinheiro deste contrato. Um administrador desfaz o pagamento no Financeiro antes de excluir.',
+  'Com participante ou indicador marcado como pago, nem o administrador exclui');
+-- Então a marcação e o recebimento continuam
+select is((select count(*) from public.financeiro_terceiros_pagos where recebimento_id = (select r4 from rec)), 1::bigint, 'A marcação de pago continua');
+-- Quando ela desfaz a marcação e exclui de novo
+select public.financeiro_terceiro_desfazer_pago((select r4 from rec), '10000000-0000-0000-0000-000000000002');
+select is(public.contratos_excluir('{c0000000-0000-0000-0000-000000000004}'), 1, 'Desfeita a marcação, a Ana exclui o K4');
+reset role;
+-- Então o recebimento sai, com a cópia escondida
+select is((select count(*) from public.financeiro_recebimentos where id = (select r4 from rec)), 0::bigint, 'O recebimento do K4 sai');
+select is((select count(*) from public.financeiro_excluidos where contrato_codigo = 'AA11-0004-2030'), 1::bigint, 'E fica na cópia escondida');
 
 -- ===== Outro escritório =====
 select is((select count(*) from public.contratos where id = 'c0000000-0000-0000-0000-000000000009'), 1::bigint, 'O contrato do outro escritório continua');
