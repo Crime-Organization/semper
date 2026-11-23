@@ -134,6 +134,14 @@ describe('Janela larga', () => {
     expect(screen.getByRole('button', { name: 'Fechar' })).toHaveFocus();
   });
 
+  it('dado o texto para ler com uma caixa de marcar no pé (a ajuda da tela, #85), quando abre, então o foco vai ao Fechar, e não à caixa', () => {
+    // Quando
+    act(() => { void janela.janela({ titulo: 'Ajuda', corpo: <><p>Como usar a tela.</p><label><input type="checkbox" />Atalhos</label></>, larga: true }); });
+    // Então
+    expect(screen.getByRole('button', { name: 'Fechar' })).toHaveFocus();
+    expect(screen.getByRole('checkbox', { name: 'Atalhos' })).not.toHaveFocus();
+  });
+
   it('quando abre sem "larga", então fica na medida de sempre', () => {
     // Quando
     act(() => { void janela.confirmar('Excluir', 'Certeza?'); });

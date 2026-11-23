@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type MarcaPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
+import { AJUDA } from '../regras/ajuda';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { DICA_DO_CODIGO, fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
@@ -189,7 +190,7 @@ export default function Pessoas() {
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
   return <>
-    <PaginaModulo titulo="Pessoas" contador={contador} acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
+    <PaginaModulo titulo="Pessoas" ajuda={AJUDA.pessoas} contador={contador} acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
       busca={{ placeholder: 'Buscar nome, CPF/CNPJ, telefone…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'tipo', rotulo: 'Tipo de cadastro', valor: f.tipo || '', aoMudar: tipo => mudarFiltro({ tipo }),

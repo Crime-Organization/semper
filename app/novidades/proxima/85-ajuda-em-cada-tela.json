@@ -1,0 +1,5 @@
+{
+  "titulo": "Ajuda em cada tela",
+  "texto": "Cada tela de módulo ganhou um botão \"?\" ao lado do título. Ele abre uma explicação curta da tela e, embaixo, os atalhos de teclado. A tecla ? abre a mesma janela, e o Esc ou um clique fora a fecha.",
+  "ondeAchar": "Pessoas, Contratos, Demandas, Tarefas, Processos, Agenda, Documentos e as telas do Financeiro: o botão \"?\" ao lado do título."
+}

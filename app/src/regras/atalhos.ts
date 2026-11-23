@@ -1,5 +1,6 @@
 // Atalhos de teclado das páginas de módulo (#86). Decisão do dono (20/11/2026): valem em todos os módulos com página de
-// módulo: "/" leva à busca da página, "N" abre o "Novo" do módulo aberto e "?" mostra a lista dos atalhos.
+// módulo: "/" leva à busca da página, "N" abre o "Novo" do módulo aberto e "?" mostra a ajuda da tela, com a lista dos atalhos
+// (#85: a mesma janela do botão "?" do cabeçalho).
 // Nenhum atalho dispara enquanto a pessoa escreve (campo de texto, área de texto, editor, lista de escolha), com Ctrl, Alt
 // ou Cmd apertado (esses são do navegador e dos atalhos de sempre, como o Ctrl+Z e o Ctrl+K), nem com algo aberto por
 // cima da página (uma janela, o cartão, um menu, a busca geral): ali o N criaria outro item por trás do que está aberto, e
@@ -103,7 +104,7 @@ export function listaDeAtalhos({ temBusca, novo, mac }: { temBusca: boolean; nov
   const daPagina: LinhaDeAtalho[] = [
     ...(temBusca ? [{ teclas: [ATALHOS.buscar.nome], oQueFaz: 'Ir para a busca desta página' }] : []),
     ...(novo ? [{ teclas: [ATALHOS.novo.nome], oQueFaz: novo }] : []),
-    { teclas: [ATALHOS.atalhos.nome], oQueFaz: 'Mostrar esta lista de atalhos' }
+    { teclas: [ATALHOS.atalhos.nome], oQueFaz: 'Mostrar esta ajuda' }
   ];
   const comando = teclaDeComando(mac);
   return [

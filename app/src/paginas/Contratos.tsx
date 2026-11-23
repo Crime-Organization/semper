@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
+import { AJUDA } from '../regras/ajuda';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
 import { fmtData } from '../regras/pessoa';
 import { equipeEditaTudo, VALOR_OCULTO } from '../regras/equipeVeTudo';
@@ -138,7 +139,7 @@ export default function Contratos() {
   const contador = total === null ? null : plural(total, 'ativo', 'ativos');
 
   return <>
-    <PaginaModulo titulo="Contratos" contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
+    <PaginaModulo titulo="Contratos" ajuda={AJUDA.contratos} contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
       mais={[{ rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') },
         ...(visao === 'tabela' ? [{ rotulo: (comNegociacao ? 'Esconder' : 'Mostrar') + ' a coluna ' + COLUNA_DA_NEGOCIACAO, icone: 'calendario' as const, aoEscolher: trocarNegociacao }] : [])]}
       busca={{ placeholder: 'Buscar cliente, número, objeto…', aoBuscar: termo => mudarFiltro({ termo }) }}

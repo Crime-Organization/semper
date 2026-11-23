@@ -3,6 +3,7 @@
 // Concluído) e o cartão de cada uma. A estrutura da página vem de <PaginaModulo>; o modelo é o módulo Pessoas.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { AJUDA } from '../regras/ajuda';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
 import { useParametroLido } from '../ui/useParametroLido';
 import { oferecerProcesso } from './concluirDemanda';
@@ -172,7 +173,7 @@ export default function Demandas() {
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
   return <>
-    <PaginaModulo titulo="Demandas" contador={contador} acao={{ rotulo: 'Nova demanda', para: '/demandas/nova/' }}
+    <PaginaModulo titulo="Demandas" ajuda={AJUDA.demandas} contador={contador} acao={{ rotulo: 'Nova demanda', para: '/demandas/nova/' }}
       busca={{ placeholder: 'Buscar título, cliente, código, contrato…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',

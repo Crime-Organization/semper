@@ -122,7 +122,7 @@ describe('A dica e a lista dos atalhos', () => {
     expect(pagina.linhas).toEqual([
       { teclas: [ATALHOS.buscar.nome], oQueFaz: 'Ir para a busca desta página' },
       { teclas: ['N'], oQueFaz: 'Nova pessoa' },
-      { teclas: ['?'], oQueFaz: 'Mostrar esta lista de atalhos' }
+      { teclas: ['?'], oQueFaz: 'Mostrar esta ajuda' }
     ]);
     expect(geral.linhas.map(l => l.teclas)).toEqual([['Ctrl', 'K'], ['Ctrl', 'Z'], ['Esc']]);
   });

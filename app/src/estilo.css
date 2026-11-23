@@ -103,6 +103,9 @@
   --vao-da-lista-de-atalhos: 8px;
   --vao-entre-as-teclas: 4px;
   --separacao-na-lista-de-atalhos: 16px;
+  /* O botão "?" da ajuda da tela (#85), redondo, ao lado do título da página de módulo: menor que os controles da barra (42px),
+     para não competir com o título, e ainda um alvo de toque confortável */
+  --tamanho-do-botao-de-ajuda: 32px;
   /* A largura da janela larga, para um texto de ler (as Novidades, #353) */
   --largura-janela-larga: 640px;
   /* A letra das linhas de apoio, em cinza (a data da versão e o "onde achar" das Novidades) */
@@ -645,6 +648,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cabeca { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px }
 .cabeca-titulo { display: flex; align-items: center; gap: 12px; min-width: 0 }
 .cabeca-titulo .titulo { min-width: 0; overflow-wrap: anywhere }
+/* O "?" da ajuda da tela (#85): discreto, no cinza do contador, e no tom do texto ao passar o mouse. */
+.botao-ajuda { flex: 0 0 auto; width: var(--tamanho-do-botao-de-ajuda); height: var(--tamanho-do-botao-de-ajuda); padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted); cursor: pointer }
+.botao-ajuda:hover { background: var(--soft); color: var(--ink) }
 .contador { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap }
 .cabeca > .barra-ferr { flex: 1 1 auto; justify-content: flex-end }
 .cabeca-acao { flex-shrink: 0 }
@@ -1515,11 +1521,15 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .lista-de-atalhos { display: grid; grid-template-columns: max-content 1fr; column-gap: var(--separacao-na-lista-de-atalhos) }
 .lista-de-atalhos section, .lista-de-atalhos dl { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid }
 .lista-de-atalhos section + section, .atalhos-desligar { margin-top: var(--separacao-na-lista-de-atalhos); padding-top: var(--separacao-na-lista-de-atalhos); border-top: 1px solid var(--line) }
-.lista-de-atalhos h3 { grid-column: 1 / -1; margin: 0 0 var(--vao-da-lista-de-atalhos); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+.lista-de-atalhos :is(h3, h4) { grid-column: 1 / -1; margin: 0 0 var(--vao-da-lista-de-atalhos); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
 .lista-de-atalhos dl { margin: 0; row-gap: var(--vao-da-lista-de-atalhos); align-items: baseline }
 .lista-de-atalhos dl > div { display: contents }
 .lista-de-atalhos dt { display: flex; gap: var(--vao-entre-as-teclas) }
 .lista-de-atalhos dd { margin: 0 }
+/* Na ajuda da tela (#85), os atalhos vêm embaixo da explicação, com o título deles; o nome de cada grupo fica no cinza. */
+.lista-de-atalhos h4 { color: var(--muted) }
+.ajuda-atalhos { margin-top: var(--separacao-na-lista-de-atalhos); padding-top: var(--separacao-na-lista-de-atalhos); border-top: 1px solid var(--line) }
+.ajuda-atalhos > h3 { margin: 0 0 var(--separacao-na-lista-de-atalhos); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
 /* A caixa que desliga os atalhos de uma tecla só, no pé da lista. */
 .atalhos-desligar { display: flex; flex-direction: column; gap: var(--vao-da-lista-de-atalhos) }
 

@@ -18,6 +18,7 @@ import {
   alteraAAnotacao, desdeDoPeriodo, enderecoDaAnotacaoNova, fechamentoDaAnotacao, ITEM_DA_ANOTACAO, type FechamentoDaAnotacao, MODULOS_DA_ANOTACAO, motivoDaListaVazia, origemDaAnotacaoNova, PARAMETRO_DA_ANOTACAO_NOVA,
   PERIODOS_DA_ANOTACAO, semAAnotacaoNova, type MotivoDaListaVazia, type PeriodoDaAnotacao
 } from '../regras/anotacao';
+import { AJUDA } from '../regras/ajuda';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ordemDoExplorador } from '../regras/explorador';
 import { PARAMETRO_DO_COMENTARIO } from '../regras/mensagens';
@@ -247,7 +248,7 @@ export default function Documentos() {
   const contador = tabela ? plural(tabela.total, 'ativa', 'ativas') : null;
 
   return <>
-  <PaginaModulo titulo="Documentos" contador={contador} acao={{ rotulo: 'Nova anotação', para: cadastro }}
+  <PaginaModulo titulo="Documentos" ajuda={AJUDA.documentos} contador={contador} acao={{ rotulo: 'Nova anotação', para: cadastro }}
     busca={{ placeholder: 'Buscar título, texto, código…', aoBuscar: t => mudarFiltro({ termo: t }) }}
     filtros={filtros} ordem={ordenacao} visoes={[]} lote={lote}>
     <div className={'documentos-corpo' + (navegacao.recolhida ? ' sem-navegacao' : '') + (gaveta ? ' gaveta-aberta' : '')}>

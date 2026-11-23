@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type MeuValor, type SituacaoDoValor } from '../dados';
+import { AJUDA } from '../regras/ajuda';
 import { diasDoMes, fmtCentavos, mesDe, mesValido } from '../regras/caixa';
 import { deQuemVem, papeisComValor, PAPEIS_DO_VALOR, SITUACOES_DO_VALOR, totaisPorPapel } from '../regras/meusValores';
 import { fmtData } from '../regras/pessoa';
@@ -65,7 +66,7 @@ export default function MeusValores() {
   if (!pode) return <Navigate to="/inicio/" replace />;
   const atual = lido?.chave === mes ? lido : null;
 
-  return <PaginaModulo titulo="Meus valores" visoes={[]}>
+  return <PaginaModulo titulo="Meus valores" ajuda={AJUDA.meusValores} visoes={[]}>
     <AbasDoFinanceiro />
     <div className="financeiro-barra">
       <label>Mês

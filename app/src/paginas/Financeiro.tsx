@@ -9,6 +9,7 @@ import {
   ajusteNovo, CAMPOS_DO_LANCAMENTO, CATEGORIAS_DO_AJUSTE_NOVO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, ondeMuda, textoDosAjustes,
   transferenciaNova, valorNoAjuste, valorNoHistorico, type OndeMuda
 } from '../regras/caixa';
+import { AJUDA } from '../regras/ajuda';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
@@ -85,7 +86,7 @@ export default function Financeiro() {
   useMudancas(() => { setAberto(null); recarregar(); });
 
   if (!pode) return <Navigate to="/inicio/" replace />;
-  const cabecalho = { titulo: TITULO, visoes: [] };
+  const cabecalho = { titulo: TITULO, visoes: [], ajuda: AJUDA.contas };
   if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
   if (contas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 

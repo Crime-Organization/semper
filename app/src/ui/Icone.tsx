@@ -44,6 +44,8 @@ const ICONES = {
   foguete: '<path d="M14 4.5c2-1.3 4.3-1.7 6-1.5.2 1.7-.2 4-1.5 6L12 15.5 7.5 11z"/><circle cx="15.3" cy="8.7" r="1.6"/><path d="M9 9.5H5.5l-2 3 4.5.5M14.5 15v3.5l-3 2-.5-4.5M8 16.5c-1.8.4-3 1.8-3.5 3.5 1.7-.5 3.1-1.7 3.5-3.5z"/>',
   voltar: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  // Ajuda da tela (#85): o ponto de interrogação, dentro do botão redondo do cabeçalho.
+  ajuda: '<path d="M9 9.2a3 3 0 015.9.8c0 2-2.9 2.6-2.9 4.6"/><circle cx="12" cy="18.2" r="1" fill="currentColor" stroke="none"/>',
   pontos: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   check: '<path d="M5 12l5 5L20 7"/>',
   abaixo: '<path d="M6 9l6 6 6-6"/>',

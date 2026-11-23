@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type LinhaDaConferencia, type ResumoDaConferencia, type SituacaoDaConferencia } from '../dados';
 import { POR_PAGINA, TAMANHO_CONFERENCIA } from '../dados/limites';
+import { AJUDA } from '../regras/ajuda';
 import { fmtCentavos } from '../regras/caixa';
 import {
   ANOS_DA_CONFERENCIA, correcaoDaLinha, filtrarConferencia, FILTROS_DA_CONFERENCIA, formDaLinha, SITUACOES_DA_CONFERENCIA, totaisDaConferencia, type FiltroDaConferencia, type FormDaLinha, type TotaisDaConferencia
@@ -157,7 +158,7 @@ export default function Conferencia() {
     if (ctx.ehAdmin) SD.conferenciaResumo().then(setResumo).catch(() => {});
   };
 
-  return <PaginaModulo titulo="Conferência" visoes={[]}>
+  return <PaginaModulo titulo="Conferência" ajuda={AJUDA.conferencia} visoes={[]}>
     <AbasDoFinanceiro />
     <Nota>Confira cada lançamento com o que entrou no caixa. Corrigir aqui não muda o caixa, os repasses nem o lucro.</Nota>
     {ctx.ehAdmin && (resumo === null ? <Carregando /> : typeof resumo === 'string' ? <Aviso tipo="erro">{resumo}</Aviso>

@@ -4,6 +4,7 @@
 // <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { AJUDA } from '../regras/ajuda';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
 import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type Coluna, type ContextoAtivo, type FiltroTarefas, type OrdemComPrazo, type Pagina, type TarefaLista } from '../dados';
@@ -167,7 +168,7 @@ export default function Tarefas() {
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
   return <>
-    <PaginaModulo titulo="Tarefas" contador={contador} acao={{ rotulo: 'Nova tarefa', para: '/tarefas/nova/' }}
+    <PaginaModulo titulo="Tarefas" ajuda={AJUDA.tarefas} contador={contador} acao={{ rotulo: 'Nova tarefa', para: '/tarefas/nova/' }}
       busca={{ placeholder: 'Buscar título, pessoa, código, demanda…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
