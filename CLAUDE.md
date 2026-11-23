@@ -7,6 +7,20 @@ o `DESIGN.md` para o visual e o `app/TESTES.md` para os testes.
 Quem pede as mudanças nem sempre é programador. Explique em português simples o que vai fazer e por quê,
 e **pergunte antes** de qualquer coisa que mexa no banco de produção, apague dados ou publique o site.
 
+## Mapa do sistema
+
+O `docs/MAPA.md` diz, para cada assunto (pessoas, contratos, financeiro…), as tabelas, as funções de dados, as regras,
+as telas, as rotas, os testes e as armadilhas. Ele é gerado do código e de uma tabela de assuntos.
+
+- **Antes de procurar no código, leia o assunto no mapa.** O índice no topo diz as linhas de cada um; leia só essas.
+- **Durante o trabalho, rode só os testes do assunto** (o comando de tela e o de unitários estão no mapa, para rodar na
+  pasta `app`). A bateria completa (`npm run verificar` e `npm run testar-telas`), uma vez, antes de enviar um lote ao
+  `main` ou publicar. Mexeu numa peça comum (`PaginaModulo`, `ui/quadro`, `ui/base`, `estilo.css`): bateria completa.
+- **Ao criar arquivo, tabela, rota ou assunto novo**, classifique-o na tabela `app/ferramentas/mapa/assuntos.ts` e rode
+  `npm run mapa --prefix app`. O que ficar sem assunto aparece na seção "Sem assunto" do mapa. Um teste confere que o
+  mapa está em dia (o `git push` recusa se não estiver). Conflito no `docs/MAPA.md` ao juntar ramos: não resolva à mão,
+  rode `npm run mapa --prefix app`.
+
 ## Toda mudança tem uma tarefa no quadro
 
 Tudo o que for feito **vem de uma tarefa do quadro ou cria uma**. Nada de mudança sem tarefa: é o quadro que

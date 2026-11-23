@@ -14,6 +14,7 @@
     "testar": "vitest run",
     "verificar": "npm run tipos && npm run lint && npm run testar",
     "testar-telas": "playwright test",
+    "mapa": "node ferramentas/mapa/mapa.ts",
     "prepare": "git config core.hooksPath .githooks",
     "ver": "vite preview --port 8092",
     "converter-planilha": "rolldown ferramentas/planilha-do-site/converter.ts --platform node --format esm --file ferramentas/planilha-do-site/.saida/converter.mjs --logLevel warn && node ferramentas/planilha-do-site/.saida/converter.mjs"
