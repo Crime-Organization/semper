@@ -2480,6 +2480,28 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.colunasListar('processos_extrajudiciais')).toEqual([]);
       });
 
+      it('quando o site antigo cria um extrajudicial com o número de um administrativo, então não dá erro, e o número ganha o nome do tipo de antes (#406)', async () => {
+        // Dado: um administrativo, e o tipo que saiu, como o site antigo ainda o manda
+        const numero = marca();
+        await novoProcesso({ tipo: 'administrativo', numero });
+        const [extrajudicial]: string[] = ['extrajudicial'];
+        // Quando
+        const { id } = await novoProcesso({ tipo: extrajudicial as TipoProcesso, numero: ` ${numero.toLowerCase()} ` });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ tipo: 'administrativo', numero: `${numero.toLowerCase()} (extrajudicial)` });
+      });
+
+      it('quando a tela antiga põe um administrativo numa coluna do quadro de investigações, então ele vai para a coluna equivalente do administrativo (#406)', async () => {
+        // Dado: a coluna "Perícia" do quadro antigo, e um administrativo
+        const antiga = await SD.colunaCriar('processos_investigacoes', 'Perícia', 1);
+        const pericia = (await SD.colunasListar('processos_administrativos')).find(c => c.nome === 'Perícia')!;
+        const { id } = await novoProcesso({ tipo: 'administrativo' });
+        // Quando
+        await SD.processoMover(id, antiga.id, 1);
+        // Então
+        expect((await SD.processoObter(id))?.etapa_id).toBe(pericia.id);
+      });
+
       it('quando a pessoa ganha um papel no processo, então ela aparece nele com o papel, e o processo aparece no cartão dela', async () => {
         // Dado
         const processo = await novoProcesso();

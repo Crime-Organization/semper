@@ -62,7 +62,7 @@ import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_
 import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
 import { FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
-import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
+import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, TIPO_QUE_FICA, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
 import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
 import { aprovaATarefa, colunaDaDevolucao, comentarioDaDevolucao, conferirMudancaDaAprovacao, esperaAprovacao, etapaComAprovacao, NAO_ESPERA_APROVACAO, SO_QUEM_PEDIU_APROVA } from '../regras/aprovacaoDaTarefa';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
@@ -5348,9 +5348,10 @@ export const SD: Dados = {
   },
   processoObter: id => { const p = bd.processos!.find(x => x.id === id && vejoNoModulo('processos', x.id)); return espera(p ? processoCompleto(p) : null); },
   async processoCriar({ tipo: pedido, ...dados }) {
-    // O tipo que saiu (#406) vira administrativo, na coluna equivalente, como o gatilho aa_tipo_que_saiu.
-    if (ehTipoQueSaiu(pedido)) dados = { ...dados, etapa_id: colunaEquivalente(dados.etapa_id ?? null, bd.colunas, bd.gruposDeColunas!) };
+    // O tipo que saiu (#406) vira administrativo, na coluna equivalente e com o número que não repete, como o gatilho aa_tipo_que_saiu.
     const tipo = tipoQueFica(pedido);
+    if (tipo === TIPO_QUE_FICA && dados.etapa_id) dados = { ...dados, etapa_id: colunaDoAdministrativo(dados.etapa_id) };
+    if (ehTipoQueSaiu(pedido) && dados.numero) dados = { ...dados, numero: numeroQueNaoRepete(dados.numero, pedido, repeteEntreOsAdministrativos()) };
     if (!ehTipoDeProcesso(tipo)) return erro(FORMATO_INVALIDO);
     conferirOrigemDoProcesso(dados);
     const pronto = prepararProcesso({ colaboradores: [], clientes: [], ...dados }, tipo);
@@ -5365,7 +5366,9 @@ export const SD: Dados = {
   async processoAtualizar(id, dados) {
     // A origem e a ligação ficam de fora do que se altera, como no banco (#316).
     if ('origem_id' in dados || 'ligacao' in dados) return erro('Você não tem permissão para fazer isso.');
-    const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p), antes = equipeDoItemNoFalso('processos', id);
+    const p = acharProcesso(id), antes = equipeDoItemNoFalso('processos', id);
+    if (p.tipo === TIPO_QUE_FICA && dados.etapa_id !== undefined) dados = { ...dados, etapa_id: colunaDoAdministrativo(dados.etapa_id) };
+    const novos = prepararProcesso(dados, p.tipo, p);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
@@ -5429,6 +5432,7 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     const p = acharProcesso(id);
+    if (p.tipo === TIPO_QUE_FICA) etapaId = colunaDoAdministrativo(etapaId);
     if (soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     conferirQuadroDoProcesso(p.tipo, etapaId);
     historicoProcesso(p, { etapa_id: etapaId });
@@ -5925,6 +5929,14 @@ export const SD: Dados = {
   }
 };
 
+/** A coluna do quadro administrativo para uma coluna de um dos quadros que saíram (#406); as outras ficam como vieram. */
+function colunaDoAdministrativo(etapaId: string | null | undefined): string | null {
+  return colunaEquivalente(etapaId ?? null, bd.colunas, bd.gruposDeColunas!);
+}
+/** Se um número repetiria o de outro administrativo (o de fora fica de fora), como a regra processos_numero_unico compara. */
+function repeteEntreOsAdministrativos(fora?: string) {
+  return (numero: string) => bd.processos!.some(x => x.id !== fora && x.tipo === TIPO_QUE_FICA && numeroParaComparar(x.numero) === numeroParaComparar(numero));
+}
 /**
  * Os processos e os campos próprios dos tipos que saíram (#406), guardados numa sessão aberta antes, viram administrativos, como
  * privado.converter_tipos_que_sairam: cada processo vai para a coluna equivalente, e o número que repetiria entre os administrativos
@@ -5935,10 +5947,11 @@ function converterTiposQueSairam() {
   for (const p of antigos) {
     const tipo = p.tipo as string;
     if (!ehTipoQueSaiu(tipo)) continue;
-    const repete = bd.processos!.some(x => x.id !== p.id && x.tipo === 'administrativo' && numeroParaComparar(x.numero) === numeroParaComparar(p.numero));
-    const novos = { etapa_id: colunaEquivalente(p.etapa_id, bd.colunas, bd.gruposDeColunas!), ...(repete ? { numero: numeroQueNaoRepete(p.numero, tipo) } : {}) };
+    const numero = numeroQueNaoRepete(p.numero, tipo, repeteEntreOsAdministrativos(p.id));
+    const novos = { etapa_id: colunaDoAdministrativo(p.etapa_id), ...(numero !== p.numero ? { numero } : {}) };
     historicoProcesso(p, novos);
-    Object.assign(p, novos, { tipo: 'administrativo' });
+    // A data e o autor da última alteração ficam os de antes, como no banco (a conversão não é uma alteração de alguém).
+    Object.assign(p, novos, { tipo: TIPO_QUE_FICA });
   }
   bd.camposDeProcesso!.forEach(c => { c.aparece_em = tipoQueFica(c.aparece_em); });
   if (antigos.length) gravar();

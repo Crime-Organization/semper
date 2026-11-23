@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { MarcoColuna, Modulo } from '../dados/tipos';
 import { TAMANHO_PROCESSO } from '../dados/limites';
 import { blocosDoQuadro } from './quadro';
+import { numeroParaComparar } from './processo';
 import {
   colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, grupoDaFase, numeroQueNaoRepete, tipoQueFica, type ColunaDoQuadro, type GrupoDoQuadro
 } from './investigacaoNoAdministrativo';
@@ -97,7 +98,7 @@ describe('As colunas da investigação no quadro administrativo', () => {
     expect(colunasDaInvestigacaoNoQuadro([], [])).toEqual([]);
   });
 
-  it('dado um escritório que renomeou o Protocolo e a Decisão e apagou a Análise, quando ganha as colunas, então o início vai para o grupo da coluna do início e o meio para o último grupo antes do Encerrado', () => {
+  it('dado um escritório que renomeou o Protocolo e a Decisão e apagou a Análise, quando ganha as colunas, então os renomeados recebem as suas e a da Análise fica no grupo da fase de antes', () => {
     // Dado
     const q = quadro('processos_administrativos', ADMINISTRATIVO);
     q.grupos[0].nome = 'Entrada';
@@ -108,8 +109,32 @@ describe('As colunas da investigação no quadro administrativo', () => {
     const { blocos } = comAsNovas(q);
     // Então
     expect(blocos.find(([g]) => g === 'Entrada')![1].slice(2)).toEqual(['Instaurado', 'Pedido de acesso aos autos']);
-    expect(blocos.find(([g]) => g === 'Concessão e vigência')![1].slice(6)).toEqual(['Relatório final', 'Denúncia oferecida', 'Pedido de arquivamento']);
-    expect(blocos.find(([g]) => g === 'Exigências e manifestações')![1].slice(6)).toEqual(['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa']);
+    expect(blocos.find(([g]) => g === 'Exigências e manifestações')![1].slice(6)).toEqual(['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa',
+      'Relatório final']);
+    expect(blocos.find(([g]) => g === 'Julgamento')![1].slice(4)).toEqual(['Denúncia oferecida', 'Pedido de arquivamento']);
+    expect(blocos.find(([g]) => g === 'Concessão e vigência')![1]).toHaveLength(6);
+  });
+
+  it('dado um escritório que renomeou Exigências e manifestações, quando ganha as colunas, então as dele entram no grupo renomeado, e não depois da Decisão', () => {
+    // Dado
+    const q = quadro('processos_administrativos', ADMINISTRATIVO);
+    q.grupos[1].nome = 'Pendências';
+    // Quando
+    const { blocos } = comAsNovas(q);
+    // Então
+    expect(blocos.find(([g]) => g === 'Pendências')![1].slice(6)).toEqual(['Oitiva ou depoimento', 'Perícia', 'Diligências pendentes', 'Manifestação da defesa']);
+    expect(blocos.find(([g]) => g === 'Concessão e vigência')![1]).toHaveLength(6);
+  });
+
+  it('dado um grupo que o escritório esvaziou, quando ganha as colunas, então a ordem do quadro todo continua a dos grupos', () => {
+    // Dado: "Aguardando decisão" passou para a Decisão; o grupo Análise ficou vazio
+    const q = quadro('processos_administrativos', ADMINISTRATIVO);
+    q.colunas.find(c => c.nome === 'Aguardando decisão')!.grupo_id = q.grupos[3].id;
+    // Quando
+    const { colunas, blocos } = comAsNovas(q);
+    // Então
+    expect(blocos.find(([g]) => g === 'Análise')![1]).toEqual(['Relatório final']);
+    expect([...colunas].sort((a, b) => a.ordem - b.ordem).map(c => c.nome)).toEqual(blocos.flatMap(([, c]) => c));
   });
 
   it('dado um quadro sem grupos, quando ganha as colunas, então as do início entram logo depois da coluna do início e as outras logo antes da das concluídas', () => {
@@ -165,13 +190,33 @@ describe('Os processos dos tipos que saíram', () => {
     expect(colunas.find(c => c.id === para)?.nome).toBe('Exigência a cumprir');
   });
 
-  it('dado um quadro administrativo sem o grupo da fase, quando vira administrativo, então vai para a coluna do início', () => {
+  it('dado um quadro administrativo sem grupos, quando um processo do meio vira administrativo, então vai para a coluna de sempre do meio, e não para a do início', () => {
     // Dado
     const semGrupos = colunas.map(c => c.modulo === 'processos_administrativos' ? { ...c, grupo_id: null } : c);
+    const gruposDeFora = grupos.filter(g => g.modulo !== 'processos_administrativos');
+    // Quando / Então
+    expect(semGrupos.find(c => c.id === colunaEquivalente(id(extra.colunas, 'Em negociação'), semGrupos, gruposDeFora))?.nome).toBe('Exigência a cumprir');
+    expect(semGrupos.find(c => c.id === colunaEquivalente(id(extra.colunas, 'Registro ou averbação'), semGrupos, gruposDeFora))?.nome).toBe('Deferido/concedido');
+  });
+
+  it('dado um quadro sem grupos nem as colunas de sempre do meio, quando um processo do meio vira administrativo, então vai para a coluna logo antes da das concluídas', () => {
+    // Dado
+    const adm = [{ id: 'a1', nome: 'Entrada', ordem: 1, grupo_id: null, marco: 'inicio' as const, modulo: 'processos_administrativos' as const },
+      { id: 'a2', nome: 'Em curso', ordem: 2, grupo_id: null, marco: null, modulo: 'processos_administrativos' as const },
+      { id: 'a3', nome: 'Fim', ordem: 3, grupo_id: null, marco: 'concluido' as const, modulo: 'processos_administrativos' as const }];
     // Quando
-    const para = colunaEquivalente(id(extra.colunas, 'Em negociação'), semGrupos, grupos.filter(g => g.modulo !== 'processos_administrativos'));
+    const para = colunaEquivalente(id(extra.colunas, 'Em negociação'), [...adm, ...extra.colunas], extra.grupos);
     // Então
-    expect(semGrupos.find(c => c.id === para)?.nome).toBe('Protocolado');
+    expect(para).toBe('a2');
+  });
+
+  it('dado o grupo de Exigências renomeado, quando um processo do meio vira administrativo, então vai para a primeira coluna do grupo renomeado', () => {
+    // Dado
+    const renomeados = grupos.map(g => g.id === adm.grupos[1].id ? { ...g, nome: 'Pendências' } : g);
+    // Quando
+    const para = colunaEquivalente(id(extra.colunas, 'Em negociação'), colunas, renomeados);
+    // Então
+    expect(colunas.find(c => c.id === para)?.nome).toBe('Exigência a cumprir');
   });
 
   it('dado um processo sem coluna, ou numa coluna que não é dos quadros que saíram, quando vira administrativo, então a coluna fica como estava', () => {
@@ -188,12 +233,27 @@ describe('Os processos dos tipos que saíram', () => {
       expect(ehTipoQueSaiu(tipo)).toBe(tipo !== hoje);
     });
 
-  it('dado um número que repetiria entre os administrativos, quando vira administrativo, então ganha o nome do tipo de antes, sem passar do tamanho', () => {
+  it('dado um número que não repete, quando vira administrativo, então fica como estava', () => {
     // Quando / Então
-    expect(numeroQueNaoRepete('NOT-1', 'extrajudicial')).toBe('NOT-1 (extrajudicial)');
-    expect(numeroQueNaoRepete('IP 1/2026', 'investigacao')).toBe('IP 1/2026 (investigação)');
-    const longo = numeroQueNaoRepete('9'.repeat(TAMANHO_PROCESSO.numero), 'investigacao');
+    expect(numeroQueNaoRepete('NOT-1', 'extrajudicial', () => false)).toBe('NOT-1');
+  });
+
+  it('dado um número que repetiria entre os administrativos, quando vira administrativo, então ganha o nome do tipo de antes, sem passar do tamanho', () => {
+    // Dado
+    const repeteUmaVez = (n: string) => !n.includes('(');
+    // Quando / Então
+    expect(numeroQueNaoRepete('NOT-1', 'extrajudicial', repeteUmaVez)).toBe('NOT-1 (extrajudicial)');
+    expect(numeroQueNaoRepete('IP 1/2026', 'investigacao', repeteUmaVez)).toBe('IP 1/2026 (investigação)');
+    const longo = numeroQueNaoRepete('9'.repeat(TAMANHO_PROCESSO.numero), 'investigacao', repeteUmaVez);
     expect(longo).toHaveLength(TAMANHO_PROCESSO.numero);
     expect(longo.endsWith(' (investigação)')).toBe(true);
+  });
+
+  it('dado um número que repetiria também com o nome do tipo, quando vira administrativo, então ganha o nome e um número', () => {
+    // Dado: já existem "ADM-1" e "adm.1 (extrajudicial)" entre os administrativos
+    const existentes = ['ADM1', 'ADM1EXTRAJUDICIAL'];
+    const repete = (n: string) => existentes.includes(numeroParaComparar(n));
+    // Quando / Então
+    expect(numeroQueNaoRepete('ADM 1', 'extrajudicial', repete)).toBe('ADM 1 (extrajudicial 2)');
   });
 });

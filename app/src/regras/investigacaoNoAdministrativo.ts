@@ -40,6 +40,16 @@ export const GRUPOS_CORRESPONDENTES: Record<string, string> = {
 };
 /** O grupo do meio de quem não tem correspondente. */
 const GRUPO_DO_MEIO = 'Exigências e manifestações';
+/** As colunas de sempre de cada grupo do quadro administrativo (as do escritório novo), para achar o grupo que o escritório renomeou. */
+const COLUNAS_DE_SEMPRE: Record<string, string[]> = {
+  Protocolo: ['Protocolado', 'Publicado'],
+  'Exigências e manifestações': ['Exigência a cumprir', 'Exigência cumprida', 'Prazo de oposição', 'Manifestar contra oposição', 'Perícia médica', 'Avaliação social'],
+  Análise: ['Aguardando decisão'],
+  Decisão: ['Deferido/concedido', 'Indeferido', 'Recurso administrativo', 'Ajuizar ação']
+};
+/** As colunas de sempre de um grupo e as da investigação que entram nele, pela chave do nome (privado.colunas_de_sempre_do_grupo, no banco). */
+const colunasDeSempre = (grupo: string) =>
+  new Set([...(COLUNAS_DE_SEMPRE[grupo] ?? []), ...COLUNAS_DA_INVESTIGACAO.filter(f => f.grupo === grupo).flatMap(f => f.colunas)].map(chaveDaColuna));
 
 export type ColunaDoQuadro = { id: string; nome: string; ordem: number; grupo_id?: string | null; marco?: MarcoColuna | null };
 export type GrupoDoQuadro = { id: string; nome: string; ordem: number };
@@ -53,38 +63,56 @@ function lugarDasConcluidas(colunas: readonly ColunaDoQuadro[], grupos: readonly
   return fim && (grupos.find(g => g.id === fim.grupo_id)?.ordem ?? fim.ordem);
 }
 
-/** Sem grupo de mesmo nome: no início, o grupo da coluna do início; no meio, o último grupo antes do grupo da coluna das concluídas. */
-const GRUPO_SEM_O_NOME: Record<FaseDaInvestigacao, (colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[]) => GrupoDoQuadro | undefined> = {
-  inicio: (colunas, grupos) => grupos.find(g => g.id === colunas.find(c => c.marco === 'inicio')?.grupo_id),
-  meio: (colunas, grupos) => {
-    const alvo = lugarDasConcluidas(colunas, grupos);
-    return porOrdem(grupos).filter(g => alvo === undefined || g.ordem < alvo).at(-1);
+const grupoDoInicio = (colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[]) => grupos.find(g => g.id === colunas.find(c => c.marco === 'inicio')?.grupo_id);
+/**
+ * Sem grupo de mesmo nome nem com uma coluna de sempre dele: no início, o grupo da coluna do início; no meio, o grupo da fase do meio
+ * de antes (anterior), para as fases não trocarem de lugar, ou, na primeira, o primeiro grupo depois do grupo da coluna do início e
+ * antes do grupo da coluna das concluídas.
+ */
+const GRUPO_SEM_O_NOME: Record<FaseDaInvestigacao, (colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], anterior: string | null) => GrupoDoQuadro | undefined> = {
+  inicio: grupoDoInicio,
+  meio: (colunas, grupos, anterior) => {
+    if (anterior) return grupos.find(g => g.id === anterior);
+    const depoisDe = grupoDoInicio(colunas, grupos)?.ordem ?? -Infinity, alvo = lugarDasConcluidas(colunas, grupos);
+    return porOrdem(grupos).find(g => g.ordem > depoisDe && (alvo === undefined || g.ordem < alvo));
   }
 };
-/** O grupo de uma fase num quadro: o de mesmo nome (o de menor ordem) ou, sem ele, o da fase. null: as colunas ficam sem grupo. */
-export function grupoDaFase(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], nome: string, fase: FaseDaInvestigacao): string | null {
-  const chave = chaveDaColuna(nome);
-  return (porOrdem(grupos).find(g => chaveDaColuna(g.nome) === chave) ?? GRUPO_SEM_O_NOME[fase](colunas, grupos))?.id ?? null;
+/**
+ * O grupo de uma fase num quadro: o de mesmo nome (o de menor ordem); sem ele, o grupo renomeado (o de uma coluna de sempre dele, a
+ * primeira na ordem do quadro); sem ela, o da fase (GRUPO_SEM_O_NOME). null: as colunas ficam sem grupo.
+ */
+export function grupoDaFase(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], nome: string, fase: FaseDaInvestigacao,
+  anterior: string | null = null): string | null {
+  const chave = chaveDaColuna(nome), deSempre = colunasDeSempre(nome), existe = new Set(grupos.map(g => g.id));
+  return porOrdem(grupos).find(g => chaveDaColuna(g.nome) === chave)?.id
+    ?? porOrdem(colunas).find(c => !!c.grupo_id && existe.has(c.grupo_id) && deSempre.has(chaveDaColuna(c.nome)))?.grupo_id
+    ?? GRUPO_SEM_O_NOME[fase](colunas, grupos, anterior)?.id ?? null;
 }
 
 /**
  * As colunas que faltam (pelo nome, sem maiúsculas, acentos, espaços e sinais), com a ordem de cada uma. Num grupo, no fim dele: entre
- * a última coluna dele e a coluna seguinte do quadro, para a ordem geral também ficar certa. Sem grupo, no alto do quadro: logo
+ * a última coluna dele e a coluna seguinte do quadro, para a ordem geral também ficar certa; no grupo vazio, entre a última coluna dos
+ * grupos de antes e a primeira dos grupos de depois. Sem grupo, no alto do quadro: logo
  * depois da coluna do início (fase do início, se ela está sem grupo) ou logo antes da coluna das concluídas (ou do grupo dela).
  */
 export function colunasNoGrupo(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], nomes: string[], grupoId: string | null,
   fase: FaseDaInvestigacao): { nome: string; ordem: number }[] {
   const faltam = nomes.filter(n => !colunas.some(c => chaveDaColuna(c.nome) === chaveDaColuna(n)));
   if (!faltam.length) return [];
-  const [anterior, seguinte] = grupoId ? vizinhosNoGrupo(colunas, grupoId) : vizinhosNoTopo(colunas, grupos, fase);
+  const [anterior, seguinte] = grupoId ? vizinhosNoGrupo(colunas, grupos, grupoId) : vizinhosNoTopo(colunas, grupos, fase);
   const ordens = ordensEntre(anterior, seguinte, faltam.length);
   return faltam.map((nome, i) => ({ nome, ordem: ordens[i] }));
 }
 const maior = (ordens: number[]) => (ordens.length ? Math.max(...ordens) : undefined);
 const menor = (ordens: number[]) => (ordens.length ? Math.min(...ordens) : undefined);
-function vizinhosNoGrupo(colunas: readonly ColunaDoQuadro[], grupoId: string): [number | undefined, number | undefined] {
-  const anterior = maior(colunas.filter(c => c.grupo_id === grupoId).map(c => c.ordem));
-  return [anterior, anterior === undefined ? undefined : menor(colunas.map(c => c.ordem).filter(o => o > anterior))];
+function vizinhosNoGrupo(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], grupoId: string): [number | undefined, number | undefined] {
+  const ultima = maior(colunas.filter(c => c.grupo_id === grupoId).map(c => c.ordem));
+  if (ultima !== undefined) return [ultima, menor(colunas.map(c => c.ordem).filter(o => o > ultima))];
+  // O grupo vazio: os vizinhos são a última coluna dos grupos de antes e a primeira dos de depois (acima daquela).
+  const emOrdem = porOrdem(grupos), lugar = emOrdem.findIndex(g => g.id === grupoId);
+  const ordensDos = (lista: GrupoDoQuadro[]) => { const ids = new Set(lista.map(g => g.id)); return colunas.filter(c => !!c.grupo_id && ids.has(c.grupo_id)).map(c => c.ordem); };
+  const anterior = maior(ordensDos(emOrdem.slice(0, lugar)));
+  return [anterior, menor(ordensDos(emOrdem.slice(lugar + 1)).filter(o => anterior === undefined || o > anterior))];
 }
 function vizinhosNoTopo(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], fase: FaseDaInvestigacao): [number | undefined, number | undefined] {
   const topo = filaDoTopo([...colunas], [...grupos]).map(x => x.ordem);
@@ -102,9 +130,12 @@ function vizinhosNoTopo(colunas: readonly ColunaDoQuadro[], grupos: readonly Gru
 export function colunasDaInvestigacaoNoQuadro(colunas: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[]) {
   const novas: { nome: string; ordem: number; grupo_id: string | null }[] = [];
   if (!colunas.length) return novas;
+  // No meio, o grupo da fase de antes vale para a que não tem grupo.
+  let anterior: string | null = null;
   for (const { grupo, fase, colunas: nomes } of COLUNAS_DA_INVESTIGACAO) {
     const todas = [...colunas, ...novas.map((n, i) => ({ ...n, id: `nova-${i}`, marco: null }))];
-    const grupoId = grupoDaFase(todas, grupos, grupo, fase);
+    const grupoId = grupoDaFase(todas, grupos, grupo, fase, fase === 'meio' ? anterior : null);
+    if (fase === 'meio') anterior = grupoId ?? anterior;
     novas.push(...colunasNoGrupo(todas, grupos, nomes, grupoId, fase).map(c => ({ ...c, grupo_id: grupoId })));
   }
   return novas;
@@ -119,7 +150,15 @@ type GrupoComQuadro = GrupoDoQuadro & { modulo?: Modulo };
 const COLUNA_DA_FASE: Record<FaseDaColuna, (adm: readonly ColunaDoQuadro[], grupos: readonly GrupoDoQuadro[], grupoAntigo: string) => string | undefined> = {
   fim: adm => adm.find(c => c.marco === 'concluido')?.id,
   inicio: (adm, grupos) => primeiraDoGrupo(adm, grupoDaFase(adm, grupos, GRUPO_DO_INICIO, 'inicio')),
-  meio: (adm, grupos, grupoAntigo) => primeiraDoGrupo(adm, grupoDaFase(adm, grupos, GRUPOS_CORRESPONDENTES[chaveDaColuna(grupoAntigo)] ?? GRUPO_DO_MEIO, 'meio'))
+  meio: (adm, grupos, grupoAntigo) => {
+    const grupo = GRUPOS_CORRESPONDENTES[chaveDaColuna(grupoAntigo)] ?? GRUPO_DO_MEIO, deSempre = colunasDeSempre(grupo);
+    // Sem o grupo (quadro sem grupos, ou o grupo vazio): a primeira coluna de sempre dele, na ordem do quadro; sem ela, a coluna logo
+    // antes da das concluídas.
+    const fim = adm.find(c => c.marco === 'concluido')?.ordem;
+    return primeiraDoGrupo(adm, grupoDaFase(adm, grupos, grupo, 'meio'))
+      ?? porOrdem(adm).find(c => deSempre.has(chaveDaColuna(c.nome)))?.id
+      ?? porOrdem(adm).filter(c => !c.marco && (fim === undefined || c.ordem < fim)).at(-1)?.id;
+  }
 };
 const primeiraDoGrupo = (colunas: readonly ColunaDoQuadro[], grupoId: string | null) => grupoId ? porOrdem(colunas.filter(c => c.grupo_id === grupoId))[0]?.id : undefined;
 
@@ -141,8 +180,15 @@ export function colunaEquivalente(etapaId: string | null, colunas: readonly Colu
   return COLUNA_DA_FASE[fase](adm, gruposAdm, grupoAntigo) ?? adm.find(c => c.marco === 'inicio')?.id ?? null;
 }
 
-/** O número de quem vem de um tipo que saiu e repetiria o de um administrativo: ganha, no fim, o nome do tipo de antes. */
-export function numeroQueNaoRepete(numero: string, tipo: TipoQueSaiu): string {
-  const sufixo = ` (${TIPOS_QUE_SAIRAM[tipo].nome})`;
-  return numero.slice(0, TAMANHO_PROCESSO.numero - sufixo.length) + sufixo;
+/**
+ * O número de quem vem de um tipo que saiu: se repetiria o de um administrativo (repete), ganha no fim o nome do tipo de antes; se esse
+ * também repetiria, o nome e um número ("(extrajudicial 2)"). Como privado.numero_que_nao_repete, no banco.
+ */
+export function numeroQueNaoRepete(numero: string, tipo: TipoQueSaiu, repete: (numero: string) => boolean): string {
+  let novo = numero;
+  for (let i = 1; repete(novo); i++) {
+    const sufixo = ` (${TIPOS_QUE_SAIRAM[tipo].nome}${i > 1 ? ` ${i}` : ''})`;
+    novo = numero.trim().slice(0, TAMANHO_PROCESSO.numero - sufixo.length) + sufixo;
+  }
+  return novo;
 }

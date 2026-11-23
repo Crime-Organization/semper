@@ -20,7 +20,7 @@ interface Props {
 }
 
 export function ProcessosRelacionados({ lista, processoId }: Props) {
-  // A situação de cada um é o nome da coluna dele no quadro do tipo dele: as colunas dos quatro quadros servem.
+  // A situação de cada um é o nome da coluna dele no quadro do tipo dele: as colunas dos quadros de cada tipo servem.
   const [colunas, setColunas] = useState<Coluna[]>([]);
   useEffect(() => {
     Promise.all(TIPOS.map(t => SD.colunasListar(TIPOS_PROCESSO[t].quadro))).then(q => setColunas(q.flat())).catch(() => {});
