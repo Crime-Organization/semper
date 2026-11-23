@@ -164,7 +164,18 @@ select throws_ok($$ select public.contratos_excluir('{c0000000-0000-0000-0000-00
 select is((select count(*) from public.contratos where id = 'c0000000-0000-0000-0000-000000000002'), 1::bigint, 'Nada é excluído pela metade');
 -- E pelo delete direto (a versão anterior do site), o K3 também não sai
 select throws_ok($$ delete from public.contratos where id = 'c0000000-0000-0000-0000-000000000003' $$, '42501',
-  'Este contrato tem dinheiro recebido: só um administrador o exclui.', 'O delete direto também recusa a parcela importada como paga');
+  'Este contrato tem dinheiro recebido. Atualize a página e exclua de novo: o SEMPER mostra antes os valores que saem junto.',
+  'O delete direto também recusa a parcela importada como paga');
+reset role;
+-- Nem para a Ana, administradora: por esse caminho a parcela sairia sem a cópia escondida e sem a janela com o valor
+select pg_temp.entrar(1); set local role authenticated;
+select throws_ok($$ delete from public.contratos where id = 'c0000000-0000-0000-0000-000000000003' $$, '42501',
+  'Este contrato tem dinheiro recebido. Atualize a página e exclua de novo: o SEMPER mostra antes os valores que saem junto.',
+  'O delete direto recusa a parcela importada como paga também para o administrador');
+reset role;
+select is((select count(*) from public.contrato_parcelas where id = 'd0000000-0000-0000-0000-000000000031'), 1::bigint,
+  'A parcela importada como paga continua lá');
+select pg_temp.entrar(2); set local role authenticated;
 
 -- ===== Sem dinheiro, quem cadastrou exclui, como hoje =====
 -- Quando a Bia exclui o K2 (sem dinheiro)

@@ -26,7 +26,8 @@
 --
 -- Só acrescenta (uma tabela, funções e um gatilho novos). A versão anterior do site continua funcionando: ela exclui com o delete
 -- direto, como antes. Esse caminho continua recusando o contrato com recebimento (a chave estrangeira não muda) e passa a recusar,
--- para quem não é administrador, o contrato com parcela importada como paga. Assim o site antigo nunca apaga dinheiro sem a janela.
+-- para todos (também o administrador), o contrato com parcela importada como paga: sem a janela, ela sumiria sem a cópia escondida e
+-- sem mostrar o valor. Assim o site antigo (ou uma chamada direta à API) nunca apaga dinheiro: quem tentar é mandado atualizar a página.
 -- A regra RLS "apagar" de contratos fica como está.
 -- =====================================================================
 
@@ -239,15 +240,18 @@ end $$;
 revoke execute on function public.contratos_excluir(uuid[]) from public, anon;
 grant execute on function public.contratos_excluir(uuid[]) to authenticated;
 
--- 6. O delete direto (a versão anterior do site) continua de pé, como antes: o contrato com recebimento é recusado pela chave
---    estrangeira. A parcela importada como paga também é dinheiro recebido: só um administrador exclui o contrato que a tem.
+-- 6. O delete direto (a versão anterior do site, ou uma chamada direta à API) continua de pé, como antes: o contrato com recebimento
+--    é recusado pela chave estrangeira. A parcela importada como paga também é dinheiro recebido, e por esse caminho ela sairia sem a
+--    cópia escondida e sem a janela com o valor (e as demandas e as tarefas ficariam soltas): o delete direto do contrato que a tem é
+--    recusado para todos, também para o administrador, que exclui pelo site atualizado (contratos_excluir).
 --    contratos_excluir roda como o sistema e não passa por aqui.
 create function privado.contrato_excluido_direto() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if not privado.sou_admin() and exists (select 1 from public.contrato_parcelas
-       where contrato_id = old.id and recebimento_id is null and recebida_em is not null and excluido_em is null) then
-    raise exception 'Este contrato tem dinheiro recebido: só um administrador o exclui.' using errcode = '42501';
+  if exists (select 1 from public.contrato_parcelas
+              where contrato_id = old.id and recebimento_id is null and recebida_em is not null and excluido_em is null) then
+    raise exception 'Este contrato tem dinheiro recebido. Atualize a página e exclua de novo: o SEMPER mostra antes os valores que saem junto.'
+      using errcode = '42501';
   end if;
   return old;
 end $$;
