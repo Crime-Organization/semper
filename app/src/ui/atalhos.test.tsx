@@ -2,6 +2,7 @@
 // Os atalhos de teclado da página de módulo (#86) e a ajuda da tela (#85). Padrão Dado / Quando / Então: veja app/TESTES.md.
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useLayoutEffect } from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ligarAtalhos } from './atalhos';
@@ -48,6 +49,22 @@ describe('Página de módulo: os atalhos do teclado', () => {
     // Então
     expect(screen.getByRole('searchbox')).toHaveFocus();
     expect(screen.getByRole('searchbox')).toHaveValue('');
+  });
+
+  it('dada a página que acaba de aparecer, quando a pessoa aperta "/" antes de o React terminar os efeitos, então o cursor já vai para a busca (#420)', () => {
+    // Dado: a tecla chega no instante em que a página está na tela, antes dos efeitos que o React roda depois de desenhar (um
+    // useLayoutEffect logo depois da página roda nesse instante)
+    function TeclaAoAparecer() {
+      useLayoutEffect(() => { fireEvent.keyDown(document.body, { key: '/' }); }, []);
+      return null;
+    }
+    // Quando
+    render(<MemoryRouter initialEntries={['/pessoas/']}>
+      <PaginaModulo titulo="Pessoas" busca={{ placeholder: 'Buscar nome', aoBuscar: vi.fn() }}><p>Lista</p></PaginaModulo>
+      <TeclaAoAparecer />
+    </MemoryRouter>);
+    // Então
+    expect(screen.getByRole('searchbox')).toHaveFocus();
   });
 
   it('dada a página, quando a pessoa aperta "N", então abre o "Novo" do módulo', async () => {
