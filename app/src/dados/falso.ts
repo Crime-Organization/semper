@@ -98,6 +98,7 @@ import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA, SEGUNDO } from '../ui/tempos';
 import { arquivadosComOContrato } from '../regras/arquivarContrato';
 import { excluidosComOsContratos, RECUSA_DA_EXCLUSAO, tarefasDeCadaContrato } from '../regras/exclusaoDoContrato';
+import { semAPessoaNasCopias } from '../regras/esquecimentoNaCopia';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -270,8 +271,8 @@ interface Banco {
   /** O que cada contrato arquivou junto (privado.arquivados_com_contrato no banco, #284): o id da demanda ou da tarefa. */
   arquivadosComContrato?: { contrato_id: string; id: string }[];
   /** A cópia escondida do dinheiro que saiu com o contrato excluído (financeiro_excluidos no banco, #284). Ninguém lê pela tela. */
-  financeiroExcluidos?: { contrato_id: string; contrato_codigo: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number; data: string | null;
-    valor: number; conta_id: string | null; estornado: boolean; copia: unknown; excluido_por: string; excluido_em: string }[];
+  financeiroExcluidos?: { contrato_id: string; contrato_codigo: string; cliente_nome: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number; data: string | null;
+    valor: number; conta_id: string | null; conta_nome: string | null; estornado: boolean; copia: unknown; excluido_por: string; excluido_em: string }[];
   /** Os processos ligados aos contratos (contrato_processos no banco). */
   contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -3508,6 +3509,8 @@ export const SD: Dados = {
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       esquecerNasPartes(id);
+      // LGPD, como o gatilho esquecer_nos_excluidos: o nome dela sai da cópia escondida dos recebimentos excluídos (#412).
+      bd.financeiroExcluidos = semAPessoaNasCopias(bd.financeiroExcluidos!, p);
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
       ligados.forEach(v => historicoVinculo(v, false));
@@ -3736,12 +3739,15 @@ export const SD: Dados = {
     const repasses = bd.repasses!.filter(x => idsDosRecebimentos.has(x.recebimento_id));
     const lancamentos = new Set([...recebimentos.flatMap(x => [x.lancamento_id, x.lancamento_taxa_id]), ...repasses.map(x => x.lancamento_id)].filter(Boolean));
     const copia = { excluido_por: eu, excluido_em: agora() };
-    recebimentos.forEach(x => bd.financeiroExcluidos!.push({ contrato_id: x.contrato_id, contrato_codigo: acharContrato(x.contrato_id).codigo, tipo: 'recebimento',
-      parcela_numero: acharParcela(x.parcela_id).numero, data: x.data, valor: x.valor, conta_id: x.conta_id, estornado: !!x.estornado_em, ...copia,
+    recebimentos.forEach(x => bd.financeiroExcluidos!.push({ contrato_id: x.contrato_id, contrato_codigo: acharContrato(x.contrato_id).codigo,
+      cliente_nome: nomesDosClientes(acharContrato(x.contrato_id).clientes), tipo: 'recebimento',
+      parcela_numero: acharParcela(x.parcela_id).numero, data: x.data, valor: x.valor, conta_id: x.conta_id,
+      conta_nome: bd.contasFinanceiras!.find(c => c.id === x.conta_id)?.nome ?? null, estornado: !!x.estornado_em, ...copia,
       copia: { recebimento: x, repasses: repasses.filter(y => y.recebimento_id === x.id), terceiros_pagos: bd.terceirosPagos!.filter(m => m.recebimento_id === x.id),
         lancamentos: bd.lancamentos!.filter(l => lancamentos.has(l.id) || l.corrige_recebimento === x.id) } }));
     bd.parcelas!.filter(p => ok.includes(p.contrato_id) && importadaComoPaga(p)).forEach(p => bd.financeiroExcluidos!.push({ contrato_id: p.contrato_id,
-      contrato_codigo: acharContrato(p.contrato_id).codigo, tipo: 'parcela_importada', parcela_numero: p.numero, data: p.recebida_em, valor: p.recebido ?? 0, conta_id: null,
+      contrato_codigo: acharContrato(p.contrato_id).codigo, cliente_nome: nomesDosClientes(acharContrato(p.contrato_id).clientes), tipo: 'parcela_importada',
+      parcela_numero: p.numero, data: p.recebida_em, valor: p.recebido ?? 0, conta_id: null, conta_nome: null,
       estornado: false, ...copia, copia: { parcela: p } }));
     bd.repasses = bd.repasses!.filter(x => !idsDosRecebimentos.has(x.recebimento_id));
     bd.terceirosPagos = bd.terceirosPagos!.filter(m => !idsDosRecebimentos.has(m.recebimento_id));

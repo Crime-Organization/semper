@@ -4210,6 +4210,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await SD.financeiroRecebimento(id)).toBeNull();
         });
 
+        it('dado um contrato excluído com recebimento, quando a cliente e o indicador são excluídos, então os nomes saem da cópia escondida e os valores ficam (#412)', async () => {
+          // Dado um contrato da cliente, com um indicador que não é sócio, recebido e excluído
+          const cliente = { id: '', nome: marca() }, indicador = { id: '', nome: marca() };
+          cliente.id = (await criar(cliente.nome)).id;
+          indicador.id = (await criar(indicador.nome)).id;
+          const k = await assinado({ clientes: [cliente.id], indicador_id: indicador.id, indicador_percentual: 10 }), conta = await contaPJ();
+          await receber(k.parcelas[0].id, conta.id);
+          await SD.contratosArquivar([k.id]);
+          await SD.contratosExcluir([k.id]);
+          type Linha = { contrato_id: string; cliente_nome: string; conta_nome: string | null; valor: number; data: string };
+          const copias = () => (JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { financeiroExcluidos: Linha[] })
+            .financeiroExcluidos.filter(x => x.contrato_id === k.id);
+          expect(copias()).toMatchObject([{ cliente_nome: cliente.nome, conta_nome: conta.nome, valor: 100000, data: '2026-03-10' }]);
+          expect(JSON.stringify(copias())).toContain(indicador.nome);
+          // Quando as duas pessoas são arquivadas e excluídas
+          await SD.pessoasArquivar([cliente.id, indicador.id]);
+          expect((await SD.pessoasExcluir([cliente.id, indicador.id])).excluidas).toBe(2);
+          // Então os nomes não ficam em lugar nenhum da cópia, e o valor, a data e a conta continuam
+          const [depois] = copias();
+          expect(depois).toMatchObject({ cliente_nome: 'pessoa excluída', conta_nome: conta.nome, valor: 100000, data: '2026-03-10' });
+          expect(JSON.stringify(copias())).not.toContain(cliente.nome);
+          expect(JSON.stringify(copias())).not.toContain(indicador.nome);
+        });
+
         it('dado um repasse já pago, quando pede para excluir, então ninguém exclui até o pagamento ser desfeito', async () => {
           // Dado
           const k = await assinado(), conta = await contaPJ();
