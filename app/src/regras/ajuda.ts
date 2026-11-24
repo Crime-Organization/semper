@@ -116,7 +116,7 @@ export const AJUDA_DAS_TELAS: Record<TelaComAjuda, AjudaDaTela> = {
     'Para ver os processos de um tipo no quadro ou na tabela, escolha o tipo no menu lateral.'
   ] },
   mensagens: { titulo: 'Mensagens', textos: [
-    'Aqui chegam os seus avisos: menções com @, prazos, lembretes e quando alguém inclui você num item.',
+    'Aqui chegam os seus avisos: menções com @, prazos, lembretes, quando alguém inclui você num item e quando uma tarefa espera a sua aprovação ou volta para você, com o comentário.',
     'As mensagens que você ainda não leu ficam destacadas, e o número no menu lateral conta quantas são.',
     'Clique numa mensagem para abrir o item de onde ela veio.',
     'Os pedidos para participar de um item se aprovam ou se recusam aqui mesmo.'
