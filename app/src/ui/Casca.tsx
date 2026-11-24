@@ -16,7 +16,7 @@ import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
 import { naoLidas, useConferirNaoLidas } from './mensagens';
-import { MaisDoMenu } from './MaisDoMenu';
+import { ICONE_DO_MAIS, MaisDoMenu } from './MaisDoMenu';
 import { MenuFinanceiro } from './MenuFinanceiro';
 import { BotaoNovidades } from './Novidades';
 import { useSessao } from './sessao';
@@ -84,12 +84,15 @@ export function Casca({ children }: { children: ReactNode }) {
     <div className="app">
       <aside className={'side' + (aberta ? ' aberta' : '')} aria-label="Menu" ref={lateral}>
         {/* O nome e a logomarca do escritório vêm das Configurações. A logomarca fica no lugar da letra (#323). O Início não é item da
-            lista: é a casinha na ponta desta linha (#435), na coluna dos "+" dos módulos, e é o único caminho para ele no menu. */}
+            lista: é a casinha na ponta desta linha (#435), uma bolinha igual aos "+" dos módulos e na mesma coluna, e é o único
+            caminho para ele no menu. */}
         <div className="marca-app" role="group" aria-label={nomeEsc}>
           {logo ? <LogoDoEscritorio logo={logo} nome={nomeEsc} /> : <span className="ini">{nomeEsc.trim().charAt(0)}</span>}
           <span className="marca-texto"><b>{nomeEsc}</b><small>{MARCA.nome}</small></span>
           <span className="nav-coluna-do-mais">
-            <NavLink className="marca-inicio" to="/inicio/" aria-label="Início" {...propsDaDica('Início')}><Icone nome="inicio" /></NavLink>
+            <NavLink className="nav-mais marca-inicio" to="/inicio/" aria-label="Início" {...propsDaDica('Início')}>
+              <Icone nome="inicio" tam={ICONE_DO_MAIS} />
+            </NavLink>
           </span>
         </div>
         {/* A busca geral (#321): em todos os módulos de uma vez; o atalho é Ctrl+K (Cmd+K no Mac), em qualquer página. */}
@@ -110,8 +113,10 @@ export function Casca({ children }: { children: ReactNode }) {
             {item('/tarefas/', 'tarefas', 'Tarefas')}
             <MaisDoMenu para="/tarefas/nova/" rotulo="Cadastrar tarefa" />
           </div>}
-          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}
-            mais={ctx.escritorio?.modulos?.compromissos && <MaisDoMenu para="/agenda/novo/" rotulo="Cadastrar compromisso" />}>
+          {/* A seta da Agenda fica na coluna dos "+", como a de Processos (#435); por isso o "+" do compromisso (#404) não cabe na
+              linha e vira a primeira opção do submenu, "Novo compromisso". */}
+          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}>
+            {ctx.escritorio?.modulos?.compromissos && <MaisDoMenu para="/agenda/novo/" rotulo="Novo compromisso" comTexto />}
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>

@@ -5,13 +5,25 @@ import { Link, useLocation } from 'react-router';
 import { estadoDaVolta } from '../regras/origemDoCadastro';
 import { Icone } from './Icone';
 
-/** Tamanho do "+" ao lado de cada módulo, que leva ao cadastro. */
-const ICONE_DO_MAIS = 15;
+/** Tamanho do "+" ao lado de cada módulo, que leva ao cadastro (e do ícone da casinha do Início, que é uma bolinha igual, #435). */
+export const ICONE_DO_MAIS = 15;
 
-/** O "+" de um módulo: `para` é o endereço do cadastro e `rotulo`, o nome do botão e a dica (ex.: "Cadastrar pessoa"). */
-export function MaisDoMenu({ para, rotulo }: { para: string; rotulo: string }) {
+interface Props {
+  /** O endereço do cadastro. */
+  para: string;
+  /** O nome do botão e a dica (ex.: "Cadastrar pessoa"); com `comTexto`, o texto à vista (ex.: "Novo compromisso"). */
+  rotulo: string;
+  /** Mostra o rótulo ao lado do "+", como uma opção de submenu (o "Novo compromisso" da Agenda, #435), em vez da bolinha. */
+  comTexto?: boolean;
+}
+
+export function MaisDoMenu({ para, rotulo, comTexto = false }: Props) {
   const { pathname, search, hash } = useLocation();
-  return <Link className="nav-mais" to={para} state={estadoDaVolta(pathname + search + hash)} aria-label={rotulo} title={rotulo}>
+  const volta = estadoDaVolta(pathname + search + hash);
+  if (comTexto) return <Link className="nav-novo" to={para} state={volta}>
+    <Icone nome="mais" tam={ICONE_DO_MAIS} /><span>{rotulo}</span>
+  </Link>;
+  return <Link className="nav-mais" to={para} state={volta} aria-label={rotulo} title={rotulo}>
     <Icone nome="mais" tam={ICONE_DO_MAIS} />
   </Link>;
 }

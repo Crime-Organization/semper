@@ -1,5 +1,5 @@
 {
   "titulo": "Menu lateral em nova ordem, com a casinha do Início",
-  "texto": "O Início saiu da lista e virou a casinha ao lado do nome do escritório. A lista agora começa pelo trabalho do dia: Mensagens, Pessoas, Tarefas, Agenda e calendário e Documentos, e depois Contratos, Demandas, Processos e Financeiro. A seta de Processos ficou na mesma coluna dos botões de \"+\".",
-  "ondeAchar": "No menu lateral: a casinha fica no alto, à direita do nome do escritório. No celular, toque no botão do menu, no canto de cima."
+  "texto": "O Início virou a casinha ao lado do nome do escritório, uma bolinha igual às de \"+\". A lista começa pelo trabalho do dia: Mensagens, Pessoas, Tarefas, Agenda e calendário e Documentos; depois vêm Contratos, Demandas, Processos e Financeiro. As setas de Processos e da Agenda ficaram na coluna dos \"+\", e o cadastro de compromisso passou para dentro da Agenda.",
+  "ondeAchar": "No menu lateral: a casinha fica no alto, à direita do nome do escritório; o \"Novo compromisso\" aparece ao abrir \"Agenda e calendário\". No celular, toque no botão do menu, no canto de cima."
 }

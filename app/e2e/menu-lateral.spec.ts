@@ -1,5 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O menu lateral (#404): o "+" de cadastrar compromisso na linha da Agenda e o número de mensagens não lidas na coluna dos "+".
+// O menu lateral (#404): o cadastro de compromisso no menu e o número de mensagens não lidas na coluna dos "+". Desde a #435, a seta
+// da Agenda fica na coluna dos "+", e o cadastro de compromisso é a primeira opção do submenu ("Novo compromisso"), não mais um "+".
 // No banco fictício, quem está logado é o Mauro (administrador), num escritório com todos os módulos; a Ana é advogada.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
@@ -14,7 +15,14 @@ const COMPUTADOR = { width: 1280, height: 800 };
 const FOLGA_DO_EIXO = 0.5;
 
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Seções' });
-const maisDoCompromisso = (page: Page) => menu(page).getByRole('link', { name: 'Cadastrar compromisso' });
+const agenda = (page: Page) => menu(page).getByRole('button', { name: 'Agenda e calendário' });
+const novoCompromisso = (page: Page) => menu(page).getByRole('link', { name: 'Novo compromisso' });
+/** Abre o submenu da Agenda (fechado na semente) e devolve o "Novo compromisso". */
+async function abrirNovoCompromisso(page: Page) {
+  await agenda(page).click();
+  await expect(agenda(page)).toHaveAttribute('aria-expanded', 'true');
+  return novoCompromisso(page);
+}
 
 /** O meio de um elemento na horizontal. */
 const meioNaHorizontal = async (alvo: Locator) => {
@@ -51,27 +59,26 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(AGORA);
 });
 
-test.describe('O "+" de compromisso no menu lateral', () => {
-  test('dado o escritório com Compromissos, quando a pessoa olha a linha da Agenda, então há o "+" na coluna dos outros', async ({ page }) => {
-    // Quando
+test.describe('O "Novo compromisso" no submenu da Agenda', () => {
+  test('dado o escritório com Compromissos, quando a pessoa abre a Agenda no menu, então o "Novo compromisso" é a primeira opção', async ({ page }) => {
+    // Dado
     await page.goto('/tarefas/');
+    await expect(agenda(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(novoCompromisso(page)).toBeHidden();
+    // Quando
+    const novo = await abrirNovoCompromisso(page);
     // Então
-    const mais = maisDoCompromisso(page);
-    await expect(mais).toBeVisible();
-    await expect(mais).toHaveAttribute('title', 'Cadastrar compromisso');
-    await expect(menu(page).getByRole('button', { name: 'Agenda e calendário' })).toHaveAttribute('aria-expanded', 'false');
-    const eixo = await meioNaHorizontal(menu(page).getByRole('link', { name: 'Cadastrar tarefa' }));
-    expect(Math.abs(await meioNaHorizontal(mais) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
-    // E os "+" têm o mesmo tamanho
-    const tamanho = (l: Locator) => l.evaluate(el => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]);
-    expect(await tamanho(mais)).toEqual(await tamanho(menu(page).getByRole('link', { name: 'Cadastrar tarefa' })));
+    await expect(novo).toBeVisible();
+    await expect(novo).toHaveText('Novo compromisso');
+    const opcoes = page.locator(`[id="${await agenda(page).getAttribute('aria-controls')}"]`).getByRole('link');
+    await expect(opcoes).toHaveText(['Novo compromisso', 'Agenda', 'Feriados e prazos']);
   });
 
-  test('dado a pessoa em Pessoas, quando clica no "+" e salva o compromisso, então volta para Pessoas, e o compromisso está na Agenda', async ({ page }) => {
+  test('dado a pessoa em Pessoas, quando clica em "Novo compromisso" e o salva, então volta para Pessoas, e o compromisso está na Agenda', async ({ page }) => {
     // Dado
     await page.goto('/pessoas/');
     // Quando
-    await maisDoCompromisso(page).click();
+    await (await abrirNovoCompromisso(page)).click();
     const janela = page.getByRole('dialog');
     await janela.getByLabel('Título').fill('Reunião pelo menu');
     await janela.getByLabel('Data').fill(HOJE);
@@ -88,10 +95,10 @@ test.describe('O "+" de compromisso no menu lateral', () => {
     await expect(page.getByText('Reunião pelo menu').first()).toBeVisible();
   });
 
-  test('dado o "+" aberto, quando a pessoa fecha o cadastro sem salvar, então continua onde estava', async ({ page }) => {
+  test('dado o cadastro aberto pelo menu, quando a pessoa o fecha sem salvar, então continua onde estava', async ({ page }) => {
     // Dado
     await page.goto('/demandas/');
-    await maisDoCompromisso(page).click();
+    await (await abrirNovoCompromisso(page)).click();
     await expect(page.getByRole('dialog').getByLabel('Título')).toBeVisible();
     // Quando
     await page.getByRole('dialog').getByRole('button', { name: 'Fechar' }).click();
@@ -100,14 +107,15 @@ test.describe('O "+" de compromisso no menu lateral', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
-  test('dado o escritório sem o módulo Compromissos, quando o menu abre, então o "+" não aparece', async ({ page }) => {
+  test('dado o escritório sem o módulo Compromissos, quando a pessoa abre a Agenda no menu, então não há "Novo compromisso"', async ({ page }) => {
     // Dado
     await page.goto('/inicio/');
-    // Quando
     await desligarModulo(page, 'compromissos');
+    // Quando
+    await agenda(page).click();
     // Então
-    await expect(menu(page).getByRole('button', { name: 'Agenda e calendário' })).toBeVisible();
-    await expect(maisDoCompromisso(page)).toHaveCount(0);
+    await expect(menu(page).getByRole('link', { name: 'Feriados e prazos' })).toBeVisible();
+    await expect(novoCompromisso(page)).toHaveCount(0);
     await expect(menu(page).getByRole('link', { name: 'Cadastrar tarefa' })).toBeVisible();
   });
 });
@@ -139,13 +147,13 @@ test.describe('O número de mensagens não lidas no menu lateral', () => {
       const numero = mensagens.getByText('1', { exact: true });
       const eixo = await meioNaHorizontal(menu(page).getByRole('link', { name: 'Cadastrar pessoa' }));
       expect(Math.abs(await meioNaHorizontal(numero) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
-      expect(Math.abs(await meioNaHorizontal(maisDoCompromisso(page)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+      expect(Math.abs(await meioNaHorizontal(menu(page).getByRole('link', { name: 'Cadastrar tarefa' })) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
     });
   }
 });
 
-// #435: o Início sai da lista e vira a casinha ao lado do nome do escritório; a lista segue a ordem nova; a seta de Processos fica
-// na coluna dos "+".
+// #435: o Início sai da lista e vira a casinha ao lado do nome do escritório, uma bolinha igual aos "+"; a lista segue a ordem nova;
+// as setas de Processos e da Agenda ficam na coluna dos "+".
 const lateral = (page: Page) => page.getByRole('complementary', { name: 'Menu' });
 const casinha = (page: Page) => lateral(page).getByRole('group', { name: 'Escritório Exemplo (teste)' }).getByRole('link', { name: 'Início', exact: true });
 /** A ordem dos itens da lista do menu, pedida pelo dono (#435). */
@@ -185,7 +193,7 @@ test.describe('A ordem do menu e a casinha do Início (#435)', () => {
   });
 
   for (const tela of [{ nome: 'no computador', tamanho: COMPUTADOR }, { nome: 'no celular', tamanho: CELULAR }] as const) {
-    test(`dado o menu ${tela.nome}, quando a pessoa o vê, então a casinha e a seta de Processos ficam no meio da coluna dos "+"`, async ({ page }) => {
+    test(`dado o menu ${tela.nome}, quando a pessoa o vê, então a casinha e as setas de Processos e da Agenda ficam no meio da coluna dos "+"`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela.tamanho);
       const processos = menu(page).getByRole('button', { name: 'Processos' });
@@ -197,6 +205,14 @@ test.describe('A ordem do menu e a casinha do Início (#435)', () => {
       expect(Math.abs(await meioNaHorizontal(casinha(page)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
       await expect(processos).toHaveAttribute('aria-expanded', 'false');
       expect(Math.abs(await meioNaHorizontal(setaDe(processos)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+      await expect(agenda(page)).toHaveAttribute('aria-expanded', 'false');
+      expect(Math.abs(await meioNaHorizontal(setaDe(agenda(page))) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+      // E a casinha é uma bolinha do tamanho dos "+", sem passar da ponta da coluna deles
+      const caixa = (l: Locator) => l.evaluate(el => el.getBoundingClientRect().toJSON() as DOMRect);
+      const mais = await caixa(menu(page).getByRole('link', { name: 'Cadastrar pessoa' }));
+      const inicio = await caixa(casinha(page));
+      expect([inicio.width, inicio.height]).toEqual([mais.width, mais.height]);
+      expect(inicio.right).toBeLessThanOrEqual(mais.right + FOLGA_DO_EIXO);
       // Quando o submenu está aberto (a seta vira para cima)
       await page.goto('/processos/judicial/');
       if (tela.tamanho === CELULAR) await abrirGaveta(page);

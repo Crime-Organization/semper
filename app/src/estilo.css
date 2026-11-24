@@ -160,7 +160,7 @@
      na ponta da linha. O número de mensagens não lidas fica centrado numa coluna da mesma largura, na mesma ponta (#404) */
   --recuo-do-item-do-menu: 10px;
   --largura-do-mais-do-menu: 28px;
-  /* A altura de cada item do menu lateral; a casinha do Início (#435), ao lado do nome do escritório, é um quadrado deste lado */
+  /* A altura de cada item do menu lateral */
   --altura-do-item-do-menu: 36px;
   /* A logomarca do escritório (#323) no lugar da letra, na barra lateral e na barra do topo do celular: a placa clara nos dois
      temas (a logomarca é feita para fundo claro, como na prévia das Configurações), a altura dela (a da letra, um pouco maior,
@@ -620,17 +620,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .side { width: 264px; flex-shrink: 0; background: var(--soft); border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; position: sticky; top: 0; height: 100vh; overflow: auto }
 .side > * { flex-shrink: 0 }
 /* A linha do escritório: a letra (ou a logomarca), o nome com "SEMPER" embaixo e, na ponta, a casinha do Início (#435). A ponta da
-   linha é a mesma dos itens do menu, para a casinha ficar na coluna dos "+" (.nav-coluna-do-mais). */
+   linha é a mesma dos itens do menu, para a casinha ficar na coluna dos "+" (.nav-coluna-do-mais), com a mesma caixa deles. */
 .marca-app { display: flex; align-items: center; gap: 10px; padding: 10px var(--recuo-do-item-do-menu) 14px }
 .marca-texto { flex: 1; min-width: 0 }
-/* A coluna fica da largura dos "+" mesmo com a casinha, mais larga, dentro: ela passa igual para os dois lados, e o meio fica no eixo. */
-.marca-app > .nav-coluna-do-mais { min-width: 0 }
-/* A casinha: só o ícone, do tamanho de um item do menu, com o meio no eixo dos "+"; marcada como os itens quando se está no
-   Início. No toque, o alvo vai até --alvo-de-toque, sem a linha crescer. */
-.marca-inicio { position: relative; flex: none; display: flex; align-items: center; justify-content: center; width: var(--altura-do-item-do-menu); height: var(--altura-do-item-do-menu); border-radius: 6px; color: var(--text) }
-.marca-inicio::before { content: ''; position: absolute; inset: calc((var(--altura-do-item-do-menu) - var(--alvo-de-toque)) / 2); border-radius: 999px }
-.marca-inicio:hover { background: var(--line); color: var(--ink) }
-.marca-inicio[aria-current="page"] { background: var(--line); color: var(--ink) }
+/* A casinha é uma bolinha igual aos "+" (.nav-mais, abaixo), só com outro ícone. No toque, o alvo vai até --alvo-de-toque, sem a
+   linha crescer. Quando se está no Início, ela fica preenchida com o fundo do item marcado (o de Tarefas quando se está em Tarefas). */
+.marca-inicio { position: relative }
+.marca-inicio::before { content: ''; position: absolute; inset: calc((var(--largura-do-mais-do-menu) - var(--alvo-de-toque)) / 2); border-radius: 999px }
 .marca-app .ini { width: 28px; height: 28px; border-radius: 6px; background: var(--dark); color: var(--accent-bright); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; flex-shrink: 0 }
 /* A logomarca no lugar da letra (#323): a placa clara, com o fio da linha (some no claro e contorna a placa no escuro). */
 .marca-logo { flex-shrink: 0; display: flex; align-items: center; justify-content: center; height: var(--altura-da-logomarca); max-width: var(--largura-da-logomarca); padding: var(--folga-da-logomarca); border-radius: var(--raio-da-logomarca); background: var(--fundo-da-logomarca); box-shadow: inset 0 0 0 1px var(--line) }
@@ -646,8 +642,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nav svg { flex-shrink: 0 }
 /* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta, e as opções ficam recuadas, alinhadas ao texto do botão. */
 .nav-grupo { display: flex; flex-direction: column; gap: 2px }
-/* A seta: sem "+" na linha, na coluna dos "+" (.nav-coluna-do-mais, com o meio no eixo deles, #435); com o "+", logo antes dele. */
-.nav-seta { margin-left: auto; display: flex; color: var(--muted) }
+/* A seta, sempre na coluna dos "+" (.nav-coluna-do-mais, com o meio no eixo deles, #435). */
+.nav-seta { color: var(--muted) }
+/* O cadastro dentro de um submenu (o "Novo compromisso" da Agenda, #435): o "+" e o texto na cor dos "+", por ser uma ação. */
+.nav .nav-novo { color: var(--accent-ink) }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 30px }
 .nav-sub[hidden] { display: none }
 .nav-linha { display: flex; align-items: center; gap: 2px }
@@ -658,8 +656,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* A coluna dos "+" na ponta da linha, para o que não é "+" (o número de não lidas de Mensagens): da largura do "+", encostada na
    ponta (passa por cima do recuo do item), com o conteúdo no meio. Assim, o meio do número fica no eixo dos "+" de baixo. */
 .nav-coluna-do-mais { margin-left: auto; margin-right: calc(-1 * var(--recuo-do-item-do-menu)); flex: 0 0 var(--largura-do-mais-do-menu); display: flex; justify-content: center }
-.nav .nav-mais { width: var(--largura-do-mais-do-menu); min-height: var(--largura-do-mais-do-menu); height: var(--largura-do-mais-do-menu); padding: 0; flex: 0 0 var(--largura-do-mais-do-menu); justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
-.nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
+.side .nav-mais { display: flex; align-items: center; width: var(--largura-do-mais-do-menu); min-height: var(--largura-do-mais-do-menu); height: var(--largura-do-mais-do-menu); padding: 0; flex: 0 0 var(--largura-do-mais-do-menu); justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
+.side .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
+.side .marca-inicio[aria-current="page"] { background: var(--line); color: var(--ink) }
 .side-rodape { margin-top: auto; padding-top: 24px }
 .usuario { display: flex; gap: 10px; align-items: flex-start; padding: 10px; font-size: 13px; color: var(--muted); line-height: 1.4 }
 .usuario b { color: var(--ink); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
