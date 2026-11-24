@@ -4,7 +4,7 @@ import type { Processo } from '../dados/tipos';
 import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
   semSairDoProcesso, validarProcesso, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso,
-  clienteNoCartao, comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, PAPEL_DO_CLIENTE_OBRIGATORIO, papeisAoGravar, papeisAoTrocarCliente, papeisDosClientesPorExtenso,
+  clienteNoCartao, comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, PAPEL_DO_CLIENTE_OBRIGATORIO, papeisAoGravar, papelSugeridoDoCliente, papeisAoTrocarCliente, papeisDosClientesPorExtenso,
   selosDoProcesso
 } from './processo';
 
@@ -362,6 +362,13 @@ describe('Papel de cada cliente no processo (#426)', () => {
     expect(papeisAoTrocarCliente({ p1: 'autor' }, 'p1', 'p2')).toEqual({ p1: 'autor', p2: 'autor' });
     expect(papeisAoTrocarCliente({ p1: 'autor', p2: 'reu' }, 'p1', 'p2')).toEqual({ p1: 'autor', p2: 'reu' });
     expect(papeisAoTrocarCliente({ p1: 'autor' }, 'p1', '')).toEqual({ p1: 'autor' });
+  });
+
+  it('dado um processo, quando alguém é ligado como cliente pelo cartão, então a pergunta do papel já vem com o papel dos outros clientes; sem nenhum, Autor', () => {
+    // Então
+    expect(papelSugeridoDoCliente({ p1: 'reu', p2: 'autor' })).toBe('reu');
+    expect(papelSugeridoDoCliente({})).toBe('autor');
+    expect(papelSugeridoDoCliente(undefined)).toBe('autor');
   });
 
   it('quando oferece os papéis do cliente, então é a mesma lista das pessoas com papel, com o "Outro papel" por último', () => {

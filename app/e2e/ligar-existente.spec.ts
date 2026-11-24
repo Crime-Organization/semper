@@ -249,4 +249,37 @@ test.describe('Ligar, no cartão de um item, outro que já existe (#341)', () =>
     await expect(cartao.getByText('Você não participa deste cartão.', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: /^Ligar .* existente$/ })).toHaveCount(0);
   });
+
+  test('dado o cartão de um processo, quando liga um cliente que já existe, então pergunta o papel dele, e o cliente entra com o papel escolhido (#426)', async ({ page }) => {
+    // Dado: o processo da semente, cujo cliente é autor
+    const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
+    const cartao = await abrirCartao(page, 'processos', id, 'JOSÉ DA SILVA TESTE');
+    const clientes = await secao(cartao, 'Clientes');
+    // Quando
+    await ligar(clientes, { ...PESSOA, botao: 'Ligar cliente existente', texto: 'maria aparecida', achado: /MARIA APARECIDA EXEMPLO/ });
+    // Então a pergunta já traz o papel do outro cliente
+    const pergunta = page.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    await expect(pergunta.getByLabel('Papel do cliente')).toHaveValue('autor');
+    // Quando a pessoa escolhe outro papel e liga
+    await pergunta.getByLabel('Papel do cliente').selectOption('reu');
+    await pergunta.getByRole('button', { name: 'Ligar' }).click();
+    // Então o cliente entra com o papel, sem "papel a informar"
+    await expect(page.getByText('Cliente ligado: MARIA APARECIDA EXEMPLO.')).toBeVisible();
+    await expect(clientes.getByRole('link', { name: /MARIA APARECIDA EXEMPLO/ })).toContainText('Cliente · Réu');
+    await expect(clientes.getByRole('link', { name: /JOSÉ DA SILVA TESTE/ })).toContainText('Cliente · Autor');
+  });
+
+  test('dado o cartão de uma pessoa, quando a liga a um processo e desiste da pergunta do papel, então ela não entra no processo (#426)', async ({ page }) => {
+    // Dado
+    const id = await idDe(page, 'pessoas', 'nome', 'MARIA APARECIDA EXEMPLO');
+    const cartao = await abrirCartao(page, 'pessoas', id, 'MARIA APARECIDA EXEMPLO');
+    const processos = await secao(cartao, 'Processos');
+    // Quando
+    await ligar(processos, { botao: 'Ligar processo existente', campo: 'Buscar processo para ligar', lista: 'Processos para ligar', texto: '0001234', achado: /JOSÉ DA SILVA TESTE/ });
+    const pergunta = page.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    await pergunta.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(pergunta).toHaveCount(0);
+    await expect(processos.getByRole('link', { name: /JOSÉ DA SILVA TESTE/ })).toHaveCount(0);
+  });
 });

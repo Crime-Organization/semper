@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O "+ Nova pessoa" das seções Clientes e Pessoas do cartão (#376): os dois atalhos, com as mesmas condições do "Ligar … existente".
-import { render, screen } from '@testing-library/react';
+// E a pergunta do papel de quem entra como cliente do processo (#426).
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
-import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { Janelas } from '../ui/janela';
+import { LigarPessoaNoItem, novaPessoaNoItem, pedirPapelDoCliente } from './PessoasNosItens';
 
 vi.mock('../dados', () => ({ SD: {} }));
 
@@ -38,5 +41,37 @@ describe('O "+ Nova pessoa" no cartão do item', () => {
     // Então
     expect(screen.getByRole('button', { name: 'Ligar pessoa existente' })).toBeEnabled();
     expect(screen.getByRole('link', { name: 'Nova pessoa' })).toHaveAttribute('href', '/pessoas/nova/?compromisso=c1');
+  });
+});
+
+describe('O papel de quem entra como cliente do processo pelo cartão (#426)', () => {
+  it('dado um processo com clientes réus, quando a pergunta abre, então ela já traz Réu, e a pessoa troca e liga', async () => {
+    // Dado
+    render(<Janelas />);
+    let resposta!: Promise<string | null>;
+    // Quando
+    act(() => { resposta = pedirPapelDoCliente({ c1: 'reu' }); });
+    const janela = screen.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    const papel = within(janela).getByLabelText('Papel do cliente') as HTMLSelectElement;
+    // Então
+    expect(papel.value).toBe('reu');
+    expect([...papel.options].map(o => o.text)).toContain('Testemunha');
+    // Quando
+    await userEvent.selectOptions(papel, 'testemunha');
+    await userEvent.click(within(janela).getByRole('button', { name: 'Ligar' }));
+    // Então
+    await expect(resposta).resolves.toBe('testemunha');
+  });
+
+  it('dada a pergunta aberta, quando a pessoa cancela, então não há papel (e ninguém é ligado)', async () => {
+    // Dado
+    render(<Janelas />);
+    let resposta!: Promise<string | null>;
+    act(() => { resposta = pedirPapelDoCliente(undefined); });
+    expect((screen.getByLabelText('Papel do cliente') as HTMLSelectElement).value).toBe('autor');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    // Então
+    await expect(resposta).resolves.toBeNull();
   });
 });

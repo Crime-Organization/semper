@@ -1,5 +1,5 @@
 {
   "titulo": "Cada cliente tem o seu papel no processo",
-  "texto": "O antigo \"Polo do cliente\" deu lugar ao \"Papel do cliente\", um para cada cliente, com a mesma lista das outras pessoas do processo (autor, réu, vítima, titular...). Ele é obrigatório ao cadastrar e ao editar. Nos processos que já tinham o polo, ele virou o papel de cada cliente. O papel aparece também na miniatura do processo, junto do órgão e do sistema.",
+  "texto": "O antigo \"Polo do cliente\" deu lugar ao \"Papel do cliente\", um para cada cliente, com a mesma lista das outras pessoas do processo (autor, réu, vítima...). Ele é obrigatório ao cadastrar, ao editar e ao ligar um cliente pelo cartão, que pergunta o papel. Nos processos que tinham o polo, ele virou o papel de cada cliente. O papel aparece também na miniatura do processo.",
   "ondeAchar": "No cadastro do processo, na etapa Pessoas, ao lado de cada cliente. No quadro e na lista de Processos, acima do nome. No cartão, na seção Clientes."
 }

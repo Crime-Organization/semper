@@ -384,6 +384,12 @@ export const papeisAoGravar = (papeis: PapeisDosClientes, clientes: readonly str
 /** Ao trocar a pessoa de uma linha de cliente no cadastro, o papel escolhido na linha passa para a nova (se ela ainda não tem um). */
 export const papeisAoTrocarCliente = (papeis: PapeisDosClientes, antes: string, depois: string): PapeisDosClientes =>
   !antes || !depois || !papeis[antes] || papeis[depois] ? papeis : { ...papeis, [depois]: papeis[antes] };
+/**
+ * O papel que a pergunta já traz escolhido quando alguém entra como cliente pelo cartão (#426): o dos clientes que o processo já tem
+ * (o primeiro deles), que costumam estar do mesmo lado; sem nenhum, o primeiro da lista (Autor). A pessoa confere e pode trocar.
+ */
+export const papelSugeridoDoCliente = (papeis: PapeisDosClientes | undefined): PapelDaParte =>
+  Object.values(papeis ?? {}).find(ehPapelDaParte) ?? PAPEIS_DO_CLIENTE[0];
 /** O papel escolhido para um cliente no cadastro; a opção vazia tira o papel. */
 export const comPapelDoCliente = (papeis: PapeisDosClientes, clienteId: string, valor: string): PapeisDosClientes =>
   ({ ...papeis, [clienteId]: ehPapelDaParte(valor) ? valor : undefined });

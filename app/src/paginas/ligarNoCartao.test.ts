@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SD } from '../dados';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
 import { LISTA_CHEIA, TAREFA_DE_OUTRO_CONTRATO, TAREFA_DE_OUTRO_PROCESSO } from '../regras/ligarExistente';
+import { PAPEL_DO_CLIENTE_OBRIGATORIO } from '../regras/processo';
 import { ligarContratoNaTarefa, ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarNoItem, ligarTarefaNaDemanda, ligarTarefaNoPrazo, porAPessoa, relacionarDemandas } from './ligarNoCartao';
 
 const marca = () => 'LIGAR ' + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -53,13 +54,28 @@ describe('Pôr uma pessoa na lista do item', () => {
     await expect(porAPessoa('compromissos', id, await pessoa())).rejects.toThrow(LISTA_CHEIA);
   });
 
-  it('dado um processo, quando liga uma pessoa como cliente, então ela entra nos clientes dele', async () => {
+  it('dado um processo, quando liga uma pessoa como cliente com o papel dela, então ela entra nos clientes com esse papel, e os outros clientes guardam o deles (#426)', async () => {
     // Dado
     const p = await processo(), a = await pessoa();
+    const antes = (await SD.processoObter(p.id))!;
+    await SD.processoAtualizar(p.id, { papeis_clientes: { [antes.clientes[0].id]: 'autor' } });
     // Quando
-    await porAPessoa('processos', p.id, a);
+    const desfazer = await porAPessoa('processos', p.id, a, 'reu');
     // Então
-    expect((await SD.processoObter(p.id))!.clientes.map(c => c.id)).toContain(a);
+    const depois = (await SD.processoObter(p.id))!;
+    expect(depois.clientes.map(c => c.id)).toContain(a);
+    expect(depois.papeis_clientes).toEqual({ [antes.clientes[0].id]: 'autor', [a]: 'reu' });
+    // E o Desfazer tira a pessoa e o papel dela
+    await desfazer!();
+    expect((await SD.processoObter(p.id))!.papeis_clientes).toEqual({ [antes.clientes[0].id]: 'autor' });
+  });
+
+  it('dado um processo, quando tentam ligar um cliente sem o papel, então a ligação é recusada e nada é gravado (#426)', async () => {
+    // Dado
+    const p = await processo(), a = await pessoa();
+    // Quando / Então
+    await expect(porAPessoa('processos', p.id, a)).rejects.toThrow(PAPEL_DO_CLIENTE_OBRIGATORIO);
+    expect((await SD.processoObter(p.id))!.clientes.map(c => c.id)).not.toContain(a);
   });
 });
 
