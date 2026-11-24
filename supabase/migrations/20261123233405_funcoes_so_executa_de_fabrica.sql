@@ -11,6 +11,14 @@
 --   Só acrescenta na estrutura: funções novas e create or replace das de antes; nenhuma tabela ou coluna sai. Apagar a "Acompanha" de
 --   fábrica e tirá-la dos participantes é mudança de dados, o pedido. A versão anterior do site continua funcionando: ela já mostrava o
 --   participante sem função ("Sem função" no cadastro, só o papel na bolinha) e grava a lista de participantes como antes.
+--
+--   COMO APLICAR (/aplicar-banco):
+--   - Fora do horário de uso, e todos recarregam a página depois. Quem estiver com o cartão ou o cadastro de uma tarefa aberto guarda
+--     na tela o id da "Acompanha" que saiu; ao gravar (ou desfazer uma troca de antes), o gatilho recusa com "Função não encontrada
+--     neste escritório." Recarregar a página resolve. O gatilho não deve ser afrouxado: ele barra a função de outro escritório.
+--   - Publique o site logo depois. O site anterior escolhe no navegador uma função padrão (a primeira da lista que não é de execução):
+--     enquanto ele estiver no ar, um escritório que criar uma função assim vê o site antigo pô-la em quem entra pelo cadastro e
+--     deixá-la marcada no "+". O banco não consegue impedir, porque é o site que manda a função escolhida; nada quebra.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
