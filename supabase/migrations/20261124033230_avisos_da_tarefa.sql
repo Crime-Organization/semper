@@ -13,7 +13,8 @@
 --      aa_aprovacao a desvia, ou alguém a arrasta para lá), o solicitante é avisado. Vale para qualquer caminho (também as funções do
 --      banco que movem a tarefa), por isso este gatilho não tem o "when current_user". Um aviso por pessoa e tarefa: cada nova chegada
 --      renova o antigo. Quem a enviou e a retira da coluna de aprovação para outra que não a das concluídas a menos de 1 minuto da
---      chegada (o Desfazer do "enviada para aprovação") apaga o aviso que o solicitante ainda não leu.
+--      chegada (o Desfazer do "enviada para aprovação") apaga o aviso que o solicitante ainda não leu. Se o solicitante muda com a
+--      tarefa esperando na coluna de aprovação, o novo recebe o aviso de aprovação e o antigo perde o que ainda não leu.
 --   3. "devolvida": quando o solicitante (ou um administrador) devolve a tarefa com o comentário (public.tarefa_devolver), quem executa
 --      é avisado, com o comentário: o responsável e os participantes com uma função de execução ("Executa"). A mensagem guarda só o id
 --      do comentário: o texto vem do próprio comentário, pelas regras de leitura dele (apagado, o aviso fica sem o texto).
@@ -147,14 +148,26 @@ revoke execute on function privado.aviso_do_solicitante() from public, anon, aut
 create trigger aviso_do_solicitante after insert or update of solicitante_id on public.tarefas
   for each row when (current_user = 'authenticated') execute function privado.aviso_do_solicitante();
 
--- 3. A chegada à coluna de aprovação (e o desfazer dela). O mesmo de chegouAAprovacao e desfezAAprovacao em
--- app/src/regras/avisosDaTarefa.ts.
+-- 3. A chegada à coluna de aprovação (e o desfazer dela), e a troca do solicitante com a tarefa esperando lá. O mesmo de
+-- chegouAAprovacao, saiuDaAprovacao e aprovacaoMudouDeDono em app/src/regras/avisosDaTarefa.ts.
 create function privado.aviso_da_aprovacao() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare v_aprovacao uuid;
 begin
   select c.id into v_aprovacao from public.quadro_colunas c where c.escritorio_id = new.escritorio_id and c.de_aprovacao;
-  if v_aprovacao is null or (tg_op = 'UPDATE' and new.etapa_id is not distinct from old.etapa_id) then
+  if v_aprovacao is null then
+    return null;
+  end if;
+  -- O solicitante mudou com a tarefa esperando na coluna de aprovação: o novo é avisado de que ela espera a aprovação dele; o antigo,
+  -- que não a aprova mais, perde o aviso de aprovação que ainda não leu.
+  if tg_op = 'UPDATE' and new.solicitante_id is distinct from old.solicitante_id
+     and new.etapa_id = v_aprovacao and new.precisa_aprovacao and new.arquivado_em is null then
+    delete from public.mensagens_da_tarefa m
+    where m.tarefa_id = new.id and m.aviso = 'aprovacao' and m.perfil_id = old.solicitante_id and m.lido_em is null;
+    perform privado.avisar_da_tarefa(new.escritorio_id, new.id, new.solicitante_id, 'aprovacao', null);
+    return null;
+  end if;
+  if tg_op = 'UPDATE' and new.etapa_id is not distinct from old.etapa_id then
     return null;
   end if;
   -- Chegou: a tarefa precisa de aprovação e não está arquivada.
@@ -170,7 +183,7 @@ begin
   return null;
 end $$;
 revoke execute on function privado.aviso_da_aprovacao() from public, anon, authenticated;
-create trigger aviso_da_aprovacao after insert or update of etapa_id on public.tarefas
+create trigger aviso_da_aprovacao after insert or update of etapa_id, solicitante_id on public.tarefas
   for each row execute function privado.aviso_da_aprovacao();
 
 -- 4. A devolução: a de 20261123013306_tarefa_aprovacao.sql, que agora guarda o id do comentário e avisa quem executa (o responsável e

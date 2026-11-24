@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AvisoDaTarefaDaMensagem } from '../dados/tipos';
 import { AVISO_DESFEITO, SEGUNDO } from '../ui/tempos';
 import {
-  AVISOS_DA_TAREFA, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, DEVOLUCAO_SEM_COMENTARIO, enderecoDoAvisoDaTarefa, nomeDaTarefaDoAviso,
+  AVISOS_DA_TAREFA, aprovacaoMudouDeDono, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, DEVOLUCAO_SEM_COMENTARIO, enderecoDoAvisoDaTarefa, nomeDaTarefaDoAviso,
   quemExecuta, rotulosDoAvisoDaTarefa, saiuDaAprovacao, TAREFA_QUE_NAO_VE, textoDaDevolucao
 } from './avisosDaTarefa';
 
@@ -108,6 +108,19 @@ describe('Avisos da tarefa: a coluna de aprovação (#415)', () => {
   ])('dada a tarefa %s, quando chega à coluna de aprovação, então avisar o solicitante é %s', (_caso, t, de, avisa) => {
     // Quando / Então
     expect(chegouAAprovacao(t, de, 'c-aprovacao', COLUNAS)).toBe(avisa);
+  });
+
+  it.each([
+    ['na de aprovação, com outro solicitante', { solicitante_id: 'u-eva' }, true],
+    ['na de aprovação, com o mesmo solicitante', {}, false],
+    ['em "Fazendo", com outro solicitante', { solicitante_id: 'u-eva', etapa_id: 'c-fazendo' }, false],
+    ['na de aprovação, sem a caixa "Precisa de aprovação"', { solicitante_id: 'u-eva', precisa_aprovacao: false }, false],
+    ['na de aprovação, arquivada', { solicitante_id: 'u-eva', arquivado_em: '2026-11-24T10:00:00Z' }, false]
+  ])('dada a tarefa %s, quando o solicitante muda, então o aviso de aprovação passar para o novo é %s', (_caso, mudou, passa) => {
+    // Dado
+    const t = { ...comAprovacao, solicitante_id: 'u-caio', etapa_id: 'c-aprovacao', ...mudou };
+    // Quando / Então
+    expect(aprovacaoMudouDeDono(t, 'u-caio', COLUNAS)).toBe(passa);
   });
 
   it('dado um quadro sem coluna de aprovação, então ninguém é avisado', () => {

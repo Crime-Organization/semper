@@ -79,6 +79,16 @@ export function chegouAAprovacao(t: TarefaQueChega, de: string | null, para: str
 }
 
 /**
+ * O solicitante mudou (de `antes` para o da tarefa) com a tarefa esperando na coluna de aprovação: o aviso de aprovação passa para o
+ * novo solicitante, e o antigo perde o que ainda não leu (ele não aprova mais esta tarefa). Como privado.aviso_da_aprovacao.
+ */
+export function aprovacaoMudouDeDono(t: TarefaQueChega & Pick<Tarefa, 'solicitante_id' | 'etapa_id'>, antes: string | null,
+  colunas: readonly ColunaDoQuadro[]) {
+  const aprovacao = aprovacaoDo(colunas);
+  return !!aprovacao && (t.solicitante_id ?? null) !== antes && t.etapa_id === aprovacao && t.precisa_aprovacao && !t.arquivado_em;
+}
+
+/**
  * A tarefa saiu da coluna de aprovação para outra que não a das concluídas: se foi quem a enviou, logo depois (menos de
  * AVISO_DESFEITO desde o aviso), é o Desfazer, e o aviso que o solicitante não leu sai.
  */

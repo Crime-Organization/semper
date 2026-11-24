@@ -135,6 +135,24 @@ select pg_temp.entrar(2);
 update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000003';
 select is(pg_temp.avisos(3, '70000000-0000-0000-0000-000000000003'), 'solicitante/Ana/nova', 'Sem a caixa, concluir não avisa ninguém da aprovação');
 
+-- Dada a tarefa da Bia pedida pelo Caio esperando a aprovação dele, quando a Ana (administradora) passa o pedido para a Eva, então
+-- a Eva recebe o aviso de aprovação (além do de solicitante) e o Caio, que não aprova mais, perde o aviso de aprovação que não leu
+select pg_temp.entrar(1);
+insert into public.tarefas (id, titulo, responsavel_id, solicitante_id, precisa_aprovacao, criado_por, etapa_id) values
+  ('70000000-0000-0000-0000-000000000004', 'Revisar o contrato', pg_temp.perfil(2), pg_temp.perfil(3), true, auth.uid(), pg_temp.coluna('Fazendo'));
+select pg_temp.entrar(2);
+update public.tarefas set etapa_id = pg_temp.coluna('concluido') where id = '70000000-0000-0000-0000-000000000004';
+select is(pg_temp.avisos(3, '70000000-0000-0000-0000-000000000004'), 'aprovacao/Bia/nova, solicitante/Ana/nova', 'O Caio espera a aprovação');
+select pg_temp.passar_o_tempo();
+select pg_temp.entrar(1);
+update public.tarefas set solicitante_id = pg_temp.perfil(5) where id = '70000000-0000-0000-0000-000000000004';
+select is(pg_temp.avisos(5, '70000000-0000-0000-0000-000000000004'), 'aprovacao/Ana/nova, solicitante/Ana/nova',
+  'O novo solicitante da tarefa na aprovação é avisado de que ela espera a aprovação dele');
+select is(pg_temp.avisos(3, '70000000-0000-0000-0000-000000000004'), 'solicitante/Ana/nova', 'O solicitante antigo perde o aviso de aprovação não lido');
+-- Quando a Ana troca o solicitante de uma tarefa que não está na aprovação, então ninguém recebe aviso de aprovação
+update public.tarefas set solicitante_id = pg_temp.perfil(5) where id = '70000000-0000-0000-0000-000000000003';
+select is(pg_temp.avisos(5, '70000000-0000-0000-0000-000000000003'), 'solicitante/Ana/nova', 'Fora da coluna de aprovação, trocar o solicitante não fala de aprovação');
+
 -- ---------- 3. a devolução ----------
 -- Dada a tarefa na aprovação, com a Eva participante que executa e a Ana participante sem função, quando o Caio a devolve com
 -- comentário, então a Bia (responsável) e a Eva são avisadas, com o comentário; a Ana e o Caio, não

@@ -42,7 +42,7 @@ import { dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTR
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
 import type { AvisoDaDemandaDoCompromisso, AvisoDaTarefa, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
-import { avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, quemExecuta, saiuDaAprovacao, type SequenciaDoSolicitante } from '../regras/avisosDaTarefa';
+import { aprovacaoMudouDeDono, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, quemExecuta, saiuDaAprovacao, type SequenciaDoSolicitante } from '../regras/avisosDaTarefa';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
@@ -2152,11 +2152,15 @@ function avisarSolicitanteNoFalso(t: TarefaGuardada, antes: string | null) {
 }
 /**
  * Como o gatilho aviso_da_aprovacao: a tarefa que chega à coluna de aprovação (de `de`; null na tarefa nova) avisa o solicitante; quem
- * a enviou e a retira logo para outra coluna que não a das concluídas (o Desfazer) apaga o aviso que ele não leu.
+ * a enviou e a retira logo para outra coluna que não a das concluídas (o Desfazer) apaga o aviso que ele não leu. O solicitante que
+ * muda (de `solicitanteAntes`) com a tarefa esperando na aprovação passa o aviso ao novo; o antigo perde o que não leu.
  */
-function avisarAprovacaoNoFalso(t: TarefaGuardada, de: string | null) {
+function avisarAprovacaoNoFalso(t: TarefaGuardada, de: string | null, solicitanteAntes: string | null = t.solicitante_id) {
   const colunas = colunasDeTarefas();
-  if (chegouAAprovacao(t, de, t.etapa_id, colunas)) avisarDaTarefaNoFalso(t.id, t.solicitante_id, 'aprovacao');
+  if (aprovacaoMudouDeDono(t, solicitanteAntes, colunas)) {
+    bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(m => !(m.tarefa_id === t.id && m.aviso === 'aprovacao' && m.perfil_id === solicitanteAntes && !m.lido_em));
+    avisarDaTarefaNoFalso(t.id, t.solicitante_id, 'aprovacao');
+  } else if (chegouAAprovacao(t, de, t.etapa_id, colunas)) avisarDaTarefaNoFalso(t.id, t.solicitante_id, 'aprovacao');
   else if (saiuDaAprovacao(de, t.etapa_id, colunas)) {
     bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(m => !(m.tarefa_id === t.id && m.aviso === 'aprovacao' && avisoDesfeito(m, eu, Date.now())));
   }
@@ -4047,7 +4051,7 @@ export const SD: Dados = {
     Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
     avisarInclusao('tarefas', id, antes);
     if (t.solicitante_id !== solicitanteAntes) avisarSolicitanteNoFalso(t, solicitanteAntes);
-    avisarAprovacaoNoFalso(t, etapaAntes);
+    avisarAprovacaoNoFalso(t, etapaAntes, solicitanteAntes);
     auditar('tarefas', 'alteracao', t); gravar();
     return espera({ id, codigo: t.codigo });
   },

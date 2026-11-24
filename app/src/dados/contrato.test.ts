@@ -10636,6 +10636,20 @@ describe('Avisos da tarefa ao solicitante e a quem executa (banco fictício, #41
     expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/lida']);
   });
 
+  it('dada a tarefa esperando a aprovação da Ana, quando ela passa o pedido ao Mauro, então ele recebe o aviso de aprovação e ela perde o que não leu', async () => {
+    // Dado
+    const id = await pedidaPelaAna();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    passarOTempo();   // a troca não é o desfazer de quem pôs a Ana
+    // Quando
+    entrarComo('u-ana');
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-master' });
+    // Então
+    expect(await avisosDe('u-master')).toEqual(['aprovacao/u-ana/nova', 'solicitante/u-ana/nova']);
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
   it('dada uma tarefa nova sem solicitante, quando o Mauro a cria, então nenhuma sequência de trocas de solicitante é guardada', async () => {
     // Quando
     const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
