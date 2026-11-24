@@ -6,7 +6,7 @@
 // próprio editor. Quem só lê vê o texto formatado, sem caixa nem barra. Quem usa recebe um controle para gravar o que falta antes
 // de sair (o AvisoAoSair o chama antes de trocar de anotação). Peça comum: a TextoEditavel continua nas descrições dos cartões,
 // com Salvar e Cancelar.
-import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { situacaoDoSalvamento, TEXTO_DO_SALVAMENTO } from '../../regras/salvamento';
 import { avisar, falha } from '../avisos';
@@ -132,11 +132,12 @@ export function EditorDeTexto({
     return () => clearTimeout(t);
   }, [podeMudar, valor, gravado]);
 
-  // Quem usa sabe o que ainda não foi gravado; ao sair da tela, deixa de esperar.
+  // Quem usa sabe o que ainda não foi gravado; ao sair da tela, deixa de esperar. Fica sabendo antes de a tela ser desenhada
+  // (#420): com o useEffect, a linha já dizia "Salvo" e, por um instante, quem usa ainda segurava a saída (fechar a aba perguntava).
   const avisarRascunho = useRef(aoMudarRascunho);
   avisarRascunho.current = aoMudarRascunho;
   const porGravar = podeMudar && valor !== gravado ? valor : null;
-  useEffect(() => { avisarRascunho.current?.(porGravar); }, [porGravar]);
+  useLayoutEffect(() => { avisarRascunho.current?.(porGravar); }, [porGravar]);
   useEffect(() => () => avisarRascunho.current?.(null), []);
 
   // Quem só lê vê o texto formatado.

@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createRef, useState } from 'react';
+import { createRef, useLayoutEffect, useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { acharEditor, escreverNoEditor, textoDoEditor, trocarTextoDoEditor } from '../../testes/editorAoVivo';
 import { Avisos } from '../avisos';
@@ -22,6 +22,11 @@ function Anotacao({ inicial = 'Levar a procuração.', aoSalvar = vi.fn(), soLe 
   </>;
 }
 const situacao = () => screen.getByRole('status', { name: 'Gravação do texto' });
+/** Roda `fazer` cada vez que a tela muda, no mesmo instante (antes dos efeitos que o React roda depois de desenhar). */
+function AoMudarATela({ fazer }: { fazer: () => void }) {
+  useLayoutEffect(fazer);
+  return null;
+}
 /** Escreve no fim do texto do editor ao vivo (veja testes/editorAoVivo.ts), depois de ele chegar. */
 const escrever = async (texto: string) => escreverNoEditor(await acharEditor(), texto);
 
@@ -117,6 +122,28 @@ describe('O texto que já abre em edição e salva sozinho (a anotação, como n
     expect(ok).toBe(true);
     expect(aoSalvar).toHaveBeenCalledExactlyOnceWith('Levar a procuração.!');
     expect(rascunhos).toHaveBeenLastCalledWith(null);
+  });
+
+  it('dada uma mudança, quando ela é gravada e a linha passa a dizer "Salvo", então quem usa já sabe, no mesmo instante, que nada falta gravar (#420)', async () => {
+    // Dado: quem usa guarda o rascunho e, cada vez que a tela muda (antes de o React terminar os efeitos, quando o navegador já
+    // pode desenhá-la), anota o texto gravado e o rascunho que ele conhece, se a linha diz "Salvo"
+    const quandoSalvo: { gravado: string; rascunho: string | null }[] = [];
+    function QuemUsa() {
+      const [texto, setTexto] = useState('Levar a procuração.');
+      const rascunho = useRef<string | null>(null);
+      return <>
+        <EditorDeTexto texto={texto} aoMudarRascunho={r => { rascunho.current = r; }} aoSalvar={async t => { setTexto(t); }} />
+        <AoMudarATela fazer={() => { if (situacao().textContent === 'Salvo') quandoSalvo.push({ gravado: texto, rascunho: rascunho.current }); }} />
+      </>;
+    }
+    render(<QuemUsa />);
+    await escrever(' Hoje.');
+    // Quando
+    await userEvent.keyboard('{Control>}s{/Control}');
+    // Então: no instante em que a linha diz "Salvo" com o texto novo gravado, quem usa já não tem nada por gravar
+    const depoisDeGravar = quandoSalvo.filter(q => q.gravado === 'Levar a procuração. Hoje.');
+    expect(depoisDeGravar.length).toBeGreaterThan(0);
+    expect(depoisDeGravar.map(q => q.rascunho)).toEqual(depoisDeGravar.map(() => null));
   });
 
   it('quando o texto é gravado, então quem usa recebe também o texto gravado de que a pessoa partiu (para a trava otimista)', async () => {

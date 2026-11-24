@@ -1,0 +1,5 @@
+{
+  "titulo": "Fechar a aba logo depois de \"Salvo\" não pergunta mais",
+  "texto": "Na anotação, quando a linha do pé já diz \"Salvo\", fechar ou recarregar a aba sai direto. Antes, por um instante, o navegador ainda perguntava se a pessoa queria sair.",
+  "ondeAchar": "Documentos > abra uma anotação e escreva."
+}

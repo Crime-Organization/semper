@@ -200,7 +200,9 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
 
   useEffect(() => {
     if (!preenchido) return;
-    const segurar = (e: BeforeUnloadEvent) => { if (!liberada.current) e.preventDefault(); };
+    // Confere o que vale agora, e não o que valia quando a escuta foi ligada (#420): ela só sai depois de a tela ser desenhada, e
+    // a aba fechada logo depois de salvar (com "Salvo" já à vista) não deve perguntar.
+    const segurar = (e: BeforeUnloadEvent) => { if (agora.current.preenchido && !liberada.current) e.preventDefault(); };
     window.addEventListener('beforeunload', segurar);
     return () => window.removeEventListener('beforeunload', segurar);
   }, [preenchido, liberada]);
