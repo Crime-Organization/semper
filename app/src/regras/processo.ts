@@ -493,6 +493,12 @@ export const cadastroDoDerivado = (origemId: string, ligacao?: LigacaoDeProcesso
 /** A ligação que vem do endereço (?ligacao=); fora da lista, nenhuma (a pessoa escolhe no cadastro). */
 export const ligacaoDoEndereco = (valor: string | null): LigacaoDeProcesso | '' => TIPOS_DE_LIGACAO.find(l => l === valor) ?? '';
 /**
+ * A ligação do endereço que vale para a origem lida: a que este tipo de origem não oferece (o judicial pedido de uma origem judicial,
+ * num link antigo ou mudado à mão) volta a nenhuma, e a pessoa escolhe no cadastro, em vez de só o banco recusar ao salvar.
+ */
+export const ligacaoDaOrigem = (ligacao: LigacaoDeProcesso | '', tipoDaOrigem: TipoProcesso): LigacaoDeProcesso | '' =>
+  ligacao && ligacoesDaOrigem(tipoDaOrigem).includes(ligacao) ? ligacao : '';
+/**
  * O processo que nasce de outro (#316): do mesmo tipo, com os mesmos clientes e o papel de cada um (#426), a área, o sistema e o meio, e
  * a equipe ativa dele (quem cadastra fica de responsável se o de lá saiu da equipe). O número, o órgão, os andamentos e o resto são do
  * processo novo.

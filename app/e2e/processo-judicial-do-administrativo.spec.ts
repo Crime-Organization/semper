@@ -94,4 +94,23 @@ test.describe('O administrativo e o judicial que nasceu dele (#425)', () => {
     await expect(relacionados.getByRole('link', { name: /Processo administrativo de origem/ })).toHaveCount(0);
     await expect(page.getByText(/Ligação desfeita com o processo/)).toBeVisible();
   });
+
+  test('dado um endereço que pede o judicial a partir de um processo judicial (link antigo ou mudado à mão), quando o cadastro abre, então nada vem marcado e ele pede para escolher', async ({ page }) => {
+    // Dado: o endereço do cartão do judicial da semente
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).first().click();
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    const id = new URL(page.url()).searchParams.get('id');
+    expect(id).toBeTruthy();
+    // Quando
+    await page.goto(`/processos/novo/?processo=${id}&ligacao=judicial`);
+    // Então só o recurso e o incidental aparecem, nenhum marcado, e seguir sem escolher mostra o que falta
+    const ligacao = page.getByRole('group', { name: 'Este processo é' });
+    await expect(ligacao.getByRole('radio')).toHaveCount(2);
+    await expect(ligacao.getByRole('radio', { checked: true })).toHaveCount(0);
+    await page.getByLabel('Número do processo').fill(NUMERO_JUDICIAL);
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await expect(ligacao).toContainText('Escolha se é um recurso ou um incidental.');
+  });
 });

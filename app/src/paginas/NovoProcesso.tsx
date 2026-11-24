@@ -13,7 +13,7 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
-  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, LIGACOES, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoDerivado, tipoDoEndereco, TIPOS,
+  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoDerivado, tipoDoEndereco, TIPOS,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -217,8 +217,13 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     NASCE_DE[origem.tipo].ler(origem.id, aoAbrir.current.ativos, aoAbrir.current.eu).then(l => {
       if (!l) return;
       setLida(l);
-      // O judicial do administrativo (#425) já vem escolhido pelo botão do cartão: o tipo é o da ligação, e não o da origem.
-      setC(x => ({ ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? ''), ...(l.tipoDoProcesso ? { tipo: tipoDoDerivado(x.ligacao, l.tipoDoProcesso) } : {}) }));
+      // O judicial do administrativo (#425) já vem escolhido pelo botão do cartão: o tipo é o da ligação, e não o da origem. A ligação
+      // que a origem não oferece (um link antigo ou mudado à mão) volta a nenhuma, para a pessoa escolher entre as que aparecem.
+      setC(x => {
+        if (!l.tipoDoProcesso) return { ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? '') };
+        const ligacao = ligacaoDaOrigem(x.ligacao, l.tipoDoProcesso);
+        return { ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? ''), ligacao, tipo: tipoDoDerivado(ligacao, l.tipoDoProcesso) };
+      });
       if (l.clientes.length) {
         setClientes(l.clientes);
         setChaves(l.clientes.map((_, i) => i));

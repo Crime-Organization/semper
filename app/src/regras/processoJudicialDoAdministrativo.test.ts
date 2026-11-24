@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  CAMPOS_PROCESSO, cadastroDoDerivado, errosDaEtapaProcesso, judicialParaDesligar, judicialParaLigar, LIGACOES, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar,
+  CAMPOS_PROCESSO, cadastroDoDerivado, errosDaEtapaProcesso, judicialParaDesligar, judicialParaLigar, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar,
   RELACOES, relacionadosDoProcesso, ROTULO_DO_NOVO_DERIVADO, SO_JUDICIAL_NO_ADMINISTRATIVO, tipoDoDerivado, processoVazio, valorLegivelProcesso
 } from './processo';
 
@@ -34,6 +34,14 @@ describe('O judicial que nasce do administrativo', () => {
     expect(cadastroDoDerivado('a1', 'judicial')).toBe('/processos/novo/?processo=a1&ligacao=judicial');
     expect(ligacaoDoEndereco('judicial')).toBe('judicial');
     expect(origemAoCriar({ origemId: 'a1', ligacao: 'judicial' })).toEqual({ origem_id: 'a1', ligacao: 'judicial' });
+  });
+
+  it('dado um endereço com a ligação judicial e uma origem judicial (link antigo ou mudado à mão), quando o cadastro lê a origem, então a ligação fica para a pessoa escolher', () => {
+    // Quando / Então: o judicial só nasce do administrativo; o recurso e o incidental, de qualquer um.
+    expect(ligacaoDaOrigem('judicial', 'judicial')).toBe('');
+    expect(ligacaoDaOrigem('judicial', 'administrativo')).toBe('judicial');
+    expect(ligacaoDaOrigem('recurso', 'judicial')).toBe('recurso');
+    expect(ligacaoDaOrigem('', 'administrativo')).toBe('');
   });
 
   it('dado o cadastro que nasce do administrativo, quando falta escolher a ligação ou o tipo não bate, então ele avisa', () => {
