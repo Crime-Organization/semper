@@ -90,7 +90,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     await expect(pessoas.getByRole('link', { name: /PESSOA NOVA DA TAREFA/ })).toBeVisible();
   });
 
-  test('dado o cartão de um processo, quando clica em "+ Nova pessoa" nos Clientes e cadastra, então volta ao cartão do processo com a pessoa nos clientes', async ({ page }) => {
+  test('dado o cartão de um processo, quando clica em "+ Nova pessoa" nos Clientes, cadastra e escolhe o papel, então volta ao cartão do processo com a pessoa nos clientes, com o papel (#426)', async ({ page }) => {
     // Dado
     const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     const cartao = await abrirCartao(page, 'processos', id, 'JOSÉ DA SILVA TESTE');
@@ -98,10 +98,13 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     // Quando
     await clientes.getByRole('link', { name: 'Nova pessoa como cliente deste processo' }).click();
     await cadastrarContato(page, 'cliente novo do processo');
+    const pergunta = page.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    await pergunta.getByLabel('Papel do cliente').selectOption('terceiro');
+    await pergunta.getByRole('button', { name: 'Ligar' }).click();
     // Então
     await expect(page).toHaveURL(new RegExp(`/processos/judicial/\\?id=${id}$`));
     await expect(cartao.getByRole('button', { name: 'Clientes 2' })).toBeVisible();
-    await expect(clientes.getByRole('link', { name: /CLIENTE NOVO DO PROCESSO/ })).toBeVisible();
+    await expect(clientes.getByRole('link', { name: /CLIENTE NOVO DO PROCESSO/ })).toContainText('Cliente · Terceiro interessado');
   });
 
   test('dado o cartão de um compromisso, quando clica em "+ Nova pessoa" nas Pessoas e cadastra, então volta ao cartão dele na Agenda com a pessoa ligada', async ({ page }) => {

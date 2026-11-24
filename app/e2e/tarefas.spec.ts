@@ -396,7 +396,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
   test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas, e salvar não os muda', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    const prazo = await cartao.getByRole('button', { name: /^Prazo: / }).textContent();
+    const prazo = await cartao.getByRole('button', { name: /^Datas: / }).textContent();
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
@@ -412,7 +412,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
-    await expect(cartao.getByRole('button', { name: /^Prazo: / })).toHaveText(prazo!);
+    await expect(cartao.getByRole('button', { name: /^Datas: / })).toHaveText(prazo!);
   });
 
   test('dado o cadastro de uma tarefa nova, quando a pessoa o abre, então o título e a descrição continuam nele', async ({ page }) => {
@@ -444,7 +444,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
 });
 
 /** O último botão dos dados (as faixas das datas e do tempo), o que vem logo antes da descrição na ordem do Tab. */
-const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
+const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
   .getByRole('button').last();
 
 test.describe('A descrição no topo do cartão (#385)', () => {
@@ -583,7 +583,7 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
     await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
     // O total da equipe fica na faixa das datas, como o último dado (#397); o resumo traz a parte de cada um
-    await expect(cartao.getByRole('group', { name: 'Datas', exact: true }).getByRole('group', { name: 'Tempo total' })).toHaveText(/40 min$/);
+    await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' })).toHaveText(/40 min$/);
     await expect(cartao.getByText(/^Da criação à conclusão:/)).toBeVisible();
     await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toContainText('Bruno Exemplo Souza100%');
   });
@@ -861,12 +861,14 @@ test.describe('Prazo de cartão concluído nas listas', () => {
   test('dada uma tarefa já concluída, quando ganha um prazo que já passou, então o cartão não mostra "Prazo vencido"', async ({ page }) => {
     // Dado: "Organizar a pasta" está concluída; dá a ela um prazo vencido
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
-    // Quando: desde a #361, o prazo muda no próprio cartão (escrito à mão, com Enter)
-    await cartao.getByRole('button', { name: /^Prazo: / }).click();
-    const campo = cartao.getByRole('group', { name: 'Mudar o prazo' }).getByRole('textbox', { name: 'Prazo', exact: true });
+    // Quando: desde a #361, o prazo muda no próprio cartão; desde a #422, na janela das datas (escrito à mão, com Enter)
+    await cartao.getByRole('button', { name: /^Datas: / }).click();
+    const janela = cartao.page().getByRole('dialog', { name: 'Mudar as datas' });
+    await janela.getByRole('checkbox', { name: 'Entrega' }).check();
+    const campo = janela.getByRole('textbox', { name: 'Prazo', exact: true });
     await campo.fill('01012020');
     await campo.press('Enter');
-    await expect(cartao.getByRole('group', { name: 'Mudar o prazo' })).toHaveCount(0);
+    await expect(janela).toHaveCount(0);
     // Então
     await expect(cartao.getByText(/^Concluída · Prazo: 01\/01\/2020/)).toBeVisible();
     await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);

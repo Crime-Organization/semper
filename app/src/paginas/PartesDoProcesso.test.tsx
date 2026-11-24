@@ -95,17 +95,17 @@ describe('A corrente "Ligar pessoa com papel" no título da seção (#427)', () 
   });
 });
 
-describe('Recursos e incidentais no cartão do processo', () => {
+describe('Processos relacionados no cartão do processo (recursos e incidentais)', () => {
   beforeEach(() => { vi.spyOn(SD, 'colunasListar').mockResolvedValue([]); });
   const ORIGEM: ProcessoRelacionado = { id: 'o1', codigo: 'O1', tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', titulo: 'Ação de origem', cliente_nome: '', etapa_id: null,
     arquivado_em: null, criado_em: '2026-01-01', relacao: 'origem' };
   const secao = (lista: ProcessoRelacionado[]) =>
-    <Recolhivel titulo="Recursos e incidentais" icone="processos" novo={novoDerivado('r1')}><ProcessosRelacionados lista={lista} /></Recolhivel>;
+    <Recolhivel titulo="Processos relacionados" icone="processos" novo={novoDerivado('r1', 'judicial')}><ProcessosRelacionados lista={lista} processoId="r1" tipo="judicial" aoMudar={() => {}} /></Recolhivel>;
 
   it('dado um recurso, quando a seção abre, então o processo de origem aparece com a relação, sem botões de criar embaixo', async () => {
     // Quando
     render(<MemoryRouter>{secao([ORIGEM])}</MemoryRouter>);
-    await userEvent.click(screen.getByRole('button', { name: 'Recursos e incidentais' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Processos relacionados' }));
     // Então
     expect(screen.getByRole('link', { name: /Ação de origem/ })).toHaveTextContent('Processo de origem');
     expect(screen.queryByRole('link', { name: 'Novo recurso' })).not.toBeInTheDocument();

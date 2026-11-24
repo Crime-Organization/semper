@@ -82,6 +82,33 @@ describe('Formulário de processo', () => {
     expect((screen.getByLabelText('Área do direito') as HTMLSelectElement).value).toBe('Marítimo');
   });
 
+  it('dado um processo antigo sem papel do cliente, quando a pessoa tenta salvar, então não salva e a tela diz que o papel é obrigatório (#426)', async () => {
+    // Dado
+    const gravar = vi.spyOn(SD, 'processoAtualizar').mockResolvedValue({ id: 'p1', codigo: 'ABCD1234' });
+    gravar.mockClear();
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    await abrir('judicial', '0001234-97.2026.8.13.0024', { papeis_clientes: {} });
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    // Então
+    expect(await screen.findByText(/O papel do cliente é obrigatório/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Papel do cliente')).toHaveAttribute('aria-invalid', 'true');
+    // O leitor de tela diz por que o papel está inválido, e não só que está.
+    expect(screen.getByLabelText('Papel do cliente')).toHaveAccessibleDescription(/O papel do cliente é obrigatório/);
+    expect(gravar).not.toHaveBeenCalled();
+  });
+
+  it('dado um processo com o papel do cliente, quando abre para editar, então o papel aparece ao lado do cliente, na lista das pessoas com papel', async () => {
+    // Quando
+    await abrir('judicial', '0001234-97.2026.8.13.0024', { papeis_clientes: { c1: 'reu' } });
+    // Então
+    const papel = screen.getByLabelText('Papel do cliente') as HTMLSelectElement;
+    expect(papel.value).toBe('reu');
+    expect([...papel.options].map(o => o.text)).toContain('Apenado');
+    expect([...papel.options].at(-1)?.text).toBe('Outro papel');
+    expect(screen.queryByLabelText('Polo do cliente')).toBeNull();
+  });
+
   it.each(['SEEU', 'Seeu'])('dado um escritório que gravou "%s" antes de ela ser pronta, quando o administrador abre um processo com esse sistema, então o nome aparece uma vez e não há "Retirar da lista" (#288)', async valor => {
     // Dado
     sessao.ehAdmin = true;
@@ -126,6 +153,8 @@ describe('Processo que nasce do "+ Novo processo" de um contrato ou de uma taref
     await userEvent.type(screen.getByLabelText(/Número do processo/), NUMERO);
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     expect(await screen.findByText('JOSÉ')).toBeInTheDocument();
+    // O papel do cliente é obrigatório (#426).
+    await userEvent.selectOptions(screen.getByLabelText('Papel do cliente'), 'autor');
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     await userEvent.click(screen.getByRole('button', { name: 'Salvar processo' }));
   }
@@ -139,7 +168,7 @@ describe('Processo que nasce do "+ Novo processo" de um contrato ou de uma taref
     await criar('/processos/novo/?contrato=k1', /nasce do contrato/);
     // Então
     expect(await screen.findByText('Foi para /contratos/?id=k1')).toBeInTheDocument();
-    expect(criarProcesso).toHaveBeenCalledWith(expect.objectContaining({ clientes: ['c1'], responsavel_id: 'u-bruno' }));
+    expect(criarProcesso).toHaveBeenCalledWith(expect.objectContaining({ clientes: ['c1'], papeis_clientes: { c1: 'autor' }, responsavel_id: 'u-bruno' }));
     expect(ligar).toHaveBeenCalledWith('k1', 'p9');
   });
 
@@ -180,6 +209,7 @@ describe('Processo que nasce do "+ Novo processo" de um contrato ou de uma taref
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     // A origem que recusa ainda traz o que tem (os clientes): só a ligação fica de fora.
     expect(await screen.findByText('JOSÉ')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Papel do cliente'), 'autor');
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     await userEvent.click(screen.getByRole('button', { name: 'Salvar processo' }));
   }

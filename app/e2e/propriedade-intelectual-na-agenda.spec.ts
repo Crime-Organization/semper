@@ -21,6 +21,7 @@ async function cadastrarPatente(page: Page) {
   await page.getByRole('button', { name: 'Próxima' }).click();
   await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
   await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+  await page.getByLabel('Papel do cliente').selectOption('autor');
   await page.getByRole('button', { name: 'Próxima' }).click();
   await page.getByLabel('Área do direito').selectOption({ label: 'Propriedade intelectual' });
   await page.getByLabel('Tipo de proteção').selectOption({ label: 'Patente de invenção' });

@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { AcrescentarAoCartao } from './AcrescentarAoCartao';
-import { DadoEditavel } from './base';
+import { DATAS_VAZIAS } from '../regras/janelaDasDatas';
+import { DatasDoCartao } from './base';
 import { CriarNoCartao } from './ItensLigados';
 import { GrupoDeSecoes, Recolhivel, usePedidoDeNovo } from './Recolhivel';
 import { ComAtalhosDoCartao } from './registroDeAtalhos';
@@ -34,9 +35,9 @@ function Cartao({ pode = true, aoPedirChecklist, checklists = 2 }: PropsDoCartao
   return <MemoryRouter><ComAtalhosDoCartao><GrupoDeSecoes><CriarNoCartao pode={pode}>
     <header>
       <AcrescentarAoCartao />
-      <DadoEditavel nome="Prazo" titulo="Mudar o prazo" resumo="Sem prazo" lido="Sem prazo" inicial={() => ({ prazo: '' })} conferir={() => ({})}
-        aoSalvar={pode ? () => undefined : undefined} atalho="datas" campos={({ rascunho, mudar }) =>
-          <input aria-label="Prazo" value={rascunho.prazo} onChange={e => mudar({ prazo: e.target.value })} />} />
+      <DatasDoCartao nome="Prazo" titulo="Mudar o prazo" resumo="Sem prazo" lido="Sem prazo" entrega={{ rotulo: 'Entrega', nome: 'Prazo', opcional: true }}
+        inicial={() => ({ ...DATAS_VAZIAS, entrega: '20/11/2026', temEntrega: true })} conferir={() => ({})}
+        aoSalvar={pode ? () => undefined : undefined} atalho="datas" />
     </header>
     {/* Fora de ordem de propósito: a anotação antes dos checklists. */}
     <Recolhivel titulo="Anotações" icone="documentos" contador={0} novo={{ para: '/documentos/nova/?tarefa=t1', rotulo: 'Nova anotação ligada a este item' }} atalho="anotacao">
@@ -106,14 +107,14 @@ describe('A bolinha "Acrescentar ao cartão" (#399)', () => {
     expect(aoPedir).toHaveBeenCalledWith(bolinha());
   });
 
-  it('dado o menu aberto, quando a pessoa escolhe mudar o prazo, então o formulário do prazo abre ali mesmo', async () => {
+  it('dado o menu aberto, quando a pessoa escolhe mudar o prazo, então a janela das datas abre (#422), com o foco no prazo', async () => {
     // Dado
     render(<Cartao />);
     const m = await abrirMenu();
     // Quando
     await userEvent.click(within(m).getByRole('menuitem', { name: 'Mudar o prazo' }));
     // Então
-    expect(screen.getByRole('group', { name: 'Mudar o prazo' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Mudar o prazo' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
   });
 

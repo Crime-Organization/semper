@@ -3,16 +3,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
-  AREA_DA_PI, CONCESSAO_ANTES_DO_DEPOSITO, camposDaProtecao, dadosDaProtecao, ehDePropriedadeIntelectual, fmtClassesNice, lerClassesNice, papeisDaProtecao, prazoPorExtenso,
-  prazosDaProtecao, prazosPorVir, proximoPrazo, PROTECAO_VAZIA, situacaoDoPrazo, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CamposProtecao, type DatasDaProtecao,
-  type PrazoDaProtecao
+  AREA_DA_PI, CONCESSAO_ANTES_DO_DEPOSITO, campoDaProtecaoNaTela, camposDaProtecao, dadosDaProtecao, ehDePropriedadeIntelectual, fmtClassesNice, lerClassesNice, papeisDaProtecao, prazoPorExtenso,
+  prazosDaProtecao, prazosPorVir, proximoPrazo, PROTECAO_VAZIA, situacaoDoPrazo, temProtecao, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CamposProtecao, type DatasDaProtecao,
+  type OndeHaProtecao, type PrazoDaProtecao
 } from './propriedadeIntelectual';
 import { CAMPOS_PROCESSO, dadosDoProcesso, linhasDoProcesso, papeisParaEscolher, processoVazio, validarProcesso, valorLegivelProcesso } from './processo';
 
-const datas = (d: Partial<DatasDaProtecao>): DatasDaProtecao & { area: string } =>
-  ({ protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, area: AREA_DA_PI, ...d });
+const datas = (d: Partial<DatasDaProtecao>): DatasDaProtecao & OndeHaProtecao =>
+  ({ protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, area: AREA_DA_PI, tipo: 'administrativo', ...d });
 const nomes = (lista: readonly PrazoDaProtecao[]) => lista.map(x => x.nome);
-const campos = (c: Partial<CamposProtecao> = {}) => ({ ...PROTECAO_VAZIA, area: AREA_DA_PI, ...c });
+const campos = (c: Partial<CamposProtecao> = {}) => ({ ...PROTECAO_VAZIA, area: AREA_DA_PI, tipo: 'administrativo' as const, ...c });
 
 describe('Tipos de proteção', () => {
   it('quando a pessoa escolhe o tipo de proteção, então os cinco tipos estão na lista, cada um com o nome', () => {
@@ -106,7 +106,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando a concessão vem antes do depósito, a classe passa de 45 ou as variações passam de 20, então o cadastro avisa no campo', () => {
     // Dado
-    const base = { ...processoVazio('administrativo'), numero: '900000001', clientes: ['p1'], responsavelId: 'u1', area: AREA_DA_PI };
+    const base = { ...processoVazio('administrativo'), numero: '900000001', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', area: AREA_DA_PI };
     // Quando
     const marca = validarProcesso({ ...base, protecao: 'marca', deposito: '10/03/2022', concessao: '01/01/2021', classesNice: '9, 46' });
     const desenho = validarProcesso({ ...base, protecao: 'desenho_industrial', variacoes: '21' });
@@ -117,7 +117,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando um campo de outro tipo ou de fora da área tem erro, então ele não conta (não está na tela)', () => {
     // Dado
-    const base = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], responsavelId: 'u1', classesNice: '99', variacoes: 'muitas' };
+    const base = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', classesNice: '99', variacoes: 'muitas' };
     // Então
     expect(validarProcesso({ ...base, area: AREA_DA_PI, protecao: 'patente_invencao' })).toEqual({});
     expect(validarProcesso({ ...base, area: 'Cível', protecao: 'marca' })).toEqual({});
@@ -125,7 +125,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando o processo de PI é gravado, então os campos dela vão junto com os de sempre', () => {
     // Dado
-    const c = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], responsavelId: 'u1', area: AREA_DA_PI, protecao: 'programa_computador' as const,
+    const c = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', area: AREA_DA_PI, protecao: 'programa_computador' as const,
       criacao: '15/08/2019', linguagem: 'Python' };
     // Então
     expect(dadosDoProcesso(c)).toMatchObject({ area: AREA_DA_PI, protecao: 'programa_computador', criacao: '2019-08-15', linguagem: 'Python', deposito: null });
@@ -239,6 +239,31 @@ describe('Prazos do INPI', () => {
     // Então
     expect(prazosDaProtecao({ ...datas({ protecao: 'marca', concessao: '2020-01-01' }), area: 'Cível' }, '2026-11-22')).toBeNull();
     expect(prazosDaProtecao(datas({ deposito: '2020-01-01' }), '2026-11-22')).toBeNull();
+  });
+});
+
+describe('PI só no processo administrativo (#425)', () => {
+  it('dado um processo judicial da área de PI, quando a pessoa o abre, então ele não tem validade nem anuidades', () => {
+    // Dado
+    const judicial = { ...datas({ protecao: 'patente_invencao', deposito: '2020-03-10' }), tipo: 'judicial' as const };
+    // Então
+    expect(temProtecao(judicial)).toBe(false);
+    expect(prazosDaProtecao(judicial, '2026-11-22')).toBeNull();
+  });
+
+  it('dado um processo judicial da área de PI, quando a pessoa o cadastra, então os campos de PI ficam fora da tela e não são gravados', () => {
+    // Dado
+    const c = { ...campos({ protecao: 'marca', deposito: '10/03/2020', classesNice: '9' }), tipo: 'judicial' as const };
+    // Então
+    expect(campoDaProtecaoNaTela(c, 'deposito')).toBe(false);
+    expect(dadosDaProtecao(c)).toMatchObject({ protecao: null, deposito: null, classes_nice: [] });
+  });
+
+  it('dado o processo administrativo de PI, quando a pessoa o abre, então os campos de PI e a validade continuam lá', () => {
+    // Então
+    expect(temProtecao({ tipo: 'administrativo', area: AREA_DA_PI })).toBe(true);
+    expect(campoDaProtecaoNaTela(campos({ protecao: 'marca' }), 'deposito')).toBe(true);
+    expect(prazosDaProtecao(datas({ protecao: 'marca', concessao: '2020-01-01' }), '2026-11-22')).not.toBeNull();
   });
 });
 

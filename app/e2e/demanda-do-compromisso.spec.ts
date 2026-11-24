@@ -73,7 +73,8 @@ test.describe('Dada uma reunião que se repete e gera demanda 7 dias antes', () 
     await agenda(page).getByRole('listitem', { name: /11\/11$/ }).getByRole('link', { name: new RegExp(`${TITULO}$`) }).click();
     // Quando
     await cartao(page).getByRole('button', { name: /^Data e horário: / }).click();
-    const formulario = cartao(page).getByRole('group', { name: 'Mudar a data e o horário' });
+    // A janela das datas (#422) flutua sobre o cartão: é achada pela página, e não dentro do cartão.
+    const formulario = page.getByRole('dialog', { name: 'Mudar a data e o horário' }).filter({ has: page.getByRole('group', { name: 'Calendário' }) });
     await formulario.getByRole('textbox', { name: 'Data' }).fill('12/11/2026');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     await page.getByRole('dialog', { name: 'Mudar a data e o horário' }).getByRole('button', { name: 'Só esta' }).click();

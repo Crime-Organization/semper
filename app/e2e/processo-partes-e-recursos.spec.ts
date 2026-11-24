@@ -80,8 +80,8 @@ test.describe('Recursos e incidentais (#316)', () => {
     // Dado
     const processo = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     let cartao = await abrirCartao(page, '/processos/judicial/?id=' + processo, 'JOSÉ DA SILVA TESTE');
-    let ligados = await secao(cartao, 'Recursos e incidentais');
-    await expect(ligados).toContainText('Nenhum recurso ou incidental ligado a este processo.');
+    let ligados = await secao(cartao, 'Processos relacionados');
+    await expect(ligados).toContainText('Nenhum processo relacionado a este.');
     // Quando
     // O "+" do título (#427) abre um menu pequeno: recurso ou incidental
     await cartao.getByRole('button', { name: 'Novo recurso ou incidental deste processo' }).click();
@@ -92,22 +92,24 @@ test.describe('Recursos e incidentais (#316)', () => {
     await page.getByLabel('Número do processo').fill(NUMERO_DO_RECURSO);
     await page.getByRole('button', { name: 'Próxima' }).click();
     await expect(page.getByTitle('JOSÉ DA SILVA TESTE', { exact: true })).toBeVisible();
+    // E o cliente vem com o papel que tem no processo de origem (#426)
+    await expect(page.getByLabel('Papel do cliente')).toHaveValue('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então volta ao processo de origem, que mostra o recurso
     cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
-    ligados = await secao(cartao, 'Recursos e incidentais');
+    ligados = await secao(cartao, 'Processos relacionados');
     const recurso = ligados.getByRole('link', { name: /Recurso deste processo/ });
     await expect(recurso).toContainText(NUMERO_DO_RECURSO);
-    await expect(cartao.getByRole('button', { name: 'Recursos e incidentais 1' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Processos relacionados 1' })).toBeVisible();
     // E o recurso mostra o processo de origem, com o próprio número
     await recurso.click();
     cartao = page.getByRole('dialog');
     // (o número fica em "Dados do processo", não no topo do cartão: #430)
     const dados = await secao(cartao, 'Dados do processo');
     await expect(dados.getByRole('definition').filter({ hasText: NUMERO_DO_RECURSO })).toBeVisible();
-    ligados = await secao(cartao, 'Recursos e incidentais');
+    ligados = await secao(cartao, 'Processos relacionados');
     await expect(ligados.getByRole('link', { name: /Processo de origem/ })).toContainText('0001234-97.2026.8.13.0024');
   });
 
@@ -143,6 +145,7 @@ test.describe('Tipos de processo: judicial e administrativo (#406)', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então
@@ -178,6 +181,7 @@ test.describe('Tipos de processo: judicial e administrativo (#406)', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então

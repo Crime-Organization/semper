@@ -212,6 +212,11 @@ interface PropsCalendario {
   ancora: RefObject<HTMLElement | null>;
   /** No lugar que o formulário reservou (LugarDoCalendario): no fluxo dele, sem flutuar. */
   noLugar: boolean;
+  /**
+   * Sempre aberto, no fluxo de quem o usa (#422, a janela das datas do cartão): não fecha com o Esc (quem fecha é a janela em
+   * volta), não rola a página até ele e o Tab segue a ordem da janela.
+   */
+  fixo?: boolean;
   escolhido: string | null;
   limites: LimitesDaData;
   hora?: HoraDoCampo;
@@ -293,7 +298,7 @@ function usePosicao(ancora: RefObject<HTMLElement | null>, flutuante: RefObject<
   return noLugar ? undefined : pos;
 }
 
-function Calendario({ id, ref, ancora, noLugar, escolhido, limites, hora, focarDia, aoEscolher, aoFechar, aoTerminar, aoSairPeloTab }: PropsCalendario) {
+function Calendario({ id, ref, ancora, noLugar, fixo = false, escolhido, limites, hora, focarDia, aoEscolher, aoFechar, aoTerminar, aoSairPeloTab }: PropsCalendario) {
   const hoje = hojeNaAgenda();
   const [mes, setMes] = useState(() => mesAoAbrir(escolhido, hoje, limites));
   const [foco, setFoco] = useState(() => diaEmFoco(mes, escolhido, hoje, limites));
@@ -301,9 +306,9 @@ function Calendario({ id, ref, ancora, noLugar, escolhido, limites, hora, focarD
   const [naGrade, setNaGrade] = useState(focarDia > 0);
   const grade = useRef<HTMLTableElement>(null), campoDaHora = useRef<HTMLInputElement>(null);
   const idDoTitulo = useId();
-  const pos = usePosicao(ancora, ref, noLugar);
+  const pos = usePosicao(ancora, ref, noLugar || fixo);
   // No lugar do formulário, o calendário que abriu embaixo da tela (a janela baixa) aparece inteiro: a caixa rola até ele.
-  useEffect(() => { if (noLugar) ref.current?.scrollIntoView?.({ block: 'nearest' }); }, [noLugar, ref]);
+  useEffect(() => { if (noLugar && !fixo) ref.current?.scrollIntoView?.({ block: 'nearest' }); }, [noLugar, fixo, ref]);
   const aoFecharAgora = useRef(aoFechar);
   aoFecharAgora.current = aoFechar;
 
@@ -319,10 +324,11 @@ function Calendario({ id, ref, ancora, noLugar, escolhido, limites, hora, focarD
   useEffect(() => { if (naGrade) focarNoDia(); }, [naGrade, foco]);
   // Esc fecha só o calendário (antes de tudo, na janela: nem a janela nem o cartão onde ele está fecham junto).
   useEffect(() => {
+    if (fixo) return;
     const tecla = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); aoFecharAgora.current(); } };
     window.addEventListener('keydown', tecla, true);
     return () => window.removeEventListener('keydown', tecla, true);
-  }, []);
+  }, [fixo]);
 
   function irAoMes(novo: string) {
     setMes(novo);
@@ -343,13 +349,16 @@ function Calendario({ id, ref, ancora, noLugar, escolhido, limites, hora, focarD
 
   /** O Tab no primeiro (para trás) ou no último (para a frente) do calendário sai dele: para o campo ou para o que vem depois. */
   function tabNasPontas(e: KeyboardEvent<HTMLDivElement>) {
+    if (fixo) return;
     const lista = focaveis(e.currentTarget), ponta = e.shiftKey ? lista[0] : lista[lista.length - 1];
     if (!ponta || document.activeElement !== ponta) return;
     e.preventDefault();
     aoSairPeloTab(!e.shiftKey);
   }
 
-  return <div className={noLugar ? 'campo-data-calendario no-lugar' : 'campo-data-calendario'} role="dialog" aria-modal="false" aria-label="Calendário" id={id}
+  // Sempre aberto (fixo), ele é uma parte da janela em volta (um grupo), e não uma janela própria por cima dela.
+  return <div className={noLugar || fixo ? 'campo-data-calendario no-lugar' : 'campo-data-calendario'} role={fixo ? 'group' : 'dialog'} aria-modal={fixo ? undefined : false}
+    aria-label="Calendário" id={id}
     ref={ref} tabIndex={-1} style={pos}
     // O Enter fica com o calendário: não passa para o formulário de fora (que iria para o próximo campo ou salvaria).
     onKeyDown={e => { if (e.key === 'Enter') e.stopPropagation(); if (e.key === 'Tab') tabNasPontas(e); }}>
@@ -392,6 +401,21 @@ function Dia({ dia, foco, escolhido, hoje, doMes: doMesMostrado, pode, aoEscolhe
       {numeroDoDia(dia)}
     </button>
   </td>;
+}
+
+/** Para o calendário fixo, que não fecha nem solta o Tab: nada a fazer. */
+const nada = () => undefined;
+
+/**
+ * O calendário do mês sempre aberto, no fluxo de quem o usa (#422: a janela das datas do cartão). É o mesmo calendário do campo de
+ * data (a grade, o teclado, o "Hoje"), sem o campo: a escolha do dia vai para quem o usa.
+ */
+export function CalendarioDoMes({ escolhido, aoEscolher, min, max }: { escolhido: string | null; aoEscolher: (iso: string) => void; min?: string; max?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
+  // A âncora não conta: no fluxo, o calendário não tem posição.
+  return <Calendario id={id} ref={ref} ancora={ref} noLugar fixo escolhido={escolhido} limites={{ min, max }} focarDia={0} aoEscolher={aoEscolher}
+    aoFechar={nada} aoTerminar={nada} aoSairPeloTab={nada} />;
 }
 
 /** "Hoje" e "Pronto", no rodapé do calendário: o botão pequeno de sempre (estiloBotao, forma "mini"). */

@@ -2,14 +2,16 @@
 // voltar) e sabe ligar a pessoa a ele. Os itens com lista de pessoas usam porAPessoa (a mesma ligação do "Ligar … existente", que lê a
 // lista logo antes de gravar e devolve o Desfazer); a anotação, a ligação dela; o vínculo grava o vínculo entre as duas pessoas.
 // O item arquivado (ou, no vínculo, a pessoa de origem arquivada) não recebe ninguém: o cadastro segue sem ligar, como o não achado.
+// No processo, a pessoa entra como cliente com o papel dela (#426), perguntado numa janela ao ligar.
 // O endereço e os textos de cada origem ficam em regras/origemDaPessoa.ts.
 import { SD } from '../../dados';
 import { nomeDoCompromisso } from '../../regras/compromisso';
-import type { ItemComPessoas } from '../../regras/ligarExistente';
+import { RecusaDaLigacao, type ItemComPessoas } from '../../regras/ligarExistente';
 import { cartaoDeOrigem, VINCULO_COM_ELA_MESMA, type Origem, type OrigemDaPessoa, type SemOrigem } from '../../regras/origemDaPessoa';
 import { nomeDoProcesso } from '../../regras/processo';
 import { opcaoPelaChave, pontasDoVinculo, rotuloNaOutraPonta } from '../../regras/vinculos';
 import { porAPessoa, type Desfazer } from '../ligarNoCartao';
+import { pedirPapelDoCliente, SEM_PAPEL_NAO_LIGA } from '../PessoasNosItens';
 
 /** O item de origem já lido. */
 export interface ItemDeOrigem {
@@ -26,17 +28,22 @@ type Lido = ItemDeOrigem | SemOrigem;
 const lido = <T extends { arquivado_em: string | null }>(x: T | null, item: (x: T) => ItemDeOrigem): Lido =>
   !x ? 'sumiu' : x.arquivado_em ? 'arquivada' : item(x);
 
-/** Um item com lista de pessoas: lido pelo módulo, ligado por porAPessoa. */
-function comPessoas<T extends { arquivado_em: string | null }>(modulo: ItemComPessoas, obter: (id: string) => Promise<T | null>,
-  nome: (x: T) => string, tipo?: (x: T) => Parameters<typeof cartaoDeOrigem>[1]) {
+/** Um item com lista de pessoas, sem papel (o processo, que pede o papel do cliente, tem a sua entrada): lido pelo módulo, ligado por porAPessoa. */
+function comPessoas<T extends { arquivado_em: string | null }>(modulo: Exclude<ItemComPessoas, 'processos'>, obter: (id: string) => Promise<T | null>,
+  nome: (x: T) => string) {
   return async (o: Origem): Promise<Lido> => lido(await obter(o.id),
-    x => ({ nome: nome(x), endereco: cartaoDeOrigem(o, tipo?.(x)), ligar: pessoa => porAPessoa(modulo, o.id, pessoa) }));
+    x => ({ nome: nome(x), endereco: cartaoDeOrigem(o), ligar: pessoa => porAPessoa(modulo, o.id, pessoa) }));
 }
 
 /** Como ler cada origem. Origem nova = uma entrada nova (e a dela em ORIGEM_DA_PESSOA). */
 const LER_A_ORIGEM: Record<OrigemDaPessoa, (o: Origem) => Promise<Lido>> = {
   demandas: comPessoas('demandas', (id: string) => SD.demandaObter(id), d => `${d.codigo} (${d.titulo})`),
-  processos: comPessoas('processos', (id: string) => SD.processoObter(id), nomeDoProcesso, p => p.tipo),
+  // No processo, a pessoa entra como cliente com o papel dela (#426), perguntado ao ligar; sem ele, não entra.
+  processos: async o => lido(await SD.processoObter(o.id), p => ({ nome: nomeDoProcesso(p), endereco: cartaoDeOrigem(o, p.tipo), ligar: async pessoa => {
+    const papel = await pedirPapelDoCliente(p.papeis_clientes);
+    if (!papel) throw new RecusaDaLigacao(SEM_PAPEL_NAO_LIGA);
+    return porAPessoa('processos', o.id, pessoa, papel);
+  } })),
   tarefas: comPessoas('tarefas', (id: string) => SD.tarefaObter(id), t => t.titulo),
   compromissos: comPessoas('compromissos', (id: string) => SD.compromissoObter(id), nomeDoCompromisso),
   anotacoes: async o => lido(await SD.anotacaoObter(o.id), a => ({ nome: `${a.codigo} (${a.titulo})`, endereco: cartaoDeOrigem(o), ligar: async pessoa => {

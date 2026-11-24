@@ -4,13 +4,14 @@
 // título. Desde a #399, sem a linha de botões rápidos (virou o "+" do topo, AcrescentarAoCartao).
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { DadoEditavel } from './base';
+import { DATAS_VAZIAS } from '../regras/janelaDasDatas';
+import { DatasDoCartao } from './base';
 import { CabecaDoCartao } from './CabecaDoCartao';
 import { ComAtalhosDoCartao } from './registroDeAtalhos';
 
 /** Um dado que oferece a linha "Datas" ao menu do cartão, como o prazo. */
-const Prazo = () => <DadoEditavel nome="Prazo" titulo="Mudar o prazo" resumo="Sem prazo" lido="Sem prazo" inicial={() => ({ prazo: '' })}
-  conferir={() => ({})} aoSalvar={() => undefined} atalho="datas" campos={() => null} />;
+const Prazo = () => <DatasDoCartao nome="Prazo" titulo="Mudar o prazo" resumo="Sem prazo" lido="Sem prazo" entrega={{ rotulo: 'Entrega', nome: 'Prazo', opcional: true }}
+  inicial={() => DATAS_VAZIAS} conferir={() => ({})} aoSalvar={() => undefined} atalho="datas" />;
 
 /** Para os blocos na ordem em que estão na página. */
 const emOrdem = (...nos: Element[]) => nos.every((no, i) => i === 0 || !!(nos[i - 1].compareDocumentPosition(no) & Node.DOCUMENT_POSITION_FOLLOWING));

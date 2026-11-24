@@ -16,7 +16,7 @@ import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/c
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
 import { advogadoNaAdaptacao, equipeEditaTudo, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import {
-  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, papeisParaEscolher, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
+  alteraOProcesso, CAMPOS_PROCESSO, clienteNoCartao, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, papeisParaEscolher, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -36,7 +36,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
 import { ligarParte, PartesDoProcesso } from './PartesDoProcesso';
-import { novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
+import { ligarJudicialNaSecao, novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
@@ -157,8 +157,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       aoMudar(); await carregar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
+  // Embaixo do nome, o papel do cliente no processo (#426), ou que ele ainda falta.
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
-    detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined,
+    detalhe: clienteNoCartao(p!.papeis_clientes?.[c.id]), selo: c.arquivado_em ? 'Arquivada' : undefined,
     // O "x" de cada cliente (#424): nunca no último (o processo precisa de um cliente).
     tirar: podeLigar ? tirarPessoaDoItem('processos', p.id, c, p.clientes.length, depoisDeLigar) : undefined });
 
@@ -291,10 +292,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length}
       ligar={ligarPessoaNoItem('processos', p.clientes, podeLigar)} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar)} atalho="ligacao">
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} />}
+      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} papeis={p.papeis_clientes} depois={depoisDeLigar} />}
     </Recolhivel>
 
-    {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo. O número: os prazos por vir. */}
+    {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo, só no administrativo (#425).
+        O número: os prazos por vir. */}
     {protecao && <Recolhivel titulo="Validade e anuidades" icone="relogio" preferencia="processos.cartao.validade" contador={prazosPorVir(protecao.datas, hoje)}>
       <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} />
     </Recolhivel>}
@@ -306,10 +308,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <PartesDoProcesso processoId={p.id} partes={partes} papeis={papeisParaEscolher(p)} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>
 
-    {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos. */}
-    <Recolhivel titulo="Recursos e incidentais" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
-      novo={podeLigar ? novoDerivado(p.id) : undefined}>
-      <ProcessosRelacionados lista={relacionados} />
+    {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos; o
+        administrativo e o judicial que nasceu dele, ligados um ao outro (#425). O "+" do título abre o menu das ligações (#427). */}
+    <Recolhivel titulo="Processos relacionados" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
+      novo={podeLigar ? novoDerivado(p.id, p.tipo) : undefined} ligar={podeLigar ? ligarJudicialNaSecao(p.tipo) : undefined}>
+      <ProcessosRelacionados lista={relacionados} processoId={p.id} tipo={p.tipo} aoMudar={depoisDeLigar} />
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}

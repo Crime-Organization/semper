@@ -13,12 +13,13 @@ export { TextoEditavel } from './TextoEditavel';
 export { DadosEditaveis, FormularioDosDados } from './DadosEditaveis';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
-export { APARELHO_DE_TOQUE, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { APARELHO_DE_TOQUE, CalendarioDoMes, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
-export { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
-export { PrazoEditavel } from './PrazoEditavel';
+export { DadoDoGrupo, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo } from './GrupoDeDatas';
+export { DatasDoCartao, ResumoDasDatas, type DataDaJanela, type EntregaDaJanela } from './JanelaDasDatas';
+export { InicioEPrazo, MUDAR_AS_DATAS, NOME_DAS_DATAS } from './InicioEPrazo';
 export { BotaoDeIcone, IconeDoBotao, propsDoBotaoDeIcone, type SoIcone } from './BotaoDeIcone';
 export { BotaoTirar, CONFIRMAR_O_TIRAR, EXPLICACAO_DO_TIRAR, perguntarETirar, rotuloDoTirar, TirarNoCartao, type FormaDoTirar, type PedidoDeTirar } from './BotaoTirar';
 

@@ -3,7 +3,7 @@
 // (TJMG, em "Distribuído"), e o administrativo 912345678, "Registro da marca Exemplo", de MARIA APARECIDA EXEMPLO (INPI,
 // em "Protocolado"). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo, escolherPapeisDosClientes } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
 
@@ -15,6 +15,7 @@ async function cadastrar(page: Page, { numero, cliente, tipo }: { numero: string
   await page.getByRole('button', { name: 'Próxima' }).click();
   await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
   await page.getByRole('button', { name: cliente }).click();
+  await page.getByLabel('Papel do cliente').selectOption('autor');
   await page.getByRole('button', { name: 'Próxima' }).click();
   await page.getByRole('button', { name: 'Salvar processo' }).click();
 }
@@ -26,6 +27,7 @@ async function cadastroAteDetalhes(page: Page, numero: string) {
   await page.getByRole('button', { name: 'Próxima' }).click();
   await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
   await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+  await page.getByLabel('Papel do cliente').selectOption('autor');
   await page.getByRole('button', { name: 'Próxima' }).click();
 }
 
@@ -76,6 +78,22 @@ test.describe('Menu de processos', () => {
     const texto = await cartao.innerText();
     expect(texto.indexOf('TJMG')).toBeLessThan(texto.indexOf('JOSÉ DA SILVA TESTE'));
   });
+
+  test('dado um processo com papel do cliente, quando aparece no quadro e na lista, então mostra o papel junto do órgão e do sistema (#426)', async ({ page }) => {
+    // Quando
+    await page.goto('/processos/judicial/');
+    // Então: no quadro, os selos ficam acima do nome
+    const cartao = page.getByRole('list', { name: 'Distribuído', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    for (const selo of ['TJMG', 'PJe', 'Autor']) await expect(cartao.getByText(selo, { exact: true })).toBeVisible();
+    const texto = await cartao.innerText();
+    expect(texto.indexOf('AUTOR')).toBeLessThan(texto.indexOf('JOSÉ DA SILVA TESTE'));
+    // Quando
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    // Então: na lista, na coluna do órgão
+    await expect(page.getByRole('columnheader', { name: 'Órgão e papel' })).toBeVisible();
+    const linha = page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    for (const selo of ['TJMG', 'PJe', 'Autor']) await expect(linha.getByText(selo, { exact: true })).toBeVisible();
+  });
 });
 
 test.describe('Cadastro de processo', () => {
@@ -92,7 +110,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
-    await page.getByLabel('Polo do cliente').selectOption({ label: 'Réu' });
+    await page.getByLabel('Papel do cliente').selectOption({ label: 'Réu' });
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByLabel('Comarca').fill('Montes Claros');
     await page.getByLabel('Valor da causa').fill('1.500,50');
@@ -107,7 +125,10 @@ test.describe('Cadastro de processo', () => {
     await expect(cartao.getByRole('definition').filter({ hasText: NUMERO_NOVO })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'Montes Claros' })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'R$' })).toContainText('1.500,50');
-    await expect(cartao.getByRole('definition').filter({ hasText: 'Réu' })).toBeVisible();
+    // O papel do cliente fica ao lado dele, na seção Clientes (#426), e não mais nos dados do processo.
+    await expect(cartao.getByRole('definition').filter({ hasText: 'Réu' })).toHaveCount(0);
+    await abrirSecao(cartao, 'Clientes');
+    await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente · Réu');
   });
 
   test('quando o número judicial está fora do padrão, então avisa; marcado como antigo, segue', async ({ page }) => {
@@ -146,6 +167,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByLabel('Valor da causa').fill('abc');
     await page.getByRole('button', { name: 'Salvar processo' }).click();
@@ -186,6 +208,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(page.getByLabel('Sistema de tramitação')).toBeVisible();
@@ -244,23 +267,68 @@ test.describe('Cadastro de processo', () => {
     await expect(page.getByRole('dialog').getByText('CPE (STJ)', { exact: true })).toBeVisible();
   });
 
-  test('quando a pessoa escolhe o polo Vítima e salva, então o cartão mostra "Vítima", com acento (#289)', async ({ page }) => {
+  test('quando a pessoa escolhe o papel Vítima para o cliente e salva, então o cartão mostra "Vítima", com acento (#289, #426)', async ({ page }) => {
     // Dado
     await page.goto('/processos/novo/');
     await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
-    // Então
-    await expect(page.getByLabel('Polo do cliente').getByRole('option')).toHaveText(['Não informado', 'Autor', 'Réu', 'Terceiro', 'Vítima', 'Investigado', 'Apenado']);
+    // Então: a lista é a mesma das pessoas com papel, e o antigo "Polo do cliente" não aparece mais
+    await expect(page.getByLabel('Papel do cliente').getByRole('option')).toHaveText(['Papel do cliente…', 'Autor', 'Réu', 'Terceiro interessado', 'Testemunha', 'Perito',
+      'Assistente técnico', 'Vítima', 'Investigado', 'Apenado', 'Advogado da parte contrária', 'Titular', 'Inventor', 'Autor da criação', 'Outro papel']);
+    await expect(page.getByLabel('Polo do cliente')).toHaveCount(0);
     // Quando
-    await page.getByLabel('Polo do cliente').selectOption({ label: 'Vítima' });
+    await page.getByLabel('Papel do cliente').selectOption({ label: 'Vítima' });
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então
-    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
-    await abrirSecao(page.getByRole('dialog'), 'Dados do processo');
-    await expect(page.getByRole('dialog').getByText('Vítima', { exact: true })).toBeVisible();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByLabel('Situação do processo')).toBeVisible();
+    await abrirSecao(cartao, 'Clientes');
+    await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente · Vítima');
+  });
+
+  test('dado o cadastro de um processo, quando tenta seguir sem o papel do cliente, então não segue e diz que o papel é obrigatório (#426)', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/novo/');
+    await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então: antes de escolher a pessoa, o papel ainda não se escolhe
+    await expect(page.getByLabel('Papel do cliente')).toBeDisabled();
+    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(page.getByText('O papel do cliente é obrigatório: escolha o papel de cada cliente.')).toBeVisible();
+    await expect(page.getByText('Passo 2 de 3')).toBeVisible();
+    await expect(page.getByLabel('Papel do cliente')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('dado um processo com dois clientes, quando cada um tem o seu papel, então cada cliente guarda o seu e a miniatura mostra os dois (#426)', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/novo/');
+    await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByRole('button', { name: 'Adicionar cliente' }).click();
+    await page.getByRole('textbox', { name: 'Cliente 2', exact: true }).fill('paulo');
+    await page.getByRole('button', { name: /PAULO HENRIQUE SIMULADO/ }).click();
+    // Quando
+    await page.getByLabel('Papel do cliente 1').selectOption({ label: 'Autor' });
+    await page.getByLabel('Papel do cliente 2').selectOption({ label: 'Réu' });
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Clientes');
+    await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente · Autor');
+    await expect(cartao.getByRole('link', { name: /PAULO HENRIQUE SIMULADO/ })).toContainText('Cliente · Réu');
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    const miniatura = page.getByRole('listitem').filter({ hasText: NUMERO_NOVO });
+    await expect(miniatura.getByText('Autor, Réu', { exact: true })).toBeVisible();
   });
 
   test('quando o administrador acrescenta "seeu", então nada novo é gravado e a opção pronta SEEU fica escolhida (#288)', async ({ page }) => {
@@ -392,6 +460,7 @@ test.describe('Campos do escritório', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(page.getByLabel('Sistema de tramitação')).toBeVisible();
@@ -1095,6 +1164,7 @@ test.describe('Processo a partir da demanda', () => {
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await cadastro.getByLabel('Número do processo').fill(numero);
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await escolherPapeisDosClientes(cadastro);
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
     // O cartão da demanda fica aberto atrás do cadastro: ver a "Situação da demanda" não prova que a gravação acabou (#420). Com a
@@ -1154,6 +1224,7 @@ test.describe('Processo a partir da demanda', () => {
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await cadastro.getByLabel('Número do processo').fill(NUMERO_NOVO);
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await escolherPapeisDosClientes(cadastro);
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
     // Então: aqui não há cartão de onde voltar (#376); o passo seguinte é o processo novo, já ligado à demanda

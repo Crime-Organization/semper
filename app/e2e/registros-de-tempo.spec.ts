@@ -22,7 +22,7 @@ async function abrirRegistros(cartao: Locator, nome: string) {
 }
 /** Um dia, em milissegundos, e quantos dias antes de hoje o registro passa a ser, no teste de mudar o dia. */
 const UM_DIA = 24 * 60 * 60 * 1000, DIAS_ANTES = 3;
-const tempoTotal = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).getByRole('group', { name: 'Tempo total' });
+const tempoTotal = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
 
 test.describe('Dado quem não é administrador', () => {
   test.beforeEach(async ({ page }) => { await entrarComo(page, 'u-bruno'); });

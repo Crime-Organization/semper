@@ -1,11 +1,11 @@
 // No cadastro do processo (etapa Detalhes e lápis do cartão), os campos de propriedade intelectual (#317): aparecem quando a área do
-// direito é "Propriedade intelectual". Primeiro o tipo de proteção; depois, só os campos daquele tipo (TIPOS_DE_PROTECAO), cada um
+// direito é "Propriedade intelectual", só no processo administrativo (#425). Primeiro o tipo de proteção; depois, só os campos daquele tipo (TIPOS_DE_PROTECAO), cada um
 // desenhado pela tabela CONTROLES, e a explicação do tipo (de onde contam os prazos e onde entram titular, inventor e autor).
 import type { ReactNode } from 'react';
 import type { TipoProtecao } from '../../dados';
 import { TAMANHO_PROTECAO } from '../../dados/limites';
 import {
-  APRESENTACOES_DA_MARCA, CAMPOS_DA_PROTECAO, ehDePropriedadeIntelectual, NATUREZAS_DA_MARCA, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CampoDaProtecao
+  APRESENTACOES_DA_MARCA, CAMPOS_DA_PROTECAO, NATUREZAS_DA_MARCA, temProtecao, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CampoDaProtecao
 } from '../../regras/propriedadeIntelectual';
 import type { CamposProcesso } from '../../regras/processo';
 import { Campo, CampoData, Nota, propsDoCampo } from '../../ui/base';
@@ -44,7 +44,7 @@ interface Props {
 }
 
 export function CamposDaProtecao({ c, erros, mudar }: Props) {
-  if (!ehDePropriedadeIntelectual(c.area)) return null;
+  if (!temProtecao(c)) return null;
   const tipo = c.protecao ? TIPOS_DE_PROTECAO[c.protecao] : null;
   return <>
     <Campo rotulo="Tipo de proteção" para={idDo('protecao')} dica={tipo?.nota}>

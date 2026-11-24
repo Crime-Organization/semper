@@ -84,7 +84,7 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
       await formato(cartao, 'Abrir no centro da tela');
       // Então: cada bloco começa abaixo do fim do anterior
       const blocos: Locator[] = [menuDoCartao(cartao), menuDaSituacao(cartao), cartao.getByRole('heading', { level: 2 })];
-      if (c.datas) blocos.push(cartao.getByRole('group', { name: 'Datas', exact: true }));
+      if (c.datas) blocos.push(cartao.getByRole('group', { name: 'Datas do cartão', exact: true }));
       if (c.tempo) blocos.push(cartao.getByRole('group', { name: 'Tempo', exact: true }));
       if (c.descricao) blocos.push(c.descricao(cartao));
       const esquerda = expandirDaEsquerda(cartao);
@@ -96,7 +96,7 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
         anterior = atual;
       }
       // E a faixa das datas some no processo e na pessoa (os dados ficam nas seções)
-      if (!c.datas) await expect(cartao.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
+      if (!c.datas) await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
     });
   }
 
@@ -105,10 +105,10 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     await formato(cartao, 'Abrir no centro da tela');
     // Então
-    const datas = cartao.getByRole('group', { name: 'Datas', exact: true });
+    const datas = cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
     const total = datas.getByRole('group', { name: 'Tempo total' });
     await expect(total).toContainText('2 h');
-    const [prazo, dadoTotal] = [await caixa(datas.getByRole('group', { name: 'Prazo', exact: true })), await caixa(total)];
+    const [prazo, dadoTotal] = [await caixa(datas.getByRole('group', { name: 'Datas', exact: true })), await caixa(total)];
     expect(dadoTotal.x).toBeGreaterThan(prazo.x + prazo.width);
     expect(Math.abs(dadoTotal.y - prazo.y)).toBeLessThanOrEqual(TOLERANCIA);
     // E o resumo da equipe não repete o total
@@ -356,7 +356,7 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
       // Então: cada vão cresceu
       for (const [nome, antes] of Object.entries(tela.antes)) expect(await variavel(page, nome), nome).toBeGreaterThan(antes);
       // E entre o fim das datas e o primeiro dado do tempo ficam as duas folgas das faixas (a linha fina fica no meio)
-      const datas = cartao.getByRole('group', { name: 'Datas', exact: true }), tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+      const datas = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }), tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
       const fimDasDatas = Math.max(...await datas.getByRole('group').evaluateAll(gs => gs.map(g => g.getBoundingClientRect().bottom)));
       const primeiroTempo = await caixa(tempo.getByRole('group').first());
       expect(primeiroTempo.y - fimDasDatas).toBeGreaterThanOrEqual(2 * await variavel(page, '--vao-das-faixas-dos-dados') - TOLERANCIA);
@@ -375,7 +375,7 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
       // Então
       // (desde a #399, sem a linha dos botões rápidos: o fim dos dados é a faixa do tempo)
       const [topo, situacao, titulo, datas, tempo, descricao] = await Promise.all([menuDoCartao(cartao), menuDaSituacao(cartao),
-        cartao.getByRole('heading', { level: 2 }), cartao.getByRole('group', { name: 'Datas', exact: true }),
+        cartao.getByRole('heading', { level: 2 }), cartao.getByRole('group', { name: 'Datas do cartão', exact: true }),
         cartao.getByRole('group', { name: 'Tempo', exact: true }), descricaoDoCartao(cartao)].map(caixa));
       expect(situacao.y - embaixo(topo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-do-topo-a-situacao') - TOLERANCIA);
       expect(titulo.y - embaixo(situacao)).toBeGreaterThanOrEqual(await variavel(page, '--vao-ate-o-titulo') - TOLERANCIA);

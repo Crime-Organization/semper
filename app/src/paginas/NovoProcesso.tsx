@@ -1,5 +1,5 @@
 // Cadastro de processo (novo ou atualizar), por etapas como os de pessoa, contrato e demanda: o processo (tipo, número,
-// nome e órgão), as pessoas (clientes, polo e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
+// nome e órgão), as pessoas (clientes, o papel de cada um e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 // Vindo do "+ Novo processo" de uma demanda, de um contrato ou de uma tarefa (?demanda=, ?contrato=, ?tarefa=; #376), ele traz o que
 // a origem tem (NASCE_DE) e, ao salvar, nasce ligado a ela; do contrato e da tarefa, a tela volta ao cartão de origem. Da demanda e
@@ -12,9 +12,9 @@ import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limi
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
-  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
-  errosDosDadosDoProcesso, LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao,
-  tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
+  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
+  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, errosDosDadosDoProcesso, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso,
+  processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao, tipoDoDerivado, tipoDoEndereco, TIPOS,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -30,7 +30,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, FormularioDosDados, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, FormularioDosDados, idsDoCampoDeVarios, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -52,6 +52,8 @@ const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
 /** A primeira pergunta com erro: na etapa que está na tela ou, na seção de dados do cartão (#428), no formulário dela. */
 const PERGUNTA_COM_ERRO = '.etapa.ativa .pergunta.erro, .dados-editaveis-edicao .pergunta.erro';
+/** A base dos ids do grupo Clientes (idsDoCampoDeVarios): o papel de cada linha aponta para a dica e o erro dele. */
+const GRUPO_DOS_CLIENTES = 'clientes-do-processo';
 
 /** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. Do processo: recurso ou incidental (#316). */
 const ORIGENS = ['demanda', 'contrato', 'tarefa', 'processo'] as const;
@@ -61,7 +63,11 @@ type OrigemDoProcesso = typeof ORIGENS[number];
  * e, quando o endereço ficou velho, por que ela não aceita mais o processo ligado (recusaDaOrigem): aí o cadastro ainda traz o que ela tem,
  * mas diz, antes de gravar, que o processo não fica ligado, e a ligação nem é tentada.
  */
-interface OrigemLida { codigo: string; aviso: ReactNode; campos: Partial<CamposProcesso>; clientes: PessoaResumida[]; titulo?: string; cartao: string | null; recusa: RecusaDaOrigem | null }
+interface OrigemLida {
+  codigo: string; aviso: ReactNode; campos: Partial<CamposProcesso>; clientes: PessoaResumida[]; titulo?: string; cartao: string | null; recusa: RecusaDaOrigem | null;
+  /** O tipo do processo de origem (#425): diz que ligações o cadastro oferece (o administrativo oferece também o judicial). */
+  tipoDoProcesso?: TipoProcesso;
+}
 /** Como os avisos falam da origem: "A tarefa", "arquivada" e "ela" (no fim: "não fica ligado a ela"). */
 interface FalaDaOrigem { nome: string; arquivada: string; pronome: string }
 interface ComoNasce {
@@ -115,7 +121,8 @@ const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
     aOrigem: 'à tarefa',
     fala: { nome: 'A tarefa', arquivada: 'arquivada', pronome: 'ela' }
   },
-  // O recurso ou incidental (#316): a ligação vai junto ao criar (origemAoCriar), e a tela volta ao processo de origem, onde ele aparece.
+  // O recurso ou incidental (#316) e o judicial do administrativo (#425): a ligação vai junto ao criar (origemAoCriar), e a tela volta
+  // ao processo de origem, onde ele aparece.
   processo: {
     ler: async (id, ativos, eu) => {
       const o = await SD.processoObter(id);
@@ -123,7 +130,7 @@ const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
       // Arquivado, o processo de origem não aceita mais o novo ligado: o cadastro traz o que ele tem, mas sem a origem.
       const recusa = recusaDaOrigem({ arquivada: !!o.arquivado_em }), campos = processoDoProcesso(o, ativos, eu);
       return { codigo: o.codigo, aviso: <>Este processo nasce do processo <b>{o.codigo}</b> ({o.numero}) e fica ligado a ele, com o próprio número e os próprios andamentos.</>,
-        campos: recusa ? { ...campos, origemId: '' } : campos, clientes: o.clientes, cartao: TIPOS_PROCESSO[o.tipo].caminho + '?id=' + o.id, recusa };
+        campos: recusa ? { ...campos, origemId: '' } : campos, clientes: o.clientes, cartao: TIPOS_PROCESSO[o.tipo].caminho + '?id=' + o.id, recusa, tipoDoProcesso: o.tipo };
     },
     ligar: async () => {},
     aOrigem: 'ao processo',
@@ -213,7 +220,13 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     NASCE_DE[origem.tipo].ler(origem.id, aoAbrir.current.ativos, aoAbrir.current.eu).then(l => {
       if (!l) return;
       setLida(l);
-      setC(x => ({ ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? '') }));
+      // O judicial do administrativo (#425) já vem escolhido pelo botão do cartão: o tipo é o da ligação, e não o da origem. A ligação
+      // que a origem não oferece (um link antigo ou mudado à mão) volta a nenhuma, para a pessoa escolher entre as que aparecem.
+      setC(x => {
+        if (!l.tipoDoProcesso) return { ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? '') };
+        const ligacao = ligacaoDaOrigem(x.ligacao, l.tipoDoProcesso);
+        return { ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? ''), ligacao, tipo: tipoDoDerivado(ligacao, l.tipoDoProcesso) };
+      });
       if (l.clientes.length) {
         setClientes(l.clientes);
         setChaves(l.clientes.map((_, i) => i));
@@ -234,6 +247,12 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const conferidos = new Set(ETAPAS_PROCESSO.filter(e => conferidas.has(e.id)).flatMap(e => e.campos));
   const erros: Partial<Record<keyof CamposProcesso, string>> = Object.fromEntries(Object.entries(todos).filter(([campo]) => conferidos.has(campo as keyof CamposProcesso)));
   const mudar = (campos: Partial<CamposProcesso>) => setC(atual => ({ ...atual, ...campos }));
+  // O papel que falta na linha de um cliente já escolhido (#426), e a dica e o erro do grupo que o leitor de tela lê junto dele.
+  const papelFaltando = (id: string) => !!erros.papeisClientes && !!id && !c.papeisClientes[id];
+  const descricaoDoPapel = (id: string) => {
+    const ids = idsDoCampoDeVarios(GRUPO_DOS_CLIENTES);
+    return [ids.dica, papelFaltando(id) ? ids.erro : ''].filter(Boolean).join(' ');
+  };
   const judicial = c.tipo === 'judicial', noPadrao = judicial && !c.numeroAntigo;
   // Os erros dos campos do escritório aparecem junto com os da etapa de detalhes.
   const errosDosExtras = errosDosCampos(camposDoEscritorio, c.tipo, c.extras);
@@ -274,7 +293,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // ---------- clientes ----------
   const escolherCliente = (i: number) => (p: PessoaLista | null) => {
     setClientes(atual => atual.map((x, j) => j === i ? p : x));
-    setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x) }));
+    setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x),
+      papeisClientes: papeisAoTrocarCliente(atual.papeisClientes, atual.clientes[i], p?.id ?? '') }));
   };
   function acrescentarCliente() {
     const chave = proximaChave.current++;
@@ -417,7 +437,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     }
   }
 
-  // O número e o órgão, e o polo: no cadastro, cada um na sua etapa; na seção de dados do cartão (#428), juntos com os detalhes.
+  // O número e o órgão: no cadastro, na primeira etapa; na seção de dados do cartão (#428), juntos com os detalhes.
   const numeroEOrgao = () => <>
       <Campo rotulo="Número do processo" para="numero" obrigatorio erro={erros.numero}
         dica={noPadrao ? 'No padrão do CNJ. O sistema confere o número e indica o órgão.' : judicial ? 'Como aparece nos autos.' : 'O número do pedido ou do protocolo no órgão.'}>
@@ -432,21 +452,17 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           aoMudar={orgao => mudar({ orgao: orgao.toUpperCase() })} sugestoes={emSugestoes(siglas)} />
       </Campo>
   </>;
-  const campoDoPolo = () => <Campo rotulo="Polo do cliente" para="polo">
-    <select {...propsDoCampo('polo')} value={c.polo} onChange={e => mudar({ polo: e.target.value as CamposProcesso['polo'] })}>
-      <option value="">{NAO_INFORMADO}</option>
-      {Object.entries(POLOS).map(([v, nome]) => <option key={v} value={v}>{nome}</option>)}
-    </select>
-  </Campo>;
 
   const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
     processo: () => <>
-      {/* O recurso ou incidental (#316): nasce de outro processo, e a pessoa diz qual dos dois ele é. */}
-      {!alvo && c.origemId && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
-        {TIPOS_DE_LIGACAO.map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l} onChange={() => mudar({ ligacao: l })} />{LIGACOES[l].nome}</label>)}
+      {/* O recurso ou incidental (#316) e, do administrativo, o judicial (#425): nasce de outro processo, e a pessoa diz como. O
+          judicial do administrativo é sempre judicial: o tipo acompanha a escolha. */}
+      {!alvo && c.origemId && lida?.tipoDoProcesso && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
+        {ligacoesDaOrigem(lida.tipoDoProcesso).map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l}
+          onChange={() => { mudar({ ligacao: l }); mudarNumero({ tipo: tipoDoDerivado(l, lida.tipoDoProcesso!) }); }} />{LIGACOES[l].nome}</label>)}
       </Escolhas>}
-      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
-      {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
+      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. Nem no judicial do administrativo (#425). */}
+      {alvo || (c.origemId && c.ligacao && LIGACOES[c.ligacao].tipo) ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
         : <Escolhas rotulo="Tipo" obrigatorio>
           {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudarNumero({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
         </Escolhas>}
@@ -458,12 +474,21 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>}
     </>,
     pessoas: () => <>
-      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes} grupo={grupoDosClientes}>
-        {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
+      <CampoDeVarios rotulo="Clientes" obrigatorio id={GRUPO_DOS_CLIENTES} erro={erros.clientes ?? erros.papeisClientes} grupo={grupoDosClientes}
+        dica="Ao lado de cada cliente, o papel dele no processo (obrigatório).">
+        {c.clientes.map((id, i) => <div className="linha-cliente com-papel" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
+          {/* O papel do cliente (#426): a mesma lista das pessoas com papel; escolhe-se depois da pessoa. Ele aponta para a dica e,
+              sem papel, para o erro do grupo: o leitor de tela diz por que está inválido. */}
+          <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`} value={(id && c.papeisClientes[id]) || ''} disabled={!id}
+            aria-invalid={papelFaltando(id) || undefined} aria-describedby={descricaoDoPapel(id)}
+            onChange={e => mudar({ papeisClientes: comPapelDoCliente(c.papeisClientes, id, e.target.value) })}>
+            <option value="">Papel do cliente…</option>
+            {PAPEIS_DO_CLIENTE.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
+          </select>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
             <Icone nome="fechar" tam={15} />
           </button>}
@@ -472,7 +497,6 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <Icone nome="mais" tam={13} /> Adicionar cliente
         </button></div>
       </CampoDeVarios>
-      {campoDoPolo()}
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pelo processo: qualquer um da equipe.">
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId}
           onChange={e => mudar({ responsavelId: e.target.value, colaboradores: c.colaboradores.filter(x => x !== e.target.value) })}>
@@ -553,7 +577,6 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     : <FormularioDosDados rotulo="Editar os dados do processo" estado={c} ocupado={ocupado} aoMudarSujo={edicao.aoMudarSujo}
       aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()}>
       {numeroEOrgao()}
-      {campoDoPolo()}
       {CONTEUDO.detalhes()}
     </FormularioDosDados>;
 

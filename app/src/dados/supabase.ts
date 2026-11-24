@@ -589,9 +589,9 @@ const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pess
 const naoEsta = (linha: unknown) => { if (!linha) throw new Error('Não foi possível: atualize a página e confira.'); };
 
 // ---------- processos ----------
-const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
+const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, papeis_clientes, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
-const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
+const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, papeis_clientes, area, meio, natureza, gratuidade, comarca, vara, '
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   // Propriedade intelectual (#317).
   + 'protecao, deposito, concessao, publicacao, criacao, apresentacao_marca, natureza_marca, classes_nice, especificacao, variacoes, linguagem, '
@@ -1654,7 +1654,9 @@ export const SD: Dados = {
     return juntarOsAchados((await rodar(paraLigar(q, f, { pessoas: 'pessoas', sem: { processos: 'processo_id' } }))).data);
   },
   async processosParaPorCliente(f) {
-    const q = soOsMeus(sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome, clientes, criado_em'), 'colaboradores');
+    let q = soOsMeus(sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome, clientes, criado_em'), 'colaboradores');
+    // O judicial para ligar ao administrativo (#425): como judicialParaLigar (o arquivado já fica de fora em paraLigar).
+    if (f.judicialSemOrigem) q = q.eq('tipo', 'judicial').is('origem_id', null);
     return juntarOsAchados((await rodar(paraLigar(q, f, { pessoas: 'clientes' }))).data);
   },
   async contratosParaLigar(f) {
@@ -2006,11 +2008,18 @@ export const SD: Dados = {
     conferirQueMudou((await rodar(sb.from('processo_partes').delete().eq('id', id).select('id').maybeSingle())).data);
   },
   async processosRelacionados(processoId) {
-    const { data: aberto } = await rodar(sb.from('processos').select('id, origem_id').eq('id', processoId).maybeSingle());
+    const { data: aberto } = await rodar(sb.from('processos').select('id, origem_id, ligacao').eq('id', processoId).maybeSingle());
     if (!aberto) return [];
     const filtros = [`origem_id.eq.${processoId}`, ...(aberto.origem_id ? [`id.eq.${aberto.origem_id}`] : [])];
     const { data } = await rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS));
     return relacionadosDoProcesso(data, aberto);
+  },
+  // A ligação do judicial ao administrativo (#425), pelas funções da migração processo_judicial_do_administrativo.
+  async processoJudicialLigar(administrativoId, judicialId) {
+    await rpc('processo_judicial_ligar', { p_administrativo: administrativoId, p_judicial: judicialId });
+  },
+  async processoJudicialDesligar(judicialId) {
+    await rpc('processo_judicial_desligar', { p_judicial: judicialId });
   },
   async processoOpcoes() {
     const { data } = await rodar(sb.from('processo_opcoes').select('id, campo, valor').order('valor'));

@@ -3,7 +3,7 @@
 // useAtalhoDoCartao: como chegar até ela (ver), quantas há e, para quem pode, como acrescentar uma nova; o menu lê as oferecidas. O
 // painel do cartão (PainelCartao) põe o registro em volta de tudo, a coluna da direita também (ela vai por um portal, mas fica na
 // mesma árvore).
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TipoDeAtalho } from '../regras/atalhosDoCartao';
 
 /** Como acrescentar uma nova: levar a um endereço (a anotação nova, que abre na janela da anotação) ou abrir ali mesmo. */
@@ -74,7 +74,9 @@ export function useAtalhoDoCartao(tipo: TipoDeAtalho | undefined, coisa: CoisaDo
   const ativo = !!tipo && !!coisa;
   const novo = coisa?.acrescentar;
   const chave = coisa ? [coisa.quantidade ?? '', novo?.nome ?? '', novo?.para ?? '', novo?.menu ? 'menu' : ''].join('|') : '';
-  useEffect(() => {
+  // Antes de a tela ser desenhada (layout effect): a bolinha do menu aparece junto com o cartão, e não um quadro depois, empurrando a
+  // equipe do topo para baixo (e tudo o que vem embaixo dela) quando chega (#422).
+  useLayoutEffect(() => {
     if (!registro || !tipo || !ativo) return;
     return registro.inscrever({ id, tipo, ler: () => atual.current });
   }, [registro, tipo, ativo, id]);

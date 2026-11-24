@@ -1,0 +1,5 @@
+{
+  "titulo": "O processo administrativo ligado ao judicial",
+  "texto": "O processo administrativo, de qualquer área, pode ser ligado ao processo judicial que nasceu dele: crie o judicial a partir do administrativo ou ligue um que já existe. A ligação aparece nos dois cartões e se desfaz pelo \"x\". Os campos de propriedade intelectual e a seção \"Validade e anuidades\" agora ficam só no processo administrativo.",
+  "ondeAchar": "No cartão do processo administrativo, na seção \"Processos relacionados\" (antes \"Recursos e incidentais\"): \"Novo processo judicial a partir deste\" e \"Ligar processo judicial existente\"."
+}

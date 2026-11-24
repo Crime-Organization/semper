@@ -449,7 +449,7 @@ for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, heig
 }
 
 /** O último botão dos dados (as faixas das datas e do tempo), o que vem logo antes da descrição na ordem do Tab. */
-const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
+const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
   .getByRole('button').last();
 
 test.describe('A descrição no topo do cartão da demanda (#385)', () => {

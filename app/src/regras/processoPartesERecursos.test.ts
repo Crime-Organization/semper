@@ -23,7 +23,7 @@ describe('Tipos de processo', () => {
 
   it('quando o processo é administrativo, então o número não segue o CNJ e os campos só do judicial não são gravados', () => {
     // Dado
-    const c = { ...processoVazio('administrativo'), numero: 'Notificação 12/2026', clientes: ['p1'], responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
+    const c = { ...processoVazio('administrativo'), numero: 'Notificação 12/2026', clientes: ['p1'], papeisClientes: { p1: 'autor' as const }, responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
     // Quando
     const erros = validarProcesso(c), dados = dadosDoProcesso(c);
     // Então
@@ -82,14 +82,14 @@ describe('Pessoas com papel no processo', () => {
 });
 
 describe('Recursos e incidentais', () => {
-  it('quando o cadastro nasce de um processo, então traz o tipo, os clientes, o polo e a equipe ativa dele, e não o número', () => {
+  it('quando o cadastro nasce de um processo, então traz o tipo, os clientes com o papel de cada um (#426) e a equipe ativa dele, e não o número', () => {
     // Dado
-    const origem = { id: 'o1', tipo: 'judicial' as const, responsavel_id: 'u-saiu', colaboradores: ['u1', 'u-saiu', 'u2'], polo: 'autor' as const, area: 'Cível', sistema: 'PJe', meio: 'eletronico' as const,
-      clientes: [{ id: 'p1' }, { id: 'p2' }] };
+    const origem = { id: 'o1', tipo: 'judicial' as const, responsavel_id: 'u-saiu', colaboradores: ['u1', 'u-saiu', 'u2'], papeis_clientes: { p1: 'autor' as const, p2: 'reu' as const },
+      area: 'Cível', sistema: 'PJe', meio: 'eletronico' as const, clientes: [{ id: 'p1' }, { id: 'p2' }] };
     // Quando
     const campos = processoDoProcesso(origem, ['u1', 'u2', 'eu'], 'eu');
     // Então
-    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], polo: 'autor', area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
+    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor', p2: 'reu' }, area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
     expect(campos).not.toHaveProperty('numero');
   });
 
@@ -119,7 +119,7 @@ describe('Recursos e incidentais', () => {
 
   it('quando um processo mostra os ligados, então a origem vem primeiro, depois os recursos e incidentais dele; o que não se liga sai', () => {
     // Dado
-    const aberto = { id: 'a', origem_id: 'o' };
+    const aberto = { id: 'a', origem_id: 'o', ligacao: 'recurso' as const };
     const base = { codigo: 'X', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: '', etapa_id: null, arquivado_em: null };
     const achados = [
       { ...base, id: 'r1', origem_id: 'a', ligacao: 'recurso' as const, criado_em: '2026-01-01' },
@@ -134,11 +134,11 @@ describe('Recursos e incidentais', () => {
     expect(relacaoEntreProcessos({ id: 'irmao', origem_id: 'o', ligacao: 'recurso' }, aberto)).toBeNull();
   });
 
-  it('quando o processo de origem é excluído, então o histórico do recurso diz que a origem foi excluída, sem o id dela', () => {
+  it('quando o processo de origem é excluído ou desligado (#425), então o histórico diz que a ligação acabou, sem o id da origem', () => {
     // Então
     expect(CAMPOS_PROCESSO.origem_id).toBe('Processo de origem');
     expect(valorLegivelProcesso('origem_id', '73160000-0000-0000-0000-000000000002')).toBe('ligado');
-    expect(valorLegivelProcesso('origem_id', null)).toBe('excluído');
+    expect(valorLegivelProcesso('origem_id', null)).toBe('sem ligação');
     expect(valorLegivelProcesso('numero', null)).toBe('—');
   });
 });

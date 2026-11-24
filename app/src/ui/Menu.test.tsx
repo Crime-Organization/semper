@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MenuFlutuante } from './Menu';
 
 // Botão "⋯" que abre o menu, como na barra de um módulo.
@@ -95,5 +95,44 @@ describe('Menu flutuante com as setas (#399)', () => {
     await userEvent.keyboard('{ArrowDown}');
     // Então
     expect(screen.getByRole('menuitem', { name: 'Exportar' })).toHaveFocus();
+  });
+});
+
+describe('Menu flutuante travado (#422)', () => {
+  /** Um painel que trava enquanto grava, como a janela das datas. */
+  function Travado() {
+    const [botao, setBotao] = useState<HTMLElement | null>(null);
+    return <>
+      <button type="button" onClick={e => setBotao(e.currentTarget)}>Abrir</button>
+      <p>Fora do painel</p>
+      {botao && <MenuFlutuante painel travado botao={botao} rotulo="Gravando" aoFechar={() => setBotao(null)}><button type="button">Dentro</button></MenuFlutuante>}
+    </>;
+  }
+
+  it('dado o painel travado (gravando), quando a pessoa aperta Esc ou clica fora, então ele continua aberto', async () => {
+    // Dado
+    render(<Travado />);
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByText('Fora do painel'));
+    // Então
+    expect(screen.getByRole('dialog', { name: 'Gravando' })).toBeInTheDocument();
+  });
+
+  it('dado o painel travado dentro de um cartão, quando a pessoa aperta Esc, então nem o painel nem o cartão fecham', async () => {
+    // Dado: o cartão fecha com o Esc que chega a ele, como os cartões do quadro.
+    const cartaoFechou = vi.fn();
+    const noCartao = (e: KeyboardEvent) => { if (e.key === 'Escape') cartaoFechou(); };
+    document.addEventListener('keydown', noCartao);
+    try {
+      render(<Travado />);
+      await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+      // Quando
+      await userEvent.keyboard('{Escape}');
+      // Então
+      expect(screen.getByRole('dialog', { name: 'Gravando' })).toBeInTheDocument();
+      expect(cartaoFechou).not.toHaveBeenCalled();
+    } finally { document.removeEventListener('keydown', noCartao); }
   });
 });
