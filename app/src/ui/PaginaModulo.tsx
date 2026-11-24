@@ -10,14 +10,12 @@ import type { OrdemComPrazo } from '../dados';
 import { ATALHOS, dicaComAtalho, type Atalho } from '../regras/atalhos';
 import { PARAMETRO_DA_BUSCA, PARAMETROS_DO_VER_TODOS } from '../regras/buscaGeral';
 import { useAtalhosDaPagina, useAtalhosLigados } from './atalhos';
+import { BotaoDeAjuda } from './BotaoDeAjuda';
 import { Icone, type NomeIcone } from './Icone';
 import { BotaoLink, estiloBotao } from './base';
 import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
-
-/** O tamanho do "?" dentro do botão de ajuda, em pixels: o do ícone das abas, para combinar com a barra. */
-const TAMANHO_DO_ICONE_DA_AJUDA = 15;
 
 export type Visao = 'tabela' | 'kanban' | 'agenda';
 const VISOES: Record<Visao, { rotulo: string; icone: NomeIcone }> = {
@@ -112,8 +110,7 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
     <header className="cabeca">
       <div className="cabeca-titulo">
         <h1 className="titulo">{titulo}<span className="ponto">.</span></h1>
-        {ajuda && <button type="button" className="botao-ajuda" aria-label="Ajuda desta tela" aria-haspopup="dialog"
-          {...dicaDoAtalho('Ajuda desta tela', 'atalhos')} onClick={abrirAjuda}><Icone nome="ajuda" tam={TAMANHO_DO_ICONE_DA_AJUDA} /></button>}
+        {ajuda && <BotaoDeAjuda aoAbrir={abrirAjuda} />}
         {contador && <span className="contador">{contador}</span>}
       </div>
       <div className="barra-ferr" role="search">

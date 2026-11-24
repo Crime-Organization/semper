@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Atalhos de teclado das páginas de módulo (#86): "/" vai à busca, "N" abre o "Novo" do módulo e "?" abre a ajuda da tela, com
-// os atalhos embaixo (#85; o Financeiro, que não é página de módulo, mostra só os atalhos).
+// os atalhos embaixo (#85; no Financeiro, que não é página de módulo, a ajuda é a da aba aberta, #411).
 // Valem em todos os módulos com página de módulo; aqui, Pessoas e Tarefas.
 import { expect, test } from '@playwright/test';
 
@@ -81,7 +81,7 @@ test.describe('Atalhos de teclado no Financeiro', () => {
     // Quando
     await page.keyboard.press('?');
     // Então
-    const lista = page.getByRole('dialog', { name: 'Atalhos do teclado' });
+    const lista = page.getByRole('dialog', { name: 'Ajuda: Financeiro (Entradas)' }).getByRole('region', { name: 'Atalhos do teclado' });
     await expect(lista.getByRole('region', { name: 'Nesta página' })).toContainText('Nova entrada');
     // Quando
     await page.keyboard.press('Escape');
@@ -126,6 +126,17 @@ test.describe('Desligar os atalhos de uma tecla só', () => {
     await page.keyboard.press('n');
     // Então
     await expect(page).toHaveURL(/\/pessoas\/nova\/$/);
+  });
+
+  test('dada Minha conta, quando a pessoa lê a seção Teclado, então a explicação diz que o "?" abre a ajuda em qualquer tela (#411)', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    // Quando
+    const teclado = page.getByRole('region', { name: 'Teclado' });
+    // Então
+    await expect(teclado).toContainText('Nas páginas dos módulos, / vai à busca e N abre o cadastro novo');
+    await expect(teclado).toContainText('em qualquer tela, ? abre a ajuda dela, com os atalhos');
+    await expect(teclado).not.toContainText('? mostra a lista');
   });
 });
 

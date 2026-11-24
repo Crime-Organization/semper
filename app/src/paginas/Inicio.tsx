@@ -15,6 +15,7 @@ import { CampoDaBuscaGeral } from '../ui/BuscaGeral';
 import { FiltroDoPainel, useAlcanceDoPainel } from '../ui/painel/FiltroDoPainel';
 import { CabecaDoPainel, NumeroDoPainel, NumerosDoPainel, Painel } from '../ui/painel/Painel';
 import { useCtx } from '../ui/sessao';
+import { useAjudaDaTela } from '../ui/BotaoDeAjuda';
 import { useTitulo } from '../ui/util';
 import { AvisoDoConsentimento } from './inicio/AvisoDoConsentimento';
 import { BLOCOS, LUGAR_DO_BLOCO } from './inicio/Blocos';
@@ -95,6 +96,7 @@ function PorOndeComecar({ alcance, modulos }: { alcance: AlcanceDoPainel; modulo
 
 export default function Inicio() {
   useTitulo('Início');
+  const abrirAjuda = useAjudaDaTela('inicio');
   const ctx = useCtx();
   const eu = ctx.perfil.id, modulos = ctx.escritorio?.modulos;
   const [alcance, escolher] = useAlcanceDoPainel(PREFERENCIA_DO_FILTRO);
@@ -129,7 +131,7 @@ export default function Inicio() {
 
   const primeiro = (ctx.perfil.nome || '').trim().split(/\s+/)[0];
   const nomeDaPessoa = ctx.equipe.find(m => m.id === alcance.pessoa)?.nome ?? '';
-  const cabecalho = <CabecaDoPainel titulo={'Olá' + (primeiro ? ', ' + primeiro : '')} frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)}>
+  const cabecalho = <CabecaDoPainel titulo={'Olá' + (primeiro ? ', ' + primeiro : '')} frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)} aoAbrirAjuda={abrirAjuda}>
     <CampoDaBuscaGeral />
     {ctx.ehAdmin && <FiltroDoPainel alcance={alcance} equipe={ctx.equipe} eu={eu} aoEscolher={escolher} />}
   </CabecaDoPainel>;

@@ -20,6 +20,7 @@ import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo
 import { confirmar, janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, hojeISO, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { PainelCartao } from '../ui/PainelCartao';
 import { useParametroLido } from '../ui/useParametroLido';
 import { PARAMETRO_DO_CONVITE } from '../regras/conviteDaPessoa';
@@ -193,7 +194,7 @@ function PainelEquipe() {
   return <div className="miolo">
     <header>
       <p className="olho">Administração</p>
-      <h1 className="titulo">Equipe e acessos<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="equipe" />
       <p className="lead">{ctx.ehMaster
         ? 'Você é master: gerencia usuários e administradores. Ninguém altera ou desativa um master.'
         : 'Como administrador, você gerencia os usuários. Administradores são gerenciados pelo master.'}</p>

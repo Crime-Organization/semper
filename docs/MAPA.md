@@ -49,10 +49,10 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Importação](#importacao), linhas 815–834: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
 - [Conta Google e contatos](#google), linhas 835–853: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
 - [Novidades e versão](#novidades), linhas 854–867: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 868–881: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 882–893: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 894–998: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 999–1002: nada.
+- [Ajuda e atalhos](#ajuda), linhas 868–883: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 884–895: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 896–1000: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 1001–1004: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -868,16 +868,18 @@ As novidades de cada versão (o botão do menu lateral) e o aviso de versão nov
 <a id="ajuda"></a>
 ## Ajuda e atalhos
 
-A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
 
 - **Regras:** (app/src/regras/)
   - `ajuda.ts`: A ajuda de cada tela de módulo (#85): o botão "?" do cabeçalho (e a tecla "?") abre uma janela com estas frases em cima e os atalhos de teclado embaixo.
   - `atalhos.ts`: Atalhos de teclado das páginas de módulo (#86).
-- **Peças de ui:** (app/src/ui/) atalhos.tsx
-- **Testes unitários:** na pasta app, `npx vitest run src/regras/ajuda.test.ts src/regras/atalhos.test.ts src/ui/atalhos.test.tsx`
+- **Peças de ui:** (app/src/ui/) BotaoDeAjuda.tsx, atalhos.tsx
+- **Testes unitários:** na pasta app, `npx vitest run src/regras/ajuda.test.ts src/regras/atalhos.test.ts src/ui/BotaoDeAjuda.test.tsx src/ui/atalhos.test.tsx`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/ajuda.spec.ts e2e/atalhos.spec.ts`
 - **Armadilhas:**
   - Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.
+  - Tela nova que não é de módulo ganha uma entrada em `AJUDA_DAS_TELAS` (`regras/ajuda.ts`) e o título com o "?" (`TituloComAjuda`, ou `useAjudaDaTela` com o `aoAbrirAjuda` do `CabecaDoPainel` nos painéis); aba nova do Financeiro, uma linha em `AJUDA_DA_ABA` (`paginas/financeiro/Hub.tsx`). Uma chamada só por tela: duas abririam duas janelas na mesma tecla.
+  - Os cadastros (`CADASTROS` de `App.tsx`: Nova pessoa, Novo contrato… e Importar pessoas) ainda não têm o "?": abrem numa janela por cima da página, onde a tecla "?" não vale, e cada etapa já se explica. Pôr a ajuda neles é tarefa própria, se o dono pedir.
 
 <a id="rotinas"></a>
 ## Rotinas automáticas
@@ -905,12 +907,12 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/compromissos-ligados.spec.ts e2e/compromissos-que-se-repetem.spec.ts e2e/compromissos.spec.ts e2e/datas.spec.ts e2e/demanda-do-compromisso.spec.ts e2e/sair-do-cadastro.spec.ts e2e/salas.spec.ts`
 - `/calendario/` (Calendario): [Calendário e prazos](#calendario)
   - escrevem o endereço: (app/) src/ui/Casca.tsx, src/ui/SubmenuLateral.test.tsx, src/ui/SubmenuLateral.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/calendario.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/calendario.spec.ts`
 - `/conferencia/` (Conferencia): [Conferência dos lançamentos](#conferencia)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/Conferencia.test.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
 - `/configuracoes/` (Configuracoes): [Configurações e escritório](#configuracoes)
   - escrevem o endereço: (app/) src/paginas/Configuracoes.test.tsx, src/paginas/LigacaoGoogle.tsx, src/regras/ligacaoGoogle.test.ts, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/configuracoes.spec.ts e2e/equipe-ve-tudo.spec.ts e2e/objetos-de-contrato.spec.ts e2e/processos.spec.ts e2e/salas.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/equipe-ve-tudo.spec.ts e2e/objetos-de-contrato.spec.ts e2e/processos.spec.ts e2e/salas.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 - `/contratos/` (Contratos): [Contratos](#contratos)
   - escrevem o endereço: (app/) src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoTarefa.tsx, src/paginas/ContratosDoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/ModelosDeLista.tsx, src/paginas/NovoContrato.tsx, src/paginas/NovoContratoPelaOrigem.test.tsx, src/paginas/clienteAoContrato.ts, src/paginas/financeiro/DetalheFinanceiro.tsx, src/paginas/financeiro/Parcelas.tsx, src/paginas/nascerNaAnotacao.test.tsx, src/regras/anotacao.ts, src/regras/buscaGeral.test.ts, src/regras/buscaGeral.ts, src/regras/inclusao.test.ts, src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/nascerLigado.test.ts, src/regras/origemDoCadastro.test.ts, src/regras/pedidoDeParticipacao.test.ts, src/regras/pedidoDeParticipacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/useCartaoNaUrl.test.tsx
   - 26 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
@@ -931,41 +933,41 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/entrada-paineis.spec.ts e2e/pagina-publica.spec.ts`
 - `/equipe/` (Equipe): [Equipe, grupos e permissões](#equipe)
   - escrevem o endereço: (app/) src/paginas/CartaoPessoa.tsx, src/paginas/PerfilDaEquipe.tsx, src/regras/conviteDaPessoa.test.ts, src/regras/conviteDaPessoa.ts, src/ui/Casca.tsx, src/ui/base/base.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/configuracoes.spec.ts e2e/grupos-da-equipe.spec.ts e2e/importacao.spec.ts e2e/meus-valores.spec.ts e2e/objetos-sem-demanda.spec.ts e2e/perfil.spec.ts e2e/topo-do-cartao.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/grupos-da-equipe.spec.ts e2e/importacao.spec.ts e2e/meus-valores.spec.ts e2e/objetos-sem-demanda.spec.ts e2e/perfil.spec.ts e2e/topo-do-cartao.spec.ts`
 - `/equipe/perfil/` (PerfilDaEquipe): [Perfil profissional e foto](#perfil)
   - escrevem o endereço: (app/) src/paginas/EquipeDaPessoaNoTopo.test.tsx, src/paginas/UsuarioDaEquipe.tsx, src/regras/menuDaBolinha.test.ts, src/regras/menuDaBolinha.ts, src/ui/EquipeDoCartao.test.tsx
 - `/financeiro/` (HubDoFinanceiro): [Financeiro](#financeiro)
   - escrevem o endereço: (app/) src/paginas/Financeiro.test.tsx, src/paginas/financeiro/AbasDoFinanceiro.tsx, src/paginas/financeiro/Graficos.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts, src/ui/MenuFinanceiro.test.tsx, src/ui/MenuFinanceiro.tsx, src/ui/painel/Painel.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/atalhos.spec.ts e2e/financeiro.spec.ts e2e/parcelas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/atalhos.spec.ts e2e/financeiro.spec.ts e2e/parcelas.spec.ts`
 - `/financeiro/contas/` (Financeiro): [Financeiro](#financeiro)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/financeiro/Graficos.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/conferencia.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/mais-no-titulo-das-secoes.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts e2e/recebimentos-excluidos.spec.ts`
 - `/financeiro/direitos/` (HubDoFinanceiro): [Parcelas e recebimentos](#parcelas)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/paginas/financeiro/Graficos.tsx, src/regras/enderecosAntigos.test.ts, src/regras/enderecosAntigos.ts, src/regras/painelInicial.test.ts, src/regras/painelInicial.ts, src/ui/MenuFinanceiro.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/parcelas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/parcelas.spec.ts`
 - `/financeiro/obrigacoes/` (HubDoFinanceiro): [Parcelas e recebimentos](#parcelas)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/regras/enderecosAntigos.test.ts, src/regras/enderecosAntigos.ts, src/ui/MenuFinanceiro.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts`
 - `/financeiro/saidas/` (HubDoFinanceiro): [Financeiro](#financeiro)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/paginas/financeiro/Graficos.tsx, src/ui/MenuFinanceiro.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
 - `/inicio/` (Inicio): [Painel inicial](#painel-inicial)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/Conferencia.test.tsx, src/paginas/Conferencia.tsx, src/paginas/Configuracoes.test.tsx, src/paginas/Configuracoes.tsx, src/paginas/Entrada.tsx, src/paginas/Equipe.tsx, src/paginas/Financeiro.test.tsx, src/paginas/Financeiro.tsx, src/paginas/Home.tsx, src/paginas/Lucros.tsx, src/paginas/MeusValores.test.tsx, src/paginas/MeusValores.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/MaisDoMenu.test.tsx, src/ui/MenuFinanceiro.test.tsx, src/ui/SubmenuLateral.test.tsx
-  - 45 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
+  - 46 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
 - `/lucros/` (Lucros): [Lucro dos sócios](#lucros)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
 - `/mensagens/` (Mensagens): [Mensagens e avisos](#mensagens)
   - escrevem o endereço: (app/) src/paginas/Inicio.test.tsx, src/paginas/Inicio.tsx, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/mencoes-de-itens.spec.ts e2e/mensagens.spec.ts e2e/painel-inicial.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/mencoes-de-itens.spec.ts e2e/mensagens.spec.ts e2e/painel-inicial.spec.ts`
 - `/meus-valores/` (MeusValores): [Meus valores](#meus-valores)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/MeusValores.test.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meus-valores.spec.ts`
 - `/minha-conta/` (MinhaConta): [Entrada e minha conta](#conta)
   - escrevem o endereço: (app/) src/paginas/Entrada.tsx, src/paginas/EquipeNoTopo.test.tsx, src/paginas/PerfilDaEquipe.tsx, src/regras/menuDaBolinha.test.ts, src/regras/menuDaBolinha.ts, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/atalhos.spec.ts e2e/entrada-paineis.spec.ts e2e/foto.spec.ts e2e/mensagens.spec.ts e2e/perfil.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/atalhos.spec.ts e2e/entrada-paineis.spec.ts e2e/foto.spec.ts e2e/mensagens.spec.ts e2e/perfil.spec.ts`
 - `/modelos-de-lista/` (ModelosDeLista): [Checklists e modelos](#listas)
   - escrevem o endereço: (app/) src/paginas/Contratos.tsx, src/paginas/Demandas.tsx, src/paginas/ListasDoCartao.tsx, src/paginas/Tarefas.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/checklists-com-grupos.spec.ts e2e/demandas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/checklists-com-grupos.spec.ts e2e/demandas.spec.ts`
 - `/pessoas/` (Pessoas): [Pessoas](#pessoas)
   - escrevem o endereço: (app/) src/paginas/CartaoCompromisso.tsx, src/paginas/CartaoContrato.tsx, src/paginas/CartaoDemanda.tsx, src/paginas/CartaoProcesso.tsx, src/paginas/CartaoTarefa.tsx, src/paginas/ImportarPessoas.test.tsx, src/paginas/ImportarPessoas.tsx, src/paginas/Inicio.test.tsx, src/paginas/NovaPessoa.tsx, src/paginas/PartesDoProcesso.test.tsx, src/paginas/PartesDoProcesso.tsx, src/paginas/Pessoas.test.tsx, src/paginas/UsuarioDaEquipe.tsx, src/paginas/financeiro/DetalheFinanceiro.tsx, src/paginas/inicio/Blocos.tsx, src/regras/anotacao.ts, src/regras/buscaGeral.test.ts, src/regras/buscaGeral.ts, src/regras/consentimentoSemData.test.ts, src/regras/consentimentoSemData.ts, src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/origemDaPessoa.test.ts, src/regras/origemDoCadastro.test.ts, src/regras/origemDoCadastro.ts, src/regras/painelInicial.test.ts, src/regras/painelInicial.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/Comentarios.test.tsx, src/ui/PaginaModulo.test.tsx, src/ui/abrirItem.test.tsx, src/ui/atalhos.test.tsx, src/ui/useCartaoNaUrl.test.tsx
   - 41 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
@@ -976,7 +978,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/cadastro.spec.ts e2e/cliente-ao-contrato.spec.ts e2e/nova-pessoa-no-cartao.spec.ts e2e/pessoas.spec.ts e2e/planilha-provisoria.spec.ts e2e/sair-do-cadastro.spec.ts`
 - `/processos/` (PainelProcessos): [Processos](#processos)
   - escrevem o endereço: (app/) src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/painelInicial.ts, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/prazo-da-tarefa.spec.ts e2e/processos.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/prazo-da-tarefa.spec.ts e2e/processos.spec.ts`
 - `/processos/administrativo/` (Processos): [Processos](#processos)
   - escrevem o endereço: (app/) src/paginas/Mensagens.test.tsx, src/regras/anotacao.test.ts, src/regras/buscaGeral.test.ts, src/regras/enderecosAntigos.test.ts, src/regras/graficosDeProcessos.test.ts, src/regras/inclusao.test.ts, src/regras/mensagens.test.ts, src/regras/nascerLigado.test.ts, src/regras/origemDaPessoa.test.ts, src/regras/painelInicial.test.ts, src/regras/painelProcessos.test.ts, src/regras/pedidoDeParticipacao.test.ts, src/regras/processo.ts, src/regras/processoPartesERecursos.test.ts, src/ui/Casca.tsx, src/ui/painel/Painel.test.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/arrumacao-do-cartao.spec.ts`
@@ -991,7 +993,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - 36 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
 - `/tarefas/meu-tempo/` (MeuTempo): [Tempo nas tarefas](#tempo)
   - escrevem o endereço: (app/) src/paginas/Tarefas.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meu-tempo.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/meu-tempo.spec.ts`
 - `/tarefas/nova/` (FormularioTarefa): [Tarefas](#tarefas)
   - escrevem o endereço: (app/) src/paginas/CartaoContrato.tsx, src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/Inicio.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/Tarefas.tsx, src/regras/novoNaAnotacao.test.ts, src/regras/novoNaAnotacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/LigarDoModulo.test.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/avisos-da-tarefa.spec.ts e2e/copiar-tarefa.spec.ts e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`

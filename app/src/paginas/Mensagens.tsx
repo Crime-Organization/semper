@@ -25,6 +25,7 @@ import { atualizarNaoLidas, naoLidas } from '../ui/mensagens';
 import { useCtx } from '../ui/sessao';
 import { TextoComMencoes } from '../ui/TextoComMencoes';
 import { dataHora, relativo, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import './Mensagens.css';
 
 /** O botão do meio do mouse: abre o link em outra aba sem disparar o clique comum. */
@@ -52,7 +53,7 @@ export default function Mensagens() {
   return <div className="miolo pagina-mensagens">
     <header className="mensagens-cabeca">
       <div>
-        <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
+        <TituloComAjuda tela="mensagens" />
         <p className="lead">Menções com @, prazos, lembretes, pedidos para participar, quando incluem você num item ou num grupo, as demandas que nascem dos compromissos e as tarefas que você pediu ou que voltaram para você.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}

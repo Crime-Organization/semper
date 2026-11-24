@@ -587,9 +587,13 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'ajuda',
     titulo: 'Ajuda e atalhos',
-    resumo: 'A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).',
-    arquivos: ['ajuda', 'atalhos'],
-    armadilhas: ['Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.']
+    resumo: 'A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).',
+    arquivos: ['ajuda', 'atalhos', 'BotaoDeAjuda'],
+    armadilhas: [
+      'Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.',
+      'Tela nova que não é de módulo ganha uma entrada em `AJUDA_DAS_TELAS` (`regras/ajuda.ts`) e o título com o "?" (`TituloComAjuda`, ou `useAjudaDaTela` com o `aoAbrirAjuda` do `CabecaDoPainel` nos painéis); aba nova do Financeiro, uma linha em `AJUDA_DA_ABA` (`paginas/financeiro/Hub.tsx`). Uma chamada só por tela: duas abririam duas janelas na mesma tecla.',
+      'Os cadastros (`CADASTROS` de `App.tsx`: Nova pessoa, Novo contrato… e Importar pessoas) ainda não têm o "?": abrem numa janela por cima da página, onde a tecla "?" não vale, e cada etapa já se explica. Pôr a ajuda neles é tarefa própria, se o dono pedir.'
+    ]
   },
   {
     id: 'rotinas',

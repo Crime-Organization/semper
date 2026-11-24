@@ -11,6 +11,7 @@ import { InterruptorDosAtalhos } from '../ui/atalhos';
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { EmailsDePrazo } from './EmailsDePrazo';
 import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
@@ -22,7 +23,7 @@ export default function PaginaMinhaConta() {
   const eu = ctx.equipe.find(m => m.id === ctx.perfil.id) ?? ctx.perfil;
   return <div className="miolo">
     <header>
-      <h1 className="titulo">Minha conta<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="minhaConta" />
       <p className="lead">Seus dados de acesso e o seu perfil profissional, que é a base da sua página no site do escritório.</p>
     </header>
     <MinhaConta aoSalvar={() => recarregar(false)} />
@@ -39,13 +40,13 @@ export default function PaginaMinhaConta() {
   </div>;
 }
 
-/** Os atalhos de uma tecla só (#86): quem dita por voz pode desligá-los, e é aqui que se religa (desligados, nem o "?" abre a lista). */
+/** Os atalhos de uma tecla só (#86): quem dita por voz pode desligá-los, e é aqui que se religa (desligados, nem a tecla "?" abre a ajuda da tela). */
 function Teclado() {
   return <section aria-labelledby="tTeclado" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <TituloSecao id="tTeclado">Teclado</TituloSecao>
     <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <InterruptorDosAtalhos className="perfil-no-site" />
-      <Nota>Nas páginas dos módulos, / vai à busca, N abre o cadastro novo e ? mostra a lista; no cartão da tarefa, T liga o cronômetro. Desligue se você dita por voz ou se as letras disparam algo sem querer.</Nota>
+      <Nota>Nas páginas dos módulos, / vai à busca e N abre o cadastro novo; em qualquer tela, ? abre a ajuda dela, com os atalhos; no cartão da tarefa, T liga o cronômetro. Desligue se você dita por voz ou se as letras disparam algo sem querer.</Nota>
     </Cartao>
   </section>;
 }
