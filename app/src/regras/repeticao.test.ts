@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { REPETICAO } from '../dados/limites';
 import {
-  avisoDaRepeticao, avisoDasSeguintes,
+  avisoDaRepeticao, avisoDasSeguintes, avisoDoLapis, camposPorExtenso, camposQueMudamNasSeguintes, falhaNoLapis, passosDoLapis, perguntaDosCampos,
   CONFERENCIAS_DA_REPETICAO, dataDaVez, descreverRepeticao, REPETICAO_VAZIA, regraDosCampos, regraNoLimite, somarMeses, vezDaData, vezesParaGerar, vezNaLista,
   type CamposRepeticao, type SerieDeRepeticao, type VezNaLista
 } from './repeticao';
@@ -151,5 +151,68 @@ describe('O aviso de "esta e as seguintes"', () => {
     // Dado / Quando / Então
     expect(avisoDasSeguintes('mudados', 1)).toBe('1 compromisso mudado na repetição.');
     expect(avisoDasSeguintes('arquivados', 5)).toBe('5 compromissos arquivados. A repetição parou.');
+  });
+});
+
+describe('O lápis do compromisso que se repete (#417)', () => {
+  it('dados os campos de antes e os gravados, quando compara, então ficam só o título, o local, a equipe e as pessoas que mudaram', () => {
+    // Dado
+    const antes = { titulo: 'Reunião', local: 'Sala 1', responsavel_id: 'u-ana', participantes: ['u-bia'], pessoas: ['p1'], observacoes: null };
+    // Quando
+    const mudou = camposQueMudamNasSeguintes(antes, { ...antes, local: 'Sala 2', participantes: [], observacoes: 'Nova' });
+    // Então: as observações mudam só nesta data
+    expect(mudou).toEqual({ local: 'Sala 2', participantes: [] });
+    expect(camposQueMudamNasSeguintes(antes, { ...antes, observacoes: 'Nova' })).toEqual({});
+  });
+
+  it('dado o lápis sem o título (ele muda no próprio lugar), quando compara, então o título não entra', () => {
+    // Dado / Quando / Então
+    expect(camposQueMudamNasSeguintes({ titulo: 'Reunião', local: null }, { local: null })).toEqual({});
+  });
+
+  it.each([
+    [{ titulo: 'x' }, 'o título'],
+    [{ local: 'x', responsavel_id: 'u-ana', participantes: [] }, 'o local e a equipe'],
+    [{ pessoas: [], titulo: 'x', local: null }, 'o título, o local e as pessoas']
+  ])('dados os campos %o, quando a pergunta os cita, então vêm por extenso, sem repetir', (campos, texto) => {
+    // Dado / Quando / Então
+    expect(camposPorExtenso(campos)).toBe(texto);
+    expect(perguntaDosCampos(campos)).toBe(`Este compromisso se repete. Mudar ${texto} só nesta data, ou nesta e nas seguintes ainda em aberto?`);
+  });
+
+  it('dado o lápis que só gravou esta data, quando avisa, então não há aviso próprio (vale o de sempre, com Desfazer)', () => {
+    // Dado / Quando / Então
+    expect(avisoDoLapis({ codigo: 'K1', seguintes: null, repetidos: null, demanda: null })).toBeNull();
+  });
+
+  it('dadas as seguintes mudadas, a repetição nova ou a demanda mudada, quando avisa, então diz cada coisa', () => {
+    // Dado / Quando / Então
+    expect(avisoDoLapis({ codigo: 'K1', seguintes: 3, repetidos: null, demanda: null })).toBe('4 compromissos mudados na repetição.');
+    expect(avisoDoLapis({ codigo: 'K1', seguintes: null, repetidos: { ids: ['a', 'b'], semSala: ['2026-12-08'] }, demanda: { dias: 7, nascidas: 0 } }))
+      .toBe('Compromisso K1 atualizado. Ele agora se repete, com mais 2 datas na agenda. Em 1 data (08/12/2026), a sala estava ocupada, e o compromisso ficou sem sala.'
+        + ' A demanda passa a nascer 7 dias antes de cada data em aberto.');
+    expect(avisoDoLapis({ codigo: 'K1', seguintes: null, repetidos: null, demanda: { dias: null, nascidas: 0 } }))
+      .toBe('Compromisso K1 atualizado. As datas em aberto não geram mais demanda. As que já nasceram continuam.');
+  });
+});
+
+describe('Os passos do lápis na repetição (#417)', () => {
+  it('dado o compromisso que já se repete, quando o lápis grava, então a demanda vem antes das seguintes', () => {
+    // Dado / Quando / Então: quem se tira das seguintes ainda muda a demanda das datas em aberto
+    expect(passosDoLapis(true)).toEqual(['demanda', 'seguintes']);
+  });
+
+  it('dado o compromisso que ainda não se repete, quando o lápis grava, então a repetição nasce antes da demanda', () => {
+    // Dado / Quando / Então
+    expect(passosDoLapis(false)).toEqual(['repetir', 'demanda']);
+  });
+
+  it.each([
+    ['seguintes', 'mudar as seguintes'],
+    ['repetir', 'repeti-lo'],
+    ['demanda', 'mudar a demanda de cada data']
+  ] as const)('dado o passo %s que não deu, quando avisa, então diz que esta data ficou gravada e o que faltou', (passo, faltou) => {
+    // Dado / Quando / Então
+    expect(falhaNoLapis('K1', passo, 'Sem permissão.')).toBe(`O compromisso K1 foi atualizado, mas não foi possível ${faltou}: Sem permissão.`);
   });
 });

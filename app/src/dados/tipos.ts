@@ -1706,6 +1706,11 @@ export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
   | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+/**
+ * Os campos que o lápis muda "nesta e nas seguintes" do compromisso que se repete (#417): o título, o local, a equipe e as pessoas.
+ * Ausente: não muda. A lista fica em CAMPOS_DAS_SEGUINTES (regras/repeticao.ts), a mesma que o banco aceita.
+ */
+export type CamposDasSeguintes = Pick<DadosCompromisso, 'titulo' | 'local' | 'responsavel_id' | 'participantes' | 'pessoas'>;
 /** Linha das listagens de compromissos (tabela, quadro e agenda). */
 export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes' | 'grupos'
   | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'sala_id' | 'repeticao_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
@@ -1777,6 +1782,11 @@ export interface DadosCompromissos {
    * mudam). Mudar a data recomeça a série dali: as seguintes passam a ser contadas da data nova. Devolve quantos mudaram.
    */
   compromissoMudarSeguintes(id: string, quando: Pick<Compromisso, 'data' | 'hora' | 'hora_fim'>): Promise<number>;
+  /**
+   * Passa os campos dados (o título, o local, a equipe e as pessoas, #417) às datas seguintes da série ainda em aberto, quando quem
+   * chama muda todas elas; esta data não muda (a tela já a gravou). Devolve quantas datas seguintes mudaram.
+   */
+  compromissoMudarCamposSeguintes(id: string, campos: CamposDasSeguintes): Promise<number>;
   /** Arquiva este compromisso e os seguintes da série ainda em aberto, e a série para de se repetir. Devolve quantos foram arquivados. */
   compromissoArquivarSeguintes(id: string): Promise<number>;
   /**

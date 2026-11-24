@@ -4,7 +4,7 @@ import type { Compromisso, ItemDoCompromisso, Membro } from '../dados/tipos';
 import { ITENS_DO_COMPROMISSO } from '../dados/limites';
 import {
   CAMPOS_COMPROMISSO, camposDoCompromisso, compromissoVazio, itensPorModulo, MODULOS_DO_COMPROMISSO, motivoSemMaisItens, continuaPeloProcesso, dadosDoCompromisso, detalheDoLigado, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, fmtHora, horarioDoCompromisso, linhasDoCompromisso, mencaoNegadaNoCompromisso,
-  motivoSemMencaoNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, podeMudarCompromisso, primeiraEtapaComErroCompromisso, quandoDoCompromisso, semSairDoCompromisso, soLeNaLista, TIPOS,
+  motivoSemMencaoNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, podeMudarCompromisso, primeiraEtapaComErroCompromisso, quandoDoCompromisso, repeticaoDoCompromisso, semSairDoCompromisso, soLeNaLista, TIPOS,
   TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, valorLegivelCompromisso, veOCompromisso, type CamposCompromisso
 } from './compromisso';
 
@@ -80,6 +80,18 @@ describe('Cadastro de compromisso', () => {
     const c = camposDoCompromisso(salvo({ hora_fim: '16:00:00', resultado: 'Acordo' }));
     // Então
     expect(c).toMatchObject({ tipo: 'audiencia', titulo: '', data: '10/11/2026', hora: '14:30', horaFim: '16:00', modalidade: 'presencial', local: 'Fórum', processoId: 'p1', responsavelId: 'u-ana', participantes: ['u-bruno'], pessoas: [''], resultado: 'Acordo' });
+    expect(c).toMatchObject({ seRepete: false, repetir: '', demandaDiasAntes: '' });
+  });
+
+  it('quando abre no lápis uma data de uma repetição (#417), então ela já se repete (não se escolhe de novo) e traz a demanda de cada data', () => {
+    // Quando
+    const repeticao = { id: 'r1', frequencia: 'mes' as const, intervalo: 1, inicio: '2026-11-10', ate: null, vezes: null };
+    const comDemanda = camposDoCompromisso(salvo({ tipo: 'reuniao', repeticao_id: 'r1', repeticao: { ...repeticao, demanda_dias_antes: 7 } }));
+    const semDemanda = camposDoCompromisso(salvo({ tipo: 'reuniao', repeticao_id: 'r1', repeticao }));
+    // Então
+    expect(comDemanda).toMatchObject({ seRepete: true, repetir: '', demandaDiasAntes: '7' });
+    expect(semDemanda).toMatchObject({ seRepete: true, demandaDiasAntes: '' });
+    expect(repeticaoDoCompromisso(comDemanda)).toBeNull();
   });
 
   it('quando os erros são por etapa, então cada etapa vê só os campos dela', () => {

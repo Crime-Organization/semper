@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiaLancado } from '../dados/tipos';
 import { DEMANDA_DO_COMPROMISSO, TAMANHO_DEMANDA } from '../dados/limites';
 import {
-  AVISOS_DA_DEMANDA_DO_COMPROMISSO, avisoDasDemandasNascidas, descreverDemandaDoCompromisso, diaDaDemanda, diasAntesDosCampos, diaUtilDoEscritorio, enderecoDaDemanda,
+  AVISOS_DA_DEMANDA_DO_COMPROMISSO, avisoDaDemandaMudada, avisoDasDemandasNascidas, demandaAGravar, descreverDemandaDoCompromisso, diaDaDemanda, diasAntesDosCampos, diaUtilDoEscritorio, enderecoDaDemanda,
   erroDosDiasAntes, tituloDaDemanda
 } from './demandaDoCompromisso';
 import { CONFERENCIAS_DA_REPETICAO, REPETICAO_VAZIA } from './repeticao';
@@ -82,6 +82,19 @@ describe('O campo "Gerar demanda" no cadastro', () => {
     expect(conferir('', '0')).toBeNull();
   });
 
+  it('dado o compromisso que já se repete (no lápis do cartão, #417), quando o campo é conferido, então ele é cobrado', () => {
+    // Dado / Quando / Então
+    expect(CONFERENCIAS_DA_REPETICAO.demandaDiasAntes.map(r => r({ ...REPETICAO_VAZIA, seRepete: true, demandaDiasAntes: '0', data: '15/03/2030' })).find(Boolean))
+      .toBe(`Informe de 1 a ${DEMANDA_DO_COMPROMISSO.diasMaximos} dias, ou deixe em branco.`);
+  });
+
+  it('dada a demanda ligada, mudada ou desligada no lápis, quando avisa, então diz o que vale para as datas em aberto', () => {
+    // Dado / Quando / Então
+    expect(avisoDaDemandaMudada(7, 1)).toBe('A demanda passa a nascer 7 dias antes de cada data em aberto. 1 demanda já nasceu para as datas mais próximas.');
+    expect(avisoDaDemandaMudada(1, 0)).toBe('A demanda passa a nascer 1 dia antes de cada data em aberto.');
+    expect(avisoDaDemandaMudada(null, 0)).toBe('As datas em aberto não geram mais demanda. As que já nasceram continuam.');
+  });
+
   it('dado o campo preenchido ou em branco, quando vai para o banco, então vira o número ou null', () => {
     // Dado / Quando / Então
     expect(diasAntesDosCampos({ demandaDiasAntes: ' 7 ' })).toBe(7);
@@ -98,5 +111,30 @@ describe('Os avisos na caixa de Mensagens', () => {
     expect(AVISOS_DA_DEMANDA_DO_COMPROMISSO.data_mudou.trecho(m)).toContain('de 15/03/2030 para 18/03/2030');
     expect(AVISOS_DA_DEMANDA_DO_COMPROMISSO.cancelado.trecho(m)).toContain('A demanda continua');
     expect(enderecoDaDemanda('d1')).toBe('/demandas/?id=d1');
+  });
+});
+
+describe('A demanda de cada data no lápis do cartão (#417)', () => {
+  const lapis = { modulo: true, dias: null, atual: null, repetiuAgora: false, seRepete: false };
+  it('dada a repetição dada agora, quando decide a demanda, então só liga se houver dias', () => {
+    // Dado / Quando / Então
+    expect(demandaAGravar({ ...lapis, repetiuAgora: true, dias: 7 })).toBe(7);
+    expect(demandaAGravar({ ...lapis, repetiuAgora: true, dias: null })).toBeUndefined();
+  });
+
+  it('dado o compromisso que já se repete, quando decide a demanda, então liga, muda ou desliga só se os dias mudaram', () => {
+    // Dado / Quando / Então
+    expect(demandaAGravar({ ...lapis, seRepete: true, dias: 7, atual: null })).toBe(7);
+    expect(demandaAGravar({ ...lapis, seRepete: true, dias: 3, atual: 7 })).toBe(3);
+    expect(demandaAGravar({ ...lapis, seRepete: true, dias: null, atual: 7 })).toBeNull();
+    expect(demandaAGravar({ ...lapis, seRepete: true, dias: 7, atual: 7 })).toBeUndefined();
+    expect(demandaAGravar({ ...lapis, seRepete: true, dias: null, atual: null })).toBeUndefined();
+  });
+
+  it('dado o compromisso que não se repete nem ganhou repetição, ou o módulo Demandas desligado, quando decide a demanda, então não mexe', () => {
+    // Dado / Quando / Então
+    expect(demandaAGravar({ ...lapis, dias: 7 })).toBeUndefined();
+    expect(demandaAGravar({ ...lapis, modulo: false, repetiuAgora: true, dias: 7 })).toBeUndefined();
+    expect(demandaAGravar({ ...lapis, modulo: false, seRepete: true, dias: null, atual: 7 })).toBeUndefined();
   });
 });

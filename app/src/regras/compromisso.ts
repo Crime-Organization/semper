@@ -35,7 +35,10 @@ export const TIPOS = Object.keys(TIPOS_COMPROMISSO) as TipoCompromisso[];
 export const MODALIDADES: Record<ModalidadeCompromisso, string> = { presencial: 'Presencial', virtual: 'Virtual' };
 
 // ---------- formulário ----------
-/** Campos do formulário de compromisso, como digitados. A repetição (#307) só vale no cadastro de um compromisso novo. */
+/**
+ * Campos do formulário de compromisso, como digitados. A repetição (#307) se escolhe no cadastro e, desde a #417, também no lápis do
+ * cartão do compromisso que ainda não se repete; no que já se repete, o lápis só muda a demanda de cada data.
+ */
 export interface CamposCompromisso extends CamposRepeticao {
   tipo: TipoCompromisso;
   titulo: string;
@@ -131,7 +134,9 @@ export const fmtHora = (hora: string | null | undefined) => hora ? hora.slice(0,
 export const camposDoCompromisso = (c: Compromisso): CamposCompromisso => ({
   tipo: c.tipo, titulo: c.titulo || '', data: fmtData(c.data), hora: fmtHora(c.hora), horaFim: fmtHora(c.hora_fim), modalidade: c.modalidade || '', local: c.local || '',
   processoId: c.processo_id || '', salaId: c.sala_id || '', responsavelId: c.responsavel_id, participantes: [...c.participantes], pessoas: c.pessoas.length ? c.pessoas.map(p => p.id) : [''],
-  geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || '', ...REPETICAO_VAZIA
+  geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || '', ...REPETICAO_VAZIA,
+  // O que se repete (#417): o lápis não escolhe a repetição de novo, mas liga, muda ou desliga a demanda de cada data.
+  seRepete: !!c.repeticao_id, demandaDiasAntes: c.repeticao?.demanda_dias_antes ? String(c.repeticao.demanda_dias_antes) : ''
 });
 /** A repetição escolhida no cadastro (só depois de conferida), ou null: não se repete, ou o tipo escolhido não se repete. */
 export const repeticaoDoCompromisso = (c: CamposCompromisso) => doTipo(c).repete ? regraDosCampos(c) : null;
