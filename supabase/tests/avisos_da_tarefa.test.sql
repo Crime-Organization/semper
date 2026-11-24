@@ -161,9 +161,23 @@ select throws_ok($$ insert into public.mensagens_da_tarefa (escritorio_id, perfi
   values ('e0000000-0000-0000-0000-000000000001', pg_temp.perfil(3), 'solicitante', '70000000-0000-0000-0000-000000000001') $$, '42501', null,
   'Ninguém cria aviso pela tela');
 select throws_ok($$ update public.mensagens_da_tarefa set aviso = 'aprovacao' $$, '42501', null, 'Só a data de leitura muda pela tela');
--- Quando o Davi (administrador de outro escritório) lê a tabela, então não vê nada
+-- Dados um aviso do Davi numa tarefa do escritório dele e outro endereçado a ele, mas gravado no escritório 1 (o que a regra de leitura
+-- só esconde pelo escritório), quando o Davi lê e marca tudo como lido, então só vê e marca o do escritório dele
 select pg_temp.entrar(4);
-select is((select count(*) from public.mensagens_da_tarefa), 0::bigint, 'Outro escritório não vê os avisos');
+insert into public.tarefas (id, titulo, responsavel_id, criado_por) values
+  ('70000000-0000-0000-0000-000000000006', 'Tarefa do outro escritório', auth.uid(), auth.uid());
+reset role;
+insert into public.mensagens_da_tarefa (escritorio_id, perfil_id, aviso, tarefa_id) values
+  ('e0000000-0000-0000-0000-000000000002', pg_temp.perfil(4), 'solicitante', '70000000-0000-0000-0000-000000000006'),
+  ('e0000000-0000-0000-0000-000000000001', pg_temp.perfil(4), 'solicitante', '70000000-0000-0000-0000-000000000001');
+set local role authenticated;
+select is((select array_agg(tarefa_id) from public.mensagens_da_tarefa), array['70000000-0000-0000-0000-000000000006'::uuid],
+  'Outro escritório só vê os avisos do escritório dele');
+update public.mensagens_da_tarefa set lido_em = now();
+select is(pg_temp.avisos(4, '70000000-0000-0000-0000-000000000001'), 'solicitante/-/nova', 'Nem marca como lido o aviso de outro escritório');
+-- Quando a Ana (escritório 1) lê a tabela, então não vê o aviso do Davi
+select pg_temp.entrar(1);
+select is((select count(*) from public.mensagens_da_tarefa where perfil_id = pg_temp.perfil(4)), 0::bigint, 'O escritório 1 não vê os avisos do Davi');
 
 -- ---------- quem sai ----------
 -- Quando a Bia é excluída da equipe, então os avisos dela saem
