@@ -279,7 +279,7 @@ export const ASSUNTOS: Assunto[] = [
       'SalasDoEscritorio', pasta('app/src/paginas/agenda'),
       'agenda', 'compromisso', 'repeticao', 'sala', 'demandaDoCompromisso',
       'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'menu-lateral',
-      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
+      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'modelo_das_datas_novas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
     ],
     tabelas: ['compromissos', 'compromisso_etiquetas', 'compromisso_historico', 'compromisso_ligacoes', 'compromisso_pessoas', 'compromisso_repeticoes', 'salas'],
     dados: ['DadosCompromissos', 'DadosSalas'],

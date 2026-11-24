@@ -809,6 +809,11 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
   // Por enquanto, as regras de quem vê o quê só valem para os contratos, as parcelas e as anotações; nos outros módulos, toda conta vê tudo.
   entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
   gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje),
+  /** A rotina diária das repetições (como privado.estender_repeticoes) num dia (aaaa-mm-dd); sem ele, hoje. Devolve os compromissos criados. */
+  estenderRepeticoes: (hoje?: string) => {
+    const criados = bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).flatMap(r => gerarRepeticoesNoFalso(r, hoje).ids);
+    gravar(); return criados;
+  },
   /** A rotina dos lembretes num instante (ISO, ex.: '2030-11-15T13:05:00-03:00'); sem ele, agora. */
   gerarLembretes: (quando?: string) => gerarLembretes(quando ? new Date(quando) : undefined),
   equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
@@ -2051,12 +2056,15 @@ const alteroAsDatasEmAberto = (serieId: string, vezDesde: string | null, diaDesd
   .filter(x => x.repeticao_id === serieId && (vezDesde === null || x.repeticao_data! >= vezDesde) && (diaDesde === null || x.data >= diaDesde) && compromissoEmAberto(x))
   .every(alteroCompromisso);
 /**
- * Como privado.gerar_repeticoes: cada data nova copia a última da série ainda ativa (pessoas, equipe, processo, sala, ligações e
- * etiquetas), na coluna de início do quadro; a sala ocupada numa data fica de fora só nela. Sem nenhuma ativa, a série não cresce.
+ * Como privado.gerar_repeticoes: cada data nova copia a última da série ainda em aberto (pessoas, equipe, processo, sala, ligações e
+ * etiquetas) ou, sem nenhuma em aberto, a última não arquivada (20261124144021_modelo_das_datas_novas.sql, #417: a realizada e a
+ * cancelada não recebem o "esta e as seguintes"), na coluna de início do quadro; a sala ocupada numa data fica de fora só nela. Sem
+ * nenhuma ativa, a série não cresce.
  */
 function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda()): RepeticaoCriada {
   const criada: RepeticaoCriada = { ids: [], semSala: [] };
-  const modelo = bd.compromissos!.filter(c => c.repeticao_id === serie.id && !c.arquivado_em).sort((a, b) => b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
+  const modelo = bd.compromissos!.filter(c => c.repeticao_id === serie.id && !c.arquivado_em)
+    .sort((a, b) => Number(compromissoEmAberto(b)) - Number(compromissoEmAberto(a)) || b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
   if (!modelo) return criada;
   const inicio = bd.colunas.find(c => c.modulo === 'compromissos' && c.marco === 'inicio')?.id ?? null;
   for (const { data } of vezesParaGerar(serie, serie.gerada_ate, hoje)) {

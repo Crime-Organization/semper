@@ -2382,6 +2382,46 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Quando / Então
           await expect(SD.compromissoMudarCamposSeguintes(ids[0], { titulo: 'Do Bruno' })).rejects.toThrow(SEGUINTES_DE_OUTROS);
         });
+
+        // Os mesmos casos de supabase/tests/modelo_das_datas_novas.test.sql (#417).
+        /** A rotina diária das repetições num dia; devolve os compromissos que ela criou. */
+        const estender = (hoje: string) => (window as unknown as { SEMPER_FALSO: { estenderRepeticoes(hoje: string): string[] } }).SEMPER_FALSO.estenderRepeticoes(hoje);
+        it('dado a última data da repetição cancelada, quando o lápis muda esta e as seguintes e a rotina estende a série, então as datas novas vêm com os campos novos', async () => {
+          // Dado: uma reunião semanal sem fim, com a última data já gerada cancelada
+          const r = await reuniao({ data: dia(2), hora: '09:00', local: 'Sala de cima' });
+          const { ids } = await SD.compromissoRepetir(r.id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: null });
+          const ultima = (await SD.compromissoObter(ids.at(-1)!))!;
+          const cancelado = (await SD.colunasListar('compromissos')).find(c => c.nome === 'Cancelado')!;
+          await SD.compromissoMover(ultima.id, cancelado.id, null);
+          // Quando: muda o título, o local e o horário da primeira seguinte em diante, e a rotina estende a série
+          const titulo = marca();
+          await SD.compromissoMudarCamposSeguintes(ids[0], { titulo, local: 'Sala de baixo' });
+          await SD.compromissoMudarSeguintes(ids[0], { data: (await SD.compromissoObter(ids[0]))!.data, hora: '15:00', hora_fim: null });
+          const criados = await Promise.all(estender(somarDias(ultima.data, 1)).map(id => SD.compromissoObter(id)));
+          // Então: as datas novas desta série copiam a última em aberto, não a cancelada
+          const novas = criados.filter(c => c!.repeticao_id === ultima.repeticao_id);
+          expect(novas.length).toBeGreaterThan(0);
+          for (const c of novas) expect(c).toMatchObject({ titulo, local: 'Sala de baixo', hora: expect.stringMatching(/^15:00/) });
+          // E a cancelada continua como estava
+          expect(await SD.compromissoObter(ultima.id)).toMatchObject({ titulo: ultima.titulo, local: 'Sala de cima' });
+        });
+
+        it('dado uma repetição sem nenhuma data em aberto, quando a rotina a estende, então a data nova copia a última não arquivada', async () => {
+          // Dado: todas as datas realizadas, a última com outro título
+          const r = await reuniao({ data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: null });
+          const realizado = (await SD.colunasListar('compromissos')).find(c => c.marco === 'concluido')!;
+          for (const id of [r.id, ...ids]) await SD.compromissoMover(id, realizado.id, null);
+          const titulo = marca();
+          await SD.compromissoAtualizar(ids.at(-1)!, { titulo });
+          const ultima = (await SD.compromissoObter(ids.at(-1)!))!;
+          // Quando
+          const criados = await Promise.all(estender(somarDias(ultima.data, 1)).map(id => SD.compromissoObter(id)));
+          // Então
+          const novas = criados.filter(c => c!.repeticao_id === ultima.repeticao_id);
+          expect(novas.length).toBeGreaterThan(0);
+          expect(novas[0]).toMatchObject({ titulo });
+        });
       });
 
       describe('nas salas do escritório (#308)', () => {
