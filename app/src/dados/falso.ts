@@ -38,7 +38,9 @@ import { MESMA_DEMANDA, outraDaRelacao, parDaRelacao } from '../regras/demandasR
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa, diligenciaAoGravar, estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
-import { dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTROS, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
+import {
+  CAMPOS_DAS_SEGUINTES, dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES, vezDaData, vezesParaGerar, vezNaLista
+} from '../regras/repeticao';
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
 import type { AvisoDaDemandaDoCompromisso, AvisoDaTarefa, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
@@ -4606,6 +4608,24 @@ export const SD: Dados = {
     serie.demanda_dias_antes = dias;
     const criadas = dias === null ? [] : gerarDemandasNoFalso(serie.id, hojeNaAgenda(), eu);
     gravar(); return espera(criadas);
+  },
+  // Como public.compromisso_mudar_campos_seguintes (20261124135119_campos_das_seguintes.sql, #417): esta data a tela já gravou.
+  async compromissoMudarCamposSeguintes(id, campos) {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c || !alteroCompromisso(c)) return erro(SEM_PERMISSAO);
+    const serie = serieDoFalso(c.repeticao_id);
+    if (!serie) throw new Error('Este compromisso não se repete.');
+    if (Object.keys(campos).some(k => !(CAMPOS_DAS_SEGUINTES as readonly string[]).includes(k))) throw new Error(SO_ESTES_CAMPOS_NAS_SEGUINTES);
+    if (!alteroAsDatasEmAberto(serie.id, c.repeticao_data!, null)) throw new Error(SEGUINTES_DE_OUTROS);
+    const lista = estaEAsSeguintes(c).filter(x => x.id !== c.id);
+    if (!Object.keys(campos).length) return espera(0);
+    // Confere todas antes de mudar alguma, como a transação do banco. As datas que o banco muda não avisam de inclusão.
+    const novos = lista.map(x => [x, prepararCompromisso(campos, x)] as const);
+    novos.forEach(([x, d]) => {
+      historicoCompromisso(x, d);
+      Object.assign(x, d, { atualizado_em: agora(), atualizado_por: eu });
+    });
+    gravar(); return espera(lista.length);
   },
   async compromissoArquivarSeguintes(id) {
     const c = bd.compromissos!.find(x => x.id === id);

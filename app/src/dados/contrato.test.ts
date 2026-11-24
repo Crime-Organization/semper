@@ -16,7 +16,7 @@ import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
-import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS } from '../regras/repeticao';
+import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES } from '../regras/repeticao';
 import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO, SEM_OBJETO_DA_DEMANDA, SEPARAR_POUCOS, SEPARAR_REPETIDOS } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
@@ -2336,6 +2336,51 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await SD.compromissoGerarDemandas(r.id, 7)).toHaveLength(1);
           // Então: as datas e a demanda que o sistema cria não são inclusões novas (como no banco, onde as funções não avisam)
           expect(await inclusoes()).toEqual(antes);
+        });
+
+        // Os mesmos casos de supabase/tests/campos_das_seguintes.test.sql (#417).
+        it('quando o lápis muda o título, o local, a equipe e as pessoas desta e das seguintes, então as seguintes em aberto mudam; esta, a anterior e a realizada não', async () => {
+          // Dado
+          const { id: pessoa } = await criar(marca());
+          const r = await reuniao({ data: dia(2), local: 'Sala de cima' });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(5));
+          const realizado = (await SD.colunasListar('compromissos')).find(c => c.marco === 'concluido')!;
+          await SD.compromissoMover(ids[3], realizado.id, null);
+          // Quando: da segunda data em diante
+          const mudadas = await SD.compromissoMudarCamposSeguintes(ids[0], { titulo: '  Reunião nova ', local: 'Sala de baixo', participantes: ['u-bruno'], pessoas: [pessoa] });
+          // Então: a terceira e a quarta mudam, com o título limpo
+          expect(mudadas).toBe(2);
+          const [primeira, segunda, terceira, quarta, quinta] = await Promise.all([r.id, ...ids].map(id => SD.compromissoObter(id)));
+          for (const c of [terceira, quarta]) expect(c).toMatchObject({ titulo: 'Reunião nova', local: 'Sala de baixo', participantes: ['u-bruno'], pessoas: [{ id: pessoa }] });
+          // E esta (a tela já a gravou), a anterior e a realizada não
+          for (const c of [primeira, segunda, quinta]) expect(c).toMatchObject({ local: 'Sala de cima', participantes: [] });
+          // Quando passa a responsabilidade ao Bruno, então ele sai dos participantes das seguintes
+          await SD.compromissoMudarCamposSeguintes(ids[0], { responsavel_id: 'u-bruno', participantes: ['u-ana'] });
+          expect(await SD.compromissoObter(ids[1])).toMatchObject({ responsavel_id: 'u-bruno', participantes: ['u-ana'] });
+        });
+
+        it('quando o lápis manda outro campo, uma pessoa que não existe ou nenhum campo, ou o compromisso não se repete, então é recusado ou nada muda', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(3));
+          const unica = await reuniao({ data: dia(3) });
+          // Quando / Então
+          await expect(SD.compromissoMudarCamposSeguintes(r.id, { sala_id: null } as Parameters<Dados['compromissoMudarCamposSeguintes']>[1]))
+            .rejects.toThrow(SO_ESTES_CAMPOS_NAS_SEGUINTES);
+          await expect(SD.compromissoMudarCamposSeguintes(r.id, { pessoas: ['p-de-fora'] })).rejects.toThrow('Pessoa não encontrada neste escritório.');
+          expect(await SD.compromissoMudarCamposSeguintes(r.id, {})).toBe(0);
+          await expect(SD.compromissoMudarCamposSeguintes(unica.id, { titulo: 'x' })).rejects.toThrow('Este compromisso não se repete.');
+          expect((await SD.compromissoObter(ids[1]))!.titulo).toBe((await SD.compromissoObter(r.id))!.titulo);
+        });
+
+        it('dado o Bruno posto numa data só, quando tenta mudar o título dela e das seguintes, então é recusado', async () => {
+          // Dado
+          const r = await reuniao({ data: dia(2) });
+          const { ids } = await SD.compromissoRepetir(r.id, semanal(4));
+          await SD.compromissoAtualizar(ids[0], { participantes: ['u-bruno'] });
+          entrarComo('u-bruno');
+          // Quando / Então
+          await expect(SD.compromissoMudarCamposSeguintes(ids[0], { titulo: 'Do Bruno' })).rejects.toThrow(SEGUINTES_DE_OUTROS);
         });
       });
 

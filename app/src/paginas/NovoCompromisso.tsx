@@ -7,13 +7,18 @@
 // nasce ligado a ele e, ao salvar, volta ao cartão dele. A sala do escritório (#308), se escolhida, é conferida antes de seguir da etapa
 // "Onde" e antes de salvar: ocupada no horário, o cadastro diz com qual compromisso e não salva (o banco também recusa). Vindo do
 // "Acompanhar na agenda" do processo de propriedade intelectual (?processo=…&acompanhar=protecao, #317), ele já vem com os prazos do
-// INPI: o título, a primeira data, a repetição e a demanda de cada data.
+// INPI: o título, a primeira data, a repetição e a demanda de cada data. No lápis do cartão (#417), o compromisso que ainda não se repete
+// ganha a repetição (nascem as datas seguintes, como aqui); no que já se repete, a demanda de cada data se liga, muda ou desliga, e mudar o
+// título, o local, a equipe ou as pessoas pergunta "só esta" ou "esta e as seguintes".
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
+import { SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
 import { CLIENTES_MAXIMOS, DEMANDA_DO_COMPROMISSO, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { avisoDasDemandasNascidas, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
-import { avisoDaRepeticao, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, type FimDaRepeticao } from '../regras/repeticao';
+import {
+  avisoDaRepeticao, avisoDoLapis, camposQueMudamNasSeguintes, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, type FeitoNoLapis, type FimDaRepeticao
+} from '../regras/repeticao';
+import { perguntarNosCampos } from './agenda/soEstaOuSeguintes';
 import {
   camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
@@ -26,7 +31,7 @@ import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Aviso, Campo, CampoData, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
@@ -141,8 +146,11 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   }, [buscaAtrasada]);
   useEffect(() => {
     if (idAtualizar) {
+      // A leitura que chega depois de a tela recomeçar (o React refaz o efeito) não apaga o que a pessoa já escolheu no formulário.
+      let vale = true;
       SD.compromissoObter(idAtualizar)
         .then(x => {
+          if (!vale) return;
           if (!x) throw new Error('Compromisso não encontrado.');
           setAlvo(x);
           setC(camposDoCompromisso(x));
@@ -150,8 +158,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           porPessoas(x.pessoas);
         })
         .catch(falha)
-        .finally(() => setPronto(true));
-      return;
+        .finally(() => { if (vale) setPronto(true); });
+      return () => { vale = false; };
     }
     if (pessoaInicial) SD.pessoaObter(pessoaInicial).then(p => { if (p) { setPessoas([p]); setC(x => ({ ...x, pessoas: [p.id] })); } }).catch(falha);
     if (processoInicial) void ligarProcesso(processoInicial);
@@ -183,10 +191,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const conferidos = new Set(ETAPAS_COMPROMISSO.filter(e => conferidas.has(e.id)).flatMap(e => e.campos));
   const erros: Partial<Record<keyof CamposCompromisso, string>> = Object.fromEntries(Object.entries(validarCompromisso(c)).filter(([campo]) => conferidos.has(campo as keyof CamposCompromisso)));
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso, exigeHora = TIPOS_COMPROMISSO[c.tipo].exigeHora;
-  // A repetição (#307) só no cadastro de um compromisso novo, e só nos tipos que se repetem (audiência e perícia, não).
-  const repeteAqui = !idAtualizar && !edicao && TIPOS_COMPROMISSO[c.tipo].repete;
-  // A demanda de cada data (#307, parte B), só com o módulo Demandas ligado no escritório.
+  // A repetição (#307) no cadastro e, desde a #417, também no lápis do compromisso que ainda não se repete; só nos tipos que se repetem
+  // (audiência e perícia, não).
+  const repeteAqui = !c.seRepete && TIPOS_COMPROMISSO[c.tipo].repete;
+  // A demanda de cada data (#307, parte B), só com o módulo Demandas ligado no escritório: na repetição escolhida agora ou na que o
+  // compromisso já tem (no lápis, #417, onde ela se liga, muda ou desliga).
   const geraDemanda = !!ctx.escritorio?.modulos?.demandas;
+  const mostraDemanda = geraDemanda && TIPOS_COMPROMISSO[c.tipo].repete && (!!c.repetir || c.seRepete);
 
   // ---------- etapas ----------
   function irPara(i: number) {
@@ -278,6 +289,21 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   };
   /** O lápis mostra este campo da data e do horário? */
   const mostra = (campo: string) => !datasFora?.campos.includes(campo);
+  /**
+   * O que o lápis faz na repetição, depois de gravar esta data (#417), como o cadastro: passa os campos às seguintes (se a pessoa
+   * escolheu "esta e as seguintes"); dá repetição ao compromisso que ainda não se repete (nascem as datas seguintes) e, com ela, a
+   * demanda de cada data; no que já se repete, liga, muda ou desliga a demanda das datas em aberto.
+   */
+  async function gravarNaSerie(alvo: Compromisso, seguintes: CamposDasSeguintes | null): Promise<FeitoNoLapis> {
+    const r: FeitoNoLapis = { codigo: alvo.codigo, seguintes: null, repetidos: null, demanda: null };
+    if (seguintes) r.seguintes = await SD.compromissoMudarCamposSeguintes(alvo.id, seguintes);
+    const regra = repeteAqui ? repeticaoDoCompromisso(c) : null;
+    if (regra) r.repetidos = await SD.compromissoRepetir(alvo.id, regra);
+    const dias = geraDemanda ? diasAntesDosCampos(c) : null;
+    const mudaDemanda = geraDemanda && (r.repetidos ? dias !== null : c.seRepete && dias !== (alvo.repeticao?.demanda_dias_antes ?? null));
+    if (mudaDemanda) r.demanda = { dias, nascidas: (await SD.compromissoGerarDemandas(alvo.id, dias)).length };
+    return r;
+  }
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -303,15 +329,28 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         const antes = noLapis(dadosDoCompromisso(camposDoCompromisso(edicao ? { ...alvo, titulo: edicao.titulo } : alvo)));
         const eu = ctx.perfil.id, peloLigado = continuaPeloProcesso(alvo, dados.processo_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
         const { dados: gravar, ficou } = semSairDoCompromisso(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
+        // Numa data de uma repetição (#417): o título, o local, a equipe e as pessoas mudados valem só nela ou também nas seguintes? Quem
+        // se tira do compromisso sai só desta data pela saída do cartão; das seguintes, pela gravação delas (por isso, o que ela pediu).
+        const nasSeguintes = camposQueMudamNasSeguintes(antes, ficou ? dados : gravar);
+        const escolha = alvo.repeticao_id && Object.keys(nasSeguintes).length ? await perguntarNosCampos(nasSeguintes) : 'esta';
+        if (!escolha) { setOcupado(false); return; }
         await SD.compromissoAtualizar(alvo.id, gravar);
+        // A repetição, depois desta data gravada: as seguintes, as datas novas e a demanda. Se não der, esta data fica gravada, e a pessoa sabe.
+        const naSerie = await gravarNaSerie(alvo, escolha === 'seguintes' ? nasSeguintes : null).catch(e => {
+          falha(new Error(`O compromisso ${alvo.codigo} foi atualizado, mas não foi possível mudar a repetição: ${(e as Error).message}`));
+          return null;
+        });
+        const avisoDaSerie = naSerie && avisoDoLapis(naSerie);
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
-          await sairDoCartao('compromissos', alvo.id, 'Compromisso atualizado. Você saiu dele, e a saída ficou no histórico.');
+          await sairDoCartao('compromissos', alvo.id, `${avisoDaSerie || 'Compromisso atualizado.'} Você saiu dele, e a saída ficou no histórico.`);
           saidaLiberada.current = true;
           navegar(ENDERECO);   // fora do compromisso, o cartão diria "não encontrado"
           return;
         }
-        feito('Compromisso atualizado.', 'atualização do compromisso', async () => {
+        // Mexendo na repetição, sem Desfazer (como o "esta e as seguintes" da data): cada data pode ter mudado de um jeito.
+        if (avisoDaSerie) avisar(avisoDaSerie);
+        else if (naSerie) feito('Compromisso atualizado.', 'atualização do compromisso', async () => {
           await SD.compromissoAtualizar(alvo.id, antes);
           return { tipo: 'compromissoAtualizado', id: alvo.id };
         });
@@ -400,12 +439,14 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           <input type="number" inputMode="numeric" min={2} max={REPETICAO.vezesMaximas} {...propsDoCampo('repetirVezes', { dica: true, erro: erros.repetirVezes })}
             value={c.repetirVezes} onChange={e => mudar({ repetirVezes: e.target.value })} />
         </Campo>}
-        {geraDemanda && <Campo rotulo="Gerar demanda (dias antes)" para="demandaDiasAntes" erro={erros.demandaDiasAntes}
-          dica="Opcional. A demanda de cada data nasce esses dias corridos antes (no dia útil anterior, se cair em fim de semana ou feriado), com o mesmo contrato e as mesmas pessoas. O responsável é avisado em Mensagens.">
-          <input type="number" inputMode="numeric" min={1} max={DEMANDA_DO_COMPROMISSO.diasMaximos} {...propsDoCampo('demandaDiasAntes', { dica: true, erro: erros.demandaDiasAntes })}
-            value={c.demandaDiasAntes} onChange={e => mudar({ demandaDiasAntes: e.target.value })} />
-        </Campo>}
       </>}
+      {mostraDemanda && <Campo rotulo="Gerar demanda (dias antes)" para="demandaDiasAntes" erro={erros.demandaDiasAntes}
+        dica={c.seRepete
+          ? 'Vale para as datas em aberto desta repetição. A demanda de cada data nasce esses dias corridos antes (no dia útil anterior, se cair em fim de semana ou feriado). Em branco, não nasce mais nenhuma; as que já nasceram continuam.'
+          : 'Opcional. A demanda de cada data nasce esses dias corridos antes (no dia útil anterior, se cair em fim de semana ou feriado), com o mesmo contrato e as mesmas pessoas. O responsável é avisado em Mensagens.'}>
+        <input type="number" inputMode="numeric" min={1} max={DEMANDA_DO_COMPROMISSO.diasMaximos} {...propsDoCampo('demandaDiasAntes', { dica: true, erro: erros.demandaDiasAntes })}
+          value={c.demandaDiasAntes} onChange={e => mudar({ demandaDiasAntes: e.target.value })} />
+      </Campo>}
     </>,
     onde: () => <>
       {c.processoId

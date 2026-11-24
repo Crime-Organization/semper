@@ -60,6 +60,13 @@ const quantas = (n: number, uma: string, varias: string) => `${n} ${n === 1 ? um
 export const descreverDemandaDoCompromisso = (dias: number) => `Nasce ${quantas(dias, 'dia', 'dias')} antes de cada data`;
 /** O que se soma ao aviso do cadastro: as demandas que já nasceram (as datas que já estavam no prazo). Nenhuma: nada. */
 export const avisoDasDemandasNascidas = (n: number) => n ? ` ${quantas(n, 'demanda já nasceu', 'demandas já nasceram')} para as datas mais próximas.` : '';
+/**
+ * O aviso do lápis do cartão que liga, muda ou desliga a demanda de uma repetição que já existe (#417): vale para as datas em aberto. As
+ * demandas que já nasceram ficam (são trabalho de verdade); desligada, não nasce mais nenhuma.
+ */
+export const avisoDaDemandaMudada = (dias: number | null, nascidas: number) => dias === null
+  ? 'As datas em aberto não geram mais demanda. As que já nasceram continuam.'
+  : `A demanda passa a nascer ${quantas(dias, 'dia', 'dias')} antes de cada data em aberto.${avisoDasDemandasNascidas(nascidas)}`;
 
 // ---------- caixa de Mensagens ----------
 /** O que o aviso tem para montar o texto (a demanda vem à parte: sem ela, a caixa só diz que a pessoa não a vê mais). */

@@ -5,11 +5,11 @@
 // dia dos meses mais curtos (28/02, 30/04) e volta ao dia 31 nos meses que o têm; a anual de 29/02 cai em 28/02 nos anos que não são
 // bissextos. É a mesma conta do banco (privado.data_da_vez, em 20261122232804_compromissos_que_se_repetem.sql, que soma um
 // "interval" à primeira data): os dois testes conferem os mesmos casos.
-import type { FrequenciaRepeticao, RegraDeRepeticao, RepeticaoCompromisso, RepeticaoCriada } from '../dados/tipos';
+import type { CamposDasSeguintes, DadosCompromisso, FrequenciaRepeticao, RegraDeRepeticao, RepeticaoCompromisso, RepeticaoCriada } from '../dados/tipos';
 import { REPETICAO } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
 import { DIAS_NA_SEMANA, somarDias } from './prazos';
-import { erroDosDiasAntes, type CamposDemandaDoCompromisso } from './demandaDoCompromisso';
+import { avisoDaDemandaMudada, erroDosDiasAntes, type CamposDemandaDoCompromisso } from './demandaDoCompromisso';
 
 /** Meses num ano. */
 const MESES_NO_ANO = 12;
@@ -87,7 +87,8 @@ export type FimDaRepeticao = 'nunca' | 'data' | 'vezes';
 export const FINS_DA_REPETICAO: Record<FimDaRepeticao, string> = { nunca: 'Sem fim', data: 'Até uma data', vezes: 'Depois de algumas vezes' };
 /**
  * Os campos da repetição no cadastro do compromisso, como digitados. Sem `repetir`, o compromisso não se repete. A demanda de cada data
- * (`demandaDiasAntes`, #307 parte B) só vale com a repetição.
+ * (`demandaDiasAntes`, #307 parte B) só vale com a repetição: a escolhida agora (`repetir`) ou a que o compromisso já tem (`seRepete`, no
+ * lápis do cartão, #417, onde a demanda se liga, muda ou desliga).
  */
 export interface CamposRepeticao extends CamposDemandaDoCompromisso {
   repetir: FrequenciaRepeticao | '';
@@ -97,8 +98,10 @@ export interface CamposRepeticao extends CamposDemandaDoCompromisso {
   /** dd/mm/aaaa. */
   repetirAte: string;
   repetirVezes: string;
+  /** O compromisso já se repete (no lápis do cartão, #417): a repetição não se escolhe de novo, mas a demanda de cada data muda. */
+  seRepete: boolean;
 }
-export const REPETICAO_VAZIA: CamposRepeticao = { repetir: '', aCada: '1', termina: 'nunca', repetirAte: '', repetirVezes: '', demandaDiasAntes: '' };
+export const REPETICAO_VAZIA: CamposRepeticao = { repetir: '', aCada: '1', termina: 'nunca', repetirAte: '', repetirVezes: '', demandaDiasAntes: '', seRepete: false };
 
 const inteiro = (t: string) => /^\d+$/.test(t.trim()) ? Number(t.trim()) : NaN;
 const dataOuNada = (t: string) => { try { return lerData(t); } catch { return null; } };
@@ -116,7 +119,7 @@ export const CONFERENCIAS_DA_REPETICAO: Record<'aCada' | 'repetirAte' | 'repetir
   ],
   repetirVezes: [c => !c.repetir || c.termina !== 'vezes' || (inteiro(c.repetirVezes) >= 2 && inteiro(c.repetirVezes) <= REPETICAO.vezesMaximas)
     ? null : `Informe de 2 a ${REPETICAO.vezesMaximas} vezes, contando a primeira.`],
-  demandaDiasAntes: [c => c.repetir ? erroDosDiasAntes(c.demandaDiasAntes) : null]
+  demandaDiasAntes: [c => c.repetir || c.seRepete ? erroDosDiasAntes(c.demandaDiasAntes) : null]
 };
 
 /** A regra que vai para o banco (só depois de conferida), ou null se o compromisso não se repete. */
@@ -126,13 +129,13 @@ export const regraDosCampos = (c: CamposRepeticao): RegraDeRepeticao | null => !
 };
 
 const quantas = (n: number, uma: string, varias: string) => `${n} ${n === 1 ? uma : varias}`;
+/** O que se soma ao aviso quando a sala estava ocupada em algumas das datas novas (nelas, o compromisso ficou sem sala). Nenhuma: nada. */
+const avisoDaSalaOcupada = (semSala: readonly string[]) => semSala.length
+  ? ` Em ${quantas(semSala.length, 'data', 'datas')} (${semSala.map(fmtData).join(', ')}), a sala estava ocupada, e o compromisso ficou sem sala.`
+  : '';
 /** O aviso depois de cadastrar o compromisso que se repete: quantas datas a mais e, se houver, em quantas a sala estava ocupada. */
-export function avisoDaRepeticao(codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>) {
-  const mais = `Compromisso ${codigo} cadastrado, com mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.`;
-  return criada.semSala.length
-    ? `${mais} Em ${quantas(criada.semSala.length, 'data', 'datas')} (${criada.semSala.map(fmtData).join(', ')}), a sala estava ocupada, e o compromisso ficou sem sala.`
-    : mais;
-}
+export const avisoDaRepeticao = (codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>) =>
+  `Compromisso ${codigo} cadastrado, com mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.` + avisoDaSalaOcupada(criada.semSala);
 
 /** A repetição por extenso, como o cartão mostra: "Todo ano", "A cada 10 anos, até 31/12/2050", "Toda semana, 12 vezes". */
 export function descreverRepeticao(r: Pick<RegraDeRepeticao, 'frequencia' | 'intervalo' | 'ate' | 'vezes'>) {
@@ -157,3 +160,50 @@ export const avisoDasSeguintes = (mudanca: MudancaDasSeguintes, n: number) => AV
  */
 export const SEGUINTES_DE_OUTROS = 'Há datas seguintes desta repetição que você não pode mudar. Mude só esta data ou peça a quem cuida da repetição.';
 export const DEMANDA_NA_SERIE_DE_OUTROS = 'Há datas desta repetição que você não pode mudar. Peça a quem cuida da repetição para marcar a demanda.';
+
+// ---------- o lápis do cartão (#417) ----------
+/** Os campos que o lápis muda "nesta e nas seguintes": o título, o local, a equipe e as pessoas. O banco aceita só estes. */
+export const CAMPOS_DAS_SEGUINTES: readonly (keyof CamposDasSeguintes)[] = ['titulo', 'local', 'responsavel_id', 'participantes', 'pessoas'];
+/** A recusa a outro campo, a mesma do banco (20261124135119_campos_das_seguintes.sql) e do banco fictício. */
+export const SO_ESTES_CAMPOS_NAS_SEGUINTES = 'Só o título, o local, a equipe e as pessoas mudam nas datas seguintes.';
+/** Os campos das seguintes que a gravação muda: os que \`depois\` traz e estão diferentes de \`antes\`. Nenhum: nada a perguntar. */
+export function camposQueMudamNasSeguintes(antes: DadosCompromisso, depois: DadosCompromisso): CamposDasSeguintes {
+  const iguais = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  return Object.fromEntries(CAMPOS_DAS_SEGUINTES.filter(campo => campo in depois && !iguais(antes[campo], depois[campo])).map(campo => [campo, depois[campo]]));
+}
+
+/** O que o lápis fez, além de gravar esta data: as seguintes que mudaram, as datas que nasceram e a demanda ligada, mudada ou desligada. */
+export interface FeitoNoLapis {
+  codigo: string;
+  /** Quantas datas seguintes mudaram ("esta e as seguintes"); null: só esta. */
+  seguintes: number | null;
+  /** A repetição dada agora ao compromisso; null: nenhuma. */
+  repetidos: Pick<RepeticaoCriada, 'ids' | 'semSala'> | null;
+  /** A demanda de cada data, se mudou: os dias (null: desligada) e quantas já nasceram. */
+  demanda: { dias: number | null; nascidas: number } | null;
+}
+/**
+ * O aviso do lápis que mexe na repetição (sem Desfazer, como o "esta e as seguintes" da data), ou null se ele só gravou esta data (aí
+ * vale o aviso de sempre, com Desfazer).
+ */
+export function avisoDoLapis(f: FeitoNoLapis): string | null {
+  if (f.seguintes === null && !f.repetidos && !f.demanda) return null;
+  const partes = [
+    f.seguintes === null ? `Compromisso ${f.codigo} atualizado.` : avisoDasSeguintes('mudados', f.seguintes + 1),
+    f.repetidos && `Ele agora se repete, com mais ${quantas(f.repetidos.ids.length, 'data', 'datas')} na agenda.${avisoDaSalaOcupada(f.repetidos.semSala)}`,
+    f.demanda && avisoDaDemandaMudada(f.demanda.dias, f.demanda.nascidas)
+  ];
+  return partes.filter(Boolean).join(' ');
+}
+/** Como cada campo das seguintes aparece na pergunta. O responsável e os participantes são "a equipe". */
+const NOMES_DOS_CAMPOS_DAS_SEGUINTES: Record<keyof CamposDasSeguintes, string> = {
+  titulo: 'o título', local: 'o local', responsavel_id: 'a equipe', participantes: 'a equipe', pessoas: 'as pessoas'
+};
+/** Os campos por extenso, sem repetir, na ordem de CAMPOS_DAS_SEGUINTES: "o título", "o local e a equipe", "o título, o local e as pessoas". */
+export function camposPorExtenso(campos: CamposDasSeguintes) {
+  const nomes = [...new Set(CAMPOS_DAS_SEGUINTES.filter(c => c in campos).map(c => NOMES_DOS_CAMPOS_DAS_SEGUINTES[c]))];
+  return nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}` : nomes[0] ?? '';
+}
+/** A pergunta "só esta / esta e as seguintes" ao mudar os campos das seguintes (#417). */
+export const perguntaDosCampos = (campos: CamposDasSeguintes) =>
+  `Este compromisso se repete. Mudar ${camposPorExtenso(campos)} só nesta data, ou nesta e nas seguintes ainda em aberto?`;

@@ -278,8 +278,8 @@ export const ASSUNTOS: Assunto[] = [
       'Compromissos', 'NovoCompromisso', 'CartaoCompromisso', 'CompromissosDoItem', 'CompromissosLigados', 'ItensDoCompromisso', 'QuandoDoCompromisso',
       'SalasDoEscritorio', pasta('app/src/paginas/agenda'),
       'agenda', 'compromisso', 'repeticao', 'sala', 'demandaDoCompromisso',
-      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'demanda-do-compromisso', 'salas', 'menu-lateral',
-      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
+      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'menu-lateral',
+      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
     ],
     tabelas: ['compromissos', 'compromisso_etiquetas', 'compromisso_historico', 'compromisso_ligacoes', 'compromisso_pessoas', 'compromisso_repeticoes', 'salas'],
     dados: ['DadosCompromissos', 'DadosSalas'],
@@ -287,7 +287,7 @@ export const ASSUNTOS: Assunto[] = [
     armadilhas: [
       'O conflito de horário das salas é conferido no banco e em `regras/sala.ts` (o fictício): mude os dois.',
       'Cada data de um compromisso que se repete é um cartão; só quem pode mudar as datas mexe na repetição (teste do banco `repeticao_so_quem_muda_as_datas`).',
-      'O `falso.ts` reescreve à mão as regras da série (repetir, mudar "esta e as seguintes", arquivar as seguintes, só a próxima data no quadro): cada caso do teste do banco precisa do caso igual em `dados/contrato.test.ts`.',
+      'O `falso.ts` reescreve à mão as regras da série (repetir, mudar "esta e as seguintes" a data e o horário ou o título, o local, a equipe e as pessoas, arquivar as seguintes, só a próxima data no quadro): cada caso do teste do banco precisa do caso igual em `dados/contrato.test.ts`.',
       'A demanda que nasce de cada data avisa o responsável: o aviso aparece em `paginas/Mensagens.tsx` (`ItemDaDemandaDoCompromisso`; veja [Mensagens e avisos](#mensagens)).',
       'As datas seguintes e as demandas de cada data também nascem de rotinas do banco, sem ninguém logado (veja [Rotinas automáticas](#rotinas)). As contas de datas ficam em `regras/prazos.ts`.'
     ],

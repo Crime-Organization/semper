@@ -1,0 +1,5 @@
+{
+  "titulo": "Repetição no cartão do compromisso",
+  "texto": "Um compromisso que já existe pode passar a se repetir pelo Editar do cartão, e as datas seguintes nascem como no cadastro. Na repetição, o Editar também liga, muda ou desliga o \"Gerar demanda\" das datas em aberto e, ao mudar o título, o local, a equipe ou as pessoas, pergunta se vale só para esta data ou também para as seguintes.",
+  "ondeAchar": "Agenda, cartão do compromisso, botão Editar (o lápis), campos Repetir e Gerar demanda (dias antes); o título também muda clicando nele."
+}

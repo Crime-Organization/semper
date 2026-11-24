@@ -1363,6 +1363,8 @@ export const SD: Dados = {
   },
   compromissoMudarSeguintes: (id, q) => rpc('compromisso_mudar_seguintes', { p_id: id, p_data: q.data, p_hora: q.hora, p_hora_fim: q.hora_fim }),
   compromissoArquivarSeguintes: id => rpc('compromisso_arquivar_seguintes', { p_id: id }),
+  // O título, o local, a equipe e as pessoas desta e das seguintes (#417): a tela grava esta data, e o banco passa os campos às seguintes.
+  compromissoMudarCamposSeguintes: (id, campos) => rpc('compromisso_mudar_campos_seguintes', { p_id: id, p_campos: campos }),
   // A demanda de cada data (#307, parte B): o banco marca a repetição e já cria as que estão no prazo; as outras nascem na rotina diária.
   async compromissoGerarDemandas(id, dias) { return (await rpc('compromisso_gerar_demandas', { p_id: id, p_dias: dias }) as string[] | null) ?? []; },
   async compromissoDesligar(id, modulo, itemId) {

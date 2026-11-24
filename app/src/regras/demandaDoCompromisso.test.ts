@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiaLancado } from '../dados/tipos';
 import { DEMANDA_DO_COMPROMISSO, TAMANHO_DEMANDA } from '../dados/limites';
 import {
-  AVISOS_DA_DEMANDA_DO_COMPROMISSO, avisoDasDemandasNascidas, descreverDemandaDoCompromisso, diaDaDemanda, diasAntesDosCampos, diaUtilDoEscritorio, enderecoDaDemanda,
+  AVISOS_DA_DEMANDA_DO_COMPROMISSO, avisoDaDemandaMudada, avisoDasDemandasNascidas, descreverDemandaDoCompromisso, diaDaDemanda, diasAntesDosCampos, diaUtilDoEscritorio, enderecoDaDemanda,
   erroDosDiasAntes, tituloDaDemanda
 } from './demandaDoCompromisso';
 import { CONFERENCIAS_DA_REPETICAO, REPETICAO_VAZIA } from './repeticao';
@@ -80,6 +80,19 @@ describe('O campo "Gerar demanda" no cadastro', () => {
   it('dado o compromisso que não se repete, quando o campo é conferido, então nada é cobrado', () => {
     // Dado / Quando / Então
     expect(conferir('', '0')).toBeNull();
+  });
+
+  it('dado o compromisso que já se repete (no lápis do cartão, #417), quando o campo é conferido, então ele é cobrado', () => {
+    // Dado / Quando / Então
+    expect(CONFERENCIAS_DA_REPETICAO.demandaDiasAntes.map(r => r({ ...REPETICAO_VAZIA, seRepete: true, demandaDiasAntes: '0', data: '15/03/2030' })).find(Boolean))
+      .toBe(`Informe de 1 a ${DEMANDA_DO_COMPROMISSO.diasMaximos} dias, ou deixe em branco.`);
+  });
+
+  it('dada a demanda ligada, mudada ou desligada no lápis, quando avisa, então diz o que vale para as datas em aberto', () => {
+    // Dado / Quando / Então
+    expect(avisoDaDemandaMudada(7, 1)).toBe('A demanda passa a nascer 7 dias antes de cada data em aberto. 1 demanda já nasceu para as datas mais próximas.');
+    expect(avisoDaDemandaMudada(1, 0)).toBe('A demanda passa a nascer 1 dia antes de cada data em aberto.');
+    expect(avisoDaDemandaMudada(null, 0)).toBe('As datas em aberto não geram mais demanda. As que já nasceram continuam.');
   });
 
   it('dado o campo preenchido ou em branco, quando vai para o banco, então vira o número ou null', () => {
