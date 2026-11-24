@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  DATAS_VAZIAS, dataAtivaAoAbrir, dataMarcada, datasMudaram, datasQueValem, escolherDia, escreverData, marcarData, podeRemover, removerDatas, resumoDasDatas,
+  DATAS_VAZIAS, FIM_DO_DIA, dataAtivaAoAbrir, dataMarcada, datasMudaram, datasQueValem, escolherDia, escreverData, horariosDaLista, marcarData, podeRemover, removerDatas, resumoDasDatas,
   textoDaData, type CamposDasDatas, type PartesDasDatas
 } from './janelaDasDatas';
 
@@ -84,5 +84,25 @@ describe('A janela das datas do cartão (#422)', () => {
     // Quando / Então
     expect(resumoDasDatas([{ rotulo: 'Início', valor: '18/11/2026' }, { rotulo: 'Entrega', valor: '15/12/2030 às 14:00' }])).toBe('Início 18/11/2026 · Entrega 15/12/2030 às 14:00');
     expect(resumoDasDatas([{ rotulo: 'Início', valor: '18/11/2026' }, { rotulo: '', valor: 'Sem prazo' }])).toBe('Início 18/11/2026 · Sem prazo');
+  });
+});
+
+describe('A lista de horários da janela das datas (#431)', () => {
+  it('dada a janela, quando a pessoa abre a lista da hora, então vê o dia de 15 em 15 minutos e, no fim, o 23:59', () => {
+    // Quando
+    const lista = horariosDaLista();
+    // Então
+    expect(lista.slice(0, 3)).toEqual(['00:00', '00:15', '00:30']);
+    expect(lista).toContain('14:15');
+    expect(lista.slice(-2)).toEqual(['23:45', FIM_DO_DIA]);
+    expect(lista).toHaveLength(24 * 4 + 1);
+  });
+
+  it('dada uma hora gravada fora da lista (20:38), quando a janela abre, então ela entra no lugar dela, para continuar escolhida', () => {
+    // Quando
+    const lista = horariosDaLista('20:38');
+    // Então
+    expect(lista.slice(lista.indexOf('20:30'), lista.indexOf('20:30') + 3)).toEqual(['20:30', '20:38', '20:45']);
+    expect(horariosDaLista('14:00')).toEqual(horariosDaLista());
   });
 });

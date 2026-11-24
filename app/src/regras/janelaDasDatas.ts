@@ -5,6 +5,7 @@
 // Aqui, o rascunho da janela e o que cada clique faz nele. Tudo puro, sem tela nem banco: o que cada módulo grava fica em
 // regras/datasNoCartao.ts.
 import type { Lembrete } from '../dados/tipos';
+import { DIA, MINUTO } from '../ui/tempos';
 import { fmtData } from './pessoa';
 
 /** As duas datas que a janela pode ter: o início e a entrega (no compromisso, a data dele; no contrato, a assinatura). */
@@ -102,3 +103,26 @@ export interface PedacoDoResumo { rotulo: string; valor: string }
 export const SEPARADOR_DO_RESUMO = ' · ';
 /** O resumo curto das datas, para o cartão e o leitor de tela: "Início 20/11/2026 · Entrega 15/12/2030 às 14:00". */
 export const resumoDasDatas = (pedacos: readonly PedacoDoResumo[]) => pedacos.map(p => p.rotulo ? `${p.rotulo} ${p.valor}` : p.valor).join(SEPARADOR_DO_RESUMO);
+
+/** De quantos em quantos minutos vem a lista de horários da janela (#431): 09:00, 09:15, 09:30… (a audiência das 14:15 cabe). */
+export const PASSO_DA_LISTA_DE_HORARIOS = 15;
+/** O último minuto do dia, no fim da lista: o prazo eletrônico vale até as 23:59. */
+export const FIM_DO_DIA = '23:59';
+/** Quantos minutos tem o dia. */
+const MINUTOS_DO_DIA = DIA / MINUTO;
+/** Quantos minutos tem a hora. */
+const MINUTOS_DA_HORA = 60;
+
+/** Os minutos do dia em hh:mm ("09:05"). */
+const horaDosMinutos = (minutos: number) =>
+  `${String(Math.floor(minutos / MINUTOS_DA_HORA)).padStart(2, '0')}:${String(minutos % MINUTOS_DA_HORA).padStart(2, '0')}`;
+
+/**
+ * Os horários da lista da hora (#431): do 00:00 ao 23:45, de 15 em 15 minutos, e o 23:59. A hora gravada que não está na lista
+ * (ex.: 20:38, de antes da lista) entra no lugar dela, para continuar escolhida.
+ */
+export function horariosDaLista(atual = ''): string[] {
+  const lista = Array.from({ length: MINUTOS_DO_DIA / PASSO_DA_LISTA_DE_HORARIOS }, (_, i) => horaDosMinutos(i * PASSO_DA_LISTA_DE_HORARIOS));
+  lista.push(FIM_DO_DIA);
+  return atual && !lista.includes(atual) ? [...lista, atual].sort() : lista;
+}

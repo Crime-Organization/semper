@@ -293,7 +293,7 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await janela.getByRole('textbox', { name: 'Prazo', exact: true }).fill('15/12/2030');
     await calendarioDaJanela(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
     await expect(janela.getByRole('textbox', { name: 'Prazo', exact: true })).toHaveValue('20/12/2030');
-    await janela.getByLabel('Hora do prazo').fill('14:30');
+    await janela.getByLabel('Hora do prazo').selectOption('14:30');   // desde a #431, a hora vem numa lista de horários
     await janela.getByRole('combobox', { name: 'Lembrete' }).selectOption({ label: '1 hora antes' });
     await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
@@ -356,7 +356,7 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     const janela = janelaDasDatas(page);
     await janela.getByRole('checkbox', { name: 'Entrega' }).check();
     await janela.getByRole('textbox', { name: 'Prazo de entrega', exact: true }).fill('10/03/2031');
-    await janela.getByLabel('Hora do prazo de entrega').fill('16:00');
+    await janela.getByLabel('Hora do prazo de entrega').selectOption('16:00');   // desde a #431, a hora vem numa lista de horários
     await janela.getByLabel('Hora do prazo de entrega').press('Enter');
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Demanda atualizada.' })).toBeVisible();
@@ -378,8 +378,8 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     const janela = janelaDoQuando(page);
     await expect(janela.getByRole('group', { name: 'Calendário' })).toBeVisible();
     await janela.getByRole('textbox', { name: 'Data' }).fill('25/11/2030');
-    await janela.getByLabel('Hora do compromisso').fill('15:00');
-    await janela.getByLabel('Até').fill('16:00');
+    await janela.getByLabel('Hora do compromisso').selectOption('15:00');   // desde a #431, a hora vem numa lista de horários
+    await janela.getByLabel('Até').selectOption('16:00');   // desde a #431, a hora vem numa lista de horários
     await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Compromisso atualizado.' })).toBeVisible();
@@ -397,7 +397,7 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await cartao.getByRole('button', { name: /^Data e horário: / }).click();
     const janela = janelaDoQuando(page);
     // Quando
-    await janela.getByLabel('Hora do compromisso').fill('');
+    await janela.getByLabel('Hora do compromisso').selectOption('');   // desde a #431, a hora vem numa lista de horários
     await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(janela.getByRole('alert')).toHaveText('Informe a hora.');

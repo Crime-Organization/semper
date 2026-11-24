@@ -53,6 +53,8 @@ export const horaCurta = (hora: string) => {
 };
 /** Quem recebe o lembrete e como ele conta o prazo sem hora: a nota embaixo das opções do botão do lembrete (o sino, #299). */
 export const NOTA_DO_LEMBRETE = `Chega na caixa de Mensagens (e por e-mail) do responsável e de quem está junto. Sem hora, o lembrete conta o prazo às ${horaCurta(HORA_PADRAO_DO_LEMBRETE)}.`;
+/** A mesma nota, curta, embaixo do lembrete na janela das datas (#431: uma frase só, para a janela caber na tela). */
+export const NOTA_CURTA_DO_LEMBRETE = `Chega ao responsável e a quem está junto. Sem hora, conta às ${horaCurta(HORA_PADRAO_DO_LEMBRETE)}.`;
 /** Por que o botão do lembrete está desligado, e o erro do lembrete marcado sem prazo: sem prazo, não há do que lembrar. */
 export const LEMBRETE_SEM_PRAZO = 'Informe o prazo para marcar o lembrete';
 /**
