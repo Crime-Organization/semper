@@ -261,12 +261,15 @@ export const ASSUNTOS: Assunto[] = [
       + 'os papéis titular e inventor nas partes, a validade e os prazos do INPI na agenda.',
     arquivos: ['CamposDaProtecao', 'ValidadeDaProtecao', 'propriedadeIntelectual', 'propriedadeIntelectualNaAgenda',
       'propriedade-intelectual', 'propriedade-intelectual-na-agenda', 'propriedade_intelectual',
+      'propriedadeIntelectualDiasUteis', 'propriedade-intelectual-deferimento', 'papeis_e_deferimento_da_pi', 'ordem_do_deferimento_da_pi', 'area_com_papeis_da_pi', 'useCalendarioDoInpi',
       'processo', 'CartaoProcesso', 'NovoProcesso', 'PartesDoProcesso'],
     armadilhas: [
       'É um processo com campos a mais: as tabelas, as funções de dados e as telas são as de [Processos](#processos) (área `AREA_DA_PI`; campos e validação em `regras/processo.ts`; papéis em `paginas/PartesDoProcesso.tsx`).',
       'Os campos de PI e a validade são só do administrativo (`temProtecao`, #425): no judicial, o banco (gatilho `judicial_sem_protecao`) e o `falso.ts` os deixam vazios; o judicial da área liga-se ao administrativo inteiro, em Processos relacionados.',
       'O "Acompanhar na agenda" preenche o cadastro do compromisso que se repete (`compromissoRepetir`, `paginas/NovoCompromisso.tsx`; veja [Agenda e compromissos](#agenda)).',
-      'A ordem das datas (a concessão depois do depósito) é conferida no banco e no `falso.ts`; a frase (`CONCESSAO_ANTES_DO_DEPOSITO`, em `regras/propriedadeIntelectual.ts`) traduz o erro do banco em `dados/erros.ts`.'
+      'A ordem das datas (a concessão depois do depósito; a publicação do deferimento entre os dois, #418) é conferida no banco e no `falso.ts`; as frases (`ORDEM_DAS_DATAS`, em `regras/propriedadeIntelectual.ts`) traduzem os erros do banco em `dados/erros.ts`.',
+      'Os prazos de PI em dias contam só os dias úteis do INPI (#418): o órgão INPI de Feriados e prazos, lido por `paginas/processo/useCalendarioDoInpi.ts` e passado às contas (`CalendarioDoInpi`); sem ele, os feriados nacionais. Os papéis de PI fora da área são recusados no banco (gatilho `papel_so_da_pi`) e no `falso.ts`, com a frase `PAPEL_SO_DA_PI`; e o processo com esses papéis não sai da área (gatilho `area_com_papeis_da_pi`, regra `areaPodeMudar`, frase `PAPEIS_DA_PI_NA_TROCA_DE_AREA`).',
+      'Os compromissos dos prazos do INPI são achados pelo título (`compromissoDoAcompanhamento`): mudar o título muda o que o cartão reconhece; o "Atualizar as datas na agenda" usa `compromissoMudarSeguintes` na série e `compromissoAtualizar` no compromisso só, e só aparece se o histórico do processo tem o depósito, o deferimento ou a concessão mudados depois do `atualizado_em` do compromisso (`datasMudaramDepois`).'
     ],
     testes: ['processos', 'processo-partes-e-recursos', 'compromissos-que-se-repetem', 'repeticao']
   },

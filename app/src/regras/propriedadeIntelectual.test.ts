@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
-  AREA_DA_PI, CONCESSAO_ANTES_DO_DEPOSITO, campoDaProtecaoNaTela, camposDaProtecao, dadosDaProtecao, ehDePropriedadeIntelectual, fmtClassesNice, lerClassesNice, papeisDaProtecao, prazoPorExtenso,
+  AREA_DA_PI, CONCESSAO_ANTES_DO_DEFERIMENTO, CONCESSAO_ANTES_DO_DEPOSITO, DEFERIMENTO_ANTES_DO_DEPOSITO, campoDaProtecaoNaTela, camposDaProtecao, dadosDaProtecao, ehDePropriedadeIntelectual, extraNaTabela, fmtClassesNice, lerClassesNice, papeisDaProtecao, prazoPorExtenso,
   prazosDaProtecao, prazosPorVir, proximoPrazo, PROTECAO_VAZIA, situacaoDoPrazo, temProtecao, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CamposProtecao, type DatasDaProtecao,
   type OndeHaProtecao, type PrazoDaProtecao
 } from './propriedadeIntelectual';
@@ -76,14 +76,14 @@ describe('Classes de Nice', () => {
 });
 
 describe('Cadastro dos campos de propriedade intelectual', () => {
-  it('quando a marca é salva, então vão as datas, as classes e a especificação, e os campos de outros tipos ficam vazios', () => {
+  it('quando a marca é salva, então vão as datas (com a publicação do deferimento), as classes e a especificação, e os campos de outros tipos ficam vazios', () => {
     // Dado
-    const c = campos({ protecao: 'marca', deposito: '10/03/2020', concessao: '17/05/2022', classesNice: '45, 35', especificacao: ' Serviços jurídicos ',
+    const c = campos({ protecao: 'marca', deposito: '10/03/2020', deferimento: '05/04/2022', concessao: '17/05/2022', classesNice: '45, 35', especificacao: ' Serviços jurídicos ',
       apresentacaoMarca: 'mista', naturezaMarca: 'servico', variacoes: '3', linguagem: 'TypeScript', criacao: '01/01/2020' });
     // Quando
     const d = dadosDaProtecao(c);
     // Então
-    expect(d).toEqual({ protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', publicacao: null, criacao: null, apresentacao_marca: 'mista',
+    expect(d).toEqual({ protecao: 'marca', deposito: '2020-03-10', deferimento: '2022-04-05', concessao: '2022-05-17', publicacao: null, criacao: null, apresentacao_marca: 'mista',
       natureza_marca: 'servico', classes_nice: [35, 45], especificacao: 'Serviços jurídicos', variacoes: null, linguagem: null });
   });
 
@@ -286,5 +286,33 @@ describe('Situação de cada prazo', () => {
     expect(situacaoDoPrazo(proximo!, '2026-11-22')).toBe('extra');
     expect(prazosPorVir(r.datas, '2026-11-22')).toBe(14);
     expect(prazoPorExtenso(proximo!)).toBe('de 10/03/2026 a 10/06/2026 (com taxa extra até 10/12/2026)');
+  });
+});
+
+describe('A coluna do prazo extra na tabela dos prazos do INPI (#418)', () => {
+  it('dados os prazos extras pagos e o prazo após o deferimento, quando a tabela mostra a coluna, então só os pagos falam em taxa', () => {
+    // Dado / Quando / Então
+    expect(extraNaTabela({ tipo: 'anuidade', fimExtra: '2026-12-10' })).toBe('10/12/2026, com taxa');
+    expect(extraNaTabela({ tipo: 'prorrogacao', fimExtra: '2027-06-10' })).toBe('10/06/2027, com taxa');
+    expect(extraNaTabela({ tipo: 'quinquenio', fimExtra: '2027-06-10' })).toBe('10/06/2027, com taxa');
+    expect(extraNaTabela({ tipo: 'deferimento', fimExtra: '2027-02-16' })).toBe('16/02/2027');
+    expect(extraNaTabela({ tipo: 'exame', fimExtra: null })).toBe('—');
+  });
+});
+
+describe('A ordem da publicação do deferimento da marca (#418)', () => {
+  it('quando o deferimento vem antes do depósito, ou a concessão antes do deferimento, então o cadastro avisa no campo, como o banco', () => {
+    // Dado
+    const base = { ...processoVazio('administrativo'), numero: '900000001', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', area: AREA_DA_PI };
+    // Quando
+    const antesDoDeposito = validarProcesso({ ...base, protecao: 'marca', deposito: '10/03/2025', deferimento: '09/03/2025' });
+    const depoisDaConcessao = validarProcesso({ ...base, protecao: 'marca', deposito: '10/03/2025', deferimento: '06/10/2026', concessao: '05/10/2026' });
+    const emOrdem = validarProcesso({ ...base, protecao: 'marca', deposito: '10/03/2025', deferimento: '06/10/2026', concessao: '06/10/2026' });
+    // Então
+    expect(antesDoDeposito).toEqual({ deferimento: DEFERIMENTO_ANTES_DO_DEPOSITO });
+    expect(depoisDaConcessao).toEqual({ concessao: CONCESSAO_ANTES_DO_DEFERIMENTO });
+    expect(emOrdem).toEqual({});
+    expect(DEFERIMENTO_ANTES_DO_DEPOSITO).toBe('A publicação do deferimento não pode ser antes do depósito.');
+    expect(CONCESSAO_ANTES_DO_DEFERIMENTO).toBe('A concessão não pode ser antes da publicação do deferimento.');
   });
 });

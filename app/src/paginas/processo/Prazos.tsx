@@ -8,6 +8,7 @@ import { SD, type DadosPrazo, type Orgao, type PrazoDeProcesso, type Processo } 
 import { PRAZOS_DO_PROCESSO } from '../../dados/limites';
 import { comoFoiContado, formDoPrazo, naOrdemDosPrazos, prazoNovo, rotuloDoPrazo, SELO_DO_PRAZO, situacaoDoPrazoNoProcesso, tarefaDoPrazo } from '../../regras/andamentos';
 import { diaDaSemana } from '../../regras/calendario';
+import { contagemDoProcesso, siglaDoCalendario } from '../../regras/propriedadeIntelectual';
 import { fmtData } from '../../regras/pessoa';
 import { avisar, falha, feito } from '../../ui/avisos';
 import { BotaoDeIcone, estiloBotao, Nota, Selo } from '../../ui/base';
@@ -126,7 +127,7 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMuda
     {!prazos.length && editando !== NOVO && <Nota>Nenhum prazo lançado.</Nota>}
     <ul className="acomp-lista" aria-label="Prazos do processo">
       {naOrdemDosPrazos(prazos).map(z => editando === z.id
-        ? <li key={z.id}><FormDoPrazo mudando inicial={formDoPrazo(z, hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={d => mudar(z, d)} {...doFormulario(z.id)} /></li>
+        ? <li key={z.id}><FormDoPrazo mudando inicial={formDoPrazo(z, hoje, contagemDoProcesso(p, orgao))} orgao={orgao} siglaDoProcesso={siglaDoCalendario(p)} aoSalvar={d => mudar(z, d)} {...doFormulario(z.id)} /></li>
         : <li key={z.id} className={z.concluido_em ? 'acomp-feito' : undefined}>
           <div className="acomp-topo">
             <label className="acomp-marcar"><input type="checkbox" checked={marcando?.id === z.id ? marcando.cumprido : !!z.concluido_em} disabled={somenteLer || marcando?.id === z.id} aria-label={`Prazo cumprido: ${z.descricao}`} onChange={e => void cumprir(z, e.target.checked)} /><b>{z.descricao}</b></label>
@@ -149,7 +150,7 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMuda
     </ul>
     {prazos.length >= PRAZOS_DO_PROCESSO && <Nota>Mostrando os {PRAZOS_DO_PROCESSO} prazos de último dia mais novo.</Nota>}
     {editando === NOVO
-      ? <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={lancar} {...doFormulario(NOVO)} />
+      ? <FormDoPrazo inicial={prazoNovo(hoje, contagemDoProcesso(p, orgao))} orgao={orgao} siglaDoProcesso={siglaDoCalendario(p)} aoSalvar={lancar} {...doFormulario(NOVO)} />
       : !somenteLer && !peloTitulo && <div><button type="button" className={estiloBotao()} data-abre={NOVO} onClick={() => edicao.pedir(NOVO)}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
   </div>;
 }

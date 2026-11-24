@@ -8,7 +8,7 @@ import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, P
 import { CONTRATOS_DA_TAREFA_CHEIA, DEMANDAS_DA_TAREFA_CHEIA } from '../regras/tarefa';
 import { SALA_REPETIDA } from '../regras/sala';
 import { PAPEL_REPETIDO } from '../regras/processo';
-import { CONCESSAO_ANTES_DO_DEPOSITO } from '../regras/propriedadeIntelectual';
+import { CONCESSAO_ANTES_DO_DEFERIMENTO, CONCESSAO_ANTES_DO_DEPOSITO, DEFERIMENTO_ANTES_DO_DEPOSITO } from '../regras/propriedadeIntelectual';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
@@ -75,6 +75,9 @@ const ERROS: Regra[] = [
   { codigo: '23514', padrao: /tarefas_contrato_ids_maximo/, mensagem: CONTRATOS_DA_TAREFA_CHEIA },
   // A concessão antes do depósito, no processo de propriedade intelectual (#317): a mesma mensagem do cadastro.
   { codigo: '23514', padrao: /processos_concessao_depois_do_deposito/, mensagem: CONCESSAO_ANTES_DO_DEPOSITO },
+  // A publicação do deferimento da marca fora de ordem (#418).
+  { codigo: '23514', padrao: /processos_deferimento_depois_do_deposito/, mensagem: DEFERIMENTO_ANTES_DO_DEPOSITO },
+  { codigo: '23514', padrao: /processos_concessao_depois_do_deferimento/, mensagem: CONCESSAO_ANTES_DO_DEFERIMENTO },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: SEM_PERMISSAO },
   { padrao: /permission denied|row-level security/i, mensagem: SEM_PERMISSAO },

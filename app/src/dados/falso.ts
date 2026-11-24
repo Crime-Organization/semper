@@ -55,7 +55,7 @@ import {
   SO_JUDICIAL_NO_ADMINISTRATIVO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
-import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { APRESENTACOES_DA_MARCA, areaPodeMudar, NATUREZAS_DA_MARCA, ORDEM_DAS_DATAS, PAPEIS_DA_PI_NA_TROCA_DE_AREA, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
 import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -1852,7 +1852,7 @@ const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, pessoa_nome: nomesDosClientes(c.pessoas),
-  processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, etapa_id: c.etapa_id, arquivado_em: c.arquivado_em, papeis
+  processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, etapa_id: c.etapa_id, arquivado_em: c.arquivado_em, atualizado_em: c.atualizado_em, papeis
 });
 const buscaCompromisso = (c: CompromissoGuardado) => {
   const numero = processoDoCompromisso(c)?.numero ?? c.processo_numero ?? '';
@@ -2817,7 +2817,7 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
 }
 /** Os campos de propriedade intelectual vazios (#317), como nascem no banco. */
 const PI_VAZIA = { protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, apresentacao_marca: null, natureza_marca: null,
-  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null };
+  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null, deferimento: null };
 /** As regras check da migração propriedade_intelectual (#317): as listas, as classes de 1 a 45, os tamanhos e a concessão depois do depósito. */
 function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
   const naLista = (v: string | null | undefined, lista: object) => v === undefined || v === null || Object.hasOwn(lista, v);
@@ -2828,8 +2828,10 @@ function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
     && ateTamanho(d.especificacao, TAMANHO_PROTECAO.especificacao) && ateTamanho(d.linguagem, TAMANHO_PROTECAO.linguagem)
     && (d.variacoes === undefined || d.variacoes === null || (Number.isInteger(d.variacoes) && d.variacoes >= 1 && d.variacoes <= VARIACOES_DO_DESENHO));
   if (!valido) throw new Error(FORMATO_INVALIDO);
-  const deposito = d.deposito !== undefined ? d.deposito : atual?.deposito, concessao = d.concessao !== undefined ? d.concessao : atual?.concessao;
-  if (deposito && concessao && concessao < deposito) throw new Error(CONCESSAO_ANTES_DO_DEPOSITO);
+  // A ordem das datas: a concessão depois do depósito (#317) e a publicação do deferimento entre os dois (#418), como as regras do banco.
+  const valor = (campo: (typeof ORDEM_DAS_DATAS)[number]['antes' | 'depois']) => d[campo] !== undefined ? d[campo] : atual?.[campo];
+  const fora = ORDEM_DAS_DATAS.find(o => { const antes = valor(o.antes), depois = valor(o.depois); return !!antes && !!depois && depois < antes; });
+  if (fora) throw new Error(fora.recusa);
 }
 /** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
 const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
@@ -5571,6 +5573,9 @@ export const SD: Dados = {
     const p = acharProcesso(id), antes = equipeDoItemNoFalso('processos', id);
     if (p.tipo === TIPO_QUE_FICA && dados.etapa_id !== undefined) dados = { ...dados, etapa_id: colunaDoAdministrativo(dados.etapa_id) };
     const novos = prepararProcesso(dados, p.tipo, p);
+    // Como o gatilho area_com_papeis_da_pi (#418): o processo com titular, inventor ou autor da criação não sai da área de PI.
+    const papeis = bd.processoPartes!.filter(x => x.processo_id === id).map(x => x.papel);
+    if (novos.area !== undefined && !areaPodeMudar(p.area, novos.area, papeis)) return erro(PAPEIS_DA_PI_NA_TROCA_DE_AREA);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
@@ -5656,6 +5661,8 @@ export const SD: Dados = {
     const p = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
     if (!p || p.arquivado_em || soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     if (!(papel in PAPEIS_DA_PARTE)) return erro(FORMATO_INVALIDO);
+    // Como o gatilho papel_so_da_pi (#418): titular, inventor e autor da criação só nos processos de propriedade intelectual.
+    if (!papelCabeNoProcesso(papel, p)) return erro(PAPEL_SO_DA_PI);
     if (!bd.pessoas.some(x => x.id === pessoaId)) return erro('Pessoa não encontrada neste escritório.');
     if (bd.processoPartes!.some(x => x.processo_id === processoId && x.pessoa_id === pessoaId && x.papel === papel)) return erro(PAPEL_REPETIDO);
     if (bd.processoPartes!.filter(x => x.processo_id === processoId).length >= PARTES_MAXIMAS) return erro(`Um processo pode ter até ${PARTES_MAXIMAS} pessoas com papel.`);

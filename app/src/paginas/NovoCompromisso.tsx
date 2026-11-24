@@ -45,7 +45,8 @@ import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, subirAoCadastro, useAtrasado, useTitulo } from '../ui/util';
-import { camposParaAcompanhar, ehAcompanhamento, PARAMETRO_ACOMPANHAR } from '../regras/propriedadeIntelectual';
+import { anosDosPrazosEmDiasUteis, camposParaAcompanhar, ehAcompanhamento, PARAMETRO_ACOMPANHAR } from '../regras/propriedadeIntelectual';
+import { lerCalendarioDoInpi } from './processo/useCalendarioDoInpi';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
 import { useSalas } from './agenda/useSalas';
@@ -169,8 +170,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   useEffect(() => {
     if (!acompanharProtecao || !processoInicial) return;
     let vale = true;
-    SD.processoObter(processoInicial).then(p => {
-      const campos = p && camposParaAcompanhar(qualAcompanhar, p, hojeISO());
+    // Os prazos em dias úteis (#418) contam no calendário do INPI, lido junto.
+    SD.processoObter(processoInicial).then(async p => {
+      const campos = p && camposParaAcompanhar(qualAcompanhar, p, hojeISO(), await lerCalendarioDoInpi(anosDosPrazosEmDiasUteis(p)));
       if (vale && campos) setC(atual => ({ ...atual, ...campos }));
     }).catch(falha);
     return () => { vale = false; };

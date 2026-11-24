@@ -28,7 +28,7 @@ const texto = (maximo?: number, inputMode?: 'numeric') => ({ c, campo, erro, mud
 
 /** Como cada campo é preenchido. Campo novo = entrada nova aqui e em CAMPOS_DA_PROTECAO. */
 const CONTROLES: Record<CampoDaProtecao, (p: PropsDoControle) => ReactNode> = {
-  deposito: data, concessao: data, publicacao: data, criacao: data,
+  deposito: data, deferimento: data, concessao: data, publicacao: data, criacao: data,
   apresentacaoMarca: lista(APRESENTACOES_DA_MARCA), naturezaMarca: lista(NATUREZAS_DA_MARCA),
   classesNice: texto(),
   especificacao: ({ c, campo, erro, mudar }) => <textarea {...propsDoCampo(idDo(campo), { erro })} maxLength={TAMANHO_PROTECAO.especificacao} value={c[campo]}

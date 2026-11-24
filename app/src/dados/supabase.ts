@@ -442,7 +442,7 @@ const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, moda
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_FUNCAO_NA_TAREFA = 'id, nome, executa, ordem';
-const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
+const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, atualizado_em, pessoas, responsavel_id, participantes';
 type CompromissoLido = Omit<Compromisso, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const compromissoComPessoas = ({ ligadas, ...c }: CompromissoLido): Compromisso => ({ ...c, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
 // Na ordem "nome", vale o nome do cartão ou, sem ele, as pessoas (a coluna nome_ordem). O id no fim desempata a paginação.
@@ -608,6 +608,8 @@ const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colab
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   // Propriedade intelectual (#317).
   + 'protecao, deposito, concessao, publicacao, criacao, apresentacao_marca, natureza_marca, classes_nice, especificacao, variacoes, linguagem, '
+  // A publicação do deferimento da marca (#418).
+  + 'deferimento, '
   + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** As pessoas com papel no processo (#316). */
 const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;

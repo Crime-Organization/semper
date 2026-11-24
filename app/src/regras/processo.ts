@@ -143,7 +143,7 @@ export function aoMudarNumero(c: CamposProcesso, mudanca: Partial<DefineONumero>
 
 type Conferencia = (c: CamposProcesso) => string | null;
 /** Os campos de propriedade intelectual do cadastro (#317): cada tipo de proteção mostra os seus (TIPOS_DE_PROTECAO). */
-const CAMPOS_DA_PI: CampoDaProtecao[] = ['deposito', 'concessao', 'publicacao', 'criacao', 'apresentacaoMarca', 'naturezaMarca', 'classesNice', 'especificacao', 'variacoes', 'linguagem'];
+const CAMPOS_DA_PI: CampoDaProtecao[] = ['deposito', 'deferimento', 'concessao', 'publicacao', 'criacao', 'apresentacaoMarca', 'naturezaMarca', 'classesNice', 'especificacao', 'variacoes', 'linguagem'];
 const escolhidos = (lista: string[]) => lista.filter(Boolean);
 const repetido = (lista: string[]) => new Set(escolhidos(lista)).size < escolhidos(lista).length;
 const ateTamanho = (campo: keyof typeof TAMANHO_PROCESSO, nome: string): Conferencia => c => {
@@ -330,7 +330,8 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   partes: 'Pessoas do processo', origem_id: 'Processo de origem', ligacao: 'Ligação com o processo de origem', papeis_clientes: 'Papel do cliente',
   // Propriedade intelectual (#317).
   protecao: 'Tipo de proteção', deposito: 'Depósito', concessao: 'Concessão', publicacao: 'Publicação', criacao: 'Criação', apresentacao_marca: 'Apresentação da marca',
-  natureza_marca: 'Natureza da marca', classes_nice: 'Classes de Nice', especificacao: 'Especificação', variacoes: 'Variações do desenho', linguagem: 'Linguagem de programação'
+  natureza_marca: 'Natureza da marca', classes_nice: 'Classes de Nice', especificacao: 'Especificação', variacoes: 'Variações do desenho', linguagem: 'Linguagem de programação',
+  deferimento: 'Publicação do deferimento'
 };
 /** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem fica vazia quando é excluída (#316) ou desligada (#425). */
 const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'sem ligação' };
@@ -349,7 +350,7 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
   origem_id: () => 'ligado', ligacao: v => LIGACOES[v as LigacaoDeProcesso]?.nome ?? String(v),
   protecao: v => TIPOS_DE_PROTECAO[v as keyof typeof TIPOS_DE_PROTECAO]?.nome ?? String(v), apresentacao_marca: naLista(APRESENTACOES_DA_MARCA),
   natureza_marca: naLista(NATUREZAS_DA_MARCA), deposito: v => fmtData(String(v)), concessao: v => fmtData(String(v)), publicacao: v => fmtData(String(v)),
-  criacao: v => fmtData(String(v)), classes_nice: v => Array.isArray(v) && v.length ? fmtClassesNice(v as number[]) : '—'
+  criacao: v => fmtData(String(v)), deferimento: v => fmtData(String(v)), classes_nice: v => Array.isArray(v) && v.length ? fmtClassesNice(v as number[]) : '—'
 };
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelProcesso = (campo: string, v: unknown) =>
@@ -357,7 +358,7 @@ export const valorLegivelProcesso = (campo: string, v: unknown) =>
 
 /** Os campos da seção de dados do cartão, na ordem. */
 // O papel de cada cliente (#426) aparece ao lado dele, na seção Clientes; o antigo polo, um só para o processo, não aparece mais.
-const CAMPOS_NO_CARTAO: (keyof Processo)[] = ['numero', 'orgao', 'sistema', 'meio', 'area', 'protecao', 'deposito', 'publicacao', 'concessao', 'criacao',
+const CAMPOS_NO_CARTAO: (keyof Processo)[] = ['numero', 'orgao', 'sistema', 'meio', 'area', 'protecao', 'deposito', 'publicacao', 'deferimento', 'concessao', 'criacao',
   'apresentacao_marca', 'natureza_marca', 'classes_nice', 'especificacao', 'variacoes', 'linguagem', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valor_causa', 'instancia', 'segredo', 'advogado_contrario', 'observacoes'];
 /** O dado está preenchido: nem vazio, nem falso (segredo de justiça), nem lista vazia (classes de Nice). */
 const preenchido = (v: unknown) => ![null, undefined, '', false].includes(v as never) && !(Array.isArray(v) && !v.length);

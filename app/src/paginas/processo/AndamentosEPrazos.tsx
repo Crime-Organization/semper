@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SD, type AndamentoDeProcesso, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { alertaDosPrazos, aTratar } from '../../regras/andamentos';
+import { siglaDoCalendario } from '../../regras/propriedadeIntelectual';
 import { falha, useMudancas } from '../../ui/avisos';
 import { Aviso, Carregando } from '../../ui/base';
 import { Recolhivel } from '../../ui/Recolhivel';
@@ -54,7 +55,8 @@ function ConformeLido({ lido, children }: { lido: Acompanhamento['lido']; childr
 }
 
 /** O órgão do processo, para a contagem dos prazos. */
-const orgaoDe = (p: Processo, orgaos: Orgao[]) => orgaos.find(o => o.sigla === p.orgao) ?? null;
+// O órgão de que vêm os dias sem expediente: o do processo; sem ele, no de propriedade intelectual, o INPI (#418).
+const orgaoDe = (p: Processo, orgaos: Orgao[]) => orgaos.find(o => o.sigla === siglaDoCalendario(p)) ?? null;
 
 /**
  * O alerta dos prazos e a seção de prazos, no corpo do cartão. A seção aparece já enquanto lê (com o "carregando" dentro), para ficar

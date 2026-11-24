@@ -2606,6 +2606,69 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['titular', 'inventor', 'autor_da_criacao']);
       });
+
+      it('dado um processo de outra área, quando alguém tenta pôr titular, inventor ou autor da criação, então é recusado, como no banco (#418)', async () => {
+        // Dado
+        const processo = await novoProcesso({ area: 'Previdenciário' });
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        const pedidos = await Promise.allSettled((['titular', 'inventor', 'autor_da_criacao'] as const).map(papel => SD.processoParteIncluir(processo.id, pessoa, papel)));
+        // Então
+        expect(pedidos.map(r => r.status)).toEqual(['rejected', 'rejected', 'rejected']);
+        expect(pedidos[0]).toMatchObject({ reason: { message: 'Titular, inventor e autor da criação só existem nos processos de propriedade intelectual.' } });
+        // E os papéis de qualquer processo continuam entrando
+        await SD.processoParteIncluir(processo.id, pessoa, 'testemunha');
+        expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['testemunha']);
+      });
+
+      it('dado um processo de PI com titular, quando alguém tira a área de PI, então é recusado, como no banco; sem o titular, a área muda (#418)', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: pessoa } = await criar(marca());
+        await SD.processoParteIncluir(processo.id, pessoa, 'titular');
+        // Quando
+        const mudar = SD.processoAtualizar(processo.id, { area: 'Cível' });
+        // Então
+        await expect(mudar).rejects.toThrow('Este processo tem titular, inventor ou autor da criação: tire essas pessoas do processo antes de mudar a área.');
+        expect(await SD.processoObter(processo.id)).toMatchObject({ area: 'Propriedade intelectual' });
+        // Quando o titular sai antes
+        const [parte] = await SD.processoPartes(processo.id);
+        await SD.processoParteRetirar(parte.id);
+        await SD.processoAtualizar(processo.id, { area: 'Cível' });
+        // Então
+        expect(await SD.processoObter(processo.id)).toMatchObject({ area: 'Cível' });
+      });
+
+      it('quando a publicação do deferimento da marca é informada, então volta gravada; num judicial, fica vazia, como no banco (#418)', async () => {
+        // Dado
+        const { id } = await novoProcesso({ protecao: 'marca', deposito: '2025-03-10' });
+        expect(await SD.processoObter(id)).toMatchObject({ deferimento: null });
+        // Quando
+        await SD.processoAtualizar(id, { deferimento: '2026-10-06' });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ deferimento: '2026-10-06' });
+        expect((await SD.processoHistorico(id))[0].alteracoes.deferimento).toEqual({ de: null, para: '2026-10-06' });
+        // Quando o judicial recebe a data
+        const judicial = await novoProcesso({ tipo: 'judicial', deferimento: '2026-10-06' });
+        // Então
+        expect(await SD.processoObter(judicial.id)).toMatchObject({ deferimento: null });
+      });
+
+      it('quando o deferimento vem antes do depósito, ou a concessão antes do deferimento, então é recusado, como no banco (#418)', async () => {
+        // Dado
+        const { id } = await novoProcesso({ protecao: 'marca', deposito: '2025-03-10' });
+        // Quando
+        const antesDoDeposito = SD.processoAtualizar(id, { deferimento: '2025-03-09' });
+        // Então
+        await expect(antesDoDeposito).rejects.toThrow('A publicação do deferimento não pode ser antes do depósito.');
+        // Quando: o deferimento em ordem, e depois a concessão antes dele
+        await SD.processoAtualizar(id, { deferimento: '2026-10-06' });
+        const antesDoDeferimento = SD.processoAtualizar(id, { concessao: '2026-10-05' });
+        // Então
+        await expect(antesDoDeferimento).rejects.toThrow('A concessão não pode ser antes da publicação do deferimento.');
+        await expect(SD.processoAtualizar(id, { concessao: '2026-10-06' })).resolves.not.toThrow();
+        expect(await SD.processoObter(id)).toMatchObject({ deposito: '2025-03-10', deferimento: '2026-10-06', concessao: '2026-10-06' });
+      });
     });
 
     describe('Processos: pessoas com papel, recursos e incidentais (#316)', () => {
