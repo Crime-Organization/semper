@@ -441,7 +441,7 @@ export const ASSUNTOS: Assunto[] = [
     armadilhas: [
       'O gatilho `privado.auditar` (em `20261024000001_base.sql`) já grava uma linha por linha criada, mudada ou apagada: tabela nova ganha o gatilho na migração dela. Numa ação em cascata, o resumo vai nessa mesma linha (não grave outra).',
       'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).',
-      'Excluir pessoa também tira o nome dela da cópia escondida dos recebimentos excluídos (`financeiro_excluidos`, #412): o gatilho `esquecer_nos_excluidos` e, no fictício, `regras/esquecimentoNaCopia.ts`. Texto novo com nome nessa cópia: confira se o padrão do nome (`nomeNoFinanceiro`) ainda o acha, nos dois.'
+      'Excluir pessoa também tira o nome dela da cópia escondida dos recebimentos excluídos (`financeiro_excluidos`, #412): o gatilho `esquecer_nos_excluidos` e, no fictício, `regras/esquecimentoNaCopia.ts`. Texto novo com nome nessa cópia (descrição do Caixa, motivo, corte com `left`/`slice`): confira se os padrões (`nomeNoFinanceiro`, `nomeNoMotivo`, `pedacoDoNome`) ainda o acham, nos dois; os limites conhecidos estão no começo da migração.'
     ]
   },
   {

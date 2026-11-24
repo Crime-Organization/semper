@@ -98,7 +98,7 @@ import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA, SEGUNDO } from '../ui/tempos';
 import { arquivadosComOContrato } from '../regras/arquivarContrato';
 import { excluidosComOsContratos, RECUSA_DA_EXCLUSAO, tarefasDeCadaContrato } from '../regras/exclusaoDoContrato';
-import { semAPessoa } from '../regras/esquecimentoNaCopia';
+import { semAPessoaNasCopias } from '../regras/esquecimentoNaCopia';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -3510,7 +3510,7 @@ export const SD: Dados = {
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       esquecerNasPartes(id);
       // LGPD, como o gatilho esquecer_nos_excluidos: o nome dela sai da cópia escondida dos recebimentos excluídos (#412).
-      bd.financeiroExcluidos = bd.financeiroExcluidos!.map(x => semAPessoa(x, p));
+      bd.financeiroExcluidos = semAPessoaNasCopias(bd.financeiroExcluidos!, p);
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
       ligados.forEach(v => historicoVinculo(v, false));
