@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import {
-  avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, estaPeloGrupo, filtroQueVale, FILTRO_DOS_MEUS_GRUPOS, gruposDoFiltro, INTEGRANTES_NA_DICA,
+  avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, entraNoPedido, estaPeloGrupo, filtroQueVale, FILTRO_DA_GERAL, FILTRO_DOS_MEUS_GRUPOS,
+  INTEGRANTES_NA_DICA, pedidoDoFiltroDeGrupo,
   integrantesAtivos, itensPorModulo, meusGrupos, textoDoGrupo, AVISO_DOS_GRUPOS, desfazerNosGrupos, dicaDaPilula, gruposDoItem, GRUPOS_DEMAIS, linhaDosGruposNoLapis,
   maisGrupos, MUDANCAS_NOS_GRUPOS, corpoDaExclusao, linksDoGrupo, ondeOGrupoEsta, quantasPessoas, rotuloDoGrupoNoQuadro, textoDaMensagemDeGrupo, tituloDaExclusao, nomeDoGrupo, notaDaContagem, notaDeQuemEstaPeloGrupo, notaDoGrupoNoTopo, saiComOGrupo, soPeloGrupo, type QuemEstaNoCartao
 } from './gruposDaEquipe';
@@ -73,12 +74,10 @@ describe('Grupos da equipe (#378)', () => {
     expect(candidatosDeGrupo([nucleoA], '', cheio)).toEqual([]);
   });
 
-  it('dado o filtro "Grupo da equipe", então ele vira os ids dos grupos; vazio, nenhum filtro', () => {
+  it('dado o filtro "Grupo da equipe" sem valor ou vazio, então não há filtro', () => {
     // Então
-    expect(gruposDoFiltro(FILTRO_DOS_MEUS_GRUPOS, ['ga', 'gb'])).toEqual(['ga', 'gb']);
-    expect(gruposDoFiltro('gb', ['ga'])).toEqual(['gb']);
-    expect(gruposDoFiltro(undefined, ['ga'])).toBeNull();
-    expect(gruposDoFiltro('', ['ga'])).toBeNull();
+    expect(pedidoDoFiltroDeGrupo(undefined, ['ga'])).toBeNull();
+    expect(pedidoDoFiltroDeGrupo('', ['ga'])).toBeNull();
   });
 
   it('dado um filtro guardado de um grupo que não existe mais, então ele volta a "Todos os grupos"', () => {
@@ -87,6 +86,34 @@ describe('Grupos da equipe (#378)', () => {
     expect(filtroQueVale('ga', [nucleoA])).toBe('ga');
     expect(filtroQueVale(FILTRO_DOS_MEUS_GRUPOS, [])).toBe(FILTRO_DOS_MEUS_GRUPOS);
     expect(filtroQueVale(undefined, [nucleoA])).toBeUndefined();
+  });
+
+  it('dada a Geral guardada no filtro, então ela continua valendo (#416)', () => {
+    // Então
+    expect(filtroQueVale(FILTRO_DA_GERAL, [nucleoA])).toBe('geral');
+    expect(filtroQueVale('constructor', [nucleoA])).toBeUndefined();
+  });
+
+  it('dado o filtro "Grupo da equipe", quando vira o pedido ao banco, então diz os grupos e se vem a Geral (#416)', () => {
+    // Então
+    expect(pedidoDoFiltroDeGrupo('gb', ['ga'])).toEqual({ grupos: ['gb'], geral: false });
+    expect(pedidoDoFiltroDeGrupo(FILTRO_DOS_MEUS_GRUPOS, ['ga', 'gb'])).toEqual({ grupos: ['ga', 'gb'], geral: false });
+    expect(pedidoDoFiltroDeGrupo(FILTRO_DA_GERAL, ['ga'])).toEqual({ grupos: [], geral: true });
+    expect(pedidoDoFiltroDeGrupo('', ['ga'])).toBeNull();
+  });
+
+  it.each([
+    ['a demanda com o grupo pedido', { grupos: ['ga'] }, { grupos: ['ga'], geral: false }, true],
+    ['a demanda de outro grupo', { grupos: ['gb'] }, { grupos: ['ga'], geral: false }, false],
+    ['a contínua do grupo pedido', { continua: true, continua_grupo_id: 'ga' }, { grupos: ['ga'], geral: false }, true],
+    ['a contínua de outro grupo', { continua: true, continua_grupo_id: 'gb' }, { grupos: ['ga'], geral: false }, false],
+    ['a contínua Geral, com a Geral pedida', { continua: true, continua_grupo_id: null }, { grupos: [], geral: true }, true],
+    ['a contínua Geral, com um grupo pedido', { continua: true, continua_grupo_id: null }, { grupos: ['ga'], geral: false }, false],
+    ['a demanda comum sem grupo, com a Geral pedida', { grupos: [] }, { grupos: [], geral: true }, false],
+    ['a contínua de um grupo, com a Geral pedida', { continua: true, continua_grupo_id: 'ga' }, { grupos: [], geral: true }, false]
+  ])('dada %s, quando se pergunta se entra no filtro, então a resposta é %s', (_, demanda, pedido, entra) => {
+    // Então
+    expect(entraNoPedido(pedido, demanda)).toBe(entra);
   });
 
   it('dada a contagem dos itens do grupo, então ela é dita em português, no singular e no plural', () => {

@@ -21,7 +21,7 @@ import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
 import { NAO_ESPERA_APROVACAO, SEM_COMENTARIO_DA_DEVOLUCAO, SO_QUEM_PEDIU_APROVA, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
-import { CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
+import { CONTINUA_GERAL, CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
 import { FUNCAO_REPETIDA, funcaoEmUso } from '../regras/funcoesNaTarefa';
 import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
@@ -10229,6 +10229,60 @@ describe('Demanda contínua por grupo da equipe (banco fictício, #313)', () => 
     const achadas = await SD.tarefasParaLigar({ termo: 'ITCMD', sem: 'demandas' });
     // Então
     expect(achadas.map(t => t.id)).toEqual([id]);
+  });
+
+  it('dado o filtro "Grupo da equipe", então o grupo traz a contínua dele e as tarefas dela, e a Geral traz a contínua Geral e as dela (#416)', async () => {
+    // Dado: o Bruno, no Núcleo Cível, com uma tarefa avulsa (na contínua do grupo); a Ana, sem grupo, com uma na Geral
+    const civel = await nucleoComBruno();
+    entrarComo('u-bruno');
+    const doGrupo = await avulsa('Filtro da contínua do grupo', 'u-bruno');
+    entrarComo('u-ana');
+    const daGeral = await avulsa('Filtro da contínua Geral', 'u-ana');
+    const continuaDoGrupo = (await demandaDe(doGrupo))!.id, geral = (await demandaDe(daGeral))!.id;
+    // Quando a Ana filtra pelo grupo e pela Geral
+    const tarefasDoGrupo = await SD.tarefasListar({ termo: 'Filtro da contínua', grupo: civel });
+    const tarefasDaGeral = await SD.tarefasListar({ termo: 'Filtro da contínua', grupo: CONTINUA_GERAL });
+    const demandasDoGrupo = await SD.demandasListar({ termo: 'Contínua', grupo: civel });
+    const demandasDaGeral = await SD.demandasListar({ termo: 'Contínua', grupo: CONTINUA_GERAL });
+    // Então
+    expect(tarefasDoGrupo.linhas.map(t => t.id)).toEqual([doGrupo]);
+    expect(tarefasDaGeral.linhas.map(t => t.id)).toEqual([daGeral]);
+    expect((await SD.tarefasDaEtapa(null, { termo: 'Filtro da contínua', grupo: CONTINUA_GERAL })).total).toBe(1);
+    expect(demandasDoGrupo.linhas.map(d => d.id)).toEqual([continuaDoGrupo]);
+    expect(demandasDaGeral.linhas.map(d => d.id)).toEqual([geral]);
+    // Quando o Bruno filtra pelos grupos dele, então vêm as tarefas da contínua deles; na Geral, a tarefa da Ana ele não vê
+    falso().fecharVisibilidade(true);
+    entrarComo('u-bruno');
+    expect((await SD.tarefasListar({ termo: 'Filtro da contínua', grupo: FILTRO_DOS_MEUS_GRUPOS })).linhas.map(t => t.id)).toEqual([doGrupo]);
+    expect((await SD.tarefasListar({ termo: 'Filtro da contínua', grupo: CONTINUA_GERAL })).total).toBe(0);
+  });
+
+  it('dada a tarefa da contínua de um grupo de que o Bruno não faz parte, com ele como responsável, quando ele filtra por esse grupo, então ela aparece (#416)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const penal = await SD.grupoDaEquipeCriar('Núcleo Penal');
+    const { id } = await SD.tarefaCriar({ titulo: 'Filtro de quem está fora', responsavel_id: 'u-bruno', demanda_ids: [await SD.demandaContinua(penal)], participantes: [], pessoas: [] });
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-bruno');
+    const achadas = await SD.tarefasListar({ termo: 'Filtro de quem está fora', grupo: penal });
+    // Então
+    expect(achadas.linhas.map(t => t.id)).toEqual([id]);
+  });
+
+  it('dada a tarefa de uma demanda comum de um grupo de que o Bruno não faz parte, com ele como responsável, quando ele filtra por esse grupo, então ela aparece, e a demanda continua escondida (#416)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const penal = await SD.grupoDaEquipeCriar('Núcleo Penal');
+    const demanda = await SD.demandaCriar({ titulo: 'Demanda do Núcleo Penal', responsavel_id: 'u-ana', grupos: [penal] });
+    const { id } = await SD.tarefaCriar({ titulo: 'Filtro pela demanda do grupo', responsavel_id: 'u-bruno', demanda_ids: [demanda.id], participantes: [], pessoas: [] });
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-bruno');
+    const achadas = await SD.tarefasListar({ termo: 'Filtro pela demanda do grupo', grupo: penal });
+    // Então
+    expect(achadas.linhas.map(t => t.id)).toEqual([id]);
+    expect(await SD.demandaObter(demanda.id)).toBeNull();
   });
 
   it('dada a tarefa avulsa da Ana na Geral, quando o Bruno lê, então vê a contínua, mas não a tarefa dela (a contínua só agrupa)', async () => {

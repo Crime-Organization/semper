@@ -13,7 +13,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { PERIODO_CORRIGIDO, REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
-import { gruposDoFiltro, meusGrupos } from '../regras/gruposDaEquipe';
+import { meusGrupos, pedidoDoFiltroDeGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
@@ -394,12 +394,15 @@ function porInicio(q: Livre, f: Pick<FiltroTarefas, 'inicioDesde' | 'inicioAte'>
 /** Os grupos da equipe de quem está logado (como privado.meus_grupos), pelo contexto. */
 const osMeusGrupos = () => meusGrupos(ctx?.grupos, uid() ?? '');
 /**
- * O filtro "Grupo da equipe" (#378): os cartões que têm algum dos grupos pedidos ("Dos meus grupos" sem estar em nenhum: nenhum
- * cartão). As colunas do quadro continuam as mesmas.
+ * O filtro "Grupo da equipe" (#378): os cartões que têm algum dos grupos pedidos e a demanda contínua de cada um; a Geral, a
+ * contínua Geral (#416, como entraNoPedido). "Dos meus grupos" sem estar em nenhum: nenhum cartão. As colunas do quadro continuam as mesmas.
  */
 function porGrupo(q: Livre, f: Pick<FiltroDemandas, 'grupo'>) {
-  const grupos = gruposDoFiltro(f.grupo, osMeusGrupos());
-  return grupos ? q.overlaps('grupos', grupos) : q;
+  const pedido = pedidoDoFiltroDeGrupo(f.grupo, osMeusGrupos());
+  if (!pedido) return q;
+  const ids = pedido.grupos.join(',');
+  const condicoes = [...(ids ? [`grupos.ov.{${ids}}`, `continua_grupo_id.in.(${ids})`] : []), ...(pedido.geral ? ['and(continua.is.true,continua_grupo_id.is.null)'] : [])];
+  return condicoes.length ? q.or(condicoes.join(',')) : q.in('id', []);
 }
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   q = porGrupo(porInicio(porEtiqueta(q, f), f), f);
@@ -692,12 +695,14 @@ async function tarefaCompleta({ ligadas, codigos_das_demandas, codigos_dos_contr
   };
 }
 /**
- * De onde vêm as tarefas da lista e do quadro. Com o filtro "Grupo da equipe" (#378), de public.tarefas_dos_grupos, que traz também
- * as tarefas das demandas do grupo (a tarefa vista pelo grupo da demanda não some com o filtro), pelas regras de leitura.
+ * De onde vêm as tarefas da lista e do quadro. Com o filtro "Grupo da equipe" (#378), de public.tarefas_do_filtro_de_grupo, que traz
+ * também as tarefas das demandas do grupo (a tarefa vista pelo grupo da demanda não some com o filtro) e as da contínua dele (#416;
+ * a Geral, as da contínua Geral), pelas regras de leitura das tarefas: quem vê a tarefa a vê pelo filtro mesmo sem ver a demanda.
  */
 function deTarefas(campos: string, f: FiltroTarefas): Livre {
-  const grupos = gruposDoFiltro(f.grupo, osMeusGrupos());
-  return grupos ? db.rpc('tarefas_dos_grupos', { p_grupos: grupos }, { count: 'exact' }).select(campos) : sb.from('tarefas').select(campos, { count: 'exact' });
+  const pedido = pedidoDoFiltroDeGrupo(f.grupo, osMeusGrupos());
+  return pedido ? db.rpc('tarefas_do_filtro_de_grupo', { p_grupos: pedido.grupos, p_geral: pedido.geral }, { count: 'exact' }).select(campos)
+    : sb.from('tarefas').select(campos, { count: 'exact' });
 }
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   q = porInicio(porEtiqueta(q, f), f);

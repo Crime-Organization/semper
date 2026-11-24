@@ -39,6 +39,15 @@ async function porGrupoNaDemanda(page: Page, demanda = 'Registro de marca', nome
   return cartao;
 }
 
+/** Cadastra uma tarefa sem demanda, com o grupo que o cadastro já traz marcado (ela entra na contínua dele). */
+async function criarTarefaAvulsa(page: Page, titulo: string) {
+  await page.goto('/tarefas/nova/');
+  await page.getByLabel('Título').fill(titulo);
+  await page.getByRole('button', { name: 'Próxima' }).click();
+  await page.getByRole('button', { name: 'Salvar tarefa' }).click();
+  await expect(cartaoAberto(page).getByRole('heading', { name: titulo })).toBeVisible();
+}
+
 /** Escolhe uma opção do filtro "Grupo da equipe", no painel Filtros. */
 async function filtrarPorGrupo(page: Page, opcao: string) {
   await page.getByRole('button', { name: /^Filtros/ }).click();
@@ -159,6 +168,49 @@ test.describe('Grupos da equipe', () => {
     // Então
     await expect(page.getByRole('row').filter({ hasText: 'Pedir documentos ao cliente' })).toHaveCount(1);
     await expect(page.getByRole('row').filter({ hasText: 'Renovar a procuração' })).toHaveCount(0);
+  });
+
+  test('dadas tarefas avulsas na contínua do grupo e na Geral, quando Tarefas e Demandas são filtradas pelo grupo ou pela Geral, então vem cada contínua com as tarefas dela (#416)', async ({ page }) => {
+    // Dado: o Mauro, ainda sem grupo, cria uma tarefa avulsa (vai para a Geral); depois entra no grupo e cria outra (vai para a do grupo)
+    await criarTarefaAvulsa(page, 'Tarefa avulsa da Geral');
+    const secao = await criarGrupoComBruno(page);
+    await secao.getByRole('button', { name: `Abrir o grupo ${NUCLEO}` }).click();
+    const painel = page.getByRole('dialog', { name: `Grupo ${NUCLEO}` });
+    await painel.getByRole('button', { name: 'Adicionar integrante' }).click();
+    await painel.getByRole('button', { name: 'Mauro Teixeira Duarte' }).click();
+    await expect(painel.getByRole('button', { name: 'Tirar Mauro Teixeira Duarte' })).toBeVisible();
+    await painel.getByRole('button', { name: 'Fechar' }).click();
+    await criarTarefaAvulsa(page, 'Tarefa avulsa do núcleo');
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    const linha = (texto: string) => page.getByRole('row').filter({ hasText: texto });
+    // Quando
+    await filtrarPorGrupo(page, NUCLEO);
+    // Então
+    await expect(linha('Tarefa avulsa do núcleo')).toHaveCount(1);
+    await expect(linha('Tarefa avulsa da Geral')).toHaveCount(0);
+    // Quando
+    await filtrarPorGrupo(page, 'Geral');
+    // Então
+    await expect(linha('Tarefa avulsa da Geral')).toHaveCount(1);
+    await expect(linha('Tarefa avulsa do núcleo')).toHaveCount(0);
+    // Quando
+    await filtrarPorGrupo(page, 'Dos meus grupos');
+    // Então
+    await expect(linha('Tarefa avulsa do núcleo')).toHaveCount(1);
+    await expect(linha('Tarefa avulsa da Geral')).toHaveCount(0);
+    // Quando: em Demandas
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await filtrarPorGrupo(page, 'Geral');
+    // Então
+    await expect(linha('Contínua: Geral')).toHaveCount(1);
+    await expect(linha(`Contínua: ${NUCLEO}`)).toHaveCount(0);
+    // Quando
+    await filtrarPorGrupo(page, NUCLEO);
+    // Então
+    await expect(linha(`Contínua: ${NUCLEO}`)).toHaveCount(1);
+    await expect(linha('Contínua: Geral')).toHaveCount(0);
   });
 
   test('dado o grupo numa demanda, quando o administrador o exclui, então a pergunta diz em quantos itens ele está e o grupo some do cartão', async ({ page }) => {

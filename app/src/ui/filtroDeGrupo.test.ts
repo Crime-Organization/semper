@@ -11,13 +11,13 @@ describe('Filtro "Grupo da equipe" de demandas e tarefas (#378)', () => {
     expect(filtroDeGrupo(undefined, 'u1', '', () => {})).toEqual([]);
   });
 
-  it('dada uma pessoa num grupo, quando o filtro é montado, então oferece todos, os dela e cada grupo', () => {
+  it('dada uma pessoa num grupo, quando o filtro é montado, então oferece todos, os dela, cada grupo e a Geral (#416)', () => {
     // Quando
     const [filtro] = filtroDeGrupo([nucleoA, nucleoB], 'u1', 'gb', () => {});
     // Então
     expect(filtro.rotulo).toBe('Grupo da equipe');
     expect(filtro.valor).toBe('gb');
-    expect(filtro.opcoes).toEqual([['', 'Todos os grupos'], ['meus', 'Dos meus grupos'], ['ga', 'Núcleo A'], ['gb', 'Núcleo Bê']]);
+    expect(filtro.opcoes).toEqual([['', 'Todos os grupos'], ['meus', 'Dos meus grupos'], ['ga', 'Núcleo A'], ['gb', 'Núcleo Bê'], ['geral', 'Geral']]);
   });
 
   it('dada uma pessoa fora de todos os grupos, quando o filtro é montado, então não há "Dos meus grupos"', () => {
@@ -25,7 +25,7 @@ describe('Filtro "Grupo da equipe" de demandas e tarefas (#378)', () => {
     const [filtro] = filtroDeGrupo([nucleoA, nucleoB], 'u9', undefined, () => {});
     // Então
     expect(filtro.valor).toBe('');
-    expect(filtro.opcoes.map(([, texto]) => texto)).toEqual(['Todos os grupos', 'Núcleo A', 'Núcleo Bê']);
+    expect(filtro.opcoes.map(([, texto]) => texto)).toEqual(['Todos os grupos', 'Núcleo A', 'Núcleo Bê', 'Geral']);
   });
 
   it('quando a pessoa escolhe um grupo, então o filtro avisa qual', () => {
