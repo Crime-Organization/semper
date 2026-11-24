@@ -88,7 +88,7 @@ export const ASSUNTOS: Assunto[] = [
     arquivos: [
       'Pessoas', 'NovaPessoa', 'CartaoPessoa', 'VinculosPessoa', 'ProcessosDaPessoa', 'EquipeDaPessoaNoTopo', 'PessoasNosItens', pasta('app/src/paginas/novaPessoa'),
       'pessoa', 'cadastro', 'vinculos', 'origemDaPessoa', 'responsaveisDaPessoa', 'conviteDaPessoa', 'clienteAoContrato',
-      'BuscaPessoa', 'consultas', 'planilhaAntiga',
+      'BuscaPessoa', 'consultas', 'planilhaAntiga', 'consentimentoSemData', 'consentimento-sem-data',
       'pessoas', 'responsaveis-da-pessoa', 'nova-pessoa-no-cartao', 'planilha-provisoria', 'convidar-pelo-cartao', arquivo('app/e2e/quadro'), 'novo-padrao-das-secoes',
       'exportacoes', 'lgpd_exclusao', 'cnpj_com_letras'
     ],
@@ -99,7 +99,8 @@ export const ASSUNTOS: Assunto[] = [
       'A validação de cada etapa do cadastro é a tabela `VALIDACAO` de `regras/cadastro.ts` (e `AO_ENTRAR`); etapa nova = entrada nova, um componente em `paginas/novaPessoa/etapas.tsx`.',
       'Pessoa repetida se acha pelo CPF/CNPJ (`pessoaPorDocumento`) e, sem documento, pelos telefones (`pessoasPorTelefones`).',
       '`improvisos/planilhaAntiga.ts` (PROVISORIO-219) manda as pessoas novas também para a planilha antiga; sai com o `e2e/planilha-provisoria.spec.ts`.',
-      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`; veja [Registro de ações e LGPD](#registro)): não guarde nome de pessoa em outro lugar sem pensar na exclusão.'
+      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`; veja [Registro de ações e LGPD](#registro)): não guarde nome de pessoa em outro lugar sem pensar na exclusão.',
+      'O consentimento sem data (#409): a marca `consentimento_sem_data` do filtro "Situação do cadastro" (tabela `MARCAS` em `supabase.ts`, `falso.ts` e `paginas/Pessoas.tsx`) e a contagem `pessoasSemDataDoConsentimento`, do aviso do Início; os textos e o link ficam em `regras/consentimentoSemData.ts`. A contagem na produção (só números) é o roteiro docs/plataforma/consentimento-sem-data.md.'
     ]
   },
   {
@@ -436,7 +437,7 @@ export const ASSUNTOS: Assunto[] = [
     id: 'registro',
     titulo: 'Registro de ações e LGPD',
     resumo: 'O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.',
-    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes'],
+    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes', 'consentimentoSemData', 'consentimento-sem-data'],
     tabelas: ['auditoria'],
     armadilhas: [
       'O gatilho `privado.auditar` (em `20261024000001_base.sql`) já grava uma linha por linha criada, mudada ou apagada: tabela nova ganha o gatilho na migração dela. Numa ação em cascata, o resumo vai nessa mesma linha (não grave outra).',

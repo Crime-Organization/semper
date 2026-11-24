@@ -70,3 +70,36 @@ describe('Pessoas: importar', () => {
     expect(SD.pessoasListar).toHaveBeenLastCalledWith(expect.objectContaining({ marca: 'importadas', pagina: 0 }));
   });
 });
+
+describe('Pessoas: consentimento sem data (#409)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = true;
+    localStorage.clear();
+    SD.pessoasListar.mockReset().mockResolvedValue({ linhas: [], total: 0 });
+    SD.colunasListar.mockReset().mockResolvedValue([]);
+    SD.sugestoesListar.mockReset().mockResolvedValue([]);
+    SD.gruposListar.mockReset().mockResolvedValue([]);
+    SD.etiquetasListar.mockReset().mockResolvedValue([]);
+  });
+
+  it('quando escolhe "Consentimento sem data" em "Situação do cadastro", então a lista pede só essas pessoas', async () => {
+    // Dado
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: /Filtros/ }));
+    // Quando
+    await userEvent.selectOptions(screen.getByLabelText('Situação do cadastro'), 'Consentimento sem data');
+    // Então
+    expect(SD.pessoasListar).toHaveBeenLastCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', pagina: 0 }));
+  });
+
+  it('quando a página abre pelo link do aviso do Início, então a lista já vem filtrada, com todos os responsáveis', async () => {
+    // Quando
+    render(<MemoryRouter initialEntries={['/pessoas/?visao=tabela&marca=consentimento_sem_data']}>
+      <Routes><Route path="/pessoas/" element={<Pessoas />} /></Routes>
+    </MemoryRouter>);
+    // Então
+    await screen.findByRole('heading', { name: /Pessoas/ });
+    expect(SD.pessoasListar).toHaveBeenCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', responsavel: '', situacao: 'ativas' }));
+    expect(SD.pessoasListar).toHaveBeenCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', situacao: 'arquivadas' }));
+  });
+});
