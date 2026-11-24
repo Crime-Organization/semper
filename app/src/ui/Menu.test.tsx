@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { MenuFlutuante } from './Menu';
+import { DISTANCIA_DO_BOTAO, FaixaDoCartao, MARGEM_DA_TELA, MenuFlutuante } from './Menu';
 
 // Botão "⋯" que abre o menu, como na barra de um módulo.
 function ComMenu() {
@@ -154,5 +154,51 @@ describe('Menu flutuante com a página rolando atrás (#422)', () => {
     try {
       expect(parseFloat(menu.style.top)).toBe(antes + 200);
     } finally { Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 }); }
+  });
+});
+
+describe('Menu flutuante dentro de um cartão, com a faixa de botões no alto (#422)', () => {
+  /** Um cartão com a faixa do lápis no alto (até 54px da tela) e, no corpo, a data que abre a janela das datas. */
+  function NoCartao() {
+    const [faixa, setFaixa] = useState<HTMLElement | null>(null);
+    const [botao, setBotao] = useState<HTMLElement | null>(null);
+    return <FaixaDoCartao.Provider value={faixa}>
+      <div ref={setFaixa}>
+        <button type="button" aria-label="Editar">✎</button>
+        <button type="button" aria-label="Mais ações do cartão" onClick={e => setBotao(botao ? null : e.currentTarget)}>⋯</button>
+      </div>
+      <button type="button" aria-label="Data da assinatura" onClick={e => setBotao(botao ? null : e.currentTarget)}>10/03/2026</button>
+      {botao && <MenuFlutuante painel botao={botao} rotulo="Mudar a data" aoFechar={() => setBotao(null)}><button type="button">Salvar</button></MenuFlutuante>}
+    </FaixaDoCartao.Provider>;
+  }
+  const retangulo = (top: number, bottom: number) => ({ top, bottom, left: 10, right: 40, width: 30, height: bottom - top, x: 10, y: top, toJSON: () => ({}) });
+
+  it('dada a data rolada até o alto do cartão, embaixo da faixa, quando a pessoa a clica, então a janela abre abaixo da faixa e não cobre o lápis', async () => {
+    // Dado: a faixa vai até 54px; a data rolou para 0–27px, por trás dela
+    render(<NoCartao />);
+    const faixa = screen.getByRole('button', { name: 'Editar' }).parentElement!;
+    vi.spyOn(faixa, 'getBoundingClientRect').mockReturnValue(retangulo(14, 54));
+    const data = screen.getByRole('button', { name: 'Data da assinatura' });
+    vi.spyOn(data, 'getBoundingClientRect').mockReturnValue(retangulo(0, 27));
+    // Quando
+    await userEvent.click(data);
+    // Então: abaixo da faixa (54 + a distância do botão), e do tamanho que cabe dali até o pé da tela
+    const janela = screen.getByRole('dialog', { name: 'Mudar a data' });
+    expect(parseFloat(janela.style.top)).toBe(54 + DISTANCIA_DO_BOTAO);
+    expect(parseFloat(janela.style.maxHeight)).toBe(window.innerHeight - (54 + DISTANCIA_DO_BOTAO) - MARGEM_DA_TELA);
+  });
+
+  it('dado o botão ⋯ da própria faixa, quando a pessoa o clica, então o menu abre junto dele, como sempre', async () => {
+    // Dado
+    render(<NoCartao />);
+    const mais = screen.getByRole('button', { name: 'Mais ações do cartão' });
+    vi.spyOn(mais.parentElement!, 'getBoundingClientRect').mockReturnValue(retangulo(14, 54));
+    vi.spyOn(mais, 'getBoundingClientRect').mockReturnValue(retangulo(14, 54));
+    // Quando
+    await userEvent.click(mais);
+    // Então
+    const menu = screen.getByRole('dialog', { name: 'Mudar a data' });
+    expect(parseFloat(menu.style.top)).toBe(54 + DISTANCIA_DO_BOTAO);
+    expect(menu.style.maxHeight).toBe('');
   });
 });

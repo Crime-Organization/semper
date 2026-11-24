@@ -24,6 +24,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { createPortal } from 'react-dom';
 import { avisar } from './avisos';
 import { Icone, type NomeIcone } from './Icone';
+import { FaixaDoCartao } from './Menu';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { GrupoDeSecoes } from './Recolhivel';
 import { ComAtalhosDoCartao } from './registroDeAtalhos';
@@ -143,6 +144,8 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
   const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
   const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const [vaga, setVaga] = useState<HTMLElement | null>(null);
+  // A faixa dos botões do alto (o lápis, o ⋯, o X): os menus do corpo do cartão não sobem por cima dela (FaixaDoCartao, #422).
+  const [faixa, setFaixa] = useState<HTMLElement | null>(null);
   const estreita = useEstreita();
   const comColuna = formato === 'centro' && !soNoCentro && !estreita;
   const painel = useRef<HTMLElement>(null);
@@ -172,7 +175,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
     {/* No cadastro, um clique fora não fecha (perderia o que foi digitado): só o X ou o Esc. */}
     <div className={'veu' + (on ? ' on' : '')} onClick={() => { if (!soNoCentro) pedirParaFechar(); }} />
     <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (largo ? ' largo' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={rotulo ?? (soNoCentro ? NOME_DO_CADASTRO : undefined)} tabIndex={-1} ref={painel}>
-      <div className="cartao-botoes">
+      <div className="cartao-botoes" ref={setFaixa}>
         <span className="cartao-botoes-do-cartao" ref={setVaga} />
         <span className="cartao-botoes-da-janela" role="group" aria-label={BOTOES_DA_JANELA}>
           {!soNoCentro && <button type="button" className="cartao-botao cartao-formato" aria-label={rotuloDoFormato} title={rotuloDoFormato} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>}
@@ -180,6 +183,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
         </span>
       </div>
       <div className="cartao-conteudo">
+        <FaixaDoCartao.Provider value={faixa}>
         <ComAtalhosDoCartao>
         <TravaDoPainel.Provider value={travar}>
           <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
@@ -192,6 +196,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
           </ColunaDoCartao.Provider>
         </TravaDoPainel.Provider>
         </ComAtalhosDoCartao>
+        </FaixaDoCartao.Provider>
         {comColuna && <div className="cartao-coluna" ref={setColuna} />}
       </div>
     </aside>
