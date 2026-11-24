@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Atalhos de teclado das páginas de módulo (#86): "/" vai à busca, "N" abre o "Novo" do módulo e "?" abre a ajuda da tela, com
-// os atalhos embaixo (#85; o Financeiro, que não é página de módulo, mostra só os atalhos).
+// os atalhos embaixo (#85; no Financeiro, que não é página de módulo, a ajuda é a da aba aberta, #411).
 // Valem em todos os módulos com página de módulo; aqui, Pessoas e Tarefas.
 import { expect, test } from '@playwright/test';
 
@@ -81,7 +81,7 @@ test.describe('Atalhos de teclado no Financeiro', () => {
     // Quando
     await page.keyboard.press('?');
     // Então
-    const lista = page.getByRole('dialog', { name: 'Atalhos do teclado' });
+    const lista = page.getByRole('dialog', { name: 'Ajuda: Financeiro (Entradas)' }).getByRole('region', { name: 'Atalhos do teclado' });
     await expect(lista.getByRole('region', { name: 'Nesta página' })).toContainText('Nova entrada');
     // Quando
     await page.keyboard.press('Escape');

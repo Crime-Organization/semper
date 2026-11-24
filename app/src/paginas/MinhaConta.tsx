@@ -11,6 +11,7 @@ import { InterruptorDosAtalhos } from '../ui/atalhos';
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { EmailsDePrazo } from './EmailsDePrazo';
 import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
@@ -22,7 +23,7 @@ export default function PaginaMinhaConta() {
   const eu = ctx.equipe.find(m => m.id === ctx.perfil.id) ?? ctx.perfil;
   return <div className="miolo">
     <header>
-      <h1 className="titulo">Minha conta<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="minhaConta" />
       <p className="lead">Seus dados de acesso e o seu perfil profissional, que é a base da sua página no site do escritório.</p>
     </header>
     <MinhaConta aoSalvar={() => recarregar(false)} />

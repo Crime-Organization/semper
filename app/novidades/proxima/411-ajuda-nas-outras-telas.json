@@ -1,0 +1,5 @@
+{
+  "titulo": "Ajuda também fora dos módulos",
+  "texto": "O botão \"?\" ao lado do título (ou a tecla ?) agora explica também o Início, o painel de Processos, cada aba do Financeiro, Mensagens, Equipe, Configurações, Minha conta e as outras telas, com os atalhos de teclado embaixo.",
+  "ondeAchar": "Botão \"?\" ao lado do título de cada tela, ou a tecla ? fora de um campo."
+}

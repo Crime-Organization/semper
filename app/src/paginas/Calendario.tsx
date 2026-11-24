@@ -6,6 +6,7 @@ import { SD, type Orgao } from '../dados';
 import { Aviso, Carregando } from '../ui/base';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { CalcularPrazo } from './calendario/CalcularPrazo';
 import { DiasDoAno } from './calendario/DiasDoAno';
 import { OrgaosDoEscritorio } from './calendario/OrgaosDoEscritorio';
@@ -24,7 +25,7 @@ export default function Calendario() {
   return <div className="miolo calendario">
     <header>
       <p className="olho">Prazos</p>
-      <h1 className="titulo">Feriados e prazos<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="calendario" />
       <p className="lead">Os dias sem expediente de cada órgão, para contar os prazos certos. Os feriados nacionais e o recesso forense
         já vêm prontos; o escritório acrescenta os feriados estaduais e municipais e as suspensões dos tribunais.</p>
     </header>

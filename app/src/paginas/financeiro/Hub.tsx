@@ -15,8 +15,10 @@ import {
 import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
-import { useAtalhosDaPagina, useAtalhosLigados } from '../../ui/atalhos';
+import type { TelaComAjuda } from '../../regras/ajuda';
+import { useAtalhosLigados } from '../../ui/atalhos';
 import { useMudancas } from '../../ui/avisos';
+import { useAjudaDaTela } from '../../ui/BotaoDeAjuda';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 import { CabecaDoPainel } from '../../ui/painel/Painel';
@@ -55,6 +57,11 @@ const OUTRAS_TELAS: { para: string; rotulo: string; soAdmin: boolean }[] = [
   { para: '/conferencia/', rotulo: 'Conferência', soAdmin: false },
   { para: '/lucros/', rotulo: 'Lucro dos sócios', soAdmin: true }
 ];
+
+/** A ajuda de cada aba (#411): o "?" explica o painel e a aba aberta. Aba nova = uma linha nova aqui e a ajuda dela em regras/ajuda.ts. */
+const AJUDA_DA_ABA: Record<AbaDoFinanceiro, TelaComAjuda> = {
+  entradas: 'financeiroEntradas', saidas: 'financeiroSaidas', direitos: 'financeiroDireitos', obrigacoes: 'financeiroObrigacoes'
+};
 
 /** De quem são os números: o escritório todo (o administrador, com o caixa), um advogado escolhido por ele, ou quem está logado. */
 type DeQuem = 'escritorio' | 'advogado' | 'eu';
@@ -104,8 +111,9 @@ export default function Hub() {
   const recarregar = () => setVersao(v => v + 1);
   const pode = !!ctx.escritorio?.modulos?.financeiro;
   const novaEntrada = () => setAberto({ o: 'entrada' });
-  // "Nova entrada" é a ação principal da página: o botão no alto e a tecla N (#86), como o "Novo" dos outros módulos.
-  useAtalhosDaPagina({ novo: pode ? { rotulo: TITULOS.entrada, abrir: novaEntrada } : undefined });
+  // "Nova entrada" é a ação principal da página: o botão no alto e a tecla N (#86), como o "Novo" dos outros módulos. O "?" do
+  // título e a tecla "?" abrem a ajuda da aba aberta (#411).
+  const abrirAjuda = useAjudaDaTela(AJUDA_DA_ABA[aba], pode ? { rotulo: TITULOS.entrada, abrir: novaEntrada } : undefined);
   const atalhosLigados = useAtalhosLigados();
 
   useEffect(() => {
@@ -134,7 +142,7 @@ export default function Hub() {
   // De quem são os números: o advogado escolhido pelo administrador (ou o escritório todo); para os outros, só os seus.
   const quem = admin ? advogado : ctx.perfil.id;
 
-  const cabeca = <CabecaDoPainel titulo="Financeiro" frase={FRASE_DE_QUEM[deQuem](nomeDoAdvogado)}>
+  const cabeca = <CabecaDoPainel titulo="Financeiro" frase={FRASE_DE_QUEM[deQuem](nomeDoAdvogado)} aoAbrirAjuda={abrirAjuda}>
     <div className="financeiro-topo-acoes">
       <nav className="financeiro-topo-acoes" aria-label="Outras telas do Financeiro">
         {OUTRAS_TELAS.filter(t => admin || !t.soAdmin).map(t => <BotaoLink key={t.para} to={t.para}>{t.rotulo}</BotaoLink>)}

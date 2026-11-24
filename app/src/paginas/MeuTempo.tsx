@@ -10,6 +10,7 @@ import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Aviso, BotaoLink, CampoData, Carregando, naGrade, Nota, TituloSecao, Vazio } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import './Configuracoes.css';
 
 export default function MeuTempo() {
@@ -39,7 +40,7 @@ export default function MeuTempo() {
   return <div className="miolo">
     <header>
       <p className="olho"><BotaoLink forma="link" to="/tarefas/">Tarefas</BotaoLink></p>
-      <h1 className="titulo">{deOutro ? `Tempo de ${membro?.nome ?? 'alguém da equipe'}` : 'Meu tempo trabalhado'}<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="meuTempo">{deOutro ? `Tempo de ${membro?.nome ?? 'alguém da equipe'}` : 'Meu tempo trabalhado'}</TituloComAjuda>
       <p className="lead">Quanto {deOutro ? 'essa pessoa' : 'você'} trabalhou em cada tarefa no período, com o total. Vem do cronômetro das tarefas e dos ajustes.</p>
     </header>
 
