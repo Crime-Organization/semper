@@ -18,7 +18,7 @@ import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever
   talvezContando, tipoDoRegistro, type CamposDaCorrecao } from '../regras/registrosDeTempo';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, sinalizarMudanca } from '../ui/avisos';
-import { Aviso, Campo, CampoData, Carregando, Contador, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota, Selo, Tecla } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, CampoData, Carregando, Contador, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota, Selo, Tecla } from '../ui/base';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { useAtalhosLigados } from '../ui/atalhos';
 import { Icone, ICONE_DO_MINI } from '../ui/Icone';
@@ -271,12 +271,14 @@ function LinhaDoRegistro({ r, comNome, posso, contando, aoMudar, aoApagar, aoPed
     {posso && <span className="tempo-registro-acoes">
       {contando
         ? <>
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o registro de ${dia}`} onClick={aoPedirPausa}>Mudar</button>
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Apagar o registro de ${dia}`} onClick={aoPedirPausa}>Apagar</button>
+          <BotaoDeIcone icone="editar" rotulo={`Mudar o registro de ${dia}`} dica="Mudar o registro" onClick={aoPedirPausa} />
+          <BotaoDeIcone icone="lixeira" rotulo={`Apagar o registro de ${dia}`} dica="Apagar o registro" onClick={aoPedirPausa} />
         </>
         : <>
-          <Botao forma="mini" aria-label={`Mudar o registro de ${dia}`} onClick={aoMudar}>Mudar</Botao>
-          <BotaoDuplo forma="mini" variante="perigo" aria-label={`Apagar o registro de ${dia}`} confirmar="Confirmar" aoConfirmar={aoApagar}>Apagar</BotaoDuplo>
+          <Botao icone="editar" rotulo={`Mudar o registro de ${dia}`} dica="Mudar o registro" onClick={aoMudar} />
+          {/* Armado, o botão cresce e mostra "Confirmar", e o nome continua o do registro (#436: ícones no lugar de textos repetidos). */}
+          <BotaoDuplo icone="lixeira" rotulo={`Apagar o registro de ${dia}`} dica="Apagar o registro" variante="perigo"
+            aria-label={`Apagar o registro de ${dia}`} confirmar="Confirmar" aoConfirmar={aoApagar} />
         </>}
     </span>}
   </li>;

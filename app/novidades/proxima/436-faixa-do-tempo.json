@@ -1,5 +1,5 @@
 {
   "titulo": "Faixa do tempo mais organizada",
-  "texto": "No cartão da tarefa, \"Seu tempo nesta tarefa\" ficou numa linha só: o relógio, a situação e, logo ao lado, Iniciar/Pausar e \"Ajustar meu tempo\", um em cima do outro. A parte de cada um acompanha o relógio enquanto ele conta e só aparece quando há mais de uma pessoa; menos de um minuto aparece em segundos (\"4 s\").",
+  "texto": "\"Seu tempo nesta tarefa\" ficou numa linha só: o relógio, a situação e, ao lado, Iniciar/Pausar e \"Ajustar meu tempo\". A parte de cada um acompanha o relógio e só aparece com mais de uma pessoa. Menos de um minuto aparece em segundos (\"4 s\"). Nos registros, Mudar e Apagar viraram ícones.",
   "ondeAchar": "Tarefas, cartão da tarefa, faixa \"Seu tempo nesta tarefa\", logo abaixo das datas."
 }

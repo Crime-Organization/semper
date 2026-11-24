@@ -195,11 +195,11 @@
 .tempo-registro-quem { display: inline-flex; align-items: center; gap: var(--vao-dos-campos); font-weight: 700; color: var(--ink) }
 .tempo-registro-motivo { font-size: var(--texto-apoio); color: var(--muted); overflow-wrap: anywhere }
 .tempo-registro-acoes { display: inline-flex; gap: var(--vao-dos-botoes-do-tempo) }
-/* No celular: o dia e a duração à esquerda e Mudar e Apagar à direita, na primeira linha; de onde veio e o motivo, embaixo. */
+/* No celular: o dia e a duração à esquerda e os ícones de mudar e apagar à direita, do tamanho do dedo, na primeira linha; de onde veio e o motivo, embaixo. */
 @container (max-width: 420px) {
   .tempo-registro { grid-template-columns: minmax(0, 1fr) auto }
   .tempo-registro-sobre { grid-column: 1 / -1; grid-row: 2 }
-  .tempo-registro-acoes > .mini { height: var(--alvo-de-toque) }
+  .tempo-registro-acoes > button { min-width: var(--alvo-de-toque); min-height: var(--alvo-de-toque) }
 }
 /* A janela do ajuste e a de mudar um registro: os campos um embaixo do outro. */
 .ajuste-tempo { display: flex; flex-direction: column; gap: 14px }
