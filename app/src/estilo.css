@@ -83,6 +83,14 @@
   --altura-campo: 48px;
   /* O campo numa linha discreta (a equipe da anotação nova, #339): um pouco mais baixo que o das perguntas (--altura-campo) */
   --campo-discreto: 40px;
+  /* O campo na linha da seção de dados aberta (#432): cabe, com a folga em cima e embaixo, na altura da linha lida (.dados) */
+  --campo-na-linha: 30px; --folga-na-linha: 4px;
+  /* Quanto o campo na linha avança para a esquerda: a borda e o recuo de dentro, para o texto começar onde começa o valor lido */
+  --recuo-na-linha: 9px;
+  /* A coluna dos rótulos da tabela de dados do cartão (.dados) e da mesma tabela aberta (.linha-dos-dados), e o vão depois deles */
+  --coluna-do-rotulo-dos-dados: minmax(120px, 38%); --vao-depois-do-rotulo-dos-dados: 12px;
+  /* O texto dos campos no aparelho de toque: abaixo disto, o celular aproxima a tela ao tocar no campo */
+  --texto-do-campo-no-toque: 16px;
   /* Quanto os campos de uma seção do formulário entram sob o título dela (<SecaoDoFormulario>, #359) */
   --recuo-dos-campos: 16px;
   /* Quanto cada nível das pastas entra (#342): na árvore da página Documentos e no menu de escolher a pasta, que fica fora dela */
@@ -506,10 +514,38 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
 .texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 .texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
-/* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar; aberta, os campos
-   em coluna, com o vão das etapas do lápis, e Cancelar e Salvar presos ao pé do cartão (.edicao-rodape). */
+/* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar. Aberta (#432), ela
+   tem a mesma cara da leitura: a mesma tabela de rótulo e valor (.dados), no mesmo fundo, nas mesmas colunas e na mesma altura de
+   linha; cada valor vira um campo discreto, branco, cujo texto começa onde começa o valor lido. Salvar e Cancelar, pequenos, no pé
+   da seção, presos ao pé do cartão enquanto a tabela rola. */
 .dados-editaveis { display: block; cursor: pointer }
-.dados-editaveis-edicao { display: flex; flex-direction: column; gap: 20px }
+.dados-editaveis-edicao { margin: 0 -10px; padding: 2px 10px; border-radius: 8px; background: var(--soft); font-size: var(--texto-tabela) }
+.linha-dos-dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; align-items: baseline; padding: var(--folga-na-linha) 0 }
+.linha-dos-dados-rotulo { padding-right: var(--vao-depois-do-rotulo-dos-dados); color: var(--muted); overflow-wrap: anywhere }
+.linha-dos-dados-valor { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-left: calc(-1 * var(--recuo-na-linha)) }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea) { width: 100%; height: var(--campo-na-linha); padding: 0 calc(var(--recuo-na-linha) - 1px); border: 1px solid var(--line); border-radius: 6px; background: var(--superficie); font: inherit; color: var(--ink); transition: border-color .15s ease-out }
+.linha-dos-dados-valor textarea { display: block; height: auto; min-height: var(--campo-na-linha); padding-block: var(--folga-na-linha); line-height: 1.5; resize: none; field-sizing: content }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea):hover { border-color: var(--line2) }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea):focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent }
+/* O campo vazio (o "DD/MM/AAAA", a lista em "Não informado") fica apagado, como quem ainda não foi preenchido. */
+.linha-dos-dados-valor ::placeholder { color: var(--muted); opacity: 1 }
+.linha-dos-dados-valor select:has(option[value=""]:checked) { color: var(--muted) }
+.linha-dos-dados-valor option { color: var(--ink) }
+.linha-dos-dados.erro :is(input[type="text"], select, textarea) { border-color: var(--erro); outline-color: var(--erro) }
+.linha-dos-dados .msg-erro { padding-left: var(--recuo-na-linha); font-size: var(--texto-miudo); font-weight: 700; color: var(--erro) }
+/* A data: o botão do calendário cabe dentro do campo baixo. */
+.linha-dos-dados-valor .campo-data > input[type="text"] { padding-right: var(--campo-na-linha) }
+.linha-dos-dados-valor .campo-data-botao { right: var(--folga-na-linha); width: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)); height: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)) }
+/* As caixas de marcar: a caixinha do navegador, na cor do sistema, e o texto do tamanho do lido, sem a moldura das perguntas. */
+.linha-dos-dados .escolhas { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-left: var(--recuo-na-linha) }
+.linha-dos-dados .escolhas label, .linha-dos-dados .escolhas label:has(input:checked) { min-height: var(--campo-na-linha); gap: 8px; padding: 0; border: 0; border-radius: 4px; background: none; box-shadow: none; font-size: inherit; font-weight: 400; color: var(--ink) }
+.linha-dos-dados .escolhas label::before { display: none }
+.linha-dos-dados .escolhas input { position: static; flex-shrink: 0; width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: 0; opacity: 1; pointer-events: auto; accent-color: var(--accent); cursor: pointer }
+.dados-editaveis-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 8px; background: var(--soft) }
+/* No aparelho de toque, o texto do campo fica no tamanho que não faz o celular aproximar a tela ao tocar nele. */
+@media (pointer: coarse) {
+  .linha-dos-dados-valor :is(input[type="text"], select, textarea) { font-size: var(--texto-do-campo-no-toque) }
+}
 /* A descrição na cabeça dos cartões (#346), depois dos dados (#397): o vão acima dela é o da cabeça (.cartao-cabeca-descricao), o
    mesmo para a descrição lida, a caixa aberta e o convite da descrição vazia, e fica fora do texto que se muda (#385): o fundo do
    mouse e o contorno do foco começam no texto. O convite da descrição vazia é discreto, para não pesar mais que o título. */
@@ -1468,9 +1504,9 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .escolhida > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .escolhida > .mini { flex-shrink: 0 }
 .qualificacao { background: var(--soft); border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: anywhere }
-.dados { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 0; margin: 0; font-size: 14px }
+.dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; gap: 0; margin: 0; font-size: 14px }
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
-.dados dt { color: var(--muted); padding-right: 12px; overflow-wrap: anywhere }
+.dados dt { color: var(--muted); padding-right: var(--vao-depois-do-rotulo-dos-dados); overflow-wrap: anywhere }
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }

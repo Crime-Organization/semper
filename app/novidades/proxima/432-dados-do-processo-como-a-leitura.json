@@ -1,0 +1,5 @@
+{
+  "titulo": "Dados do processo: a edição com a cara da leitura",
+  "texto": "Ao clicar em \"Dados do processo\", a seção continua a mesma tabela, com o nome de cada dado à esquerda, e cada valor vira um campo pequeno ali mesmo, na própria linha. Os dados vazios aparecem para preencher e somem depois de salvar. Salvar e Cancelar ficam no pé da seção; Esc cancela.",
+  "ondeAchar": "Em Processos, no cartão de um processo: clique nos dados da seção \"Dados do processo\"."
+}
