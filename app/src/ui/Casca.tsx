@@ -113,10 +113,9 @@ export function Casca({ children }: { children: ReactNode }) {
             {item('/tarefas/', 'tarefas', 'Tarefas')}
             <MaisDoMenu para="/tarefas/nova/" rotulo="Cadastrar tarefa" />
           </div>}
-          {/* A seta da Agenda fica na coluna dos "+", como a de Processos (#435); por isso o "+" do compromisso (#404) não cabe na
-              linha e vira a primeira opção do submenu, "Novo compromisso". */}
-          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}>
-            {ctx.escritorio?.modulos?.compromissos && <MaisDoMenu para="/agenda/novo/" rotulo="Novo compromisso" comTexto />}
+          {/* A Agenda guarda o "+" de cadastrar compromisso na coluna dos "+" (#404); a seta dela fica logo antes dele. */}
+          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/agenda', '/calendario']}
+            mais={ctx.escritorio?.modulos?.compromissos && <MaisDoMenu para="/agenda/novo/" rotulo="Cadastrar compromisso" />}>
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>

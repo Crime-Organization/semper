@@ -725,10 +725,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta; as opções ficam à direita de uma linha-guia que desce do meio do
    ícone, com o texto um passo à direita do texto do botão. */
 .nav-grupo { display: flex; flex-direction: column; gap: 2px }
-/* A seta, sempre na coluna dos "+" (.nav-coluna-do-mais, com o meio no eixo deles, #435). */
-.nav-seta { color: var(--muted) }
-/* O cadastro dentro de um submenu (o "Novo compromisso" da Agenda, #435): o "+" e o texto na cor dos "+", por ser uma ação. */
-.nav .nav-novo { color: var(--accent-ink) }
+/* A seta: sem "+" na linha, na coluna dos "+" (.nav-coluna-do-mais, com o meio no eixo deles, #435); com o "+", logo antes dele. */
+.nav-seta { margin-left: auto; display: flex; color: var(--muted) }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; margin-left: calc(var(--recuo-do-item-do-menu) + var(--icone-do-item-do-menu) / 2); padding-left: var(--vao-da-guia-do-submenu); border-left: 1px solid var(--line2) }
 .nav .nav-sub > a { padding-left: calc(var(--texto-do-item-do-menu) + var(--passo-do-submenu) - var(--recuo-do-item-do-menu) - var(--icone-do-item-do-menu) / 2 - 1px - var(--vao-da-guia-do-submenu)) }
 .nav-sub[hidden] { display: none }

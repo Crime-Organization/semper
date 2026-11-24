@@ -18,10 +18,13 @@ interface Props {
   caminhos: string[];
   /** A tela do próprio item (ex.: o painel de Processos): clicar nele leva a ela, e só recolhe quando já está nela. */
   para?: string;
+  /** O "+" da linha (ex.: o de cadastrar compromisso, #404): ao lado do botão, na coluna dos "+" dos outros módulos, e à vista com
+   *  o submenu aberto ou fechado. */
+  mais?: ReactNode;
   children: ReactNode;
 }
 
-export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: Props) {
+export function SubmenuLateral({ id, icone, rotulo, caminhos, para, mais, children }: Props) {
   const chave = `menu.${id}.aberto`;
   const painel = useId();
   const { pathname } = useLocation();
@@ -41,13 +44,15 @@ export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: 
     salvarPreferencia(chave, !aberto);
   }
 
-  // A seta de abrir (#435) fica na coluna dos "+" dos módulos, com o meio no eixo deles (como o número de Mensagens). Por isso a
-  // linha do submenu não tem "+": o cadastro, quando há (o "Novo compromisso" da Agenda), é uma opção do submenu.
+  // A seta de abrir (#435): sem "+" na linha, fica na coluna dos "+" dos módulos, com o meio no eixo deles (como o número de
+  // Mensagens); com o "+", fica logo antes dele, porque a coluna é do "+".
+  const seta = <Icone nome={aberto ? 'acima' : 'abaixo'} tam={ICONE_DA_SETA} />;
+  const botao = <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
+    <Icone nome={icone} /><span>{rotulo}</span>
+    <span className={'nav-seta' + (mais ? '' : ' nav-coluna-do-mais')}>{seta}</span>
+  </button>;
   return <div className="nav-grupo">
-    <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
-      <Icone nome={icone} /><span>{rotulo}</span>
-      <span className="nav-coluna-do-mais nav-seta"><Icone nome={aberto ? 'acima' : 'abaixo'} tam={ICONE_DA_SETA} /></span>
-    </button>
+    {mais ? <div className="nav-linha">{botao}{mais}</div> : botao}
     <div id={painel} className="nav-sub" hidden={!aberto}>{children}</div>
   </div>;
 }

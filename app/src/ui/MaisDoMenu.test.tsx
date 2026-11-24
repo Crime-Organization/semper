@@ -48,32 +48,3 @@ describe('O "+" do menu lateral', () => {
     expect(screen.getByText('Volta para: nenhum lugar')).toBeTruthy();
   });
 });
-
-describe('O cadastro como opção de um submenu (#435)', () => {
-  const abrirComTexto = (endereco: string) => render(<MemoryRouter initialEntries={[endereco]}>
-    <MaisDoMenu para="/agenda/novo/" rotulo="Novo compromisso" comTexto />
-    <Routes>
-      <Route path="/agenda/novo/" element={<Cadastro />} />
-      <Route path="*" element={<p>Outra tela</p>} />
-    </Routes>
-  </MemoryRouter>);
-
-  it('quando o submenu mostra o cadastro, então o "+" vem com o texto à vista, que é o nome do link', () => {
-    // Quando
-    abrirComTexto('/inicio/');
-    // Então
-    const novo = screen.getByRole('link', { name: 'Novo compromisso' });
-    expect(novo.textContent).toBe('Novo compromisso');
-    expect(novo.querySelector('[data-icone="mais"]')).not.toBeNull();
-    expect(novo.getAttribute('href')).toBe('/agenda/novo/');
-  });
-
-  it('dado a pessoa numa tela, quando clica no cadastro do submenu, então ele também sabe voltar para essa tela', async () => {
-    // Dado
-    abrirComTexto('/pessoas/');
-    // Quando
-    await userEvent.click(screen.getByRole('link', { name: 'Novo compromisso' }));
-    // Então
-    expect(screen.getByText('Volta para: /pessoas/')).toBeTruthy();
-  });
-});

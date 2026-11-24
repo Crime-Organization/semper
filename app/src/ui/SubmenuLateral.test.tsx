@@ -84,35 +84,44 @@ describe('Submenu do menu lateral', () => {
   });
 });
 
-// #435: a seta fica na coluna dos "+" dos módulos, e por isso a linha do submenu não tem mais "+" (era o de compromisso, #404): o
-// cadastro passa a ser uma opção dentro do submenu. A regra mudou; os testes do "+" na linha deram lugar a estes.
-describe('Submenu do menu lateral com o cadastro entre as opções (#435)', () => {
+describe('Submenu do menu lateral com o "+" na linha (#404)', () => {
   beforeEach(() => iniciarPreferencias({}));
-  const abrirComCadastro = () => render(<MemoryRouter initialEntries={['/inicio/']}>
-    <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/calendario']}>
-      <Link to="/agenda/novo/">Novo compromisso</Link>
+  const abrirComMais = () => render(<MemoryRouter initialEntries={['/inicio/']}>
+    <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/calendario']}
+      mais={<Link to="/agenda/novo/">Cadastrar compromisso</Link>}>
       <a href="/calendario/">Feriados e prazos</a>
     </SubmenuLateral>
   </MemoryRouter>);
-  const cadastro = () => screen.queryByRole('link', { name: 'Novo compromisso' });
+  const mais = () => screen.queryByRole('link', { name: 'Cadastrar compromisso' });
 
-  it('dado o submenu fechado, quando o menu aparece, então a linha só tem o botão, com a seta dentro dele', () => {
+  it('dado o submenu fechado, quando o menu aparece, então o "+" já está à vista, ao lado do botão', () => {
     // Quando
-    abrirComCadastro();
+    abrirComMais();
     // Então
     expect(botao().getAttribute('aria-expanded')).toBe('false');
-    expect(cadastro()).toBeNull();
-    expect(botao().querySelector('[data-icone="abaixo"]')).not.toBeNull();
-    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(mais()).not.toBeNull();
+    expect(mais()!.parentElement).toBe(botao().parentElement);
   });
 
-  it('dado o submenu fechado, quando a pessoa o abre, então o cadastro é a primeira opção e a seta vira para cima', async () => {
+  it('dado o "+" na linha, quando a pessoa abre e fecha o submenu, então ele continua funcionando e o "+" fica lá', async () => {
     // Dado
-    abrirComCadastro();
+    abrirComMais();
     // Quando
     await userEvent.click(botao());
     // Então
-    expect(screen.getAllByRole('link').map(l => l.textContent)).toEqual(['Novo compromisso', 'Feriados e prazos']);
-    expect(botao().querySelector('[data-icone="acima"]')).not.toBeNull();
+    expect(opcao()).not.toBeNull();
+    expect(mais()).not.toBeNull();
+    // Quando
+    await userEvent.click(botao());
+    // Então
+    expect(opcao()).toBeNull();
+    expect(mais()).not.toBeNull();
+  });
+
+  it('dado um submenu sem "+" (como Processos), quando o menu aparece, então não há "+"', () => {
+    // Quando
+    abrir('/inicio/');
+    // Então
+    expect(mais()).toBeNull();
   });
 });
