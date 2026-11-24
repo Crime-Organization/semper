@@ -172,14 +172,14 @@ export interface FiltroPessoas {
   tipo?: string;
   responsavel?: string;
   situacao?: 'ativas' | 'arquivadas';
-  /** Só as importadas ou só as com pendência. */
+  /** Só as importadas, só as com pendência ou só as com o consentimento sem data (#409). */
   marca?: MarcaPessoas;
   ordem?: Ordem;
   pagina?: number;
   porPagina?: number;
 }
-/** Marcas do filtro de Pessoas: criadas por uma importação, ou com alguma pendência. */
-export type MarcaPessoas = 'importadas' | 'pendentes';
+/** Marcas do filtro de Pessoas: criadas por uma importação, com alguma pendência, ou com a base legal "consentimento" e sem a data dele (#409). */
+export type MarcaPessoas = 'importadas' | 'pendentes' | 'consentimento_sem_data';
 
 export interface Pagina<T> { linhas: T[]; total: number }
 
@@ -657,6 +657,8 @@ export interface DadosPessoas {
   responsavelIncluir(pessoaId: string, perfilId: string): Promise<void>;
   responsavelRemover(pessoaId: string, perfilId: string): Promise<void>;
   pessoasResumo(): Promise<ResumoPessoas>;
+  /** Quantas pessoas do escritório (ativas e arquivadas) têm a base legal "consentimento" e a data dele vazia (#409). */
+  pessoasSemDataDoConsentimento(): Promise<number>;
 }
 
 /** Informações sigilosas de uma pessoa. */

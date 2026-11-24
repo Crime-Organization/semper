@@ -53,6 +53,24 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(criar('OUTRA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' })).rejects.toThrow('Já existe um cadastro com este CPF/CNPJ.');
       });
 
+      it('quando há cadastros com o consentimento sem data, então o filtro e a contagem trazem só esses, ativos e arquivados (#409)', async () => {
+        // Dado
+        const m = marca(), antes = await SD.pessoasSemDataDoConsentimento();
+        const semData = await criar('SEM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: null });
+        const arquivada = await criar('ARQUIVADA SEM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: null });
+        await SD.pessoasArquivar([arquivada.id], true);
+        await criar('COM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: '2026-01-10' });
+        await criar('OUTRA BASE ' + m, { lgpd_base: 'contrato', lgpd_consentimento: null });
+        // Quando
+        const [ativas, arquivadas] = await Promise.all((['ativas', 'arquivadas'] as const)
+          .map(situacao => SD.pessoasListar({ termo: m, marca: 'consentimento_sem_data', situacao })));
+        const depois = await SD.pessoasSemDataDoConsentimento();
+        // Então
+        expect(ativas.linhas.map(p => p.id)).toEqual([semData.id]);
+        expect(arquivadas.linhas.map(p => p.id)).toEqual([arquivada.id]);
+        expect(depois - antes).toBe(2);
+      });
+
       it('quando uma pessoa é criada, então ela pode ser lida de volta com o que foi gravado e um código', async () => {
         // Quando
         const { id, codigo } = await criar('MARIA CONTRATO', { documento: '28625587887', telefones: ['38999990000'] });

@@ -7,7 +7,7 @@ import { MARCA } from '../marca';
 import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
-import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
 import { PERIODO_CORRIGIDO, REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
@@ -105,10 +105,13 @@ async function emPartes<T>(montar: () => Livre): Promise<T[]> {
 const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
 /** O cadastro completo, com os responsáveis. */
 const CAMPOS_PESSOA = '*, resp:pessoa_responsaveis(perfil_id)';
-/** O filtro de cada marca de Pessoas (importadas, com pendência). */
+/** Só as pessoas com a base legal "consentimento" e sem a data dele (#409). */
+const semDataDoConsentimento = (q: Livre) => q.eq('lgpd_base', BASE_DO_CONSENTIMENTO).is('lgpd_consentimento', null);
+/** O filtro de cada marca de Pessoas (importadas, com pendência, consentimento sem data). */
 const MARCAS: Record<MarcaPessoas, (q: Livre) => Livre> = {
   importadas: q => q.not('importacao_id', 'is', null),
-  pendentes: q => q.neq('pendencias', '{}')
+  pendentes: q => q.neq('pendencias', '{}'),
+  consentimento_sem_data: semDataDoConsentimento
 };
 
 // Ordem das listas. O id no fim desempata, para a paginação não repetir nem pular ninguém.
@@ -989,6 +992,11 @@ export const SD: Dados = {
       rodar(sb.from('pessoas').select(CAMPOS_LISTA).is('arquivado_em', null).order('atualizado_em', { ascending: false }).limit(6))
     ]);
     return { total, minhas, mes, arquivadas, recentes };
+  },
+  // Só a contagem (sem trazer linha nenhuma); as regras de leitura do banco já a prendem ao escritório de quem está logado.
+  async pessoasSemDataDoConsentimento() {
+    const { count } = await rodar(semDataDoConsentimento(sb.from('pessoas').select('id', { count: 'exact', head: true })));
+    return count || 0;
   },
 
   // ---------- importação de pessoas (supabase/migrations/20261031200000_importar_pessoas.sql) ----------

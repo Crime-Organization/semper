@@ -26,7 +26,7 @@ import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato,
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { periodoDosGraficos } from '../regras/graficosDeProcessos';
 import { daPessoa } from '../regras/filtroDoPainel';
-import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { cnpjComLetrasNaBusca, faltaDataDoConsentimento, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
@@ -809,10 +809,13 @@ function termo(texto?: string) {
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
   return normal(t);
 }
-/** O filtro de cada marca de Pessoas (importadas, com pendência), como em supabase.ts. */
+/** Só as pessoas com a base legal "consentimento" e sem a data dele (#409). */
+const semDataDoConsentimento = (p: Pessoa) => faltaDataDoConsentimento(p.lgpd_base, p.lgpd_consentimento);
+/** O filtro de cada marca de Pessoas (importadas, com pendência, consentimento sem data), como em supabase.ts. */
 const MARCAS: Record<MarcaPessoas, (p: Pessoa) => boolean> = {
   importadas: p => !!p.importacao_id,
-  pendentes: p => p.pendencias.length > 0
+  pendentes: p => p.pendencias.length > 0,
+  consentimento_sem_data: semDataDoConsentimento
 };
 function filtrar(f: FiltroPessoas = {}) {
   const t = termo(f.termo);
@@ -3536,6 +3539,7 @@ export const SD: Dados = {
       recentes: ativas.slice().sort((a, b) => b.atualizado_em.localeCompare(a.atualizado_em)).slice(0, 6).map(comEtq('pessoas', lista))
     });
   },
+  pessoasSemDataDoConsentimento: () => espera(bd.pessoas.filter(semDataDoConsentimento).length),
 
   // ---------- importação de pessoas (o fictício é sempre administrador) ----------
   pessoasParaImportar({ documentos, referencias }) {

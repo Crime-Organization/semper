@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O painel da página inicial (#319, #402): os números do dia, os gráficos, os blocos, o que cada um diz quando não há nada, o painel
 // sem nada que diz por onde começar, o filtro só para o administrador, o bloco das parcelas só para quem vê o Financeiro, o aviso de
-// erro só no bloco que falhou e a busca do alto, que abre a busca geral.
+// erro só no bloco que falhou, a busca do alto, que abre a busca geral, e o aviso do consentimento sem data, só para o administrador (#409).
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -14,7 +14,7 @@ import { buscaGeralAberta } from '../ui/fontesDaBuscaGeral';
 import Inicio from './Inicio';
 
 type Falsas = Pick<Dados, 'prazosDoPeriodo' | 'processosPainel' | 'compromissosDoPeriodo' | 'colunasListar' | 'tarefasDaEtapa' | 'demandasDaEtapa'
-  | 'processosListar' | 'anotacoesListar' | 'parcelasDoPeriodo' | 'pessoasResumo' | 'tarefasGraficos' | 'mensagensNaoLidas' | 'salvarPreferencia'>;
+  | 'processosListar' | 'anotacoesListar' | 'parcelasDoPeriodo' | 'pessoasResumo' | 'pessoasSemDataDoConsentimento' | 'tarefasGraficos' | 'mensagensNaoLidas' | 'salvarPreferencia'>;
 const SD = vi.hoisted(() => ({}) as { [K in keyof Falsas]: ReturnType<typeof vi.fn<Falsas[K]>> });
 vi.mock('../dados', () => ({ SD }));
 const MODULOS = { pessoas: true, compromissos: true, tarefas: true, demandas: true, processos: true, anotacoes: true, financeiro: true };
@@ -65,6 +65,7 @@ function diaVazio() {
   SD.anotacoesListar = vi.fn(async () => ({ linhas: [], total: 0 }));
   SD.parcelasDoPeriodo = vi.fn(async () => []);
   SD.pessoasResumo = vi.fn(async () => ({ total: 0, minhas: 0, mes: 0, arquivadas: 0, recentes: [] }));
+  SD.pessoasSemDataDoConsentimento = vi.fn(async () => 0);
 }
 /** A pessoa com uma tarefa em andamento (o painel não está vazio: mostra os números, os gráficos e as listas). */
 function comUmaTarefa() {
@@ -300,6 +301,42 @@ describe('Painel da página inicial', () => {
     expect(await within(await bloco('Tarefas em andamento')).findByRole('alert')).toHaveTextContent('Sem conexão com o banco.');
     expect(await within(await bloco('Prazos')).findByText('Prazo t1')).toBeInTheDocument();
     expect(within(await bloco('Prazos')).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('quando há pessoas com o consentimento sem data e quem entra é administrador, então o aviso diz quantas e leva a Pessoas já filtrada', async () => {
+    // Dado
+    diaCheio();
+    sessao.ehAdmin = true;
+    SD.pessoasSemDataDoConsentimento = vi.fn(async () => 3);
+    // Quando
+    montar();
+    // Então
+    expect(await screen.findByText(/3 pessoas estão com a base legal "consentimento" e sem a data dele/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Completar as datas' })).toHaveAttribute('href', '/pessoas/?visao=tabela&marca=consentimento_sem_data');
+  });
+
+  it('quando quem entra não é administrador, então não há o aviso do consentimento sem data, nem a contagem', async () => {
+    // Dado
+    diaCheio();
+    SD.pessoasSemDataDoConsentimento = vi.fn(async () => 3);
+    // Quando
+    montar();
+    // Então
+    await screen.findByRole('group', { name: 'Números do dia' });
+    expect(screen.queryByRole('link', { name: 'Completar as datas' })).not.toBeInTheDocument();
+    expect(SD.pessoasSemDataDoConsentimento).not.toHaveBeenCalled();
+  });
+
+  it('quando nenhuma pessoa está com o consentimento sem data, então o administrador não vê o aviso', async () => {
+    // Dado
+    diaCheio();
+    sessao.ehAdmin = true;
+    // Quando
+    montar();
+    // Então
+    await screen.findByRole('group', { name: 'Números do dia' });
+    await vi.waitFor(() => expect(SD.pessoasSemDataDoConsentimento).toHaveBeenCalled());
+    expect(screen.queryByRole('link', { name: 'Completar as datas' })).not.toBeInTheDocument();
   });
 
   it('quando a pessoa clica na busca do alto, então a busca geral abre', async () => {

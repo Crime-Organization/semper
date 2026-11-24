@@ -1,0 +1,5 @@
+{
+  "titulo": "Aviso do consentimento sem data",
+  "texto": "Os administradores veem no Início quantas pessoas estão com a base legal \"consentimento\" e sem a data dele, com um link que abre Pessoas só com elas, para completar as datas. A página Pessoas ganhou esse filtro também.",
+  "ondeAchar": "Início, aviso logo abaixo do título (só para administradores); Pessoas > Filtros > Situação do cadastro > Consentimento sem data."
+}
