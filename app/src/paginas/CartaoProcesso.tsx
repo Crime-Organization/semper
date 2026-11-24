@@ -104,7 +104,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Os prazos (no corpo) e os andamentos (na coluna) leem juntos; cada mudança neles relê o histórico.
   const acompanhamento = useAcompanhamento(id, () => setVersaoHist(v => v + 1));
   // Os prazos de PI em dias úteis (#418) contam no calendário do INPI (o órgão INPI de Feriados e prazos e os dias lançados).
-  const calendarioDoInpi = useCalendarioDoInpi(p ? anosDosPrazosEmDiasUteis(p) : []);
+  const inpi = useCalendarioDoInpi(p ? anosDosPrazosEmDiasUteis(p) : []), calendarioDoInpi = inpi.calendario;
 
   // O que cada seção tem, para o número ao lado do título.
   const modulos = ctx.escritorio?.modulos;
@@ -308,7 +308,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo, só no administrativo (#425).
         O número: os prazos por vir. */}
     {protecao && <Recolhivel titulo="Validade e anuidades" icone="relogio" preferencia="processos.cartao.validade" contador={prazosPorVir(protecao.datas, hoje)}>
-      <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} />
+      <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} calendario={inpi.situacao} />
     </Recolhivel>}
 
     {/* As outras pessoas do processo, com o papel de cada uma (#316). A corrente do título (#427: liga uma pessoa que já está no

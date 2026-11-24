@@ -17,10 +17,11 @@ import {
 import { nomeDoCompromisso } from '../../regras/compromisso';
 import { fmtData } from '../../regras/pessoa';
 import { avisar, falha } from '../../ui/avisos';
-import { BotaoLink, Nota, Selo } from '../../ui/base';
+import { Aviso, BotaoLink, Carregando, Nota, Selo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { AcoesDosLigados } from '../../ui/ItensLigados';
+import type { SituacaoDoCalendario } from './useCalendarioDoInpi';
 
 /** O aviso de que as datas são da lei e precisam ser conferidas. */
 export const AVISO_DAS_DATAS_DO_INPI = 'Datas calculadas pela lei, para acompanhar: confira sempre na Revista da Propriedade Industrial (RPI). '
@@ -43,13 +44,28 @@ export interface AcompanharNaAgenda {
   aoMudar?: () => void;
 }
 
-export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: PrazosDaProtecao; hoje: string; acompanhar?: AcompanharNaAgenda | null }) {
+/** O aviso de quando o calendário do INPI não pôde ser lido: a conta fica só com os feriados nacionais. */
+export const CALENDARIO_DO_INPI_FALHOU = 'Não foi possível ler os dias sem expediente do INPI em Feriados e prazos: as datas abaixo contam só os feriados '
+  + 'nacionais, e o cartão não põe nem atualiza datas na agenda com elas. Atualize a página para tentar de novo.';
+
+interface Props {
+  prazos: PrazosDaProtecao;
+  hoje: string;
+  acompanhar?: AcompanharNaAgenda | null;
+  /** O calendário do INPI (#418): enquanto ele é lido, a seção espera; se a leitura falhou, mostra a conta sem oferecer a agenda. */
+  calendario?: SituacaoDoCalendario;
+}
+
+export function ValidadeDaProtecao({ prazos, hoje, acompanhar, calendario = 'pronto' }: Props) {
+  // Com o calendário ainda chegando, a conta mudaria de data diante da pessoa (e o atalho gravaria a data errada).
+  if (calendario === 'lendo') return <Carregando />;
   const proximo = proximoPrazo(prazos.datas, hoje);
   const linhas: [string, string][] = [
     ...(prazos.validade ? [[prazos.validade.rotulo, fmtData(prazos.validade.data)] as [string, string]] : []),
     ...(proximo ? [['Próximo prazo', `${proximo.nome}: ${prazoPorExtenso(proximo)}`] as [string, string]] : [])
   ];
   return <>
+    {calendario === 'falhou' && <Aviso tipo="erro">{CALENDARIO_DO_INPI_FALHOU}</Aviso>}
     {prazos.falta && <Nota>{prazos.falta}</Nota>}
     {linhas.length > 0 && <dl className="dados">{linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>}
     {prazos.datas.length > 0 && <div className="tabela"><table aria-label="Prazos do INPI">
@@ -63,7 +79,7 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: Prazo
       })}</tbody>
     </table></div>}
     {(linhas.length > 0 || prazos.datas.length > 0) && <Nota>{AVISO_DAS_DATAS_DO_INPI}</Nota>}
-    {acompanhar && <AcompanharOsPrazos {...acompanhar} />}
+    {acompanhar && calendario === 'pronto' && <AcompanharOsPrazos {...acompanhar} />}
   </>;
 }
 
