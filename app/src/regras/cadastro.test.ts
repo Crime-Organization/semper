@@ -1,6 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { AO_ENTRAR, fluxo, VALIDACAO, type CamposCadastro } from './cadastro';
+import { MSG_SEM_DATA_DO_CONSENTIMENTO } from './pessoa';
 
 const vazio: CamposCadastro = {
   tipo: '', nome: '', cnpjBusca: '', natureza: '', genero: '', nac: '', nacOutra: '', profissao: '', ec: '', cpf: '',
@@ -187,6 +188,29 @@ describe('Validação de cada etapa', () => {
       // Então
       expect(r.erros).toEqual({ lgpdData: 'Data inexistente.' });
     });
+
+    it('quando a base é consentimento e a data está vazia, então não segue e explica que a data prova o consentimento (#408)', () => {
+      // Quando
+      const r = VALIDACAO['s-contato'](campos({ telefones: [tel('38999991234')], lgpdBase: 'consentimento', lgpdData: '  ' }));
+      // Então
+      expect(r.erros).toEqual({ lgpdData: MSG_SEM_DATA_DO_CONSENTIMENTO });
+      expect(r.erros.lgpdData).toContain('prova quando a pessoa autorizou');
+    });
+
+    it('quando a base é consentimento e a data existe, então a etapa está certa', () => {
+      // Quando
+      const r = VALIDACAO['s-contato'](campos({ telefones: [tel('38999991234')], lgpdBase: 'consentimento', lgpdData: '10/01/2020' }));
+      // Então
+      expect(r.erros).toEqual({});
+    });
+
+    it.each(['contrato', 'processo', 'obrigacao_legal', 'legitimo_interesse'])(
+      'quando a base é %s e não há data do consentimento, então a etapa está certa, como antes', base => {
+        // Quando
+        const r = VALIDACAO['s-contato'](campos({ telefones: [tel('38999991234')], lgpdBase: base, lgpdData: '' }));
+        // Então
+        expect(r.erros).toEqual({});
+      });
   });
 
   it('quando uma etapa é validada, então as datas e os campos dela contam como conferidos', () => {

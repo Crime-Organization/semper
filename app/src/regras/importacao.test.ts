@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Membro, Pessoa } from '../dados/tipos';
 import { TAMANHO_OBSERVACOES, TAMANHO_PESSOA, TAMANHO_REFERENCIA } from '../dados/limites';
-import { CAMPOS, ENTIDADES, naturezaDaEntidade } from './pessoa';
+import { CAMPOS, ENTIDADES, MSG_SEM_DATA_DO_CONSENTIMENTO, naturezaDaEntidade } from './pessoa';
 import { escreverCSV, lerCSV } from './csv';
 import {
   acharResponsavel, classificar, COLUNAS_IMPORTACAO, completarVazios, DECISOES, DICA_ARQUIVADA, emLotes, juntarObservacoes,
@@ -509,6 +509,35 @@ describe('Normalizar uma linha', () => {
       const p = pf({ lgpd_base: 'Consentimento do titular (art. 7º, I)', lgpd_consentimento: '10/01/2020' });
       // Então
       expect(p.dados).toMatchObject({ lgpd_base: 'consentimento', lgpd_consentimento: '2020-01-10' });
+    });
+
+    it('quando a base é consentimento e a data não vem, então a linha não entra, e o erro explica por quê (#408)', () => {
+      // Quando
+      const p = pf({ lgpd_base: 'consentimento' });
+      // Então
+      expect(erros(p)).toEqual([expect.objectContaining({ campo: 'lgpd_consentimento', mensagem: MSG_SEM_DATA_DO_CONSENTIMENTO })]);
+    });
+
+    it('quando o consentimento vem com uma data que não existe, então a data fica em branco e a linha não entra (#408)', () => {
+      // Quando
+      const p = pf({ lgpd_base: 'consentimento', lgpd_consentimento: '31/02/2020' });
+      // Então
+      expect(avisos(p, 'lgpd_consentimento')).toHaveLength(1);
+      expect(erros(p).map(e => e.campo)).toEqual(['lgpd_consentimento']);
+    });
+
+    it('quando a base escolhida na tela é consentimento e a linha vem sem data, então a linha não entra (#408)', () => {
+      // Quando
+      const p = importar({ tipo: 'pf', nome: 'MARIA EXEMPLO' }, 2, { ...CTX, lgpdPadrao: 'consentimento' });
+      // Então
+      expect(erros(p).map(e => e.campo)).toEqual(['lgpd_consentimento']);
+    });
+
+    it('quando a base não é consentimento e não vem data, então a linha entra como antes', () => {
+      // Quando
+      const p = pf({ lgpd_base: 'processo' });
+      // Então
+      expect(erros(p)).toEqual([]);
     });
 
     it('quando vem data de consentimento com outra base, então a data fica de fora, com aviso', () => {

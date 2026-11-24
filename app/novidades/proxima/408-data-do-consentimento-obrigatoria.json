@@ -1,0 +1,5 @@
+{
+  "titulo": "Data do consentimento obrigatória",
+  "texto": "Com a base legal \"consentimento\", o cadastro só salva com a data em que a pessoa consentiu, que é a prova pedida pela LGPD; vale para o cadastro novo, para a edição de cadastros antigos sem a data e para a importação. As outras bases legais continuam como antes.",
+  "ondeAchar": "Cadastro de pessoa, etapa Contato, campo Data do consentimento (também no Editar do cartão da pessoa)."
+}
