@@ -14,9 +14,10 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
 import { CLIENTES_MAXIMOS, DEMANDA_DO_COMPROMISSO, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
-import { avisoDasDemandasNascidas, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
+import { avisoDasDemandasNascidas, demandaAGravar, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
 import {
-  avisoDaRepeticao, avisoDoLapis, camposQueMudamNasSeguintes, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, type FeitoNoLapis, type FimDaRepeticao
+  avisoDaRepeticao, avisoDoLapis, camposQueMudamNasSeguintes, falhaNoLapis, FINS_DA_REPETICAO, FREQUENCIAS, FREQUENCIAS_DA_REPETICAO, passosDoLapis, type FeitoNoLapis,
+  type FimDaRepeticao, type PassoDoLapis
 } from '../regras/repeticao';
 import { perguntarNosCampos } from './agenda/soEstaOuSeguintes';
 import {
@@ -292,17 +293,27 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   /**
    * O que o lápis faz na repetição, depois de gravar esta data (#417), como o cadastro: passa os campos às seguintes (se a pessoa
    * escolheu "esta e as seguintes"); dá repetição ao compromisso que ainda não se repete (nascem as datas seguintes) e, com ela, a
-   * demanda de cada data; no que já se repete, liga, muda ou desliga a demanda das datas em aberto.
+   * demanda de cada data; no que já se repete, liga, muda ou desliga a demanda das datas em aberto. Os passos vão na ordem de
+   * passosDoLapis; o que não deu para no passo dele, com a mensagem própria (falha), e o que deu fica em `feito`.
    */
-  async function gravarNaSerie(alvo: Compromisso, seguintes: CamposDasSeguintes | null): Promise<FeitoNoLapis> {
-    const r: FeitoNoLapis = { codigo: alvo.codigo, seguintes: null, repetidos: null, demanda: null };
-    if (seguintes) r.seguintes = await SD.compromissoMudarCamposSeguintes(alvo.id, seguintes);
-    const regra = repeteAqui ? repeticaoDoCompromisso(c) : null;
-    if (regra) r.repetidos = await SD.compromissoRepetir(alvo.id, regra);
-    const dias = geraDemanda ? diasAntesDosCampos(c) : null;
-    const mudaDemanda = geraDemanda && (r.repetidos ? dias !== null : c.seRepete && dias !== (alvo.repeticao?.demanda_dias_antes ?? null));
-    if (mudaDemanda) r.demanda = { dias, nascidas: (await SD.compromissoGerarDemandas(alvo.id, dias)).length };
-    return r;
+  async function gravarNaSerie(alvo: Compromisso, seguintes: CamposDasSeguintes | null): Promise<{ feito: FeitoNoLapis; falha: string | null }> {
+    const fez: FeitoNoLapis = { codigo: alvo.codigo, seguintes: null, repetidos: null, demanda: null };
+    const PASSOS: Record<PassoDoLapis, () => Promise<void>> = {
+      seguintes: async () => { if (seguintes) fez.seguintes = await SD.compromissoMudarCamposSeguintes(alvo.id, seguintes); },
+      repetir: async () => {
+        const regra = repeteAqui ? repeticaoDoCompromisso(c) : null;
+        if (regra) fez.repetidos = await SD.compromissoRepetir(alvo.id, regra);
+      },
+      demanda: async () => {
+        const dias = demandaAGravar({ modulo: geraDemanda, dias: diasAntesDosCampos(c), atual: alvo.repeticao?.demanda_dias_antes ?? null,
+          repetiuAgora: !!fez.repetidos, seRepete: c.seRepete });
+        if (dias !== undefined) fez.demanda = { dias, nascidas: (await SD.compromissoGerarDemandas(alvo.id, dias)).length };
+      }
+    };
+    for (const passo of passosDoLapis(c.seRepete)) {
+      try { await PASSOS[passo](); } catch (e) { return { feito: fez, falha: falhaNoLapis(alvo.codigo, passo, (e as Error).message) }; }
+    }
+    return { feito: fez, falha: null };
   }
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
@@ -335,12 +346,11 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         const escolha = alvo.repeticao_id && Object.keys(nasSeguintes).length ? await perguntarNosCampos(nasSeguintes) : 'esta';
         if (!escolha) { setOcupado(false); return; }
         await SD.compromissoAtualizar(alvo.id, gravar);
-        // A repetição, depois desta data gravada: as seguintes, as datas novas e a demanda. Se não der, esta data fica gravada, e a pessoa sabe.
-        const naSerie = await gravarNaSerie(alvo, escolha === 'seguintes' ? nasSeguintes : null).catch(e => {
-          falha(new Error(`O compromisso ${alvo.codigo} foi atualizado, mas não foi possível mudar a repetição: ${(e as Error).message}`));
-          return null;
-        });
-        const avisoDaSerie = naSerie && avisoDoLapis(naSerie);
+        // A repetição, depois desta data gravada: as seguintes, as datas novas e a demanda. Se um passo não der, esta data fica gravada, e a
+        // pessoa sabe qual passo faltou e o que deu certo antes dele.
+        const naSerie = await gravarNaSerie(alvo, escolha === 'seguintes' ? nasSeguintes : null);
+        if (naSerie.falha) falha(new Error(naSerie.falha));
+        const avisoDaSerie = avisoDoLapis(naSerie.feito);
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
           await sairDoCartao('compromissos', alvo.id, `${avisoDaSerie || 'Compromisso atualizado.'} Você saiu dele, e a saída ficou no histórico.`);
@@ -350,7 +360,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         }
         // Mexendo na repetição, sem Desfazer (como o "esta e as seguintes" da data): cada data pode ter mudado de um jeito.
         if (avisoDaSerie) avisar(avisoDaSerie);
-        else if (naSerie) feito('Compromisso atualizado.', 'atualização do compromisso', async () => {
+        else if (!naSerie.falha) feito('Compromisso atualizado.', 'atualização do compromisso', async () => {
           await SD.compromissoAtualizar(alvo.id, antes);
           return { tipo: 'compromissoAtualizado', id: alvo.id };
         });

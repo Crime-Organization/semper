@@ -207,3 +207,19 @@ export function camposPorExtenso(campos: CamposDasSeguintes) {
 /** A pergunta "só esta / esta e as seguintes" ao mudar os campos das seguintes (#417). */
 export const perguntaDosCampos = (campos: CamposDasSeguintes) =>
   `Este compromisso se repete. Mudar ${camposPorExtenso(campos)} só nesta data, ou nesta e nas seguintes ainda em aberto?`;
+
+/** Os passos do lápis na repetição, depois de gravar esta data (#417): as seguintes, a repetição nova e a demanda de cada data. */
+export type PassoDoLapis = 'seguintes' | 'repetir' | 'demanda';
+/**
+ * A ordem dos passos. No compromisso que já se repete, a demanda vem antes das seguintes: quem se tira das seguintes ou passa a
+ * responsabilidade delas a outro deixa de mudar as datas em aberto, e o banco recusaria a demanda (DEMANDA_NA_SERIE_DE_OUTROS). No que
+ * ainda não se repete, a repetição nasce antes da demanda (não há seguintes a mudar).
+ */
+export const passosDoLapis = (seRepete: boolean): readonly PassoDoLapis[] => seRepete ? ['demanda', 'seguintes'] : ['repetir', 'demanda'];
+/** O que não deu em cada passo, para a mensagem. */
+const O_QUE_NAO_DEU: Record<PassoDoLapis, string> = {
+  seguintes: 'mudar as seguintes', repetir: 'repeti-lo', demanda: 'mudar a demanda de cada data'
+};
+/** A mensagem de quando esta data ficou gravada e um passo da repetição não deu (os passos seguintes não rodam). */
+export const falhaNoLapis = (codigo: string, passo: PassoDoLapis, motivo: string) =>
+  `O compromisso ${codigo} foi atualizado, mas não foi possível ${O_QUE_NAO_DEU[passo]}: ${motivo}`;

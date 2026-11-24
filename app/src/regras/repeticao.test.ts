@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { REPETICAO } from '../dados/limites';
 import {
-  avisoDaRepeticao, avisoDasSeguintes, avisoDoLapis, camposPorExtenso, camposQueMudamNasSeguintes, perguntaDosCampos,
+  avisoDaRepeticao, avisoDasSeguintes, avisoDoLapis, camposPorExtenso, camposQueMudamNasSeguintes, falhaNoLapis, passosDoLapis, perguntaDosCampos,
   CONFERENCIAS_DA_REPETICAO, dataDaVez, descreverRepeticao, REPETICAO_VAZIA, regraDosCampos, regraNoLimite, somarMeses, vezDaData, vezesParaGerar, vezNaLista,
   type CamposRepeticao, type SerieDeRepeticao, type VezNaLista
 } from './repeticao';
@@ -193,5 +193,26 @@ describe('O lápis do compromisso que se repete (#417)', () => {
         + ' A demanda passa a nascer 7 dias antes de cada data em aberto.');
     expect(avisoDoLapis({ codigo: 'K1', seguintes: null, repetidos: null, demanda: { dias: null, nascidas: 0 } }))
       .toBe('Compromisso K1 atualizado. As datas em aberto não geram mais demanda. As que já nasceram continuam.');
+  });
+});
+
+describe('Os passos do lápis na repetição (#417)', () => {
+  it('dado o compromisso que já se repete, quando o lápis grava, então a demanda vem antes das seguintes', () => {
+    // Dado / Quando / Então: quem se tira das seguintes ainda muda a demanda das datas em aberto
+    expect(passosDoLapis(true)).toEqual(['demanda', 'seguintes']);
+  });
+
+  it('dado o compromisso que ainda não se repete, quando o lápis grava, então a repetição nasce antes da demanda', () => {
+    // Dado / Quando / Então
+    expect(passosDoLapis(false)).toEqual(['repetir', 'demanda']);
+  });
+
+  it.each([
+    ['seguintes', 'mudar as seguintes'],
+    ['repetir', 'repeti-lo'],
+    ['demanda', 'mudar a demanda de cada data']
+  ] as const)('dado o passo %s que não deu, quando avisa, então diz que esta data ficou gravada e o que faltou', (passo, faltou) => {
+    // Dado / Quando / Então
+    expect(falhaNoLapis('K1', passo, 'Sem permissão.')).toBe(`O compromisso K1 foi atualizado, mas não foi possível ${faltou}: Sem permissão.`);
   });
 });
