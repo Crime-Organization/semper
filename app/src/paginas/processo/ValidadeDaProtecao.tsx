@@ -11,7 +11,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { SD, type Coluna, type CompromissoLigado } from '../../dados';
 import {
   compromissoAConcluir, compromissoDoAcompanhamento, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar, descreverPrazoAposODeferimento,
-  descreverPrazoExtra, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
+  descreverPrazoExtra, extraNaTabela, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
   type AcompanhamentoDaProtecao, type DataParaAtualizar, type PrazoExtraDaProtecao, type PrazosDaProtecao
 } from '../../regras/propriedadeIntelectual';
 import { nomeDoCompromisso } from '../../regras/compromisso';
@@ -78,7 +78,7 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar, calendario = 'pro
       <tbody>{prazos.datas.map(x => {
         const situacao = SITUACOES_DO_PRAZO[situacaoDoPrazo(x, hoje)];
         return <tr key={x.nome}>
-          <td>{x.nome}</td><td>{fmtData(x.inicio)}</td><td>{fmtData(x.fim)}</td><td>{x.fimExtra ? fmtData(x.fimExtra) : '—'}</td>
+          <td>{x.nome}</td><td>{fmtData(x.inicio)}</td><td>{fmtData(x.fim)}</td><td>{extraNaTabela(x)}</td>
           <td><Selo tipo={situacao.selo}>{situacao.nome}</Selo></td>
         </tr>;
       })}</tbody>

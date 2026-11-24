@@ -414,6 +414,12 @@ export const prazosPorVir = (datas: readonly PrazoDaProtecao[], hoje: string) =>
 /** Como o prazo extra aparece no cartão: "com taxa extra até 10/12/2022" ou, no que não tem taxa, "prazo extra até 18/02/2027". */
 export const extraPorExtenso = (x: Pick<PrazoDaProtecao, 'tipo' | 'fimExtra'>) =>
   x.fimExtra ? `${EXTRA_COM_TAXA[x.tipo] ? 'com taxa extra' : 'prazo extra'} até ${fmtData(x.fimExtra)}` : null;
+/**
+ * A célula "Prazo extra até" da tabela dos prazos: a data e, no prazo extra que é pago (anuidade, prorrogação, quinquênio), "com taxa":
+ * "10/12/2022, com taxa". O prazo após o deferimento (#418) só mostra a data, sem falar em taxa. Sem prazo extra, um traço.
+ */
+export const extraNaTabela = (x: Pick<PrazoDaProtecao, 'tipo' | 'fimExtra'>) =>
+  x.fimExtra ? `${fmtData(x.fimExtra)}${EXTRA_COM_TAXA[x.tipo] ? ', com taxa' : ''}` : '—';
 /** Como o prazo aparece no cartão: "de 10/03/2022 a 10/06/2022 (com taxa extra até 10/12/2022)". */
 export const prazoPorExtenso = (x: PrazoDaProtecao) => {
   const extra = extraPorExtenso(x);

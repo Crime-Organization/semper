@@ -53,7 +53,8 @@ test.describe('Processos de propriedade intelectual (#317)', () => {
     await abrirSecao(cartao, 'Validade e anuidades');
     await expect(cartao.getByText('10/03/2040')).toBeVisible();
     const prazos = cartao.getByRole('table', { name: 'Prazos do INPI' });
-    await expect(prazos.getByRole('row', { name: /3ª anuidade 10\/03\/2022 10\/06\/2022 10\/12\/2022/ })).toBeVisible();
+    // O prazo extra da anuidade é pago: a tabela diz "com taxa" (#418: só o prazo após o deferimento não fala em taxa)
+    await expect(prazos.getByRole('row', { name: /3ª anuidade 10\/03\/2022 10\/06\/2022 10\/12\/2022, com taxa/ })).toBeVisible();
     await expect(prazos.getByRole('row', { name: /20ª anuidade/ })).toBeVisible();
     await expect(cartao.getByText(/confira sempre na Revista da Propriedade Industrial/)).toBeVisible();
     // E os dados do processo mostram o tipo e o depósito
