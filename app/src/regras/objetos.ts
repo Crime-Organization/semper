@@ -121,6 +121,18 @@ export function ligacoesDasDemandas(demandas: readonly Pick<DemandaDoObjeto, 'id
   const ligacoes = demandas.map(d => { const i = escolhas[d.id]; return { demanda: d.id, objeto: (i === undefined ? '' : campos[i] ?? '').trim() }; });
   return ligacoes.every(l => l.objeto) ? ligacoes : null;
 }
+/**
+ * As escolhas das demandas depois que a lista dos nomes novos mudou. Cada escolha aponta para a posição de um nome: quando um nome
+ * sai, a escolha dele cai e as dos nomes de baixo sobem uma posição, para continuar no mesmo nome. `antes` e `depois` são as linhas
+ * da lista; a linha que fica é o mesmo objeto (é assim que se acha a que saiu).
+ */
+export function escolhasDepoisDosNomes(escolhas: Readonly<Partial<Record<string, number>>>, antes: readonly object[],
+  depois: readonly object[]): Readonly<Partial<Record<string, number>>> {
+  if (depois.length >= antes.length) return escolhas;
+  const tirada = antes.findIndex((linha, i) => linha !== depois[i]);
+  return Object.fromEntries(Object.entries(escolhas).flatMap(([demanda, i]) =>
+    i === undefined || i === tirada ? [] : [[demanda, i > tirada ? i - 1 : i]]));
+}
 /** Os objetos do contrato depois de separar `de` em `para`: os novos no lugar do antigo, sem repetir (como o banco). */
 export const objetosSeparados = (objetos: readonly string[], de: string, para: readonly string[]) =>
   limparObjetos(objetos.flatMap(o => normal(o) === normal(de) ? [...para] : [o]));

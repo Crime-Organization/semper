@@ -18,7 +18,7 @@ const DEMANDAS = [
 const TROCA = { contratos: 2, demandas: 2, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 };
 
 async function escreverNomes(...nomes: string[]) {
-  for (const [i, nome] of nomes.entries()) await userEvent.type(screen.getByRole('textbox', { name: new RegExp(`^Nome novo ${i + 1}\\*?$`) }), nome);
+  for (const [i, nome] of nomes.entries()) await userEvent.type(screen.getByRole('textbox', { name: `Nome novo (nome ${i + 1})` }), nome);
 }
 async function clicarSeparar() {
   await userEvent.click(screen.getByRole('button', { name: /Separar/ }));
@@ -71,12 +71,29 @@ describe('Separar um objeto de contrato', () => {
     render(<SepararObjeto objeto={{ ...JUNTOS, demandas: 0 }} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
     await screen.findByText(/Muda em 2 contratos e 0 demandas/);
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Mais um nome' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar nome' }));
     await escreverNomes('Parecer', 'Consulta', 'Recurso');
     await clicarSeparar();
     // Então
     expect(screen.queryByRole('group', { name: 'A qual objeto novo cada demanda fica ligada?' })).toBeNull();
     expect(separar).toHaveBeenCalledWith('o1', ['Parecer', 'Consulta', 'Recurso'], []);
+  });
+
+  it('dado três nomes e uma demanda ligada ao terceiro, quando o administrador tira o segundo, então a demanda continua ligada ao mesmo nome', async () => {
+    // Dado
+    const separar = vi.spyOn(SD, 'objetoSeparar').mockResolvedValue(TROCA);
+    vi.spyOn(SD, 'demandasDoObjeto').mockResolvedValue([DEMANDAS[0]]);
+    render(<SepararObjeto objeto={JUNTOS} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar nome' }));
+    expect(screen.getByRole('textbox', { name: 'Nome novo (nome 3)' })).toHaveFocus();
+    await escreverNomes('Registro de marca', 'Errado', 'Patente');
+    await userEvent.selectOptions(await screen.findByLabelText(/Marca e patente \(demanda D1/), 'Patente');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o nome 2' }));
+    await clicarSeparar();
+    // Então
+    expect(screen.getByLabelText(/Marca e patente \(demanda D1/)).toHaveDisplayValue('Patente');
+    expect(separar).toHaveBeenCalledWith('o1', ['Registro de marca', 'Patente'], [{ demanda: 'd1', objeto: 'Patente' }]);
   });
 
   it('dado a lista dizendo que o objeto não tem demandas, quando a separação abre e o banco tem uma (criada depois), então a tela pergunta dela', async () => {

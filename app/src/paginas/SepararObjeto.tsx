@@ -5,15 +5,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type DemandaDoObjeto, type ObjetoDoEscritorio } from '../dados';
 import { OBJETOS_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
-  alcanceDaSeparacao, avisoDaTroca, erroDosNomesDaSeparacao, ligacoesDasDemandas, nomesDaSeparacao, nomesPorExtenso, SEM_OBJETO_DA_DEMANDA, trocaPedeConferencia
+  alcanceDaSeparacao, avisoDaTroca, erroDosNomesDaSeparacao, escolhasDepoisDosNomes, ligacoesDasDemandas, nomesDaSeparacao, nomesPorExtenso,
+  SEM_OBJETO_DA_DEMANDA, trocaPedeConferencia
 } from '../regras/objetos';
 import { avisar, falha } from '../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo } from '../ui/base';
+import { LinhasRepetidas, type ColunaDaLinha } from '../ui/base/LinhasRepetidas';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 
-/** Os nomes novos começam com dois campos em branco (separar é em dois ou mais). Campo vazio não conta. */
-const NOMES_EM_BRANCO = ['', ''];
+/** Uma linha da lista dos nomes novos. */
+type LinhaDoNome = { nome: string };
+/** Os nomes novos começam com duas linhas em branco (separar é em dois ou mais). Linha vazia não conta. */
+const LINHAS_EM_BRANCO: readonly LinhaDoNome[] = [{ nome: '' }, { nome: '' }];
+const COLUNAS_DO_NOME: ColunaDaLinha<LinhaDoNome>[] = [{ campo: 'nome', rotulo: 'Nome novo', maximo: TAMANHO_CONTRATO.objeto }];
 /** Quando a busca das demandas falha sem dizer por quê. */
 const DEMANDAS_SEM_RESPOSTA = 'Não foi possível buscar as demandas deste objeto. Cancele e abra a separação de novo.';
 
@@ -21,11 +26,11 @@ const DEMANDAS_SEM_RESPOSTA = 'Não foi possível buscar as demandas deste objet
 const rotuloDaDemanda = (d: DemandaDoObjeto) => `${d.titulo} (demanda ${d.codigo}${d.contrato_codigo ? `, contrato ${d.contrato_codigo}` : ''})`;
 
 export function SepararObjeto({ objeto, aoTerminar, aoCancelar }: { objeto: ObjetoDoEscritorio; aoTerminar: () => unknown; aoCancelar: () => void }) {
-  const [campos, setCampos] = useState(NOMES_EM_BRANCO);
+  const [linhas, setLinhas] = useState<LinhaDoNome[]>(() => LINHAS_EM_BRANCO.map(l => ({ ...l })));
   const [demandas, setDemandas] = useState<DemandaDoObjeto[] | null>(null);
   const [erroDasDemandas, setErroDasDemandas] = useState<string | null>(null);
   /** Para cada demanda, a posição do nome escolhido. */
-  const [escolhas, setEscolhas] = useState<Partial<Record<string, number>>>({});
+  const [escolhas, setEscolhas] = useState<Readonly<Partial<Record<string, number>>>>({});
   const [conferido, setConferido] = useState(false);
 
   // As demandas vêm sempre do banco, mesmo quando a lista diz que não há nenhuma: a contagem da lista é de quando ela abriu, e
@@ -35,10 +40,15 @@ export function SepararObjeto({ objeto, aoTerminar, aoCancelar }: { objeto: Obje
     .catch((e: unknown) => setErroDasDemandas((e as Error)?.message || DEMANDAS_SEM_RESPOSTA)), [objeto.id]);
   useEffect(() => { void buscarDemandas(); }, [buscarDemandas]);
 
+  const campos = linhas.map(l => l.nome);
   const erroDosNomes = conferido ? erroDosNomesDaSeparacao(campos) : null;
   const titulo = `Separar o objeto ${objeto.descricao}`;
 
-  const mudarCampo = (i: number, nome: string) => setCampos(c => c.map((x, j) => j === i ? nome : x));
+  // A escolha de cada demanda aponta para a posição do nome: quando um nome sai, as escolhas acompanham.
+  function mudarLinhas(novas: LinhaDoNome[]) {
+    setEscolhas(x => escolhasDepoisDosNomes(x, linhas, novas));
+    setLinhas(novas);
+  }
 
   async function separar() {
     setConferido(true);
@@ -57,16 +67,12 @@ export function SepararObjeto({ objeto, aoTerminar, aoCancelar }: { objeto: Obje
   }
 
   return <div className="config-campos-form" role="group" aria-label={titulo}>
-    <Nota>Escreva os nomes novos, um em cada campo. {alcanceDaSeparacao({ ...objeto, demandas: demandas?.length ?? objeto.demandas })}</Nota>
-    {campos.map((nome, i) => {
-      // O erro dos nomes aparece no primeiro campo.
-      const id = `separar-nome-${i}`, erro = i === 0 ? erroDosNomes : null;
-      return <Campo key={i} rotulo={`Nome novo ${i + 1}`} para={id} obrigatorio={i < NOMES_EM_BRANCO.length} erro={erro ?? undefined}>
-        <input type="text" {...propsDoCampo(id, { erro })} maxLength={TAMANHO_CONTRATO.objeto} value={nome} onChange={e => mudarCampo(i, e.target.value)} />
-      </Campo>;
-    })}
-    <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={campos.length >= OBJETOS_MAXIMOS}
-      onClick={() => setCampos(c => [...c, ''])}><Icone nome="mais" tam={13} /> Mais um nome</button></div>
+    <Nota>Escreva os nomes novos, um em cada linha. {alcanceDaSeparacao({ ...objeto, demandas: demandas?.length ?? objeto.demandas })}</Nota>
+    {/* A lista de linhas vai dentro de uma grade de formulário (veja ui/base/LinhasRepetidas.tsx); "campos" dá aos campos dela a cara dos outros. */}
+    <div className="grade-form campos">
+      <LinhasRepetidas rotulo="Nomes novos" erro={erroDosNomes} item="nome" artigo="o" linhas={linhas} colunas={COLUNAS_DO_NOME}
+        nova={{ nome: '' }} maximo={OBJETOS_MAXIMOS} aoMudar={mudarLinhas} />
+    </div>
 
     {erroDasDemandas ? <Aviso tipo="erro">{erroDasDemandas}</Aviso> : !demandas ? <Carregando /> : demandas.length > 0 && <div role="group" aria-label="A qual objeto novo cada demanda fica ligada?">
       <Nota>A qual objeto novo cada demanda fica ligada? A demanda continua a mesma, com as tarefas e o histórico.</Nota>

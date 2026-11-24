@@ -4,7 +4,7 @@ import type { ObjetoDoEscritorio } from '../dados/tipos';
 import { TAMANHO_CONTRATO } from '../dados/limites';
 import {
   alcanceDaJuncao, alcanceDaSeparacao, avisoDaTroca, avisoDoObjetoEmUso, chaveParecida, contratosDoObjeto, erroDoNomeDoObjeto, OBJETO_LONGO, OBJETO_REPETIDO, OBJETO_RESERVADO,
-  OBJETO_SEM_NOME, erroDosNomesDaSeparacao, ligacoesDasDemandas, nomesDaSeparacao, nomesPorExtenso, objetosNaBusca, objetosSeparados, parecidos, quemFica, semUso, SEPARAR_POUCOS, SEPARAR_REPETIDOS, textoDosContratos, trocaPedeConferencia
+  OBJETO_SEM_NOME, erroDosNomesDaSeparacao, escolhasDepoisDosNomes, ligacoesDasDemandas, nomesDaSeparacao, nomesPorExtenso, objetosNaBusca, objetosSeparados, parecidos, quemFica, semUso, SEPARAR_POUCOS, SEPARAR_REPETIDOS, textoDosContratos, trocaPedeConferencia
 } from './objetos';
 
 const objeto = (id: string, descricao: string, campos: Partial<ObjetoDoEscritorio> = {}): ObjetoDoEscritorio =>
@@ -142,6 +142,19 @@ describe('Separar um objeto em dois ou mais (#410)', () => {
     expect(ligacoesDasDemandas(demandas, { d1: 0 }, campos)).toBeNull();
     expect(ligacoesDasDemandas(demandas, { d1: 0, d2: 2 }, campos)).toBeNull();
     expect(ligacoesDasDemandas([], {}, campos)).toEqual([]);
+  });
+
+  it('dadas demandas ligadas a nomes, quando um nome sai da lista, então a escolha dele cai e as dos nomes de baixo acompanham', () => {
+    // Dado: três nomes; d1 no primeiro, d2 no segundo, d3 no terceiro
+    const a = { nome: 'A' }, b = { nome: 'B' }, c = { nome: 'C' };
+    const escolhas = { d1: 0, d2: 1, d3: 2 };
+    // Quando / Então: sai o segundo
+    expect(escolhasDepoisDosNomes(escolhas, [a, b, c], [a, c])).toEqual({ d1: 0, d3: 1 });
+    // Quando / Então: sai o último
+    expect(escolhasDepoisDosNomes(escolhas, [a, b, c], [a, b])).toEqual({ d1: 0, d2: 1 });
+    // Quando / Então: entra um nome ou um muda de texto, e as escolhas ficam
+    expect(escolhasDepoisDosNomes(escolhas, [a, b, c], [a, b, c, { nome: '' }])).toBe(escolhas);
+    expect(escolhasDepoisDosNomes(escolhas, [a, b, c], [a, { nome: 'B2' }, c])).toBe(escolhas);
   });
 
   it('dado um contrato com o objeto, quando ele é separado, então os novos entram no lugar dele, sem repetir o que o contrato já tinha', () => {

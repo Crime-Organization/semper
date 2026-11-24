@@ -20,8 +20,8 @@ test.describe('Separar um objeto de contrato (#410)', () => {
     await secao.getByRole('button', { name: 'Separar o objeto Registro de marca' }).click();
     const separacao = secao.getByRole('group', { name: 'Separar o objeto Registro de marca' });
     await expect(separacao.getByText(/Muda em 1 contrato e 1 demanda/)).toBeVisible();
-    await separacao.getByLabel('Nome novo 1').fill('Pedido de registro');
-    await separacao.getByLabel('Nome novo 2').fill('Acompanhamento do registro');
+    await separacao.getByLabel('Nome novo (nome 1)').fill('Pedido de registro');
+    await separacao.getByLabel('Nome novo (nome 2)').fill('Acompanhamento do registro');
     await separacao.getByRole('button', { name: /Separar/ }).click();
     await separacao.getByRole('button', { name: 'Confirmar: separar Registro de marca' }).click();
     // Então: sem escolher o objeto da demanda, a tela pergunta
@@ -50,8 +50,8 @@ test.describe('Separar um objeto de contrato (#410)', () => {
     // Quando
     await secao.getByRole('button', { name: 'Separar o objeto Ação de cobrança' }).click();
     const separacao = secao.getByRole('group', { name: 'Separar o objeto Ação de cobrança' });
-    await separacao.getByLabel('Nome novo 1').fill('Ação de cobrança');
-    await separacao.getByLabel('Nome novo 2').fill('Notificação ao devedor');
+    await separacao.getByLabel('Nome novo (nome 1)').fill('Ação de cobrança');
+    await separacao.getByLabel('Nome novo (nome 2)').fill('Notificação ao devedor');
     await expect(separacao.getByRole('group', { name: 'A qual objeto novo cada demanda fica ligada?' })).toHaveCount(0);
     await separacao.getByRole('button', { name: /Separar/ }).click();
     await separacao.getByRole('button', { name: 'Confirmar: separar Ação de cobrança' }).click();
