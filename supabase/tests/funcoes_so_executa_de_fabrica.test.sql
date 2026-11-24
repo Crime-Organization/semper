@@ -66,6 +66,15 @@ insert into public.tarefas (id, titulo, responsavel_id, participantes, funcoes, 
 reset role;
 select is(pg_temp.funcao_de('70000000-0000-0000-0000-000000000001', 3), 'Acompanha', 'Antes da conversão, o Caio acompanha');
 
+-- Dado que a limpeza das tarefas deixa passar a primeira (uma regra da tabela pula a alteração dela, só neste teste)
+create rule pular_na_limpeza as on update to public.tarefas where old.id = '70000000-0000-0000-0000-000000000001' do instead nothing;
+-- Quando a conversão roda, então ela para inteira com o erro de função em uso, em vez de deixar a tarefa com uma função apagada
+select throws_ok($$ select privado.tirar_acompanha_de_fabrica() $$, 'P0001',
+  'A função "Acompanha" está em 1 tarefa. Troque a função dessas pessoas antes de apagá-la.', 'A conversão não apaga a função que ficou em uso');
+drop rule pular_na_limpeza on public.tarefas;
+select is(pg_temp.lista('e0000000-0000-0000-0000-000000000001'), 'Executa, Acompanha', 'E nada é gravado: a Acompanha de fábrica continua');
+select is(pg_temp.funcao_de('70000000-0000-0000-0000-000000000001', 3), 'Acompanha', 'E o Caio continua acompanhando');
+
 -- Quando a conversão roda
 select lives_ok($$ select privado.tirar_acompanha_de_fabrica() $$, 'A conversão roda');
 

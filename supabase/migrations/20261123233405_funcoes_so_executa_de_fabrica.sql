@@ -65,9 +65,10 @@ revoke execute on function privado.preparar_pedido_da_tarefa() from public, anon
 
 -- ---------------------------------------------------------------------
 -- 3. A "Acompanha" de fábrica sai de todos os escritórios, e quem estava com ela fica sem função. Fica numa função (só o banco a
---    chama) para o teste poder conferi-la. Os gatilhos ficam desligados só durante a conversão (como em
---    20261122232702_tarefa_solicitante_e_funcoes.sql): não é uma alteração feita por alguém, e a função apagada já não está em uso.
---    O registro de ações (auditoria) da tabela de funções continua ligado: a saída da "Acompanha" fica registrada.
+--    chama) para o teste poder conferi-la. Os gatilhos das tarefas ficam desligados só durante a limpeza delas (como em
+--    20261122232702_tarefa_solicitante_e_funcoes.sql): não é uma alteração feita por alguém. Os da tabela de funções ficam ligados: o
+--    registro de ações (auditoria) registra a saída da "Acompanha", e o conferir_em_uso confere de novo que ela não está em nenhuma
+--    tarefa. Se a limpeza deixar passar algum uso, a migração para inteira com o erro dele, e nada é gravado.
 -- ---------------------------------------------------------------------
 create function privado.tirar_acompanha_de_fabrica() returns void
 language plpgsql security definer set search_path = '' as $$
@@ -84,9 +85,7 @@ begin
   update public.tarefas t set participantes_com_funcao = array(select e.key || ':' || e.value from jsonb_each_text(t.funcoes) as e order by e.key)
   where t.participantes_com_funcao is distinct from array(select e.key || ':' || e.value from jsonb_each_text(t.funcoes) as e order by e.key);
   alter table public.tarefas enable trigger user;
-  alter table public.funcoes_na_tarefa disable trigger conferir_em_uso;
   delete from public.funcoes_na_tarefa where nome = 'Acompanha' and not executa and criado_por is null;
-  alter table public.funcoes_na_tarefa enable trigger conferir_em_uso;
 end $$;
 revoke execute on function privado.tirar_acompanha_de_fabrica() from public, anon, authenticated;
 
