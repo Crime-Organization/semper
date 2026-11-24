@@ -6,7 +6,8 @@ import { dadosDaCopia, prazosDosItensCopiados, type TarefaParaCopiar } from './c
 const pessoa = (id: string) => ({ id, nome: id, codigo: id }) as PessoaResumida;
 const TAREFA: TarefaParaCopiar = {
   titulo: 'Emitir a GRU', descricao: 'Pagar até o fim do dia', prazo: '2026-12-01', prazo_hora: '14:00:00', lembrete: 60,
-  responsavel_id: 'ana', participantes: ['bruno'], grupos: ['g-marcas'], pessoas: [pessoa('cliente-1')]
+  responsavel_id: 'ana', participantes: ['bruno'], grupos: ['g-marcas'], pessoas: [pessoa('cliente-1')],
+  diligencia: false, diligencia_motivo: null, solicitante_id: null, funcoes: { bruno: 'fn-acompanha' }
 };
 const DEMANDA = { id: 'd2', clientes: ['cliente-2'], contrato_id: 'k2' };
 
@@ -21,8 +22,26 @@ describe('Os dados da cópia da tarefa em outra demanda (#312)', () => {
     // Então
     expect(dados).toEqual({
       titulo: 'Emitir a GRU', descricao: 'Pagar até o fim do dia', prazo: '2026-12-01', prazo_hora: '14:00:00', lembrete: 60,
-      responsavel_id: 'ana', participantes: ['bruno'], grupos: ['g-marcas'], pessoas: ['cliente-1'], demanda_id: 'd2', contrato_id: 'k2'
+      responsavel_id: 'ana', participantes: ['bruno'], grupos: ['g-marcas'], pessoas: ['cliente-1'], demanda_id: 'd2', contrato_id: 'k2',
+      diligencia: false, diligencia_motivo: null, solicitante_id: null, funcoes: { bruno: 'fn-acompanha' }
     });
+  });
+
+  it('dada uma tarefa com diligência, solicitante e funções, quando é copiada, então a cópia leva a diligência com o motivo, o mesmo solicitante e as mesmas funções (#414)', () => {
+    // Dado
+    const original: TarefaParaCopiar = {
+      ...TAREFA, participantes: ['bruno', 'carla'], diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'dani',
+      funcoes: { bruno: 'fn-executa', carla: 'fn-acompanha' }
+    };
+    // Quando
+    const dados = dadosDaCopia(original, DEMANDA);
+    // Então
+    expect(dados).toMatchObject({
+      diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'dani',
+      participantes: ['bruno', 'carla'], funcoes: { bruno: 'fn-executa', carla: 'fn-acompanha' }
+    });
+    // A cópia não divide as funções com a original: mudar uma não muda a outra.
+    expect(dados.funcoes).not.toBe(original.funcoes);
   });
 
   it('dada uma tarefa sem pessoas e sem grupos, quando é copiada, então a cópia leva os clientes da demanda', () => {
