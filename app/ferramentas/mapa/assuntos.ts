@@ -54,7 +54,7 @@ export const COMUM: Assunto = {
     'Paginacao', 'PainelCartao', 'Recolhivel', 'SubmenuLateral', 'abrirItem', 'arrastar', 'avisos', 'barraDeRolagem',
     'janela', 'loja', 'ordem', 'preferencias', 'rolagem', 'sessao', 'tema', 'tempos', 'useCartaoNaUrl', 'useParametroLido', 'useQuantos',
     'useSelecao', 'util',
-    'texto', 'csv', 'formatacao', 'tituloDaAba', 'enderecosAntigos', 'qualBanco', 'campoData', 'escalaDosGraficos', 'filtroDoPainel',
+    'texto', 'csv', 'formatacao', 'fuso', 'tituloDaAba', 'enderecosAntigos', 'qualBanco', 'campoData', 'escalaDosGraficos', 'filtroDoPainel',
     'ajudantes', 'sair-do-cadastro', 'nova-aba', 'menu-lateral',
     'banco-local', pasta('app/ferramentas/mapa'),
     'avisoNoServidor', 'envioDeEmail', 'modeloDeEmail', 'servidor',
@@ -73,6 +73,7 @@ export const COMUM: Assunto = {
     'Campo novo num tipo de lista (`TarefaLista`, `CompromissoLista`…, em `dados/tipos.ts`) quebra os testes que montam a lista à mão (ex.: `paginas/Inicio.test.tsx`): procure o tipo nos *.test.tsx.',
     'Lista do escritório lida em todas as telas (etiquetas, funções da tarefa): carrega em `ui/sessao.tsx` (`iniciarEtiquetas`, `iniciarFuncoes`).',
     'Contas de datas aaaa-mm-dd (`somarDias`, `diasEntre`, `DIAS_NA_SEMANA`) ficam em `regras/prazos.ts`, que não depende de nenhum módulo: use dali, não recrie.',
+    'O fuso do escritório (`FUSO_DO_ESCRITORIO`, `diaNoEscritorio`) fica em `regras/fuso.ts`, que não depende de nenhum módulo: importe dali, e não de `regras/compromisso.ts`.',
     'Endereço que sai ou muda: veja [Rotas e endereços](#rotas) (quem escreve o endereço, como `regras/painelInicial.ts` e `e2e/ajudantes.ts`, e os testes que vão direto a ele) e ponha o antigo em `regras/enderecosAntigos.ts`. Cadastro novo em janela: a tabela `CADASTROS` de `App.tsx`.',
     'Mudança que o usuário percebe: uma novidade em `app/novidades/proxima/<tarefa>-<palavras>.json` no mesmo commit.',
     'Datas no horário de Brasília: os testes fixam o fuso (`vite.config.ts`, `playwright.config.ts`); não use `new Date()` solto nas regras.'
@@ -88,7 +89,7 @@ export const ASSUNTOS: Assunto[] = [
     arquivos: [
       'Pessoas', 'NovaPessoa', 'CartaoPessoa', 'VinculosPessoa', 'ProcessosDaPessoa', 'EquipeDaPessoaNoTopo', 'PessoasNosItens', pasta('app/src/paginas/novaPessoa'),
       'pessoa', 'cadastro', 'vinculos', 'origemDaPessoa', 'responsaveisDaPessoa', 'conviteDaPessoa', 'clienteAoContrato',
-      'BuscaPessoa', 'consultas', 'planilhaAntiga',
+      'BuscaPessoa', 'consultas', 'planilhaAntiga', 'consentimentoSemData', 'consentimento-sem-data',
       'pessoas', 'responsaveis-da-pessoa', 'nova-pessoa-no-cartao', 'planilha-provisoria', 'convidar-pelo-cartao', arquivo('app/e2e/quadro'), 'novo-padrao-das-secoes',
       'exportacoes', 'lgpd_exclusao', 'cnpj_com_letras'
     ],
@@ -99,7 +100,8 @@ export const ASSUNTOS: Assunto[] = [
       'A validação de cada etapa do cadastro é a tabela `VALIDACAO` de `regras/cadastro.ts` (e `AO_ENTRAR`); etapa nova = entrada nova, um componente em `paginas/novaPessoa/etapas.tsx`.',
       'Pessoa repetida se acha pelo CPF/CNPJ (`pessoaPorDocumento`) e, sem documento, pelos telefones (`pessoasPorTelefones`).',
       '`improvisos/planilhaAntiga.ts` (PROVISORIO-219) manda as pessoas novas também para a planilha antiga; sai com o `e2e/planilha-provisoria.spec.ts`.',
-      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`; veja [Registro de ações e LGPD](#registro)): não guarde nome de pessoa em outro lugar sem pensar na exclusão.'
+      'Excluir pessoa apaga o nome do registro de ações (LGPD, `lgpd_exclusao`; veja [Registro de ações e LGPD](#registro)): não guarde nome de pessoa em outro lugar sem pensar na exclusão.',
+      'O consentimento sem data (#409): a marca `consentimento_sem_data` do filtro "Situação do cadastro" (tabela `MARCAS` em `supabase.ts`, `falso.ts` e `paginas/Pessoas.tsx`) e a contagem `pessoasSemDataDoConsentimento`, do aviso do Início; os textos e o link ficam em `regras/consentimentoSemData.ts`. A contagem na produção (só números) é o roteiro docs/plataforma/consentimento-sem-data.md.'
     ]
   },
   {
@@ -136,14 +138,15 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'objetos',
     titulo: 'Objetos de contrato',
-    resumo: 'Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos) e a demanda que nasce de cada objeto.\n'
+    resumo: 'Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos, separar em dois ou mais) e a demanda que nasce de cada objeto.\n'
       + 'As funções de dados ficam em `DadosContratos` (veja Contratos).',
     arquivos: ['ObjetosDeContrato', 'objetos', 'objetos-de-contrato', 'objetos-sem-demanda', 'contrato_objetos', 'demandas_dos_objetos', 'objetos_sem_demanda',
       'editar_objetos_de_contrato', arquivo('supabase/migrations/20261027000017_demandas'), 'modelos_de_lista', 'cliente_ao_contrato', 'contrato_abre_demandas',
-      'contratoAbreDemandas', 'contrato-abre-demandas', 'cliente-ao-contrato', 'ModelosDeLista'],
+      'contratoAbreDemandas', 'contrato-abre-demandas', 'cliente-ao-contrato', 'ModelosDeLista', 'SepararObjeto', 'separar_objeto', 'separar-objeto'],
     tabelas: ['objeto_sugestoes', 'lista_modelos'],
     armadilhas: [
       'Juntar dois objetos muda todos os contratos que usam o de origem: confira o aviso de uso (`regras/objetos.ts`) e o teste do banco `editar_objetos_de_contrato`.',
+      'Separar (#410) exige a escolha do objeto novo de cada demanda do objeto (o banco recusa se faltar) e não cria demanda: o objeto novo sem demanda num contrato assinado ganha a sua pelo cartão do contrato. Teste do banco: `separar_objeto`.',
       '"A definir" é um objeto fixo, criado pelo cliente fechado (migração `cliente_ao_contrato`): não aparece na lista, não se corrige, não se junta nem se apaga.',
       'Mudar o array `contratos.objetos` dispara o gatilho `privado.demandas_do_contrato` (migrações `demandas`, `demandas_dos_objetos`, `cliente_ao_contrato` e `objetos_sem_demanda`): corrigir um nome não pode fazer nascer demanda em contrato assinado.',
       'O modelo de checklist se liga ao objeto pelo nome (`lista_modelos.nome`; veja [Checklists e modelos](#listas)): juntar ou corrigir objetos deixa modelos com nome que nenhum objeto usa.'
@@ -206,9 +209,10 @@ export const ASSUNTOS: Assunto[] = [
       'O nome das bolinhas e os títulos das seções do cadastro e da edição da tarefa são lidos por testes de Equipe, Mensagens e Processos (já no comando abaixo).',
       'Estado novo da tarefa = coluna reconhecida pelo sistema: `regras/quadro.ts` (`COLUNA_DE_APROVACAO`, `explicacaoDaColuna`), `regras/colunasPadrao.ts`, `ui/quadro/Kanban.tsx` e `paginas/situacaoDoItem.tsx` (veja [Quadros](#quadros)); mexeu no Kanban, rode a bateria completa.',
       'A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).',
-      'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.'
+      'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.',
+      'Os avisos ao solicitante e a quem executa (#415) são de [Mensagens e avisos](#mensagens): trocar o solicitante, a chegada à coluna de aprovação e a devolução (`public.tarefa_devolver`) avisam pelo banco (`20261124033230_avisos_da_tarefa.sql`) e por `falso.ts` (`regras/avisosDaTarefa.ts`); mude os três juntos.'
     ],
-    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro'), 'grupo_com_demanda_continua', 'grupos-da-equipe']
+    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'avisos-da-tarefa', 'avisosDaTarefa', 'avisos_da_tarefa', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro'), 'grupo_com_demanda_continua', 'grupos-da-equipe']
   },
   {
     id: 'tempo',
@@ -334,7 +338,7 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
     tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
     dados: ['DadosFinanceiro'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],
@@ -438,20 +442,21 @@ export const ASSUNTOS: Assunto[] = [
     id: 'registro',
     titulo: 'Registro de ações e LGPD',
     resumo: 'O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.',
-    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes'],
+    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes', 'esquecimentoNaCopia', 'esquecer_pessoa_nos_recebimentos_excluidos', 'consentimentoSemData', 'consentimento-sem-data'],
     tabelas: ['auditoria'],
     armadilhas: [
       'O gatilho `privado.auditar` (em `20261024000001_base.sql`) já grava uma linha por linha criada, mudada ou apagada: tabela nova ganha o gatilho na migração dela. Numa ação em cascata, o resumo vai nessa mesma linha (não grave outra).',
-      'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).'
+      'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).',
+      'Excluir pessoa também tira o nome dela da cópia escondida dos recebimentos excluídos (`financeiro_excluidos`, #412): o gatilho `esquecer_nos_excluidos` e, no fictício, `regras/esquecimentoNaCopia.ts`. Texto novo com nome nessa cópia (descrição do Caixa, motivo, corte com `left`/`slice`): confira se os padrões (`nomeNoFinanceiro`, `nomeNoMotivo`, `pedacoDoNome`) ainda o acham, nos dois; os limites conhecidos estão no começo da migração.'
     ]
   },
   {
     id: 'mensagens',
     titulo: 'Mensagens e avisos',
-    resumo: 'A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.',
+    resumo: 'A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.',
     arquivos: ['Mensagens', 'mensagens', 'inclusao', 'pedidoDeParticipacao', 'aviso-ao-ser-incluido', 'pedir-para-participar',
-      'aviso_ao_ser_incluido', 'pedidos_de_participacao'],
-    tabelas: ['mensagens', 'mensagens_de_compromisso', 'mensagens_de_grupo', 'mensagens_de_inclusao', 'mensagens_de_participacao', 'pedidos_de_participacao'],
+      'aviso_ao_ser_incluido', 'pedidos_de_participacao', 'avisosDaTarefa', 'avisos-da-tarefa', 'avisos_da_tarefa'],
+    tabelas: ['mensagens', 'mensagens_da_tarefa', 'privado.mudancas_do_solicitante', 'mensagens_de_compromisso', 'mensagens_de_grupo', 'mensagens_de_inclusao', 'mensagens_de_participacao', 'pedidos_de_participacao'],
     dados: ['DadosMensagens', 'DadosPedidos'],
     rotas: ['mensagens'],
     armadilhas: [
@@ -587,9 +592,13 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'ajuda',
     titulo: 'Ajuda e atalhos',
-    resumo: 'A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).',
-    arquivos: ['ajuda', 'atalhos'],
-    armadilhas: ['Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.']
+    resumo: 'A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).',
+    arquivos: ['ajuda', 'atalhos', 'BotaoDeAjuda'],
+    armadilhas: [
+      'Módulo novo com página de módulo, ou tipo novo com quadro próprio (como um tipo de processo), ganha os textos de ajuda em `regras/ajuda.ts`; tipo que sai, tire de lá.',
+      'Tela nova que não é de módulo ganha uma entrada em `AJUDA_DAS_TELAS` (`regras/ajuda.ts`) e o título com o "?" (`TituloComAjuda`, ou `useAjudaDaTela` com o `aoAbrirAjuda` do `CabecaDoPainel` nos painéis); aba nova do Financeiro, uma linha em `AJUDA_DA_ABA` (`paginas/financeiro/Hub.tsx`). Uma chamada só por tela: duas abririam duas janelas na mesma tecla.',
+      'Os cadastros (`CADASTROS` de `App.tsx`: Nova pessoa, Novo contrato… e Importar pessoas) ainda não têm o "?": abrem numa janela por cima da página, onde a tecla "?" não vale, e cada etapa já se explica. Pôr a ajuda neles é tarefa própria, se o dono pedir.'
+    ]
   },
   {
     id: 'rotinas',

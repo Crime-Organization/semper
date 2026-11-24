@@ -5,6 +5,7 @@ import { Avatar } from '../ui/Avatar';
 import { Aviso, BotaoLink } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
 import './Configuracoes.css';
@@ -19,7 +20,7 @@ export default function PerfilDaEquipe() {
   return <div className="miolo">
     <header>
       <p className="olho"><BotaoLink forma="link" to="/equipe/">Equipe e acessos</BotaoLink></p>
-      <h1 className="titulo perfil-da-equipe">{membro && <Avatar p={membro} tam={40} />}{membro ? membro.nome : 'Perfil profissional'}<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="perfilDaEquipe" className="perfil-da-equipe">{membro && <Avatar p={membro} tam={40} />}{membro ? membro.nome : 'Perfil profissional'}</TituloComAjuda>
       <p className="lead">Perfil profissional: a base da página desta pessoa no site do escritório. Você pode completar ou corrigir, e decidir se ele aparece no site.</p>
     </header>
     {membro ? <>

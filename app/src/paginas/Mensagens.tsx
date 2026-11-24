@@ -2,7 +2,8 @@
 // demandas em que ela está (#286), os pedidos para participar de um item (#363: quem aprova recebe o pedido, com "Aprovar" e
 // "Recusar"; quem pediu recebe a resposta), o aviso de quando alguém a põe num item (#377; pelo grupo da equipe, diz qual) e a
 // mensagem de quando um administrador a põe num grupo da equipe (#378), e os avisos da demanda que nasce de um compromisso que se repete
-// (#307: nasceu, a data mudou, o compromisso foi cancelado). Clicar abre o cartão e marca como lida.
+// (#307: nasceu, a data mudou, o compromisso foi cancelado), e os avisos da tarefa (#415: ao solicitante, quando é posto nela e quando ela
+// chega à aprovação; a quem executa, quando ela é devolvida). Clicar abre o cartão e marca como lida.
 // O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário ou a equipe de um item, na rotina
 // diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
@@ -13,6 +14,7 @@ import { hojeNaAgenda } from '../regras/agenda';
 import { acaoDaInclusao, enderecoDaInclusao, INCLUSAO_DO_MODULO, nomeDoItemDaInclusao, rotulosDaInclusao } from '../regras/inclusao';
 import { linksDoGrupo, textoDaMensagemDeGrupo } from '../regras/gruposDaEquipe';
 import { AVISOS_DA_DEMANDA_DO_COMPROMISSO, DEMANDA_QUE_NAO_VE, enderecoDaDemanda } from '../regras/demandaDoCompromisso';
+import { AVISOS_DA_TAREFA, enderecoDoAvisoDaTarefa, nomeDaTarefaDoAviso, rotulosDoAvisoDaTarefa, TAREFA_QUE_NAO_VE } from '../regras/avisosDaTarefa';
 import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha } from '../ui/avisos';
@@ -23,6 +25,7 @@ import { atualizarNaoLidas, naoLidas } from '../ui/mensagens';
 import { useCtx } from '../ui/sessao';
 import { TextoComMencoes } from '../ui/TextoComMencoes';
 import { dataHora, relativo, useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import './Mensagens.css';
 
 /** O botão do meio do mouse: abre o link em outra aba sem disparar o clique comum. */
@@ -50,8 +53,8 @@ export default function Mensagens() {
   return <div className="miolo pagina-mensagens">
     <header className="mensagens-cabeca">
       <div>
-        <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar, quando incluem você num item ou num grupo e as demandas que nascem dos compromissos.</p>
+        <TituloComAjuda tela="mensagens" />
+        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar, quando incluem você num item ou num grupo, as demandas que nascem dos compromissos e as tarefas que você pediu ou que voltaram para você.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
@@ -259,8 +262,32 @@ function ItemDaDemandaDoCompromisso(props: PropsDoItem) {
   </LinhaDaMensagem>;
 }
 
+/**
+ * O aviso da tarefa (#415): ao solicitante, quando é posto na tarefa e quando ela chega à aprovação; a quem executa, quando ela é
+ * devolvida, com o comentário. Com a tarefa, quem fez e o link para o cartão (na devolução, no comentário); sem ela (a pessoa não a
+ * vê mais), só isso.
+ */
+function ItemDoAvisoDaTarefa(props: PropsDoItem) {
+  const { m } = props;
+  const ctx = useCtx();
+  const a = m.avisoDaTarefa!, texto = AVISOS_DA_TAREFA[a.aviso];
+  const quem = ctx.equipe.find(x => x.id === a.feito_por), nome = quem?.nome ?? 'Usuário removido';
+  const rotulos = rotulosDoAvisoDaTarefa(a, nome, situacaoDoAviso(m));
+  if (!a.tarefa) {
+    return <LinhaDaMensagem {...props} rotulo={rotulos.linha} marcarLida={rotulos.marcarLida}>
+      <CartaoQueNaoVe texto={TAREFA_QUE_NAO_VE} />
+    </LinhaDaMensagem>;
+  }
+  return <LinhaDaMensagem {...props} rotulo={rotulos.linha} marcarLida={rotulos.marcarLida}>
+    <Avatar p={quem} tam={32} />
+    <LinkDaMensagem {...props} para={enderecoDoAvisoDaTarefa(a.tarefa, a.comentario)}>
+      <span className="mensagem-titulo"><b>{nome}</b> {texto.acao} <b>{nomeDaTarefaDoAviso(a.tarefa)}</b></span>
+      <span className="mensagem-trecho">{texto.trecho(a)}</span>
+    </LinkDaMensagem>
+  </LinhaDaMensagem>;
+}
 /** Como cada tipo de mensagem aparece. Tipo novo = uma entrada nova. */
 const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = {
   mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao, grupo: ItemDoGrupo,
-  demandaDoCompromisso: ItemDaDemandaDoCompromisso
+  demandaDoCompromisso: ItemDaDemandaDoCompromisso, tarefa: ItemDoAvisoDaTarefa
 };

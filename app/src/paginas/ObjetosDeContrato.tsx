@@ -12,6 +12,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoDeIcone, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
+import { SepararObjeto } from './SepararObjeto';
 
 /** O objeto sendo corrigido: o id e o nome como está no campo. */
 type Correcao = { id: string; nome: string } | null;
@@ -26,6 +27,8 @@ export function ObjetosDeContrato() {
   const [marcados, setMarcados] = useState<string[]>([]);
   const [fica, setFica] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  // O objeto sendo separado em dois ou mais (#410).
+  const [separando, setSeparando] = useState('');
 
   const ler = () => SD.objetosDoEscritorio().then(o => { setObjetos(o); setErroLeitura(''); }).catch(e => setErroLeitura((e as Error).message));
   useEffect(() => { void ler(); }, []);
@@ -102,6 +105,7 @@ export function ObjetosDeContrato() {
         <td>{textoDosContratos(o)}</td><td>{o.demandas}</td>
         <td><span className="config-campos-acoes">
           <BotaoDeIcone icone="editar" rotulo={`Corrigir o objeto ${o.descricao}`} dica="Corrigir o objeto" onClick={() => abrirCorrecao(o)} />
+          <BotaoDeIcone icone="divisao" rotulo={`Separar o objeto ${o.descricao}`} dica="Separar o objeto" onClick={() => setSeparando(o.id)} />
           {semUso(o)
             ? <BotaoDuplo icone="lixeira" rotulo="Apagar" dica="Apagar o objeto" variante="perigo" confirmar={`Confirmar: apagar ${o.descricao}`} aoConfirmar={() => apagar(o).catch(falha)} />
             : <BotaoDeIcone icone="lixeira" rotulo={`Apagar o objeto ${o.descricao}`} dica="Apagar o objeto"
@@ -121,6 +125,9 @@ export function ObjetosDeContrato() {
         <button type="button" className={estiloBotao()} onClick={() => setCorrecao(null)}>Cancelar</button>
       </div>
     </form>}
+
+    {objetos.some(o => o.id === separando) && <SepararObjeto key={separando} objeto={objetos.find(o => o.id === separando)!}
+      aoTerminar={() => { setSeparando(''); return ler(); }} aoCancelar={() => setSeparando('')} />}
 
     {escolhidos.length === 1 && <Nota>Marque outro objeto para juntar os dois.</Nota>}
     {escolhidos.length > 1 && <div className="config-campos-form" role="group" aria-label="Juntar objetos">

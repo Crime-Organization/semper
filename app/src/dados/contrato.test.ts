@@ -18,7 +18,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS } from '../regras/repeticao';
 import { SALA_REPETIDA } from '../regras/sala';
-import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
+import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO, SEM_OBJETO_DA_DEMANDA, SEPARAR_POUCOS, SEPARAR_REPETIDOS } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
 import { NAO_ESPERA_APROVACAO, SEM_COMENTARIO_DA_DEVOLUCAO, SO_QUEM_PEDIU_APROVA, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { CONTINUA_GERAL, CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
@@ -51,6 +51,24 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(comMascara.linhas.map(p => p.id)).toContain(id);
         expect(semMascara.linhas.map(p => p.id)).toContain(id);
         await expect(criar('OUTRA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' })).rejects.toThrow('Já existe um cadastro com este CPF/CNPJ.');
+      });
+
+      it('quando há cadastros com o consentimento sem data, então o filtro e a contagem trazem só esses, ativos e arquivados (#409)', async () => {
+        // Dado
+        const m = marca(), antes = await SD.pessoasSemDataDoConsentimento();
+        const semData = await criar('SEM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: null });
+        const arquivada = await criar('ARQUIVADA SEM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: null });
+        await SD.pessoasArquivar([arquivada.id], true);
+        await criar('COM DATA ' + m, { lgpd_base: 'consentimento', lgpd_consentimento: '2026-01-10' });
+        await criar('OUTRA BASE ' + m, { lgpd_base: 'contrato', lgpd_consentimento: null });
+        // Quando
+        const [ativas, arquivadas] = await Promise.all((['ativas', 'arquivadas'] as const)
+          .map(situacao => SD.pessoasListar({ termo: m, marca: 'consentimento_sem_data', situacao })));
+        const depois = await SD.pessoasSemDataDoConsentimento();
+        // Então
+        expect(ativas.linhas.map(p => p.id)).toEqual([semData.id]);
+        expect(arquivadas.linhas.map(p => p.id)).toEqual([arquivada.id]);
+        expect(depois - antes).toBe(2);
       });
 
       it('quando uma pessoa é criada, então ela pode ser lida de volta com o que foi gravado e um código', async () => {
@@ -403,6 +421,62 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(nomes).toContain(fica);
           expect(nomes).toContain(sai2);
           expect(nomes).not.toContain(sai1);
+        });
+
+        it('dado um objeto com dois serviços num nome só, quando o administrador o separa, então cada contrato tem os novos no lugar dele, cada demanda vai ao objeto escolhido e nenhuma nasce (#410)', async () => {
+          // Dado: um contrato assinado com o objeto e o "A definir" (a demanda nasce ao pôr o objeto), e outro com o objeto e a "Patente"
+          const juntos = 'Marca e patente ' + marca(), registro = 'Registro ' + marca(), patente = 'Patente ' + marca();
+          const k1 = await novoContrato({ objetos: ['A definir'] });
+          await SD.contratoMover(k1.id, (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!.id, 1);
+          await SD.contratoAtualizar(k1.id, { objetos: [juntos, 'A definir'] });
+          const [d1] = await SD.demandasDoContrato(k1.id);
+          const k2 = await novoContrato({ objetos: [juntos, patente] });
+          const d2 = await SD.contratoCriarDemanda(k2.id, juntos);
+          await SD.contratoCriarDemanda(k2.id, patente);
+          await SD.modeloCriar(juntos, arvoreDosItens(['Primeiro passo']));
+          const o = (await naLista(juntos))!;
+          // Quando: a tela pede as demandas do objeto
+          const demandas = await SD.demandasDoObjeto(o.id);
+          // Então
+          expect(demandas.map(d => d.id).sort()).toEqual([d1.id, d2.id].sort());
+          expect(demandas.find(d => d.id === d2.id)).toMatchObject({ titulo: juntos, contrato_codigo: (await SD.contratoObter(k2.id))!.codigo });
+          // Quando: falta escolher o objeto de uma demanda, ou há um nome só
+          await expect(SD.objetoSeparar(o.id, [registro, patente], [{ demanda: d1.id, objeto: registro }])).rejects.toThrow(SEM_OBJETO_DA_DEMANDA);
+          await expect(SD.objetoSeparar(o.id, [registro, '  '], [])).rejects.toThrow(SEPARAR_POUCOS);
+          await expect(SD.objetoSeparar(o.id, [registro, registro.toLowerCase()], [])).rejects.toThrow(SEPARAR_REPETIDOS);
+          // Então nada mudou
+          expect((await SD.contratoObter(k1.id))!.objetos).toEqual([juntos, 'A definir']);
+          // Quando: os dois nomes ("patente" em minúsculas fica com a grafia da lista), D1 em Registro e D2 em Patente
+          const troca = await SD.objetoSeparar(o.id, [registro, ` ${patente.toLowerCase()} `, ''],
+            [{ demanda: d1.id, objeto: registro }, { demanda: d2.id, objeto: patente.toLowerCase() }]);
+          // Então
+          expect(troca).toEqual({ contratos: 2, demandas: 2, modelos: 0, modelos_sem_objeto: 1, contratos_com_duas_demandas: 1 });
+          expect((await SD.contratoObter(k1.id))!.objetos).toEqual([registro, patente, 'A definir']);
+          expect((await SD.contratoObter(k2.id))!.objetos).toEqual([registro, patente]);
+          expect((await SD.demandasDoContrato(k1.id)).map(d => [d.id, d.titulo, d.objeto])).toEqual([[d1.id, registro, registro]]);
+          expect((await SD.demandasDoContrato(k2.id)).map(d => d.objeto)).toEqual([patente, patente]);
+          expect(await naLista(juntos)).toBeUndefined();
+          expect(await naLista(registro)).toMatchObject({ contratos_ativos: 2, demandas: 1 });
+          expect((await SD.objetosDoEscritorio()).filter(x => normal(x.descricao) === normal(patente))).toHaveLength(1);
+          expect((await SD.contratoHistorico(k1.id))[0].alteracoes.servico).toEqual({ de: `${juntos}; A definir`, para: `${registro}; ${patente}; A definir` });
+          // E quem não é administrador não separa
+          const oRegistro = (await naLista(registro))!;
+          entrarComo('u-bruno');
+          await expect(SD.objetoSeparar(oRegistro.id, ['Um', 'Outro'], [])).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.demandasDoObjeto(o.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+        });
+
+        it('dado um contrato que já tem os dois nomes novos, quando o administrador separa o objeto num deles e no outro, então o contrato fica igual e não conta (#410)', async () => {
+          // Dado: o contrato tem "Patente" e "Marca e patente"
+          const juntos = 'Marca e patente ' + marca(), patente = 'Patente ' + marca();
+          const k = await novoContrato({ objetos: [patente, juntos] });
+          const antes = await SD.contratoObter(k.id);
+          // Quando: "Marca e patente" vira "Marca e patente" e "Patente"
+          const troca = await SD.objetoSeparar((await naLista(juntos))!.id, [juntos, patente], []);
+          // Então
+          expect(troca.contratos).toBe(0);
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([patente, juntos]);
+          expect((await SD.contratoObter(k.id))!.atualizado_em).toBe(antes!.atualizado_em);
         });
 
         it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {
@@ -4277,6 +4351,54 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await lancamentos(conta.id)).toEqual([]);
           expect(await repassesDe(id)).toEqual([]);
           expect(await SD.financeiroRecebimento(id)).toBeNull();
+        });
+
+        it('dado um contrato excluído com recebimento, quando a cliente e o indicador são excluídos, então os nomes saem da cópia escondida e os valores ficam (#412)', async () => {
+          // Dado um contrato da cliente, com um indicador que não é sócio, recebido e excluído
+          const cliente = { id: '', nome: marca() }, indicador = { id: '', nome: marca() };
+          cliente.id = (await criar(cliente.nome)).id;
+          indicador.id = (await criar(indicador.nome)).id;
+          const k = await assinado({ clientes: [cliente.id], indicador_id: indicador.id, indicador_percentual: 10 }), conta = await contaPJ();
+          await receber(k.parcelas[0].id, conta.id);
+          await SD.contratosArquivar([k.id]);
+          await SD.contratosExcluir([k.id]);
+          type Linha = { contrato_id: string; cliente_nome: string; conta_nome: string | null; valor: number; data: string };
+          const copias = () => (JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { financeiroExcluidos: Linha[] })
+            .financeiroExcluidos.filter(x => x.contrato_id === k.id);
+          expect(copias()).toMatchObject([{ cliente_nome: cliente.nome, conta_nome: conta.nome, valor: 100000, data: '2026-03-10' }]);
+          expect(JSON.stringify(copias())).toContain(indicador.nome);
+          // Quando as duas pessoas são arquivadas e excluídas
+          await SD.pessoasArquivar([cliente.id, indicador.id]);
+          expect((await SD.pessoasExcluir([cliente.id, indicador.id])).excluidas).toBe(2);
+          // Então os nomes não ficam em lugar nenhum da cópia, e o valor, a data e a conta continuam
+          const [depois] = copias();
+          expect(depois).toMatchObject({ cliente_nome: 'pessoa excluída', conta_nome: conta.nome, valor: 100000, data: '2026-03-10' });
+          expect(JSON.stringify(copias())).not.toContain(cliente.nome);
+          expect(JSON.stringify(copias())).not.toContain(indicador.nome);
+        });
+
+        it('dado um contrato com dinheiro excluído, quando um administrador lê os recebimentos excluídos, então vê cada um, e quem não é administrador não vê nada (#413)', async () => {
+          // Dado um recebimento e uma parcela importada como paga, em contratos excluídos pelo administrador
+          const k = await assinado(), importada = await assinado(), conta = await contaPJ();
+          await receber(k.parcelas[0].id, conta.id);
+          falso().importarParcelaPaga(importada.parcelas[0].id, '2020-03-10', 70000);
+          await SD.contratosArquivar([k.id, importada.id]);
+          await SD.contratosExcluir([k.id, importada.id]);
+          const dosContratos = async () => (await SD.financeiroExcluidos()).filter(r => [k.codigo, importada.codigo].includes(r.contrato_codigo));
+          // Quando
+          const lidos = await dosContratos();
+          // Então
+          expect(lidos).toHaveLength(2);
+          expect(lidos).toEqual(expect.arrayContaining([
+            expect.objectContaining({ contrato_codigo: k.codigo, tipo: 'recebimento', parcela_numero: 1, data: '2026-03-10', valor: 100000, conta_nome: conta.nome,
+              estornado: false, excluido_por: 'u-master' }),
+            expect.objectContaining({ contrato_codigo: importada.codigo, tipo: 'parcela_importada', data: '2020-03-10', valor: 70000, conta_nome: null })
+          ]));
+          expect(lidos[0]).not.toHaveProperty('copia');
+          // Quando quem não é administrador lê
+          falso().entrarComo('u-bruno');
+          // Então
+          expect(await SD.financeiroExcluidos()).toEqual([]);
         });
 
         it('dado um repasse já pago, quando pede para excluir, então ninguém exclui até o pagamento ser desfeito', async () => {
@@ -10599,5 +10721,131 @@ describe('Funções dos participantes: a sessão aberta antes da #421 (banco fic
       expect((await SD.funcoesNaTarefaListar()).map(f => f.nome)).toEqual(['Executa', adotada.nome]);
       expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': ACOMPANHA_DE_FABRICA });
     }
+  });
+});
+
+describe('Avisos da tarefa ao solicitante e a quem executa (banco fictício, #415)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void };
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO.entrarComo(id);
+  const coluna = async (qual: (c: Awaited<ReturnType<Dados['colunasListar']>>[number]) => boolean) => (await SD.colunasListar('tarefas')).find(qual)!.id;
+  /** Os avisos da tarefa de uma conta ("aviso/quem fez/lido"), voltando depois para o Mauro. */
+  const avisosDe = async (quem: string) => {
+    entrarComo(quem);
+    const lista = (await SD.mensagensListar()).filter(m => m.tipo === 'tarefa').map(m => `${m.avisoDaTarefa!.aviso}/${m.avisoDaTarefa!.feito_por}/${m.lido_em ? 'lida' : 'nova'}`);
+    entrarComo('u-master');
+    return lista.sort();
+  };
+  /** O tempo passa (mais que o do desfazer): a próxima troca começa outra sequência. */
+  const passarOTempo = () => { const t = Date.now(); vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(t + 2 * MINUTO); };
+  /** O Mauro (administrador) pede ao Bruno uma tarefa com aprovação, em "Fazendo", com a Ana como solicitante. */
+  const pedidaPelaAna = async () => {
+    const { id } = await SD.tarefaCriar({ titulo: 'Minutar a petição', responsavel_id: 'u-bruno', solicitante_id: 'u-ana', precisa_aprovacao: true,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => { vi.useRealTimers(); entrarComo('u-master'); });
+
+  it('dada uma tarefa nova, quando o Mauro põe a Ana como solicitante, então ela recebe "incluiu você", com a tarefa; e o Mauro, nada', async () => {
+    // Quando
+    const id = await pedidaPelaAna();
+    // Então
+    entrarComo('u-ana');
+    const [aviso] = (await SD.mensagensListar()).filter(m => m.tipo === 'tarefa');
+    entrarComo('u-master');
+    expect(aviso.avisoDaTarefa).toEqual({ aviso: 'solicitante', feito_por: 'u-master', tarefa: { id, codigo: expect.any(String), titulo: 'Minutar a petição' }, comentario: null });
+    expect(await avisosDe('u-master')).toEqual([]);
+  });
+
+  it('dada a Ana posta como solicitante, quando o Mauro desfaz logo, então o aviso que ela não leu some; passado o tempo, pôr de novo avisa', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-ana' });
+    // Quando
+    await SD.tarefaAtualizar(id, { solicitante_id: null });
+    // Então
+    expect(await avisosDe('u-ana')).toEqual([]);
+    // Quando
+    passarOTempo();
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-ana' });
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada a tarefa que precisa de aprovação, quando o Bruno a conclui, então a Ana é avisada; e o Desfazer dele apaga o aviso não lido', async () => {
+    // Dado
+    const id = await pedidaPelaAna();
+    entrarComo('u-bruno');
+    // Quando
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['aprovacao/u-bruno/nova', 'solicitante/u-master/nova']);
+    // Quando: o Bruno desfaz
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.nome === 'Fazendo'), 1);
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada a tarefa na aprovação, com o Mauro participante que executa, quando a Ana a devolve, então o Bruno e o Mauro são avisados, com o comentário', async () => {
+    // Dado
+    const executa = (await SD.funcoesNaTarefaListar()).find(f => f.executa)!;
+    const id = await pedidaPelaAna();
+    await SD.tarefaAtualizar(id, { participantes: ['u-master'], funcoes: { 'u-master': executa.id } });
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Quando
+    entrarComo('u-ana');
+    await SD.tarefaDevolver(id, 'Falta o pedido de tutela.');
+    // Então
+    entrarComo('u-bruno');
+    const devolvida = (await SD.mensagensListar()).find(m => m.avisoDaTarefa?.aviso === 'devolvida')!;
+    entrarComo('u-master');
+    expect(devolvida.avisoDaTarefa?.comentario?.texto).toBe('Tarefa devolvida: Falta o pedido de tutela.');
+    expect(devolvida.avisoDaTarefa?.feito_por).toBe('u-ana');
+    expect(await avisosDe('u-master')).toEqual(['devolvida/u-ana/nova']);
+    expect(await avisosDe('u-ana')).toEqual(['aprovacao/u-bruno/nova', 'solicitante/u-master/nova']);
+  });
+
+  it('dados os avisos da Ana, quando ela marca todos como lidos, então o número cai e eles continuam na caixa', async () => {
+    // Dado
+    await pedidaPelaAna();
+    entrarComo('u-ana');
+    const antes = await SD.mensagensNaoLidas();
+    // Quando
+    await SD.mensagensMarcarTodasLidas();
+    // Então
+    expect(antes).toBeGreaterThan(0);
+    expect(await SD.mensagensNaoLidas()).toBe(0);
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/lida']);
+  });
+
+  it('dada a tarefa esperando a aprovação da Ana, quando ela passa o pedido ao Mauro, então ele recebe o aviso de aprovação e ela perde o que não leu', async () => {
+    // Dado
+    const id = await pedidaPelaAna();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    passarOTempo();   // a troca não é o desfazer de quem pôs a Ana
+    // Quando
+    entrarComo('u-ana');
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-master' });
+    // Então
+    expect(await avisosDe('u-master')).toEqual(['aprovacao/u-ana/nova', 'solicitante/u-ana/nova']);
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada uma tarefa nova sem solicitante, quando o Mauro a cria, então nenhuma sequência de trocas de solicitante é guardada', async () => {
+    // Quando
+    const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
+    // Então
+    const guardado = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { mudancasDoSolicitante: { tarefa_id: string }[] };
+    expect(guardado.mudancasDoSolicitante.filter(s => s.tarefa_id === id)).toEqual([]);
   });
 });

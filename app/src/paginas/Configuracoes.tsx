@@ -12,6 +12,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { CamposDoProcesso } from './CamposDoProcesso';
 import { FaseDeAdaptacao } from './FaseDeAdaptacao';
 import { LigacaoGoogle } from './LigacaoGoogle';
@@ -176,7 +177,7 @@ function Instituicao() {
   return <div className="miolo">
     <header>
       <p className="olho">Administração</p>
-      <h1 className="titulo">Configurações<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="configuracoes" />
       <p className="lead">Os dados da instituição. O nome aparece nas telas do escritório, como a barra lateral, a aba do navegador e a mensagem de convite da equipe. A logomarca aparece na barra lateral. Os dois e os demais dados vão para os documentos.</p>
     </header>
 

@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, Membro } from '../dados';
+import { iniciarPreferencias } from '../ui/preferencias';
 import Pessoas from './Pessoas';
 
 // Ao abrir, a página lista as pessoas, as colunas e os grupos do quadro e as etiquetas; o mock declara exatamente essas operações.
@@ -68,5 +69,41 @@ describe('Pessoas: importar', () => {
     await userEvent.selectOptions(screen.getByLabelText('Situação do cadastro'), 'importadas');
     // Então
     expect(SD.pessoasListar).toHaveBeenLastCalledWith(expect.objectContaining({ marca: 'importadas', pagina: 0 }));
+  });
+});
+
+describe('Pessoas: consentimento sem data (#409)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = true;
+    localStorage.clear();
+    iniciarPreferencias({});
+    SD.pessoasListar.mockReset().mockResolvedValue({ linhas: [], total: 0 });
+    SD.colunasListar.mockReset().mockResolvedValue([]);
+    SD.sugestoesListar.mockReset().mockResolvedValue([]);
+    SD.gruposListar.mockReset().mockResolvedValue([]);
+    SD.etiquetasListar.mockReset().mockResolvedValue([]);
+  });
+
+  it('quando escolhe "Consentimento sem data" em "Situação do cadastro", então a lista pede só essas pessoas', async () => {
+    // Dado
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: /Filtros/ }));
+    // Quando
+    await userEvent.selectOptions(screen.getByLabelText('Situação do cadastro'), 'Consentimento sem data');
+    // Então
+    expect(SD.pessoasListar).toHaveBeenLastCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', pagina: 0 }));
+  });
+
+  it('quando a página abre pelo link do aviso do Início, então a lista já vem filtrada, com todos os responsáveis', async () => {
+    // Dado: quem abre guardou nas preferências o filtro "Responsável" nele mesmo (a conta do aviso é do escritório todo)
+    iniciarPreferencias({ 'pessoas.responsavel': 'u-mauro' });
+    // Quando
+    render(<MemoryRouter initialEntries={['/pessoas/?visao=tabela&marca=consentimento_sem_data']}>
+      <Routes><Route path="/pessoas/" element={<Pessoas />} /></Routes>
+    </MemoryRouter>);
+    // Então
+    await screen.findByRole('heading', { name: /Pessoas/ });
+    expect(SD.pessoasListar).toHaveBeenCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', responsavel: '', situacao: 'ativas' }));
+    expect(SD.pessoasListar).toHaveBeenCalledWith(expect.objectContaining({ marca: 'consentimento_sem_data', responsavel: '', situacao: 'arquivadas' }));
   });
 });

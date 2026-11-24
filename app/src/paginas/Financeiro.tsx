@@ -23,6 +23,7 @@ import { hojeISO, useTitulo } from '../ui/util';
 import { AbasDoFinanceiro, ABAS_DO_FINANCEIRO } from './financeiro/AbasDoFinanceiro';
 import { AjustesDeSaldo } from './financeiro/AjustesDeSaldo';
 import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia, ROTULO_DA_NOVA_CONTA } from './financeiro/Formularios';
+import { RecebimentosExcluidos } from './financeiro/RecebimentosExcluidos';
 import { ROTULO_DO_NOVO_SOCIO, SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
@@ -128,6 +129,7 @@ export default function Financeiro() {
     <Recolhivel titulo="Sócios" icone="equipe" preferencia="financeiro.socios" contador={socios.length} novo={{ rotulo: ROTULO_DO_NOVO_SOCIO }}>
       <SociosDoEscritorio socios={socios} hoje={hoje} aoMudar={recarregar} />
     </Recolhivel>
+    <RecebimentosExcluidos />
     <Recolhivel titulo="Mudanças no saldo inicial, no DAS e nos sócios" icone="relogio" preferencia="financeiro.ajustes">
       <HistoricoDoCartao carregar={() => SD.financeiroAjustes()} campos={{}} valor={valorNoAjuste} versao={versao} />
     </Recolhivel>

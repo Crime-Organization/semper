@@ -7,7 +7,7 @@ import { MARCA } from '../marca';
 import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
-import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
 import { PERIODO_CORRIGIDO, REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
@@ -15,11 +15,11 @@ import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { meusGrupos, pedidoDoFiltroDeGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
-import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
-import type { DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
+import type { AvisoDaTarefaDaMensagem, DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { MODULOS_MENCIONAVEIS } from '../regras/comentarios';
@@ -105,10 +105,13 @@ async function emPartes<T>(montar: () => Livre): Promise<T[]> {
 const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
 /** O cadastro completo, com os responsáveis. */
 const CAMPOS_PESSOA = '*, resp:pessoa_responsaveis(perfil_id)';
-/** O filtro de cada marca de Pessoas (importadas, com pendência). */
+/** Só as pessoas com a base legal "consentimento" e sem a data dele (#409). */
+const semDataDoConsentimento = (q: Livre) => q.eq('lgpd_base', BASE_DO_CONSENTIMENTO).is('lgpd_consentimento', null);
+/** O filtro de cada marca de Pessoas (importadas, com pendência, consentimento sem data). */
 const MARCAS: Record<MarcaPessoas, (q: Livre) => Livre> = {
   importadas: q => q.not('importacao_id', 'is', null),
-  pendentes: q => q.neq('pendencias', '{}')
+  pendentes: q => q.neq('pendencias', '{}'),
+  consentimento_sem_data: semDataDoConsentimento
 };
 
 // Ordem das listas. O id no fim desempata, para a paginação não repetir nem pular ninguém.
@@ -295,10 +298,20 @@ const mensagemDeCompromisso = ({ id, criado_em, lido_em, ...aviso }: LinhaDaMens
   id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null, demandaDoCompromisso: aviso
 });
 /**
- * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão, a das mensagens de grupo (#378) e a dos
- * avisos das demandas que nascem dos compromissos (#307). Marcar como lida vale em todas (o id só existe numa).
+ * O aviso da tarefa ao solicitante e a quem executa (#415), da tabela própria (a versão anterior do site não a lê). A tarefa e o
+ * comentário da devolução vêm pelas regras de leitura deles: quem não vê mais a tarefa recebe null.
  */
-const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo', 'mensagens_de_compromisso'] as const;
+const CAMPOS_MENSAGEM_DA_TAREFA = 'id, criado_em, lido_em, aviso, feito_por, tarefa:tarefas(id, codigo, titulo), comentario:comentarios(id, texto)';
+type LinhaDaMensagemDaTarefa = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & AvisoDaTarefaDaMensagem;
+const mensagemDaTarefa = ({ id, criado_em, lido_em, aviso, feito_por, tarefa, comentario }: LinhaDaMensagemDaTarefa): Mensagem => ({
+  id, tipo: 'tarefa', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+  avisoDaTarefa: { aviso, feito_por, tarefa, comentario: tarefa && comentario }
+});
+/**
+ * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão, a das mensagens de grupo (#378) e a dos
+ * avisos das demandas que nascem dos compromissos (#307) e a dos avisos da tarefa (#415). Marcar como lida vale em todas (o id só existe numa).
+ */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo', 'mensagens_de_compromisso', 'mensagens_da_tarefa'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
@@ -990,6 +1003,11 @@ export const SD: Dados = {
     ]);
     return { total, minhas, mes, arquivadas, recentes };
   },
+  // Só a contagem (sem trazer linha nenhuma); as regras de leitura do banco já a prendem ao escritório de quem está logado.
+  async pessoasSemDataDoConsentimento() {
+    const { count } = await rodar(semDataDoConsentimento(sb.from('pessoas').select('id', { count: 'exact', head: true })));
+    return count || 0;
+  },
 
   // ---------- importação de pessoas (supabase/migrations/20261031200000_importar_pessoas.sql) ----------
   // Os CPF/CNPJ e as referências vão no corpo do pedido (POST), não no endereço; em partes, porque cada consulta
@@ -1157,6 +1175,8 @@ export const SD: Dados = {
   objetoRenomear: (id, nome) => rpc('objeto_renomear', { p_id: id, p_nome: nome }) as Promise<TrocaDeObjetos>,
   objetosJuntar: (ids, fica) => rpc('objetos_juntar', { p_ids: ids, p_fica: fica }) as Promise<TrocaDeObjetos>,
   async objetoApagar(id) { await rpc('objeto_apagar', { p_id: id }); },
+  demandasDoObjeto: id => rpc('demandas_do_objeto', { p_id: id }) as Promise<DemandaDoObjeto[]>,
+  objetoSeparar: (id, nomes, demandas) => rpc('objeto_separar', { p_id: id, p_nomes: nomes, p_demandas: demandas }) as Promise<TrocaDeObjetos>,
 
   // ---------- demandas ----------
   async demandasListar(f = {}) {
@@ -1902,6 +1922,13 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('financeiro_ajustes').select('id, alteracoes, feito_por, em').order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
     return data;
   },
+  // A regra RLS da cópia escondida (#284) só mostra as linhas do escritório a um administrador; a cópia (jsonb) não vem: a tela não a mostra.
+  async financeiroExcluidos() {
+    const linhas = await emPartes<RecebimentoExcluido>(() => sb.from('financeiro_excluidos')
+      .select('id, contrato_codigo, tipo, parcela_numero, data, valor, conta_nome, estornado, excluido_por, excluido_em')
+      .order('excluido_em', { ascending: false }).order('id', { ascending: false }));
+    return linhas.map(r => ({ ...r, valor: Number(r.valor) }));
+  },
 
   // ---------- painel de processos ----------
   processosPainel: ({ hoje, meus }) => {
@@ -2450,14 +2477,15 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const [sempre, pedidos, inclusoes, grupos, compromissos] = await Promise.all([
+    const [sempre, pedidos, inclusoes, grupos, compromissos, tarefas] = await Promise.all([
       rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_grupo').select(CAMPOS_MENSAGEM_DE_GRUPO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
-      rodar(sb.from('mensagens_de_compromisso').select(CAMPOS_MENSAGEM_DE_COMPROMISSO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+      rodar(sb.from('mensagens_de_compromisso').select(CAMPOS_MENSAGEM_DE_COMPROMISSO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_da_tarefa').select(CAMPOS_MENSAGEM_DA_TAREFA).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
     ]);
-    return juntarAsCaixas([(compromissos.data as LinhaDaMensagemDeCompromisso[]).map(mensagemDeCompromisso), (grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
+    return juntarAsCaixas([(tarefas.data as LinhaDaMensagemDaTarefa[]).map(mensagemDaTarefa), (compromissos.data as LinhaDaMensagemDeCompromisso[]).map(mensagemDeCompromisso), (grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
       (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {

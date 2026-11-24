@@ -124,6 +124,33 @@ describe('Troca do e-mail de um colega no supabase.ts', () => {
   });
 });
 
+describe('Recebimentos excluídos no supabase.ts (#413)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('dado mais linhas do que cabem numa consulta, quando lê, então traz todas em partes, em ordem fixa e com o valor em número', async () => {
+    // Dado
+    vi.resetModules();
+    const { LINHAS_POR_CONSULTA } = await import('./limites');
+    const urls: URL[] = [];
+    const linha = (id: number) => ({ id, contrato_codigo: 'AA11-0001-2030', tipo: 'recebimento', parcela_numero: 1, data: '2030-03-10', valor: '1234.00',
+      conta_nome: 'PJ', estornado: false, excluido_por: null, excluido_em: '2030-05-20T15:00:00Z' });
+    vi.stubGlobal('fetch', async (entrada: string | URL) => {
+      const url = new URL(String(entrada));
+      urls.push(url);
+      const quantas = urls.length === 1 ? LINHAS_POR_CONSULTA : 1;
+      return Response.json(Array.from({ length: quantas }, (_, i) => linha(urls.length * LINHAS_POR_CONSULTA + i)));
+    });
+    const { SD } = await import('./supabase');
+    // Quando
+    const excluidos = await SD.financeiroExcluidos();
+    // Então
+    expect(excluidos).toHaveLength(LINHAS_POR_CONSULTA + 1);
+    expect(excluidos[0].valor).toBe(1234);
+    expect(urls.map(u => u.searchParams.get('offset'))).toEqual(['0', String(LINHAS_POR_CONSULTA)]);
+    expect(urls.every(u => u.searchParams.get('order') === 'excluido_em.desc,id.desc')).toBe(true);
+  });
+});
+
 describe('Sessão encerrada no supabase.ts', () => {
   it.each<[string, Error | null, boolean]>([
     ['diz que a sessão não existe', new AuthSessionMissingError(), true],

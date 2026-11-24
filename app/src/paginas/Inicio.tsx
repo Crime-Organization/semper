@@ -15,7 +15,9 @@ import { CampoDaBuscaGeral } from '../ui/BuscaGeral';
 import { FiltroDoPainel, useAlcanceDoPainel } from '../ui/painel/FiltroDoPainel';
 import { CabecaDoPainel, NumeroDoPainel, NumerosDoPainel, Painel } from '../ui/painel/Painel';
 import { useCtx } from '../ui/sessao';
+import { useAjudaDaTela } from '../ui/BotaoDeAjuda';
 import { useTitulo } from '../ui/util';
+import { AvisoDoConsentimento } from './inicio/AvisoDoConsentimento';
 import { BLOCOS, LUGAR_DO_BLOCO } from './inicio/Blocos';
 import { fontesDoPainel, type FontesDoPainel, type ResultadoDoBloco } from './inicio/fontes';
 import { Ritmo, TarefasPorSituacao } from './inicio/GraficosDoInicio';
@@ -94,6 +96,7 @@ function PorOndeComecar({ alcance, modulos }: { alcance: AlcanceDoPainel; modulo
 
 export default function Inicio() {
   useTitulo('Início');
+  const abrirAjuda = useAjudaDaTela('inicio');
   const ctx = useCtx();
   const eu = ctx.perfil.id, modulos = ctx.escritorio?.modulos;
   const [alcance, escolher] = useAlcanceDoPainel(PREFERENCIA_DO_FILTRO);
@@ -128,11 +131,13 @@ export default function Inicio() {
 
   const primeiro = (ctx.perfil.nome || '').trim().split(/\s+/)[0];
   const nomeDaPessoa = ctx.equipe.find(m => m.id === alcance.pessoa)?.nome ?? '';
-  const cabecalho = <CabecaDoPainel titulo={'Olá' + (primeiro ? ', ' + primeiro : '')} frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)}>
+  const cabecalho = <CabecaDoPainel titulo={'Olá' + (primeiro ? ', ' + primeiro : '')} frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)} aoAbrirAjuda={abrirAjuda}>
     <CampoDaBuscaGeral />
     {ctx.ehAdmin && <FiltroDoPainel alcance={alcance} equipe={ctx.equipe} eu={eu} aoEscolher={escolher} />}
   </CabecaDoPainel>;
-  const moldura = (conteudo: ReactNode) => <div className="miolo do-painel painel-inicio">{cabecalho}{conteudo}</div>;
+  // Logo abaixo do título, só para o administrador: o aviso do consentimento sem data (#409), em todo estado do painel.
+  const avisos = ctx.ehAdmin && <AvisoDoConsentimento versao={versao} />;
+  const moldura = (conteudo: ReactNode) => <div className="miolo do-painel painel-inicio">{cabecalho}{avisos}{conteudo}</div>;
   if (typeof resumo === 'string') return moldura(<Aviso tipo="erro">{resumo}</Aviso>);
   if (!resumo) return moldura(<Carregando />);
   if (resumo.nada) return moldura(<PorOndeComecar alcance={alcance} modulos={modulos} />);
@@ -142,6 +147,7 @@ export default function Inicio() {
   const comTarefas = ligado('tarefas', modulos);
   return <div className={'miolo do-painel painel-inicio' + (lendo ? ' atualizando' : '')} aria-busy={lendo}>
     {cabecalho}
+    {avisos}
     <NumerosDoPainel rotulo="Números do dia">
       {ORDEM_DOS_NUMEROS.filter(n => ligado(NUMEROS[n].modulo, modulos)).map(n => <NumeroDoPainel key={n} {...NUMEROS[n].montar(resumo, hoje)} />)}
     </NumerosDoPainel>

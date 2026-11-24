@@ -172,14 +172,14 @@ export interface FiltroPessoas {
   tipo?: string;
   responsavel?: string;
   situacao?: 'ativas' | 'arquivadas';
-  /** Só as importadas ou só as com pendência. */
+  /** Só as importadas, só as com pendência ou só as com o consentimento sem data (#409). */
   marca?: MarcaPessoas;
   ordem?: Ordem;
   pagina?: number;
   porPagina?: number;
 }
-/** Marcas do filtro de Pessoas: criadas por uma importação, ou com alguma pendência. */
-export type MarcaPessoas = 'importadas' | 'pendentes';
+/** Marcas do filtro de Pessoas: criadas por uma importação, com alguma pendência, ou com a base legal "consentimento" e sem a data dele (#409). */
+export type MarcaPessoas = 'importadas' | 'pendentes' | 'consentimento_sem_data';
 
 export interface Pagina<T> { linhas: T[]; total: number }
 
@@ -657,6 +657,8 @@ export interface DadosPessoas {
   responsavelIncluir(pessoaId: string, perfilId: string): Promise<void>;
   responsavelRemover(pessoaId: string, perfilId: string): Promise<void>;
   pessoasResumo(): Promise<ResumoPessoas>;
+  /** Quantas pessoas do escritório (ativas e arquivadas) têm a base legal "consentimento" e a data dele vazia (#409). */
+  pessoasSemDataDoConsentimento(): Promise<number>;
 }
 
 /** Informações sigilosas de uma pessoa. */
@@ -733,6 +735,14 @@ export interface DadosContratos {
   objetosJuntar(ids: string[], fica: string): Promise<TrocaDeObjetos>;
   /** Tira da lista o objeto que nenhum contrato usa (só administradores). O que está em uso é recusado, com quantos contratos o usam. */
   objetoApagar(id: string): Promise<void>;
+  /** As demandas ligadas ao objeto (#410), para perguntar a qual objeto novo cada uma fica ligada ao separar. Só administradores. */
+  demandasDoObjeto(id: string): Promise<DemandaDoObjeto[]>;
+  /**
+   * Separa um objeto em dois ou mais (#410; só administradores): os nomes novos entram no lugar dele na lista e em cada contrato que
+   * o usava (arquivados também); cada demanda dele passa ao objeto novo escolhido em `demandas` (recusa se faltar alguma) e o título
+   * igual ao nome antigo acompanha. Não cria nem apaga demanda. Não tem desfazer.
+   */
+  objetoSeparar(id: string, nomes: string[], demandas: LigacaoDaDemanda[]): Promise<TrocaDeObjetos>;
   /** Contratos em que a pessoa é cliente, participante ou indicadora; com perfilId (a pessoa é da equipe), também os em que é a responsável. */
   contratosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ContratoDaPessoa[]>;
 }
@@ -754,6 +764,18 @@ export interface TrocaDeObjetos {
   /** Os modelos de lista que ficaram com um nome que saiu (já havia um com o nome novo, ou cada objeto juntado tinha o seu). */
   modelos_sem_objeto: number;
   contratos_com_duas_demandas: number;
+}
+/** Uma demanda ligada a um objeto, ao separá-lo (#410; supabase/migrations/20261124034839_separar_objeto.sql). */
+export interface DemandaDoObjeto {
+  id: string;
+  codigo: string;
+  titulo: string;
+  contrato_codigo: string | null;
+}
+/** A qual objeto novo a demanda fica ligada, ao separar (o nome, como escrito). */
+export interface LigacaoDaDemanda {
+  demanda: string;
+  objeto: string;
 }
 
 /** Demandas. Na ordem "nome", a lista vai pelo título. */
@@ -1518,7 +1540,7 @@ export interface ComentarioDaMensagem {
  * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
  * de quem entrou num item (#377).
  */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso';
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso' | 'tarefa';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1558,6 +1580,24 @@ export interface Mensagem {
   grupo?: GrupoDaMensagem | null;
   /** No aviso da demanda que nasceu de um compromisso que se repete (#307). Ausente nas outras. */
   demandaDoCompromisso?: DemandaDoCompromissoDaMensagem | null;
+  /** No aviso da tarefa ao solicitante e a quem executa (#415). Ausente nas outras. */
+  avisoDaTarefa?: AvisoDaTarefaDaMensagem | null;
+}
+/**
+ * Qual aviso da tarefa (#415; mensagens_da_tarefa.aviso no banco): a pessoa foi posta como solicitante; a tarefa que ela pediu chegou
+ * à coluna de aprovação; a tarefa que ela executa foi devolvida, com um comentário.
+ */
+export type AvisoDaTarefa = 'solicitante' | 'aprovacao' | 'devolvida';
+/**
+ * O aviso da tarefa (#415, tabela mensagens_da_tarefa). `tarefa`: null quando a pessoa não a vê mais (a caixa só diz isso).
+ * `comentario`: na devolvida, o comentário da devolução (null se foi apagado ou nas outras).
+ */
+export interface AvisoDaTarefaDaMensagem {
+  aviso: AvisoDaTarefa;
+  /** Quem pôs, quem enviou para a aprovação, quem devolveu; null se não existe mais. */
+  feito_por: string | null;
+  tarefa: { id: string; codigo: string; titulo: string } | null;
+  comentario: { id: string; texto: string } | null;
 }
 /** Qual aviso da demanda que nasce do compromisso (#307; mensagens_de_compromisso.aviso no banco): nasceu, a data mudou, foi cancelado. */
 export type AvisoDaDemandaDoCompromisso = 'demanda_nova' | 'data_mudou' | 'cancelado';
@@ -2099,6 +2139,15 @@ export interface Lancamento {
 }
 export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
 export interface AliquotaDoDas { mes: string; aliquota: number }
+/**
+ * Um recebimento (também o estornado) ou uma parcela importada como paga que saiu com o contrato excluído, lido da cópia escondida
+ * (financeiro_excluidos, #284). Só os administradores do escritório leem, e ninguém muda nem apaga (#413). Valor em centavos.
+ * conta_nome: o nome da conta na hora da exclusão (a parcela importada como paga não passou por conta nenhuma).
+ */
+export interface RecebimentoExcluido {
+  id: number; contrato_codigo: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number | null; data: string | null; valor: number;
+  conta_nome: string | null; estornado: boolean; excluido_por: string | null; excluido_em: string;
+}
 /** Uma parcela do contrato, em centavos. Quem vê: um administrador ou o responsável pelo contrato. */
 export interface Parcela {
   id: string; contrato_id: string; numero: number; vencimento: string; valor: number;
@@ -2236,6 +2285,8 @@ export interface DadosFinanceiro {
   financeiroDasSalvar(mes: string, aliquota: number): Promise<void>;
   /** As mudanças no saldo inicial, no início das contas, no DAS e nos sócios, das mais novas às mais antigas. */
   financeiroAjustes(): Promise<Historico[]>;
+  /** Os recebimentos que saíram com os contratos excluídos, dos excluídos por último aos mais antigos. Quem não é administrador recebe a lista vazia. */
+  financeiroExcluidos(): Promise<RecebimentoExcluido[]>;
 }
 
 /** As parcelas, os recebimentos e os repasses (supabase/migrations/20261102192042_financeiro_parcelas.sql). */

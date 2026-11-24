@@ -1,5 +1,6 @@
 // Os atalhos de teclado da página de módulo (#86): "/" vai à busca, "N" abre o "Novo" do módulo e "?" mostra a ajuda da tela.
-// Uma peça só, usada pelo <PaginaModulo>: o módulo não declara nada (os atalhos vêm da busca e da ação principal dele).
+// Uma peça só, usada pelo <PaginaModulo>: o módulo não declara nada (os atalhos vêm da busca e da ação principal dele). As telas
+// que não são de módulo (Início, Financeiro, Minha conta…, #411) a usam pelo useAjudaDaTela de ui/BotaoDeAjuda.tsx.
 // A ajuda (#85) é uma janela só: a explicação da tela em cima (os textos de regras/ajuda.ts, que o módulo passa) e a lista dos
 // atalhos embaixo. A tecla "?" e o botão "?" do cabeçalho abrem a mesma janela (useAtalhosDaPagina devolve como abri-la).
 // O que dispara e quando está em regras/atalhos.ts; aqui só se lê a tecla, onde está o foco e se há algo aberto por cima.
@@ -76,11 +77,11 @@ export function ListaDeAtalhos({ grupos, nivel = 3 }: { grupos: GrupoDeAtalhos[]
   </div>;
 }
 
-/** O que a janela de ajuda mostra: os atalhos que a página tem e, nas páginas de módulo, o título e a explicação da tela. */
+/** O que a janela de ajuda mostra: os atalhos que a página tem e, quando a tela tem texto em regras/ajuda.ts, o título e a explicação dela. */
 export interface AjudaDaPagina {
   temBusca: boolean;
   novo: string | null;
-  /** O título da tela e os parágrafos da explicação (regras/ajuda.ts). Sem eles, a janela mostra só os atalhos. */
+  /** O título da tela e os parágrafos da explicação (regras/ajuda.ts). Sem eles (página de módulo sem texto de ajuda), a janela mostra só os atalhos. */
   tela?: ExplicacaoDaTela;
 }
 /** O título da tela e os parágrafos que a explicam, na ajuda (#85). */
@@ -101,8 +102,9 @@ function AtalhosDaJanela({ temBusca, novo, nivel }: { temBusca: boolean; novo: s
 const TITULO_DOS_ATALHOS = 'ajuda-atalhos-titulo';
 
 /**
- * Abre a ajuda da página. Com a explicação da tela, é a janela "Ajuda: <tela>", com o texto em cima e os atalhos embaixo; sem
- * ela (o Financeiro, que não é página de módulo), é a janela "Atalhos do teclado". A ajuda é a janela larga, em que só o corpo
+ * Abre a ajuda da página. Com a explicação da tela (nas páginas de módulo e nas outras telas, como o Financeiro, #411), é a janela
+ * "Ajuda: <tela>", com o texto em cima e os atalhos embaixo; sem ela (página de módulo sem texto em regras/ajuda.ts), é a janela
+ * "Atalhos do teclado". A ajuda é a janela larga, em que só o corpo
  * rola: a explicação aparece primeiro, mesmo com o foco no Fechar, e o título e o Fechar ficam à vista.
  */
 export function mostrarAjuda({ temBusca, novo, tela }: AjudaDaPagina) {

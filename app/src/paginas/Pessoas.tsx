@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type MarcaPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { AJUDA } from '../regras/ajuda';
+import { MARCA_SEM_DATA, ROTULO_SEM_DATA } from '../regras/consentimentoSemData';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { DICA_DO_CODIGO, fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
@@ -35,8 +36,11 @@ import './Pessoas.css';
 const ARQUIVADAS_ABERTA = 'pessoas.arquivados';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
-/** O filtro "Situação do cadastro": as criadas por uma importação ou as com alguma pendência (veja ImportarPessoas.tsx). */
-const MARCAS: Record<MarcaPessoas, string> = { importadas: 'Importadas', pendentes: 'Com pendência' };
+/**
+ * O filtro "Situação do cadastro": as criadas por uma importação, as com alguma pendência (veja ImportarPessoas.tsx) e as com a base
+ * legal "consentimento" sem a data dele (#409; o aviso do Início traz para cá com ?marca=).
+ */
+const MARCAS: Record<MarcaPessoas, string> = { importadas: 'Importadas', pendentes: 'Com pendência', [MARCA_SEM_DATA]: ROTULO_SEM_DATA };
 const marcaDe = (valor: string) => Object.hasOwn(MARCAS, valor) ? valor as MarcaPessoas : undefined;
 
 export default function Pessoas() {
@@ -47,11 +51,13 @@ export default function Pessoas() {
   const [params, setParams] = useSearchParams();
   const quadro = useColunas('pessoas', ctx);
 
-  // Estado inicial: da URL (atalhos do Início), senão das preferências do usuário.
+  // Estado inicial: da URL (atalhos do Início), senão das preferências do usuário. Com a situação do cadastro na URL (o aviso do
+  // consentimento sem data), a lista vem com todos os responsáveis, para bater com a conta do aviso.
   const [f, setF] = useState<FiltroPessoas>(() => {
-    let responsavel = params.get('responsavel') === 'eu' ? eu : lerPreferencia('pessoas.responsavel', '');
+    const marca = marcaDe(params.get('marca') ?? '');
+    let responsavel = params.get('responsavel') === 'eu' ? eu : marca ? '' : lerPreferencia('pessoas.responsavel', '');
     if (responsavel && !ctx.equipe.some(m => m.id === responsavel)) responsavel = '';
-    return { termo: '', tipo: '', responsavel, situacao: 'ativas', pagina: 0 };
+    return { termo: '', tipo: '', responsavel, marca, situacao: 'ativas', pagina: 0 };
   });
   // O atalho "Arquivadas" do Início (?situacao=arquivadas) abre a tabela com a seção dos arquivados aberta.
   const [verArquivadas] = useState(() => params.get('situacao') === 'arquivadas');
@@ -73,7 +79,7 @@ export default function Pessoas() {
   // O cartão aberto fica na URL (?id=...), para o link levar direto à pessoa.
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   useEffect(() => {
-    if (['visao', 'responsavel', 'situacao'].some(k => params.has(k))) setParams(aberto ? { id: aberto } : {}, { replace: true });
+    if (['visao', 'responsavel', 'situacao', 'marca'].some(k => params.has(k))) setParams(aberto ? { id: aberto } : {}, { replace: true });
   // oxlint-disable-next-line react/exhaustive-deps -- limpa endereços antigos uma vez só, ao abrir a tela
   }, []);
 

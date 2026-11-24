@@ -1,9 +1,10 @@
 // Regras da lista de objetos de contrato nas Configurações (#281): conferir o nome corrigido, achar os parecidos para sugerir a
-// junção, contar o uso e montar os avisos. Puras, sem tela nem banco. O banco confere o mesmo nome e dá as mesmas mensagens
-// (supabase/migrations/20261122232558_editar_objetos_de_contrato.sql): mudou aqui, muda lá.
-import type { ObjetoDoEscritorio, TrocaDeObjetos } from '../dados/tipos';
+// junção, separar um objeto em dois ou mais (#410), contar o uso e montar os avisos. Puras, sem tela nem banco. O banco confere os
+// mesmos nomes e dá as mesmas mensagens (supabase/migrations/20261122232558_editar_objetos_de_contrato.sql e
+// 20261124034839_separar_objeto.sql): mudou aqui, muda lá.
+import type { DemandaDoObjeto, LigacaoDaDemanda, ObjetoDoEscritorio, TrocaDeObjetos } from '../dados/tipos';
 import { TAMANHO_CONTRATO } from '../dados/limites';
-import { OBJETO_A_DEFINIR } from './contrato';
+import { limparObjetos, OBJETO_A_DEFINIR } from './contrato';
 import { normal } from './texto';
 
 // ---------- as mensagens (as mesmas do banco) ----------
@@ -12,6 +13,9 @@ export const OBJETO_LONGO = `O objeto pode ter até ${TAMANHO_CONTRATO.objeto} c
 export const OBJETO_RESERVADO = `"${OBJETO_A_DEFINIR}" não pode ser o nome de um objeto.`;
 export const OBJETO_REPETIDO = 'Já existe um objeto com esse nome. Para unir os dois, marque-os e use Juntar.';
 export const JUNTAR_SO_UM = 'Marque ao menos dois objetos para juntar.';
+export const SEPARAR_POUCOS = 'Escreva ao menos dois nomes para separar.';
+export const SEPARAR_REPETIDOS = 'Os nomes novos não podem se repetir.';
+export const SEM_OBJETO_DA_DEMANDA = 'Escolha o objeto novo de cada demanda.';
 /** O "A definir" antigo que tenha ficado na lista: mudá-lo trocaria o "A definir" de todos os contratos do escritório. */
 export const OBJETO_A_DEFINIR_FIXO = `"${OBJETO_A_DEFINIR}" não pode ser corrigido, juntado nem apagado.`;
 
@@ -92,12 +96,63 @@ export function alcanceDaJuncao(marcados: readonly ObjetoDoEscritorio[], fica: s
     + `e ${quantasDemandas(saem.reduce((n, o) => n + o.demandas, 0))}. ${passam} a ter o nome do que fica. Não dá para desfazer.`;
 }
 
+// ---------- separar (#410) ----------
+/** Os nomes novos como o banco os grava: sem espaços nas pontas e sem os campos vazios, na ordem escrita. */
+export const nomesDaSeparacao = (campos: readonly string[]) => campos.map(c => c.trim()).filter(Boolean);
+/** As regras dos nomes novos, na ordem (a primeira que falhar dá a mensagem). Regra nova = entrada nova aqui. */
+const CONFERENCIAS_DA_SEPARACAO: ((nomes: string[]) => string | null)[] = [
+  nomes => nomes.length < 2 ? SEPARAR_POUCOS : null,
+  nomes => nomes.some(n => n.length > TAMANHO_CONTRATO.objeto) ? OBJETO_LONGO : null,
+  nomes => nomes.some(n => normal(n) === normal(OBJETO_A_DEFINIR)) ? OBJETO_RESERVADO : null,
+  // Como o banco: maiúsculas e acentos não contam.
+  nomes => new Set(nomes.map(normal)).size < nomes.length ? SEPARAR_REPETIDOS : null
+];
+/** O erro dos nomes novos (null: pode separar). `campos`: o que está escrito em cada campo, os vazios também. */
+export const erroDosNomesDaSeparacao = (campos: readonly string[]) => {
+  const nomes = nomesDaSeparacao(campos);
+  return CONFERENCIAS_DA_SEPARACAO.map(r => r(nomes)).find(Boolean) ?? null;
+};
+/**
+ * A ligação de cada demanda ao objeto novo escolhido. `escolhas`: para cada demanda, a posição do campo do nome escolhido.
+ * null quando falta escolher alguma, ou o campo escolhido ficou vazio.
+ */
+export function ligacoesDasDemandas(demandas: readonly Pick<DemandaDoObjeto, 'id'>[], escolhas: Readonly<Partial<Record<string, number>>>,
+  campos: readonly string[]): LigacaoDaDemanda[] | null {
+  const ligacoes = demandas.map(d => { const i = escolhas[d.id]; return { demanda: d.id, objeto: (i === undefined ? '' : campos[i] ?? '').trim() }; });
+  return ligacoes.every(l => l.objeto) ? ligacoes : null;
+}
+/**
+ * As escolhas das demandas depois que a lista dos nomes novos mudou. Cada escolha aponta para a posição de um nome: quando um nome
+ * sai, a escolha dele cai e as dos nomes de baixo sobem uma posição, para continuar no mesmo nome. `antes` e `depois` são as linhas
+ * da lista; a linha que fica é o mesmo objeto (é assim que se acha a que saiu).
+ */
+export function escolhasDepoisDosNomes(escolhas: Readonly<Partial<Record<string, number>>>, antes: readonly object[],
+  depois: readonly object[]): Readonly<Partial<Record<string, number>>> {
+  if (depois.length >= antes.length) return escolhas;
+  const tirada = antes.findIndex((linha, i) => linha !== depois[i]);
+  return Object.fromEntries(Object.entries(escolhas).flatMap(([demanda, i]) =>
+    i === undefined || i === tirada ? [] : [[demanda, i > tirada ? i - 1 : i]]));
+}
+/** Os objetos do contrato depois de separar `de` em `para`: os novos no lugar do antigo, sem repetir (como o banco). */
+export const objetosSeparados = (objetos: readonly string[], de: string, para: readonly string[]) =>
+  limparObjetos(objetos.flatMap(o => normal(o) === normal(de) ? [...para] : [o]));
+/** O que a separação vai mexer, antes de confirmar. */
+export const alcanceDaSeparacao = (o: ObjetoDoEscritorio) =>
+  `Muda em ${quantosContratos(contratosDoObjeto(o))} e ${quantasDemandas(o.demandas)}: cada contrato passa a ter os objetos novos no lugar deste. Não dá para desfazer.`;
+/** Os nomes por extenso, entre aspas: '"A" e "B"', '"A", "B" e "C"'. */
+export function nomesPorExtenso(nomes: readonly string[]) {
+  const entre = nomes.map(n => `"${n}"`);
+  return entre.length > 1 ? `${entre.slice(0, -1).join(', ')} e ${entre[entre.length - 1]}` : entre.join('');
+}
+
 // ---------- o aviso do que mudou ----------
 /** O que o administrador fez, no aviso do pé da tela. */
-export type TrocaFeita = 'corrigir' | 'juntar';
+export type TrocaFeita = 'corrigir' | 'juntar' | 'separar';
 const INICIO_DO_AVISO: Record<TrocaFeita, (nome: string) => string> = {
   corrigir: nome => `Objeto corrigido: "${nome}".`,
-  juntar: nome => `Objetos juntados em "${nome}".`
+  juntar: nome => `Objetos juntados em "${nome}".`,
+  // Na separação, os nomes já vêm por extenso (nomesPorExtenso).
+  separar: nomes => `Objeto separado em ${nomes}.`
 };
 /** O que a troca deixou para a pessoa conferir: os modelos com o nome antigo e os contratos com duas demandas do mesmo objeto. */
 export const trocaPedeConferencia = (r: TrocaDeObjetos) => r.modelos_sem_objeto > 0 || r.contratos_com_duas_demandas > 0;

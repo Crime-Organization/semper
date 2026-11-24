@@ -23,6 +23,7 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { FiltroDoPainel, useAlcanceDoPainel } from '../ui/painel/FiltroDoPainel';
 import { CabecaDoPainel, CartaoDoPainel, NumeroDoPainel, NumerosDoPainel, Painel } from '../ui/painel/Painel';
 import { useCtx } from '../ui/sessao';
+import { useAjudaDaTela } from '../ui/BotaoDeAjuda';
 import { hojeISO, useTitulo } from '../ui/util';
 import { arquivarTarefaCriada, criarTarefaLigada, quemRecebe } from './processo/tarefaDoProcesso';
 import './Processos.css';
@@ -53,6 +54,7 @@ async function lerPainel(alcance: AlcanceDoPainel, hoje: string): Promise<Leitur
 
 export default function PainelProcessos() {
   useTitulo('Processos');
+  const abrirAjuda = useAjudaDaTela('painelProcessos');
   const ctx = useCtx();
   const eu = ctx.perfil.id;
   const [alcance, escolher] = useAlcanceDoPainel(PREFERENCIA_DO_FILTRO);
@@ -99,7 +101,7 @@ export default function PainelProcessos() {
   }
 
   const nomeDaPessoa = ctx.equipe.find(m => m.id === alcance.pessoa)?.nome ?? '';
-  const cabecalho = <CabecaDoPainel titulo="Processos" frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)}>
+  const cabecalho = <CabecaDoPainel titulo="Processos" frase={FRASE_DO_ALCANCE[alcance.tipo](nomeDaPessoa)} aoAbrirAjuda={abrirAjuda}>
     {ctx.ehAdmin && <FiltroDoPainel alcance={alcance} equipe={ctx.equipe} eu={eu} aoEscolher={escolher} />}
   </CabecaDoPainel>;
   const moldura = (conteudo: ReactNode) => <div className="miolo do-painel">{cabecalho}{conteudo}</div>;

@@ -7,13 +7,20 @@ import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { partesDoDinheiro } from '../../regras/caixa';
 import { BotaoLink, Contador, Nota, TituloSecao } from '../base';
+import { BotaoDeAjuda } from '../BotaoDeAjuda';
 import { Icone, type NomeIcone } from '../Icone';
 
-/** O título do painel, com o ponto verde, a frase de quem é o trabalho e, à direita, o filtro (só para o administrador). */
-export function CabecaDoPainel({ titulo, frase, children }: { titulo: string; frase?: ReactNode; children?: ReactNode }) {
+/**
+ * O título do painel, com o ponto verde, a frase de quem é o trabalho e, à direita, o filtro (só para o administrador). Com
+ * "aoAbrirAjuda" (o useAjudaDaTela do painel), o botão "?" da ajuda da tela fica ao lado do título (#411).
+ */
+export function CabecaDoPainel({ titulo, frase, aoAbrirAjuda, children }: { titulo: string; frase?: ReactNode; aoAbrirAjuda?: () => void; children?: ReactNode }) {
   return <header className="painel-topo">
     <div className="painel-topo-texto">
-      <h1 className="titulo">{titulo}<span className="ponto">.</span></h1>
+      <div className="cabeca-titulo">
+        <h1 className="titulo">{titulo}<span className="ponto">.</span></h1>
+        {aoAbrirAjuda && <BotaoDeAjuda aoAbrir={aoAbrirAjuda} />}
+      </div>
       {frase && <p className="painel-frase">{frase}</p>}
     </div>
     {children && <div className="painel-topo-filtro">{children}</div>}

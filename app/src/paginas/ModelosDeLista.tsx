@@ -17,6 +17,7 @@ import { Aviso, BotaoDeIcone, Campo, Carregando, Cartao, estiloBotao, Nota, prop
 import { Icone } from '../ui/Icone';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { TituloComAjuda } from '../ui/BotaoDeAjuda';
 import { ArvoreDoChecklist, type AcoesDaArvore } from './listas/ArvoreDoChecklist';
 import './Demandas.css';
 
@@ -59,7 +60,7 @@ export default function ModelosDeLista() {
   return <div className="miolo">
     <header>
       <p className="olho"><Link to="/demandas/">Demandas</Link> · <Link to="/tarefas/">Tarefas</Link> · <Link to="/contratos/">Contratos</Link></p>
-      <h1 className="titulo">Modelos de checklist<span className="ponto">.</span></h1>
+      <TituloComAjuda tela="modelosDeLista" />
       <p className="lead">Checklists prontos para usar nas demandas, nas tarefas e nos contratos com um clique, em "Adicionar checklist". Os itens podem ficar em grupos e subgrupos numerados (1., 1.1, 2.1.1). Mudar um modelo não muda os checklists já feitos com ele.</p>
       <Nota>Modelo com o mesmo nome de um objeto de contrato (por exemplo, "Registro de marca") vira as tarefas da demanda desse objeto: quando o contrato é assinado, cada item do modelo nasce como uma tarefa dela. Os grupos não viram tarefas, só os itens.</Nota>
     </header>
