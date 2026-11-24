@@ -10,7 +10,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { SD, type Coluna, type CompromissoLigado, type Historico } from '../../dados';
 import {
-  compromissoAConcluir, compromissoDoAcompanhamento, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar, descreverPrazoAposODeferimento,
+  compromissoAConcluir, compromissoDoAcompanhamento, compromissoParaOFimDoExtra, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar,
+  descreverFimDoExtra, descreverPrazoAposODeferimento,
   descreverPrazoExtra, extraNaTabela, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
   type AcompanhamentoDaProtecao, type DataParaAtualizar, type PrazoExtraDaProtecao, type PrazosDaProtecao
 } from '../../regras/propriedadeIntelectual';
@@ -99,14 +100,16 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
   // undefined: ainda lendo os compromissos do processo (o atalho só aparece depois, para não oferecer um segundo).
   const [lido, setLido] = useState<NaAgenda | undefined>();
   const [versao, setVersao] = useState(0);
+  // A coluna de concluído: para concluir o compromisso do prazo após o deferimento, e para não levar o concluído ao fim do prazo extra.
+  const lerColunas = !!concluir || !!deferimento;
   useEffect(() => {
     let vale = true;
-    const colunas: Promise<Coluna[]> = concluir ? SD.colunasListar('compromissos') : Promise.resolve([]);
+    const colunas: Promise<Coluna[]> = lerColunas ? SD.colunasListar('compromissos') : Promise.resolve([]);
     Promise.all([SD.compromissosDoProcesso(processoId), colunas, SD.processoHistorico(processoId)])
       .then(([ligados, cols, historico]) => { if (vale) setLido({ ligados, concluida: cols.find(c => c.marco === 'concluido')?.id ?? null, historico }); })
       .catch(() => { if (vale) setLido({ ligados: [], concluida: null, historico: [] }); });
     return () => { vale = false; };
-  }, [processoId, concluir, versao, versaoDoCartao]);
+  }, [processoId, lerColunas, versao, versaoDoCartao]);
   if (!lido) return null;
   const { ligados, historico } = lido;
   const mudou = () => { setVersao(v => v + 1); aoMudar?.(); };
@@ -118,13 +121,13 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
         <Botao forma="mini" ocupadoTexto="Concluindo…" onClick={() => concluirNaAgenda(aConcluir.id, lido.concluida!, mudou)}>Concluir na agenda</Botao>
       </AcoesDosLigados>
     </>}
-    {extra && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={extra.prazo} para={extra.para} mudou={mudou}
+    {extra && <PrazoNaAgenda ligados={ligados} historico={historico} concluida={lido.concluida} hoje={hoje} prazo={extra.prazo} para={extra.para} mudou={mudou}
       jaEsta={c => `O prazo extra já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`} descricao={descreverPrazoExtra(extra.prazo)}
       atalho="Pôr o prazo extra na agenda" />}
-    {deferimento && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={deferimento.prazo} para={deferimento.para} mudou={mudou}
+    {deferimento && <PrazoNaAgenda ligados={ligados} historico={historico} concluida={lido.concluida} hoje={hoje} prazo={deferimento.prazo} para={deferimento.para} mudou={mudou}
       jaEsta={c => `O prazo após o deferimento já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverPrazoAposODeferimento(deferimento.prazo)} atalho="Pôr o prazo na agenda" />}
-    {serie && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
+    {serie && <PrazoNaAgenda ligados={ligados} historico={historico} concluida={lido.concluida} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
       jaEsta={c => `Estes prazos já estão na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverAcompanhamento(serie.acompanhamento, comDemanda)} atalho="Acompanhar na agenda" />}
   </>;
@@ -134,29 +137,36 @@ interface PropsDoPrazoNaAgenda {
   /** O histórico do processo: o "Atualizar" só aparece se as datas dele mudaram depois do compromisso. */
   historico: Historico[];
   ligados: CompromissoLigado[];
+  /** A coluna de concluído do quadro de compromissos: o compromisso concluído não é levado para o fim do prazo extra. */
+  concluida: string | null;
   hoje: string;
-  /** O título e a primeira data que a conta dá. */
-  prazo: { titulo: string; data: string };
+  /** O título e a primeira data que a conta dá (no prazo após o deferimento, também se ele está no prazo extra). */
+  prazo: Pick<PrazoExtraDaProtecao, 'titulo' | 'data' | 'noPrazoExtra'>;
   para: string;
   jaEsta: (c: CompromissoLigado) => string;
   descricao: string;
   atalho: string;
   mudou: () => void;
 }
-/** Um prazo na agenda: o atalho para criar o compromisso ou, se ele já existe, qual é e, se as datas do processo mudaram, o "Atualizar as datas". */
-function PrazoNaAgenda({ ligados, historico, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
+/**
+ * Um prazo na agenda: o atalho para criar o compromisso ou, se ele já existe, qual é e, se for o caso, a oferta de levá-lo para a data da
+ * conta: quando as datas do processo mudaram ("Atualizar as datas") ou quando o prazo após o deferimento entrou no prazo extra.
+ */
+function PrazoNaAgenda({ ligados, historico, concluida, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
   const ja = compromissoDoAcompanhamento(ligados, prazo);
   if (!ja) return <>
     <Nota>{descricao}</Nota>
     <AtalhoParaAAgenda para={para}>{atalho}</AtalhoParaAAgenda>
   </>;
-  const atualizar = dataParaAtualizar(ligados, prazo, hoje, historico);
+  const atualizar = dataParaAtualizar(ligados, prazo, hoje, historico), fimDoExtra = compromissoParaOFimDoExtra(ligados, prazo, hoje, concluida);
+  const oferta = atualizar ? { x: atualizar, texto: descreverDataParaAtualizar(atualizar), botao: 'Atualizar as datas na agenda' }
+    : fimDoExtra && { x: fimDoExtra, texto: descreverFimDoExtra(fimDoExtra), botao: 'Levar para o fim do prazo extra' };
   return <>
     <Nota>{jaEsta(ja)}</Nota>
-    {atualizar && <>
-      <Nota>{descreverDataParaAtualizar(atualizar)}</Nota>
+    {oferta && <>
+      <Nota>{oferta.texto}</Nota>
       <AcoesDosLigados>
-        <Botao forma="mini" ocupadoTexto="Atualizando…" onClick={() => atualizarNaAgenda(atualizar, mudou)}>Atualizar as datas na agenda</Botao>
+        <Botao forma="mini" ocupadoTexto="Atualizando…" onClick={() => atualizarNaAgenda(oferta.x, mudou)}>{oferta.botao}</Botao>
       </AcoesDosLigados>
     </>}
   </>;

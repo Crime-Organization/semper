@@ -492,6 +492,11 @@ export interface PrazoExtraDaProtecao {
   /** O último dia do prazo extra (aaaa-mm-dd). */
   data: string;
   observacoes: string;
+  /**
+   * No prazo após o deferimento (#418): se ele já passou dos 60 dias úteis e está no prazo extra (a data é então o último dia do extra, e o
+   * compromisso criado no fim dos 60 dias ficou para trás).
+   */
+  noPrazoExtra?: boolean;
 }
 /** O primeiro prazo dos que o compromisso acompanha que está hoje no prazo extra, ou null. */
 export function prazoExtraDaProtecao(p: DatasDaProtecao & OndeHaProtecao & { numero?: string | null }, hoje: string,
@@ -529,7 +534,7 @@ export function prazoAposODeferimentoNaAgenda(p: DatasDaProtecao & OndeHaProteca
   if (!x?.fimExtra || situacao === 'passou') return null;
   const P = PRAZOS_DO_INPI;
   return {
-    nome: x.nome, titulo: tituloDoPrazoAposODeferimento(p.numero), data: situacao === 'extra' ? x.fimExtra : x.fim,
+    nome: x.nome, titulo: tituloDoPrazoAposODeferimento(p.numero), data: situacao === 'extra' ? x.fimExtra : x.fim, noPrazoExtra: situacao === 'extra',
     observacoes: `Prazo do INPI contado da publicação do deferimento na RPI, em ${fmtData(x.inicio)}: ${P.deferimentoDiasUteis} dias úteis, até `
       + `${fmtData(x.fim)}, e mais ${P.deferimentoExtraDiasUteis} dias úteis de prazo extra, até ${fmtData(x.fimExtra)}. ${AVISO_DO_ACOMPANHAMENTO}`
   };
@@ -569,7 +574,24 @@ export function dataParaAtualizar<T extends Pick<CompromissoLigado, 'id' | 'titu
   return proxima && proxima.data !== a.data && datasMudaramDepois(historico, proxima.atualizado_em)
     ? { id: proxima.id, titulo: a.titulo, de: proxima.data, para: a.data } : null;
 }
-/** O que o cartão diz da data a atualizar: "As datas do processo mudaram: "…" está na agenda em 10/06/2027, e a conta de agora dá 10/09/2027." */
+/**
+ * O prazo após o deferimento que entrou no prazo extra (#418): o compromisso foi criado no fim dos 60 dias úteis, que já passou, e a agenda
+ * não tem o último dia do prazo extra. O cartão oferece levar o compromisso para lá. null: o prazo não está no extra, há data dele de hoje em
+ * diante, não há compromisso, ou ele já foi concluído (a pessoa cumpriu o prazo; `concluida`: a coluna de concluído do quadro, se houver).
+ */
+export function compromissoParaOFimDoExtra<T extends Pick<CompromissoLigado, 'id' | 'titulo' | 'data' | 'arquivado_em' | 'etapa_id'>>(ligados: readonly T[],
+  x: Pick<PrazoExtraDaProtecao, 'titulo' | 'data' | 'noPrazoExtra'>, hoje: string, concluida: string | null): DataParaAtualizar | null {
+  if (!x.noPrazoExtra) return null;
+  const ativos = ligados.filter(c => !c.arquivado_em && c.titulo === x.titulo);
+  if (ativos.some(c => c.data >= hoje)) return null;
+  const ultimo = ativos.toSorted((a, b) => b.data.localeCompare(a.data))[0];
+  return ultimo && (concluida === null || ultimo.etapa_id !== concluida) ? { id: ultimo.id, titulo: x.titulo, de: ultimo.data, para: x.data } : null;
+}
+/** O que o cartão diz do prazo que entrou no extra: "O prazo após o deferimento está no prazo extra, até 16/02/2027: "…" ficou na agenda em 05/01/2027." */
+export const descreverFimDoExtra = (x: DataParaAtualizar) =>
+  `O prazo após o deferimento está no prazo extra, até ${fmtData(x.para)}: "${x.titulo}" ficou na agenda em ${fmtData(x.de)}, no fim dos `
+  + `${PRAZOS_DO_INPI.deferimentoDiasUteis} dias úteis.`;
+/** O que o cartão diz da data a atualizar: "As datas do processo mudaram:"…" está na agenda em 10/06/2027, e a conta de agora dá 10/09/2027." */
 export const descreverDataParaAtualizar = (x: DataParaAtualizar) =>
   `As datas do processo mudaram: "${x.titulo}" está na agenda em ${fmtData(x.de)}, e a conta de agora dá ${fmtData(x.para)}.`;
 /**

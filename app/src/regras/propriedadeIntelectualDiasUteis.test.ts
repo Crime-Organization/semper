@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import type { DiaLancado, Orgao } from '../dados/tipos';
 import {
-  ACOMPANHAR_DEFERIMENTO, anosDosPrazosEmDiasUteis, AREA_DA_PI, calendarioDoInpi, camposParaAcompanhar, compromissoAConcluir, contagemDoProcesso, dataParaAtualizar, datasMudaramDepois,
+  ACOMPANHAR_DEFERIMENTO, anosDosPrazosEmDiasUteis, AREA_DA_PI, calendarioDoInpi, camposParaAcompanhar, compromissoAConcluir, compromissoParaOFimDoExtra, contagemDoProcesso,
+  dataParaAtualizar, datasMudaramDepois, descreverFimDoExtra,
   descreverDataParaAtualizar, descreverPrazoAposODeferimento, PAPEL_SO_DA_PI, papelCabeNoProcesso, PRAZO_APOS_O_DEFERIMENTO, prazoAposODeferimentoNaAgenda,
   prazoPorExtenso, prazosDaProtecao, siglaDoCalendario, situacaoDoPrazo, somarDiasUteisNoInpi, SO_FERIADOS_NACIONAIS, tituloDoDeferimentoAConcluir,
   type DatasDaProtecao, type OndeHaProtecao
@@ -215,5 +216,36 @@ describe('Papéis de PI só nos processos da área', () => {
   it('quando o papel de PI é recusado, então a frase é a mesma do banco', () => {
     // Então
     expect(PAPEL_SO_DA_PI).toBe('Titular, inventor e autor da criação só existem nos processos de propriedade intelectual.');
+  });
+});
+
+describe('O prazo após o deferimento que entra no prazo extra', () => {
+  /** 20/01/2027: os 60 dias úteis acabaram em 05/01/2027, e o prazo extra vai até 16/02/2027. */
+  const NO_EXTRA = '2027-01-20';
+  const titulo = `Prazo após o deferimento ${NUMERO}`;
+  const ligado = (data: string, etapa_id: string | null = 'agendado', arquivado_em: string | null = null) => ({ id: 'c1', titulo, data, etapa_id, arquivado_em });
+
+  it('dado o compromisso no fim dos 60 dias, quando o prazo entra no extra, então o cartão oferece levá-lo para o último dia do prazo extra', () => {
+    // Dado
+    const x = prazoAposODeferimentoNaAgenda(marca({ deferimento: DEFERIMENTO }), NO_EXTRA)!;
+    expect(x).toMatchObject({ data: '2027-02-16', noPrazoExtra: true });
+    // Quando
+    const oferta = compromissoParaOFimDoExtra([ligado('2027-01-05')], x, NO_EXTRA, 'realizado')!;
+    // Então
+    expect(oferta).toEqual({ id: 'c1', titulo, de: '2027-01-05', para: '2027-02-16' });
+    expect(descreverFimDoExtra(oferta)).toBe(`O prazo após o deferimento está no prazo extra, até 16/02/2027: "${titulo}" ficou na agenda em 05/01/2027, no fim dos 60 dias úteis.`);
+  });
+
+  it('dado o prazo ainda nos 60 dias, ou o compromisso já levado, concluído ou arquivado, quando o cartão confere, então não oferece nada', () => {
+    // Dado
+    const aberto = prazoAposODeferimentoNaAgenda(marca({ deferimento: DEFERIMENTO }), HOJE)!;
+    const noExtra = prazoAposODeferimentoNaAgenda(marca({ deferimento: DEFERIMENTO }), NO_EXTRA)!;
+    // Então
+    expect(aberto.noPrazoExtra).toBe(false);
+    expect(compromissoParaOFimDoExtra([ligado('2026-10-20')], aberto, HOJE, 'realizado')).toBeNull();
+    expect(compromissoParaOFimDoExtra([ligado('2027-02-16')], noExtra, NO_EXTRA, 'realizado')).toBeNull();
+    expect(compromissoParaOFimDoExtra([ligado('2027-01-05', 'realizado')], noExtra, NO_EXTRA, 'realizado')).toBeNull();
+    expect(compromissoParaOFimDoExtra([ligado('2027-01-05', 'agendado', '2027-01-10')], noExtra, NO_EXTRA, 'realizado')).toBeNull();
+    expect(compromissoParaOFimDoExtra([], noExtra, NO_EXTRA, 'realizado')).toBeNull();
   });
 });

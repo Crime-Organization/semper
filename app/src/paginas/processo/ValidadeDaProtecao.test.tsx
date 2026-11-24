@@ -3,21 +3,31 @@
 // A seção "Validade e anuidades" do processo de propriedade intelectual (#317, #418): os prazos do INPI e os atalhos para a agenda.
 // Aqui, o que depende do calendário do INPI (a seção espera por ele e, se ele não vem, não oferece a agenda).
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompromissoLigado, Dados } from '../../dados';
+import type { Compromisso, CompromissoLigado, Dados } from '../../dados';
 import type { PrazoExtraDaProtecao, PrazosDaProtecao } from '../../regras/propriedadeIntelectual';
 import { Avisos } from '../../ui/avisos';
 import { CALENDARIO_DO_INPI_FALHOU, ValidadeDaProtecao, type AcompanharNaAgenda } from './ValidadeDaProtecao';
 import type { SituacaoDoCalendario } from './useCalendarioDoInpi';
 
-// A seção lê os compromissos do processo, as colunas do quadro de compromissos e o histórico do processo; o mock declara exatamente essas operações.
+// A seção lê os compromissos do processo, as colunas do quadro de compromissos e o histórico do processo, e leva um compromisso para outra
+// data; o mock declara exatamente essas operações.
 const SD = vi.hoisted(() => ({
   compromissosDoProcesso: vi.fn<Dados['compromissosDoProcesso']>(async () => []),
   colunasListar: vi.fn<Dados['colunasListar']>(async () => []),
-  processoHistorico: vi.fn<Dados['processoHistorico']>(async () => [])
+  processoHistorico: vi.fn<Dados['processoHistorico']>(async () => []),
+  compromissoObter: vi.fn<Dados['compromissoObter']>(),
+  compromissoAtualizar: vi.fn<Dados['compromissoAtualizar']>(async id => ({ id, codigo: 'C-1' }))
 }));
 vi.mock('../../dados', () => ({ SD: SD satisfies Pick<Dados, keyof typeof SD> }));
+/** Cada caso começa sem compromissos, sem colunas e sem histórico. */
+function limpar() {
+  Object.values(SD).forEach(f => f.mockClear());
+  SD.compromissosDoProcesso.mockResolvedValue([]);
+  SD.colunasListar.mockResolvedValue([]);
+}
 
 const HOJE = '2026-11-04';
 const TITULO = 'Prazo após o deferimento 918000001';
@@ -34,7 +44,7 @@ const montar = (calendario: SituacaoDoCalendario, a: AcompanharNaAgenda = acompa
   <ValidadeDaProtecao prazos={PRAZOS} hoje={HOJE} acompanhar={a} calendario={calendario} /></MemoryRouter>);
 
 describe('Validade e anuidades: o calendário do INPI (#418)', () => {
-  beforeEach(() => { Object.values(SD).forEach(f => f.mockClear()); });
+  beforeEach(limpar);
 
   it('dado o calendário do INPI ainda chegando, quando a seção abre, então ela espera, sem mostrar datas nem o atalho para a agenda', () => {
     // Quando
@@ -71,7 +81,7 @@ const ligado = (extra: Partial<CompromissoLigado> = {}): CompromissoLigado => ({
 });
 
 describe('Validade e anuidades: os compromissos do processo (#418)', () => {
-  beforeEach(() => { Object.values(SD).forEach(f => f.mockClear()); });
+  beforeEach(limpar);
 
   it('dado o prazo já na agenda, quando o compromisso sai do processo em outra seção do cartão, então a seção relê e volta a oferecer o atalho', async () => {
     // Dado
@@ -83,5 +93,27 @@ describe('Validade e anuidades: os compromissos do processo (#418)', () => {
     // Então
     expect(await screen.findByRole('link', { name: /Pôr o prazo na agenda/ })).toBeInTheDocument();
     expect(SD.compromissosDoProcesso).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Validade e anuidades: o prazo após o deferimento no prazo extra (#418)', () => {
+  beforeEach(limpar);
+
+  it('dado o compromisso no fim dos 60 dias, já passado, quando o prazo está no extra, então a seção oferece levá-lo para o fim do extra, e leva', async () => {
+    // Dado: hoje é 20/01/2027; o compromisso ficou em 05/01/2027
+    const noExtra = '2027-01-20';
+    SD.compromissosDoProcesso.mockResolvedValue([ligado({ etapa_id: 'agendado' })]);
+    SD.colunasListar.mockResolvedValue([{ id: 'realizado', nome: 'Realizado', ordem: 2, criado_por: null, oculta: false, marco: 'concluido' }]);
+    SD.compromissoObter.mockResolvedValue({ ...ligado(), repeticao_id: null } as unknown as Compromisso);
+    const prazo: PrazoExtraDaProtecao = { ...DEFERIMENTO, data: '2027-02-16', noPrazoExtra: true };
+    render(<MemoryRouter><Avisos /><ValidadeDaProtecao prazos={PRAZOS} hoje={noExtra} calendario="pronto"
+      acompanhar={acompanhar({ hoje: noExtra, deferimento: { prazo, para: '/compromissos/novo/' } })} /></MemoryRouter>);
+    expect(await screen.findByText(`O prazo após o deferimento está no prazo extra, até 16/02/2027: "${TITULO}" ficou na agenda em 05/01/2027, no fim dos 60 dias úteis.`))
+      .toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Levar para o fim do prazo extra' }));
+    // Então
+    expect(SD.compromissoAtualizar).toHaveBeenCalledWith('c1', { data: '2027-02-16' });
+    expect(await screen.findByText('A data passou para 16/02/2027 na agenda.')).toBeInTheDocument();
   });
 });
