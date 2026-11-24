@@ -248,6 +248,12 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
 export const erroDaAssinatura = (texto: string) => validarContrato({ ...CONTRATO_VAZIO, assinadoEm: texto }).assinadoEm ?? '';
 /** O que a assinatura mudada no cartão grava: o contrato como está, com a data nova, pela mesma função do lápis (com o histórico). */
 export const contratoComAssinatura = (k: Contrato, assinadoEm: string | null): DadosContrato => ({ ...dadosDoContrato(camposDoContrato(k)), assinado_em: assinadoEm });
+/**
+ * O que as observações escritas no próprio cartão (#433) gravam: o contrato como está, com as observações novas (sem os espaços das
+ * pontas; em branco, nenhuma), pela mesma função do lápis (com o histórico).
+ */
+export const contratoComObservacoes = (k: Contrato, observacoes: string | null): DadosContrato =>
+  ({ ...dadosDoContrato(camposDoContrato(k)), observacoes: observacoes?.trim() || null });
 
 /** Só o que quem não é parte do contrato pode alterar (#275). */
 export function dadosSemValores(c: CamposContrato): DadosSemValores {

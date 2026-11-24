@@ -5,17 +5,18 @@
 // título (objetos, que abrem as demandas deles, partes, honorários com divisão e parcelas, documento, demandas, tarefas,
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
+import { SD, type Contrato, type DadosContrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
 import { AINDA_SEM_DEMANDA, avisoDosObjetosNovos, CRIAR_ESTA_DEMANDA, diasDeNegociacao, objetosNovosSemDemanda, objetosSemDemanda, textoDaNegociacao } from '../regras/contrato';
 import { fmtData } from '../regras/pessoa';
 import { Botao } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { useNavigate } from 'react-router';
-import { contratoComAssinatura, erroDaAssinatura, objetosDefinidos, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { contratoComAssinatura, contratoComObservacoes, erroDaAssinatura, objetosDefinidos, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, Selo, TextoEditavel, Vazio } from '../ui/base';
+import { TAMANHO_CONTRATO } from '../dados/limites';
 import { AvisoDaEdicaoNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -199,22 +200,26 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
    * A assinatura mudada no próprio lugar (#395), como o início da tarefa: grava pela mesma função do lápis (com o histórico), a
    * partir do contrato inteiro como está agora no banco, e o Desfazer volta a data de antes.
    */
-  async function salvarAssinatura(assinadoEm: string | null) {
+  const salvarAssinatura = (assinadoEm: string | null) => gravarNoContrato(atual => contratoComAssinatura(atual, assinadoEm), atual => contratoComAssinatura(atual, atual.assinado_em));
+  /** As observações escritas no próprio cartão (#433), como a descrição da tarefa: gravam como a assinatura, com o Desfazer. */
+  const salvarObservacoes = (texto: string) => gravarNoContrato(atual => contratoComObservacoes(atual, texto), atual => contratoComObservacoes(atual, atual.observacoes));
+  /** Grava o que mudou no cartão a partir do contrato como está agora no banco (o novo e, para o Desfazer, como ele estava). */
+  async function gravarNoContrato(novo: (atual: Contrato) => DadosContrato, comoEstava: (atual: Contrato) => DadosContrato) {
     const atual = await SD.contratoObter(k!.id);
     if (!atual) throw new Error('Este contrato não foi encontrado. Feche e tente de novo.');
-    const antes = contratoComAssinatura(atual, atual.assinado_em);
-    await SD.contratoAtualizar(atual.id, contratoComAssinatura(atual, assinadoEm));
+    const antes = comoEstava(atual);
+    await SD.contratoAtualizar(atual.id, novo(atual));
     feito('Contrato atualizado.', 'atualização do contrato', async () => {
       await SD.contratoAtualizar(atual.id, antes);
       return { tipo: 'contratoAtualizado', id: atual.id };
     });
     aoMudar(); await carregar(); setVersaoHist(x => x + 1);
   }
-  const mudaAssinatura = podeAlterar && !k.arquivado_em && !editando;
+  const mudaNoLugar = podeAlterar && !k.arquivado_em && !editando;
 
   // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
-    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: null }} />
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: null, descricao: k.observacoes }} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao
       topo={/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
@@ -245,7 +250,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {k.negociacao_inicio && <DadoDoGrupo rotulo="Início das negociações"><b className="num">{fmtData(k.negociacao_inicio)}</b></DadoDoGrupo>}
         <DadoDoGrupo rotulo="Assinado em">
           <DataEditavel nome="Data da assinatura" rotulo="Assinado em" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
-            aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
+            aoSalvar={mudaNoLugar ? salvarAssinatura : undefined} />
         </DadoDoGrupo>
         {negociacao !== null && <DadoDoGrupo rotulo="Negociação"><b className="num">{textoDaNegociacao(negociacao)}</b></DadoDoGrupo>}
       </FaixaDasDatas>} />
@@ -322,7 +327,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
-      {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
+      {/* As observações se escrevem no próprio lugar (#433), como a descrição da tarefa: quem altera o contrato, com ele ativo. */}
+      <TextoEditavel key={'observacoes-' + noLugar.chave} texto={k.observacoes || ''} rotulo="Observações" className="descricao-formatada"
+        vazio={<Nota>Nenhuma observação.</Nota>} convite="Sem observações. Clique para escrever." maximo={TAMANHO_CONTRATO.observacoes}
+        aoMudarRascunho={noLugar.rascunhoDe('descricao')} aoSalvar={mudaNoLugar ? salvarObservacoes : undefined} />
     </Recolhivel>}
 
 

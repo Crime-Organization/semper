@@ -501,4 +501,20 @@ test.describe('Título no próprio lugar (#346)', () => {
     await expect(cartao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Reunião de equipe', exact: true })).toHaveCount(0);
   });
+
+  test('dada a audiência sem resultado, quando a pessoa clica na dica e escreve, então o resultado se salva ali mesmo, sem o lápis (#433)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCompromisso(page, AUDIENCIA);
+    await abrirSecao(cartao, 'Resultado');
+    // Quando
+    await cartao.getByRole('button', { name: 'Ainda sem resultado. Clique para escrever o que aconteceu.' }).click();
+    const caixa = cartao.getByRole('textbox', { name: 'Resultado' });
+    await expect(caixa).toBeFocused();
+    await page.keyboard.insertText('Acordo homologado.');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'Compromisso atualizado.' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Resultado' })).toHaveText('Acordo homologado.');
+  });
 });

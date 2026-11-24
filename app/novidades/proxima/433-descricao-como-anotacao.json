@@ -1,5 +1,5 @@
 {
   "titulo": "Descrição escrita ali mesmo, como nas anotações",
-  "texto": "Ao clicar na descrição de um cartão, você escreve ali mesmo, no ponto em que clicou, sem caixa com borda em volta: do mesmo jeito que o texto das anotações em Documentos, com a formatação já à vista e a mesma barra de formatação. Salvar e Cancelar continuam logo abaixo. Esc cancela e, se você mudou algo, pergunta antes de descartar.",
-  "ondeAchar": "Em Tarefas ou Demandas, no cartão de um item: clique no texto da descrição."
+  "texto": "A descrição dos cartões tem a mesma letra e a mesma barra de formatação das anotações. Ao clicar, você escreve ali mesmo, sem caixa com borda e sem o texto sair do lugar. Cancelar e Esc perguntam antes de descartar. As observações do contrato e o resultado do compromisso também se escrevem assim.",
+  "ondeAchar": "No cartão de uma tarefa ou demanda, clique na descrição. No contrato, em Documento e observações; no compromisso, em Resultado."
 }
