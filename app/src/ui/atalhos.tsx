@@ -5,7 +5,7 @@
 // O que dispara e quando está em regras/atalhos.ts; aqui só se lê a tecla, onde está o foco e se há algo aberto por cima.
 // A pessoa pode desligar os atalhos de uma tecla só (WCAG 2.1.4: quem dita por voz dispararia o N sem querer): a escolha
 // fica nas preferências dela, com a caixa de marcar na própria janela do "?" e em Minha conta (para religar).
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import { atalhoDaTecla, ehLugarDeEscrever, listaDeAtalhos, type Atalho, type GrupoDeAtalhos, type TeclaApertada } from '../regras/atalhos';
 import { Nota, Tecla } from './base';
 import { janela } from './janela';
@@ -128,7 +128,10 @@ export function useAtalhosDaPagina({ buscar, novo, tela }: { buscar?: () => void
     const { buscar: irParaBusca, novo: oNovo, tela: aTela } = atual.current;
     void mostrarAjuda({ temBusca: !!irParaBusca, novo: oNovo?.rotulo ?? null, tela: aTela });
   }, []);
-  useEffect(() => {
+  // Os atalhos valem desde que a página aparece (#420). Com o useEffect, eles se ligavam um instante depois de a página estar na
+  // tela (o React roda esses efeitos depois de desenhar): com o computador carregado, o "/" apertado logo ao ver a página se
+  // perdia, e as letras seguintes iam para a página (o "n" abria a Nova tarefa). O useLayoutEffect liga antes de desenhar.
+  useLayoutEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const atalho = atalhoDaTecla(teclaDoEvento(e), { escrevendo: estaEscrevendo(e.target), algoPorCima: !!document.querySelector(POR_CIMA), desligados: !atalhosLigados() });

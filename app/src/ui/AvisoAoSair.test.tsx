@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { createMemoryRouter, Link, RouterProvider, useNavigate } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { avisar } from './avisos';
@@ -50,6 +50,11 @@ function fecharAba() {
   const evento = new Event('beforeunload', { cancelable: true });
   window.dispatchEvent(evento);
   return evento.defaultPrevented;
+}
+/** Fecha a aba no instante em que a tela muda para `quando` (antes dos efeitos que o React roda depois de desenhar). */
+function FecharAbaAoMudar({ quando, aoFechar }: { quando: boolean; aoFechar: (pediu: boolean) => void }) {
+  useLayoutEffect(() => { if (quando) aoFechar(fecharAba()); }, [quando, aoFechar]);
+  return null;
 }
 
 describe('Aviso ao sair de um cadastro', () => {
@@ -239,6 +244,29 @@ describe('Aviso ao sair de um cadastro', () => {
     const pediu = fecharAba();
     // Então
     expect(pediu).toBe(true);
+  });
+
+  it('dado algo por gravar, quando acaba de ser gravado e a aba fecha nesse mesmo instante, então o navegador não pede confirmação (#420)', async () => {
+    // Dado: o aviso fica sempre na tela (como na anotação); a aba fecha no instante em que a tela muda para "gravado", antes dos
+    // efeitos que o React roda depois de desenhar
+    const pediuAoFecharLogo: boolean[] = [];
+    function TextoGravado() {
+      const [porSalvar, setPorSalvar] = useState(true);
+      const liberada = useRef(false);
+      return <>
+        <AvisoAoSair preenchido={porSalvar} liberada={liberada} ocupado={false} />
+        <FecharAbaAoMudar quando={!porSalvar} aoFechar={pediu => pediuAoFecharLogo.push(pediu)} />
+        <button type="button" onClick={() => setPorSalvar(false)}>Gravar</button>
+      </>;
+    }
+    render(<RouterProvider router={createMemoryRouter([{ path: '/anotacao', element: <TextoGravado /> }], { initialEntries: ['/anotacao'] })} />);
+    expect(fecharAba()).toBe(true);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Gravar' }));
+    // Então
+    expect(pediuAoFecharLogo.length).toBeGreaterThan(0);
+    expect(pediuAoFecharLogo).not.toContain(true);
+    expect(fecharAba()).toBe(false);
   });
 
   it('dado um cadastro vazio, quando a aba fecha ou recarrega, então o navegador não pede confirmação', () => {
