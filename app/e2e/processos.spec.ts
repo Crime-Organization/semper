@@ -288,6 +288,18 @@ test.describe('Cartão do processo', () => {
     return cartao;
   }
 
+  test('quando a pessoa abre o cartão, então Tarefas e Compromissos vêm antes de Clientes (#429)', async ({ page }) => {
+    // Dado / Quando
+    const cartao = await abrirProcesso(page);
+    // Então
+    await expect(cartao.getByRole('heading', { name: /^Clientes/, level: 3 })).toBeVisible();
+    const secoes = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
+    const posicao = (titulo: string) => secoes.findIndex(t => t.startsWith(titulo));
+    expect(posicao('Tarefas')).toBeGreaterThan(-1);
+    expect(posicao('Compromissos')).toBeGreaterThan(posicao('Tarefas'));
+    expect(posicao('Clientes')).toBeGreaterThan(posicao('Compromissos'));
+  });
+
   test('quando edita um campo, então ele muda no cartão e entra no histórico', async ({ page }) => {
     // Dado
     const cartao = await abrirProcesso(page);
