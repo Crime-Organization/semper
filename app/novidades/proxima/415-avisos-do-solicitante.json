@@ -1,0 +1,5 @@
+{
+  "titulo": "Avisos da tarefa para quem pede e para quem executa",
+  "texto": "Quem é posto como solicitante de uma tarefa recebe o aviso \"incluiu você\". O solicitante é avisado quando a tarefa que precisa de aprovação chega para ele aprovar, e quem executa é avisado quando ela é devolvida, já com o comentário do que falta. Quem fez a ação não recebe aviso.",
+  "ondeAchar": "Menu lateral, Mensagens. Clicar no aviso abre o cartão da tarefa (na devolução, já no comentário)."
+}

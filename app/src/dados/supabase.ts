@@ -19,7 +19,7 @@ import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, Contrat
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
-import type { DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
+import type { AvisoDaTarefaDaMensagem, DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { MODULOS_MENCIONAVEIS } from '../regras/comentarios';
@@ -295,10 +295,20 @@ const mensagemDeCompromisso = ({ id, criado_em, lido_em, ...aviso }: LinhaDaMens
   id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null, demandaDoCompromisso: aviso
 });
 /**
- * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão, a das mensagens de grupo (#378) e a dos
- * avisos das demandas que nascem dos compromissos (#307). Marcar como lida vale em todas (o id só existe numa).
+ * O aviso da tarefa ao solicitante e a quem executa (#415), da tabela própria (a versão anterior do site não a lê). A tarefa e o
+ * comentário da devolução vêm pelas regras de leitura deles: quem não vê mais a tarefa recebe null.
  */
-const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo', 'mensagens_de_compromisso'] as const;
+const CAMPOS_MENSAGEM_DA_TAREFA = 'id, criado_em, lido_em, aviso, feito_por, tarefa:tarefas(id, codigo, titulo), comentario:comentarios(id, texto)';
+type LinhaDaMensagemDaTarefa = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & AvisoDaTarefaDaMensagem;
+const mensagemDaTarefa = ({ id, criado_em, lido_em, aviso, feito_por, tarefa, comentario }: LinhaDaMensagemDaTarefa): Mensagem => ({
+  id, tipo: 'tarefa', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+  avisoDaTarefa: { aviso, feito_por, tarefa, comentario: tarefa && comentario }
+});
+/**
+ * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão, a das mensagens de grupo (#378) e a dos
+ * avisos das demandas que nascem dos compromissos (#307) e a dos avisos da tarefa (#415). Marcar como lida vale em todas (o id só existe numa).
+ */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo', 'mensagens_de_compromisso', 'mensagens_da_tarefa'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
@@ -2441,14 +2451,15 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const [sempre, pedidos, inclusoes, grupos, compromissos] = await Promise.all([
+    const [sempre, pedidos, inclusoes, grupos, compromissos, tarefas] = await Promise.all([
       rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_grupo').select(CAMPOS_MENSAGEM_DE_GRUPO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
-      rodar(sb.from('mensagens_de_compromisso').select(CAMPOS_MENSAGEM_DE_COMPROMISSO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+      rodar(sb.from('mensagens_de_compromisso').select(CAMPOS_MENSAGEM_DE_COMPROMISSO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_da_tarefa').select(CAMPOS_MENSAGEM_DA_TAREFA).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
     ]);
-    return juntarAsCaixas([(compromissos.data as LinhaDaMensagemDeCompromisso[]).map(mensagemDeCompromisso), (grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
+    return juntarAsCaixas([(tarefas.data as LinhaDaMensagemDaTarefa[]).map(mensagemDaTarefa), (compromissos.data as LinhaDaMensagemDeCompromisso[]).map(mensagemDeCompromisso), (grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
       (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {

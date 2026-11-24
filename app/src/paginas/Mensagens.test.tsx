@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-// Os pedidos para participar (#363) e os avisos de quem entrou num item (#377) na caixa de Mensagens. Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
+// Os pedidos para participar (#363), os avisos de quem entrou num item (#377) e os avisos da tarefa (#415) na caixa de Mensagens. Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SD, type DemandaDoCompromissoDaMensagem, type InclusaoDaMensagem, type Mensagem, type PedidoDaMensagem } from '../dados';
+import { SD, type AvisoDaTarefaDaMensagem, type DemandaDoCompromissoDaMensagem, type InclusaoDaMensagem, type Mensagem, type PedidoDaMensagem } from '../dados';
 import { avisar, falha } from '../ui/avisos';
 import Mensagens from './Mensagens';
 
@@ -230,5 +230,53 @@ describe('Mensagens: a demanda que nasce do compromisso que se repete (#307)', (
     const item = await screen.findByRole('listitem', { name: /de uma demanda que você não vê mais/ });
     expect(item).toHaveTextContent('Este aviso é de uma demanda que você não vê mais.');
     expect(within(item).queryByRole('link')).toBeNull();
+  });
+});
+
+describe('Mensagens: os avisos da tarefa ao solicitante e a quem executa (#415)', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  const tarefa = { id: 't1', codigo: 'F00D1234', titulo: 'Minutar a petição' };
+  const aviso = (extra: Partial<AvisoDaTarefaDaMensagem> = {}, id = 'm-t'): Mensagem => ({
+    id, tipo: 'tarefa', criado_em: '2026-11-24T12:00:00Z', lido_em: null, comentario: null, prazo: null, pedido: null, inclusao: null,
+    avisoDaTarefa: { aviso: 'solicitante', feito_por: 'u-bruno', tarefa, comentario: null, ...extra }
+  });
+
+  it('dado o aviso de solicitante, quando a caixa abre, então diz quem incluiu, com o link para a tarefa', async () => {
+    // Quando
+    montar([aviso()]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: 'Aviso não lido: Bruno Exemplo Souza incluiu você como solicitante da tarefa Minutar a petição' });
+    expect(within(item).getByRole('link', { name: /Minutar a petição/ })).toHaveAttribute('href', '/tarefas/?id=t1');
+    expect(item).toHaveTextContent('Agora você é o solicitante da tarefa.');
+  });
+
+  it('dada a tarefa que chegou à aprovação e a devolvida, quando a caixa abre, então cada aviso diz o que aconteceu; a devolução, com o comentário', async () => {
+    // Quando
+    montar([aviso({ aviso: 'aprovacao' }), aviso({ aviso: 'devolvida', comentario: { id: 'k1', texto: 'Tarefa devolvida: Falta o pedido de tutela.' } }, 'm-t2')]);
+    // Então
+    expect(await screen.findByRole('listitem', { name: /enviou para a sua aprovação a tarefa Minutar a petição$/ })).toHaveTextContent('Aprove ou devolva');
+    const devolvida = screen.getByRole('listitem', { name: /devolveu a tarefa Minutar a petição$/ });
+    expect(devolvida).toHaveTextContent('Falta o pedido de tutela.');
+    expect(within(devolvida).getByRole('link')).toHaveAttribute('href', '/tarefas/?id=t1&comentario=k1');
+  });
+
+  it('dada a tarefa que a pessoa não vê mais, quando a caixa abre, então diz isso, sem link nem o título', async () => {
+    // Quando
+    montar([aviso({ tarefa: null })]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: /de uma tarefa que você não vê mais/ });
+    expect(item).toHaveTextContent('Este aviso é de uma tarefa que você não vê mais.');
+    expect(within(item).queryByRole('link')).toBeNull();
+    expect(item).not.toHaveTextContent('Minutar');
+  });
+
+  it('dado o aviso, quando a pessoa clica no link, então a mensagem é marcada como lida', async () => {
+    // Dado
+    const marcar = vi.spyOn(SD, 'mensagemMarcarLida').mockResolvedValue();
+    montar([aviso()]);
+    // Quando
+    await userEvent.click(await screen.findByRole('link', { name: /Minutar a petição/ }));
+    // Então
+    await waitFor(() => expect(marcar).toHaveBeenCalledWith('m-t'));
   });
 });
