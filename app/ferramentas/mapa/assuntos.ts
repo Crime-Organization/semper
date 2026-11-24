@@ -138,14 +138,15 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'objetos',
     titulo: 'Objetos de contrato',
-    resumo: 'Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos) e a demanda que nasce de cada objeto.\n'
+    resumo: 'Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos, separar em dois ou mais) e a demanda que nasce de cada objeto.\n'
       + 'As funções de dados ficam em `DadosContratos` (veja Contratos).',
     arquivos: ['ObjetosDeContrato', 'objetos', 'objetos-de-contrato', 'objetos-sem-demanda', 'contrato_objetos', 'demandas_dos_objetos', 'objetos_sem_demanda',
       'editar_objetos_de_contrato', arquivo('supabase/migrations/20261027000017_demandas'), 'modelos_de_lista', 'cliente_ao_contrato', 'contrato_abre_demandas',
-      'contratoAbreDemandas', 'contrato-abre-demandas', 'cliente-ao-contrato', 'ModelosDeLista'],
+      'contratoAbreDemandas', 'contrato-abre-demandas', 'cliente-ao-contrato', 'ModelosDeLista', 'SepararObjeto', 'separar_objeto', 'separar-objeto'],
     tabelas: ['objeto_sugestoes', 'lista_modelos'],
     armadilhas: [
       'Juntar dois objetos muda todos os contratos que usam o de origem: confira o aviso de uso (`regras/objetos.ts`) e o teste do banco `editar_objetos_de_contrato`.',
+      'Separar (#410) exige a escolha do objeto novo de cada demanda do objeto (o banco recusa se faltar) e não cria demanda: o objeto novo sem demanda num contrato assinado ganha a sua pelo cartão do contrato. Teste do banco: `separar_objeto`.',
       '"A definir" é um objeto fixo, criado pelo cliente fechado (migração `cliente_ao_contrato`): não aparece na lista, não se corrige, não se junta nem se apaga.',
       'Mudar o array `contratos.objetos` dispara o gatilho `privado.demandas_do_contrato` (migrações `demandas`, `demandas_dos_objetos`, `cliente_ao_contrato` e `objetos_sem_demanda`): corrigir um nome não pode fazer nascer demanda em contrato assinado.',
       'O modelo de checklist se liga ao objeto pelo nome (`lista_modelos.nome`; veja [Checklists e modelos](#listas)): juntar ou corrigir objetos deixa modelos com nome que nenhum objeto usa.'

@@ -59,8 +59,8 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
-import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO } from '../regras/objetos';
-import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
+import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, erroDosNomesDaSeparacao, JUNTAR_SO_UM, nomesDaSeparacao, OBJETO_A_DEFINIR_FIXO, objetosSeparados, SEM_OBJETO_DA_DEMANDA } from '../regras/objetos';
+import type { DemandaDoObjeto, ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
 import { ehAcompanhaDeFabrica, FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, quemTrocouDeFuncao, SEM_FUNCAO, semAFuncao, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
 import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, TIPO_QUE_FICA, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
@@ -3324,6 +3324,10 @@ function trocarObjetosNoFalso(de: string[], para: string): TrocaDeObjetos {
     contratos_com_duas_demandas: contratos.filter(k => bd.demandas!.filter(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, para)).length > 1).length
   };
 }
+/** As demandas de um objeto na ordem do banco: pelo número do contrato (as sem contrato por último) e pelo código. */
+const porContratoEDemanda = (a: DemandaGuardada, b: DemandaGuardada) =>
+  Number(a.contrato_codigo === null) - Number(b.contrato_codigo === null) || (a.contrato_codigo ?? '').localeCompare(b.contrato_codigo ?? '')
+  || a.codigo.localeCompare(b.codigo);
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
 const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
   [...k.clientes, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
@@ -3912,6 +3916,55 @@ export const SD: Dados = {
     if (usam) return erro(avisoDoObjetoEmUso(usam));
     bd.objetoSugestoes = bd.objetoSugestoes!.filter(x => x.id !== id); gravar();
     return espera(undefined);
+  },
+  // Como supabase/migrations/20261124034839_separar_objeto.sql (#410).
+  async demandasDoObjeto(id) {
+    if (!souAdmin()) return erro(SEM_PERMISSAO);
+    const s = bd.objetoSugestoes!.find(x => x.id === id);
+    if (!s) return erro('Objeto não encontrado.');
+    return espera(bd.demandas!.filter(d => mesmoObjeto(d.objeto, s.descricao)).sort(porContratoEDemanda)
+      .map((d): DemandaDoObjeto => ({ id: d.id, codigo: d.codigo, titulo: d.titulo, contrato_codigo: d.contrato_codigo })));
+  },
+  async objetoSeparar(id, nomes, demandas) {
+    const s = objetoParaMudar(id), recusa = erroDosNomesDaSeparacao(nomes);
+    if (recusa) return erro(recusa);
+    // O nome que já está na lista (o próprio objeto ou outro) fica com a grafia dela.
+    const novos = nomesDaSeparacao(nomes).map(n => bd.objetoSugestoes!.find(o => mesmoObjeto(o.descricao, n))?.descricao ?? n);
+    const escolhido = (d: DemandaGuardada) => novos.find(n => demandas.some(l => l.demanda === d.id && mesmoObjeto(l.objeto, n)));
+    const dele = bd.demandas!.filter(d => mesmoObjeto(d.objeto, s.descricao));
+    if (dele.some(d => !escolhido(d))) return erro(SEM_OBJETO_DA_DEMANDA);
+    const contratos = contratosComObjeto(s.descricao);
+    const depois = new Map(contratos.map(k => [k.id, objetosSeparados(k.objetos, s.descricao, novos)]));
+    if ([...depois.values()].some(o => o.length > OBJETOS_MAXIMOS)) return erro(`Um contrato pode ter até ${OBJETOS_MAXIMOS} objetos.`);
+    // 1. Cada demanda passa ao objeto escolhido; o título igual ao nome antigo acompanha. Nada mais muda nela.
+    const demandasMudadas = dele.filter(d => {
+      const para = escolhido(d)!;
+      if (d.objeto === para) return false;
+      const mudanca = { objeto: para, titulo: mesmoObjeto(d.titulo, d.objeto) ? para : d.titulo };
+      historicoDemanda(d, mudanca);
+      Object.assign(d, mudanca, { atualizado_em: agora() });
+      return true;
+    });
+    // 2. A lista: os nomes novos entram, e o antigo sai se não for um deles.
+    novos.forEach(n => { if (!bd.objetoSugestoes!.some(o => mesmoObjeto(o.descricao, n))) bd.objetoSugestoes!.push({ id: novoId(), descricao: n }); });
+    const antigoFica = novos.some(n => mesmoObjeto(n, s.descricao));
+    if (!antigoFica) bd.objetoSugestoes = bd.objetoSugestoes!.filter(o => o.id !== s.id);
+    // 3. Os contratos, com os novos no lugar do antigo (sem repetir).
+    const contratosMudados = contratos.filter(k => {
+      const objetos = depois.get(k.id)!;
+      if (JSON.stringify(objetos) === JSON.stringify(k.objetos)) return false;
+      const mudanca = { objetos, servico: objetos.join('; ') };
+      historicoContrato(k, mudanca);
+      Object.assign(k, mudanca, { atualizado_em: agora(), atualizado_por: eu });
+      return true;
+    });
+    gravar();
+    return espera({
+      contratos: contratosMudados.length, demandas: demandasMudadas.length, modelos: 0,
+      // O modelo com o nome antigo não sabe a qual dos novos pertence: fica, e a tela avisa.
+      modelos_sem_objeto: antigoFica ? 0 : bd.modelos!.filter(m => mesmoObjeto(m.nome, s.descricao)).length,
+      contratos_com_duas_demandas: contratos.filter(k => novos.some(n => bd.demandas!.filter(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, n)).length > 1)).length
+    });
   },
   contratosDaPessoa: (pessoaId, perfilId = null) => espera(bd.contratos!
     .filter(alcancoContrato)
