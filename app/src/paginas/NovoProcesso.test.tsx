@@ -93,6 +93,8 @@ describe('Formulário de processo', () => {
     // Então
     expect(await screen.findByText(/O papel do cliente é obrigatório/)).toBeInTheDocument();
     expect(screen.getByLabelText('Papel do cliente')).toHaveAttribute('aria-invalid', 'true');
+    // O leitor de tela diz por que o papel está inválido, e não só que está.
+    expect(screen.getByLabelText('Papel do cliente')).toHaveAccessibleDescription(/O papel do cliente é obrigatório/);
     expect(gravar).not.toHaveBeenCalled();
   });
 

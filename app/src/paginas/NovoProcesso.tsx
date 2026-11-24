@@ -29,7 +29,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, idsDoCampoDeVarios, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -49,6 +49,8 @@ const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="check
 const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: [] };
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
+/** A base dos ids do grupo Clientes (idsDoCampoDeVarios): o papel de cada linha aponta para a dica e o erro dele. */
+const GRUPO_DOS_CLIENTES = 'clientes-do-processo';
 
 /** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. Do processo: recurso ou incidental (#316). */
 const ORIGENS = ['demanda', 'contrato', 'tarefa', 'processo'] as const;
@@ -237,6 +239,12 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const conferidos = new Set(ETAPAS_PROCESSO.filter(e => conferidas.has(e.id)).flatMap(e => e.campos));
   const erros: Partial<Record<keyof CamposProcesso, string>> = Object.fromEntries(Object.entries(todos).filter(([campo]) => conferidos.has(campo as keyof CamposProcesso)));
   const mudar = (campos: Partial<CamposProcesso>) => setC(atual => ({ ...atual, ...campos }));
+  // O papel que falta na linha de um cliente já escolhido (#426), e a dica e o erro do grupo que o leitor de tela lê junto dele.
+  const papelFaltando = (id: string) => !!erros.papeisClientes && !!id && !c.papeisClientes[id];
+  const descricaoDoPapel = (id: string) => {
+    const ids = idsDoCampoDeVarios(GRUPO_DOS_CLIENTES);
+    return [ids.dica, papelFaltando(id) ? ids.erro : ''].filter(Boolean).join(' ');
+  };
   const judicial = c.tipo === 'judicial', noPadrao = judicial && !c.numeroAntigo;
   // Os erros dos campos do escritório aparecem junto com os da etapa de detalhes.
   const errosDosExtras = errosDosCampos(camposDoEscritorio, c.tipo, c.extras);
@@ -445,16 +453,17 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>}
     </>,
     pessoas: () => <>
-      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes ?? erros.papeisClientes} grupo={grupoDosClientes}
+      <CampoDeVarios rotulo="Clientes" obrigatorio id={GRUPO_DOS_CLIENTES} erro={erros.clientes ?? erros.papeisClientes} grupo={grupoDosClientes}
         dica="Ao lado de cada cliente, o papel dele no processo (obrigatório).">
         {c.clientes.map((id, i) => <div className="linha-cliente com-papel" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
-          {/* O papel do cliente (#426): a mesma lista das pessoas com papel; escolhe-se depois da pessoa. */}
+          {/* O papel do cliente (#426): a mesma lista das pessoas com papel; escolhe-se depois da pessoa. Ele aponta para a dica e,
+              sem papel, para o erro do grupo: o leitor de tela diz por que está inválido. */}
           <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`} value={(id && c.papeisClientes[id]) || ''} disabled={!id}
-            aria-invalid={erros.papeisClientes && id && !c.papeisClientes[id] ? true : undefined}
+            aria-invalid={papelFaltando(id) || undefined} aria-describedby={descricaoDoPapel(id)}
             onChange={e => mudar({ papeisClientes: comPapelDoCliente(c.papeisClientes, id, e.target.value) })}>
             <option value="">Papel do cliente…</option>
             {PAPEIS_DO_CLIENTE.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
