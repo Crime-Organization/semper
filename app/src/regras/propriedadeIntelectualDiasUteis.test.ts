@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiaLancado, Orgao } from '../dados/tipos';
 import {
   ACOMPANHAR_DEFERIMENTO, anosDosPrazosEmDiasUteis, AREA_DA_PI, calendarioDoInpi, camposParaAcompanhar, compromissoAConcluir, compromissoParaOFimDoExtra, contagemDoProcesso,
-  dataParaAtualizar, datasMudaramDepois, descreverFimDoExtra,
+  areaPodeMudar, dataParaAtualizar, datasMudaramDepois, descreverFimDoExtra, PAPEIS_DA_PI_NA_TROCA_DE_AREA,
   descreverDataParaAtualizar, descreverPrazoAposODeferimento, PAPEL_SO_DA_PI, papelCabeNoProcesso, PRAZO_APOS_O_DEFERIMENTO, prazoAposODeferimentoNaAgenda,
   prazoPorExtenso, prazosDaProtecao, siglaDoCalendario, situacaoDoPrazo, somarDiasUteisNoInpi, SO_FERIADOS_NACIONAIS, tituloDoDeferimentoAConcluir,
   type DatasDaProtecao, type OndeHaProtecao
@@ -216,6 +216,18 @@ describe('Papéis de PI só nos processos da área', () => {
   it('quando o papel de PI é recusado, então a frase é a mesma do banco', () => {
     // Então
     expect(PAPEL_SO_DA_PI).toBe('Titular, inventor e autor da criação só existem nos processos de propriedade intelectual.');
+  });
+
+  it.each([
+    [AREA_DA_PI, 'Cível', ['titular'], false],
+    [AREA_DA_PI, null, ['inventor', 'testemunha'], false],
+    [AREA_DA_PI, ' propriedade INTELECTUAL ', ['titular'], true],
+    [AREA_DA_PI, 'Cível', ['testemunha'], true],
+    ['Cível', 'Previdenciário', ['titular'], true]
+  ] as const)('dado o processo da área "%s", quando ela muda para "%s" com os papéis %j, então pode mudar: %s', (antes, depois, papeis, pode) => {
+    // Então: só a saída da área de PI com os papéis dela é recusada; o processo antigo já fora da área não trava
+    expect(areaPodeMudar(antes, depois, papeis)).toBe(pode);
+    expect(PAPEIS_DA_PI_NA_TROCA_DE_AREA).toBe('Este processo tem titular, inventor ou autor da criação: tire essas pessoas do processo antes de mudar a área.');
   });
 });
 

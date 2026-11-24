@@ -2536,6 +2536,24 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['testemunha']);
       });
 
+      it('dado um processo de PI com titular, quando alguém tira a área de PI, então é recusado, como no banco; sem o titular, a área muda (#418)', async () => {
+        // Dado
+        const processo = await novoProcesso();
+        const { id: pessoa } = await criar(marca());
+        await SD.processoParteIncluir(processo.id, pessoa, 'titular');
+        // Quando
+        const mudar = SD.processoAtualizar(processo.id, { area: 'Cível' });
+        // Então
+        await expect(mudar).rejects.toThrow('Este processo tem titular, inventor ou autor da criação: tire essas pessoas do processo antes de mudar a área.');
+        expect(await SD.processoObter(processo.id)).toMatchObject({ area: 'Propriedade intelectual' });
+        // Quando o titular sai antes
+        const [parte] = await SD.processoPartes(processo.id);
+        await SD.processoParteRetirar(parte.id);
+        await SD.processoAtualizar(processo.id, { area: 'Cível' });
+        // Então
+        expect(await SD.processoObter(processo.id)).toMatchObject({ area: 'Cível' });
+      });
+
       it('quando a publicação do deferimento da marca é informada, então volta gravada; num judicial, fica vazia, como no banco (#418)', async () => {
         // Dado
         const { id } = await novoProcesso({ protecao: 'marca', deposito: '2025-03-10' });

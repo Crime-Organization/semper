@@ -308,6 +308,14 @@ export const CAMPOS_DA_PROTECAO: Record<CampoDaProtecao, { rotulo: string; dica?
 export const PAPEIS_DA_PI: PapelDaParte[] = ['titular', 'inventor', 'autor_da_criacao'];
 /** A recusa do papel de PI num processo de outra área (#418): a mesma no banco (gatilho papel_so_da_pi) e no fictício. */
 export const PAPEL_SO_DA_PI = 'Titular, inventor e autor da criação só existem nos processos de propriedade intelectual.';
+/** A recusa de tirar da área de PI o processo que tem titular, inventor ou autor da criação (#418): a mesma no banco (gatilho area_com_papeis_da_pi) e no fictício. */
+export const PAPEIS_DA_PI_NA_TROCA_DE_AREA = 'Este processo tem titular, inventor ou autor da criação: tire essas pessoas do processo antes de mudar a área.';
+/**
+ * Se a área do processo pode mudar: sair da propriedade intelectual só sem os papéis dela (eles ficariam num processo de outra área). Só a
+ * saída da área é conferida, para não travar os processos antigos que já estavam fora dela com algum desses papéis.
+ */
+export const areaPodeMudar = (antes: string | null | undefined, depois: string | null | undefined, papeis: readonly PapelDaParte[]) =>
+  !ehDePropriedadeIntelectual(antes) || ehDePropriedadeIntelectual(depois) || !papeis.some(papel => PAPEIS_DA_PI.includes(papel));
 /** Se o papel pode entrar no processo: os de PI, só nos processos da área (#418). */
 export const papelCabeNoProcesso = (papel: PapelDaParte, p: { area?: string | null }) => !PAPEIS_DA_PI.includes(papel) || ehDePropriedadeIntelectual(p.area);
 /**

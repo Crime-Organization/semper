@@ -53,7 +53,7 @@ import {
   SO_JUDICIAL_NO_ADMINISTRATIVO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
-import { APRESENTACOES_DA_MARCA, NATUREZAS_DA_MARCA, ORDEM_DAS_DATAS, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { APRESENTACOES_DA_MARCA, areaPodeMudar, NATUREZAS_DA_MARCA, ORDEM_DAS_DATAS, PAPEIS_DA_PI_NA_TROCA_DE_AREA, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
 import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -5545,6 +5545,9 @@ export const SD: Dados = {
     const p = acharProcesso(id), antes = equipeDoItemNoFalso('processos', id);
     if (p.tipo === TIPO_QUE_FICA && dados.etapa_id !== undefined) dados = { ...dados, etapa_id: colunaDoAdministrativo(dados.etapa_id) };
     const novos = prepararProcesso(dados, p.tipo, p);
+    // Como o gatilho area_com_papeis_da_pi (#418): o processo com titular, inventor ou autor da criação não sai da área de PI.
+    const papeis = bd.processoPartes!.filter(x => x.processo_id === id).map(x => x.papel);
+    if (novos.area !== undefined && !areaPodeMudar(p.area, novos.area, papeis)) return erro(PAPEIS_DA_PI_NA_TROCA_DE_AREA);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });

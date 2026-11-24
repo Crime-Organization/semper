@@ -329,12 +329,12 @@ Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastr
 O processo administrativo (no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
 os papéis titular e inventor nas partes, a validade e os prazos do INPI na agenda.
 
-- **Migrações:** (supabase/migrations/) 20261123003604_propriedade_intelectual, 20261124135238_papeis_e_deferimento_da_pi, 20261124145547_ordem_do_deferimento_da_pi
+- **Migrações:** (supabase/migrations/) 20261123003604_propriedade_intelectual, 20261124135238_papeis_e_deferimento_da_pi, 20261124145547_ordem_do_deferimento_da_pi, 20261124150100_area_com_papeis_da_pi
 - **Regras:** (app/src/regras/)
   - `processo.ts`: Regras do processo (módulo Processos): os dois tipos (judicial e administrativo), as listas prontas, o cadastro por etapas, o que aparece no cartão, as pessoas…
   - `propriedadeIntelectual.ts`: Propriedade intelectual (#317): o tipo de proteção do processo da área "Propriedade intelectual", os campos de cada tipo, os papéis que só existem nele…
 - **Telas:** (app/src/paginas/) CartaoProcesso.tsx, NovoProcesso.tsx, PartesDoProcesso.tsx, processo/CamposDaProtecao.tsx, processo/ValidadeDaProtecao.tsx, processo/useCalendarioDoInpi.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/ordem_do_deferimento_da_pi.test.sql supabase/tests/papeis_e_deferimento_da_pi.test.sql supabase/tests/propriedade_intelectual.test.sql`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/area_com_papeis_da_pi.test.sql supabase/tests/ordem_do_deferimento_da_pi.test.sql supabase/tests/papeis_e_deferimento_da_pi.test.sql supabase/tests/propriedade_intelectual.test.sql`
 - **Testes unitários:** na pasta app, `npx vitest run src/paginas/NovoProcesso.test.tsx src/paginas/PartesDoProcesso.test.tsx src/paginas/processo/ValidadeDaProtecao.test.tsx src/regras/processo.test.ts src/regras/propriedadeIntelectual.test.ts src/regras/propriedadeIntelectualDiasUteis.test.ts src/regras/propriedadeIntelectualNaAgenda.test.ts src/regras/repeticao.test.ts`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/compromissos-que-se-repetem.spec.ts e2e/processo-partes-e-recursos.spec.ts e2e/processos.spec.ts e2e/propriedade-intelectual-deferimento.spec.ts e2e/propriedade-intelectual-na-agenda.spec.ts e2e/propriedade-intelectual.spec.ts`
 - **Armadilhas:**
@@ -342,7 +342,7 @@ os papéis titular e inventor nas partes, a validade e os prazos do INPI na agen
   - Os campos de PI e a validade são só do administrativo (`temProtecao`, #425): no judicial, o banco (gatilho `judicial_sem_protecao`) e o `falso.ts` os deixam vazios; o judicial da área liga-se ao administrativo inteiro, em Processos relacionados.
   - O "Acompanhar na agenda" preenche o cadastro do compromisso que se repete (`compromissoRepetir`, `paginas/NovoCompromisso.tsx`; veja [Agenda e compromissos](#agenda)).
   - A ordem das datas (a concessão depois do depósito; a publicação do deferimento entre os dois, #418) é conferida no banco e no `falso.ts`; as frases (`ORDEM_DAS_DATAS`, em `regras/propriedadeIntelectual.ts`) traduzem os erros do banco em `dados/erros.ts`.
-  - Os prazos de PI em dias contam só os dias úteis do INPI (#418): o órgão INPI de Feriados e prazos, lido por `paginas/processo/useCalendarioDoInpi.ts` e passado às contas (`CalendarioDoInpi`); sem ele, os feriados nacionais. Os papéis de PI fora da área são recusados no banco (gatilho `papel_so_da_pi`) e no `falso.ts`, com a frase `PAPEL_SO_DA_PI`.
+  - Os prazos de PI em dias contam só os dias úteis do INPI (#418): o órgão INPI de Feriados e prazos, lido por `paginas/processo/useCalendarioDoInpi.ts` e passado às contas (`CalendarioDoInpi`); sem ele, os feriados nacionais. Os papéis de PI fora da área são recusados no banco (gatilho `papel_so_da_pi`) e no `falso.ts`, com a frase `PAPEL_SO_DA_PI`; e o processo com esses papéis não sai da área (gatilho `area_com_papeis_da_pi`, regra `areaPodeMudar`, frase `PAPEIS_DA_PI_NA_TROCA_DE_AREA`).
   - Os compromissos dos prazos do INPI são achados pelo título (`compromissoDoAcompanhamento`): mudar o título muda o que o cartão reconhece; o "Atualizar as datas na agenda" usa `compromissoMudarSeguintes` na série e `compromissoAtualizar` no compromisso só, e só aparece se o histórico do processo tem o depósito, o deferimento ou a concessão mudados depois do `atualizado_em` do compromisso (`datasMudaramDepois`).
 
 <a id="agenda"></a>
