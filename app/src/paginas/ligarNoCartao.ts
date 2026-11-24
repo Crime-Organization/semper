@@ -167,6 +167,12 @@ export async function ligarContratoNoProcesso(processoId: string, contratoId: st
   return () => SD.contratoProcessoDesligar(contratoId, processoId);
 }
 
+/** Liga ao administrativo um judicial que já existe (#425): o Desfazer tira a ligação. */
+export async function ligarJudicialNoAdministrativo(administrativoId: string, judicialId: string): Promise<Desfazer> {
+  await SD.processoJudicialLigar(administrativoId, judicialId);
+  return () => SD.processoJudicialDesligar(judicialId);
+}
+
 /** Liga o compromisso à tarefa, à demanda ou ao contrato (#306), a mesma ligação do cartão do compromisso. */
 export async function ligarCompromissoNoItem(modulo: ModuloDoCompromisso, itemId: string, compromissoId: string): Promise<Desfazer | null> {
   // Outra pessoa ligou entre a busca e o clique: a ligação é dela, e não há Desfazer que a apague.

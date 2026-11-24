@@ -13,7 +13,7 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
-  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
+  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, LIGACOES, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoDerivado, tipoDoEndereco, TIPOS,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -58,7 +58,11 @@ type OrigemDoProcesso = typeof ORIGENS[number];
  * e, quando o endereço ficou velho, por que ela não aceita mais o processo ligado (recusaDaOrigem): aí o cadastro ainda traz o que ela tem,
  * mas diz, antes de gravar, que o processo não fica ligado, e a ligação nem é tentada.
  */
-interface OrigemLida { codigo: string; aviso: ReactNode; campos: Partial<CamposProcesso>; clientes: PessoaResumida[]; titulo?: string; cartao: string | null; recusa: RecusaDaOrigem | null }
+interface OrigemLida {
+  codigo: string; aviso: ReactNode; campos: Partial<CamposProcesso>; clientes: PessoaResumida[]; titulo?: string; cartao: string | null; recusa: RecusaDaOrigem | null;
+  /** O tipo do processo de origem (#425): diz que ligações o cadastro oferece (o administrativo oferece também o judicial). */
+  tipoDoProcesso?: TipoProcesso;
+}
 /** Como os avisos falam da origem: "A tarefa", "arquivada" e "ela" (no fim: "não fica ligado a ela"). */
 interface FalaDaOrigem { nome: string; arquivada: string; pronome: string }
 interface ComoNasce {
@@ -112,7 +116,8 @@ const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
     aOrigem: 'à tarefa',
     fala: { nome: 'A tarefa', arquivada: 'arquivada', pronome: 'ela' }
   },
-  // O recurso ou incidental (#316): a ligação vai junto ao criar (origemAoCriar), e a tela volta ao processo de origem, onde ele aparece.
+  // O recurso ou incidental (#316) e o judicial do administrativo (#425): a ligação vai junto ao criar (origemAoCriar), e a tela volta
+  // ao processo de origem, onde ele aparece.
   processo: {
     ler: async (id, ativos, eu) => {
       const o = await SD.processoObter(id);
@@ -120,7 +125,7 @@ const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
       // Arquivado, o processo de origem não aceita mais o novo ligado: o cadastro traz o que ele tem, mas sem a origem.
       const recusa = recusaDaOrigem({ arquivada: !!o.arquivado_em }), campos = processoDoProcesso(o, ativos, eu);
       return { codigo: o.codigo, aviso: <>Este processo nasce do processo <b>{o.codigo}</b> ({o.numero}) e fica ligado a ele, com o próprio número e os próprios andamentos.</>,
-        campos: recusa ? { ...campos, origemId: '' } : campos, clientes: o.clientes, cartao: TIPOS_PROCESSO[o.tipo].caminho + '?id=' + o.id, recusa };
+        campos: recusa ? { ...campos, origemId: '' } : campos, clientes: o.clientes, cartao: TIPOS_PROCESSO[o.tipo].caminho + '?id=' + o.id, recusa, tipoDoProcesso: o.tipo };
     },
     ligar: async () => {},
     aOrigem: 'ao processo',
@@ -210,7 +215,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     NASCE_DE[origem.tipo].ler(origem.id, aoAbrir.current.ativos, aoAbrir.current.eu).then(l => {
       if (!l) return;
       setLida(l);
-      setC(x => ({ ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? '') }));
+      // O judicial do administrativo (#425) já vem escolhido pelo botão do cartão: o tipo é o da ligação, e não o da origem.
+      setC(x => ({ ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? ''), ...(l.tipoDoProcesso ? { tipo: tipoDoDerivado(x.ligacao, l.tipoDoProcesso) } : {}) }));
       if (l.clientes.length) {
         setClientes(l.clientes);
         setChaves(l.clientes.map((_, i) => i));
@@ -409,12 +415,14 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
 
   const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
     processo: () => <>
-      {/* O recurso ou incidental (#316): nasce de outro processo, e a pessoa diz qual dos dois ele é. */}
-      {!alvo && c.origemId && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
-        {TIPOS_DE_LIGACAO.map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l} onChange={() => mudar({ ligacao: l })} />{LIGACOES[l].nome}</label>)}
+      {/* O recurso ou incidental (#316) e, do administrativo, o judicial (#425): nasce de outro processo, e a pessoa diz como. O
+          judicial do administrativo é sempre judicial: o tipo acompanha a escolha. */}
+      {!alvo && c.origemId && lida?.tipoDoProcesso && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
+        {ligacoesDaOrigem(lida.tipoDoProcesso).map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l}
+          onChange={() => { mudar({ ligacao: l }); mudarNumero({ tipo: tipoDoDerivado(l, lida.tipoDoProcesso!) }); }} />{LIGACOES[l].nome}</label>)}
       </Escolhas>}
-      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
-      {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
+      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. Nem no judicial do administrativo (#425). */}
+      {alvo || (c.origemId && c.ligacao && LIGACOES[c.ligacao].tipo) ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
         : <Escolhas rotulo="Tipo" obrigatorio>
           {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudarNumero({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
         </Escolhas>}

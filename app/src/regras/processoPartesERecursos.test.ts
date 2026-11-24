@@ -119,7 +119,7 @@ describe('Recursos e incidentais', () => {
 
   it('quando um processo mostra os ligados, então a origem vem primeiro, depois os recursos e incidentais dele; o que não se liga sai', () => {
     // Dado
-    const aberto = { id: 'a', origem_id: 'o' };
+    const aberto = { id: 'a', origem_id: 'o', ligacao: 'recurso' as const };
     const base = { codigo: 'X', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: '', etapa_id: null, arquivado_em: null };
     const achados = [
       { ...base, id: 'r1', origem_id: 'a', ligacao: 'recurso' as const, criado_em: '2026-01-01' },
@@ -134,11 +134,11 @@ describe('Recursos e incidentais', () => {
     expect(relacaoEntreProcessos({ id: 'irmao', origem_id: 'o', ligacao: 'recurso' }, aberto)).toBeNull();
   });
 
-  it('quando o processo de origem é excluído, então o histórico do recurso diz que a origem foi excluída, sem o id dela', () => {
+  it('quando o processo de origem é excluído ou desligado (#425), então o histórico diz que a ligação acabou, sem o id da origem', () => {
     // Então
     expect(CAMPOS_PROCESSO.origem_id).toBe('Processo de origem');
     expect(valorLegivelProcesso('origem_id', '73160000-0000-0000-0000-000000000002')).toBe('ligado');
-    expect(valorLegivelProcesso('origem_id', null)).toBe('excluído');
+    expect(valorLegivelProcesso('origem_id', null)).toBe('sem ligação');
     expect(valorLegivelProcesso('numero', null)).toBe('—');
   });
 });

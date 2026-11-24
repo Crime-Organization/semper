@@ -156,6 +156,12 @@ const semErroAoLer = (ler: (c: CamposProcesso) => unknown): Conferencia => c => 
   try { ler(c); return null; } catch (e) { return (e as Error).message; }
 };
 
+/** O que falta escolher no processo que nasce de outro: o administrativo oferece também o judicial a partir dele (#425). */
+const ESCOLHA_A_LIGACAO: Record<TipoProcesso, string> = {
+  judicial: 'Escolha se é um recurso ou um incidental.',
+  administrativo: 'Escolha se é um recurso, um incidental ou o processo judicial a partir do administrativo.'
+};
+
 /** Os campos só do judicial não contam no administrativo: estão fora da tela e não são gravados. */
 const soNoJudicial = (conferencia: Conferencia): Conferencia => c => c.tipo === 'judicial' ? conferencia(c) : null;
 
@@ -167,7 +173,11 @@ const CONFERENCIAS: Partial<Record<keyof CamposProcesso, Conferencia[]>> = {
     ateTamanho('numero', 'O número')
   ],
   titulo: [ateTamanho('titulo', 'O nome do cartão')],
-  ligacao: [c => c.origemId && !c.ligacao ? 'Escolha se é um recurso ou um incidental.' : null],
+  ligacao: [
+    c => c.origemId && !c.ligacao ? ESCOLHA_A_LIGACAO[c.tipo] : null,
+    // O judicial do administrativo (#425) é sempre judicial (o banco recusa o resto).
+    c => c.origemId && c.ligacao && LIGACOES[c.ligacao].tipo && LIGACOES[c.ligacao].tipo !== c.tipo ? SO_JUDICIAL_NO_ADMINISTRATIVO : null
+  ],
   orgao: [ateTamanho('orgao', 'A sigla do órgão')],
   responsavelId: [c => c.responsavelId ? null : 'Escolha o responsável.'],
   colaboradores: [
@@ -297,13 +307,13 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   polo: 'Polo do cliente', area: 'Área do direito', meio: 'Meio de tramitação', natureza: 'Natureza processual', gratuidade: 'Gratuidade de justiça', comarca: 'Comarca',
   vara: 'Vara', classe: 'Classe', assunto: 'Assunto', juiz: 'Juiz ou relator', distribuicao: 'Distribuição', valor_causa: 'Valor da causa', instancia: 'Instância',
   segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento',
-  partes: 'Pessoas do processo', origem_id: 'Processo de origem', papeis_clientes: 'Papel do cliente',
+  partes: 'Pessoas do processo', origem_id: 'Processo de origem', ligacao: 'Ligação com o processo de origem', papeis_clientes: 'Papel do cliente',
   // Propriedade intelectual (#317).
   protecao: 'Tipo de proteção', deposito: 'Depósito', concessao: 'Concessão', publicacao: 'Publicação', criacao: 'Criação', apresentacao_marca: 'Apresentação da marca',
   natureza_marca: 'Natureza da marca', classes_nice: 'Classes de Nice', especificacao: 'Especificação', variacoes: 'Variações do desenho', linguagem: 'Linguagem de programação'
 };
-/** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem só fica vazia quando é excluída (#316). */
-const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'excluído' };
+/** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem fica vazia quando é excluída (#316) ou desligada (#425). */
+const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'sem ligação' };
 /** A pessoa com papel como o histórico a guarda (#316): o nome e o papel. */
 const parteNoHistorico = (v: unknown) => {
   const x = v as { nome?: string; papel?: string };
@@ -315,8 +325,8 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
   valor_causa: v => fmtDinheiro(Number(v)), segredo: v => v ? 'Sim' : 'Não', partes: parteNoHistorico,
   // O banco guarda o papel pelo id de cada cliente (#426): o histórico mostra os papéis.
   papeis_clientes: v => papeisDosClientesPorExtenso(v as PapeisDosClientes) || '—',
-  // O histórico guarda o id da origem: o recurso mostra só que estava ligado (o processo de origem já não existe).
-  origem_id: () => 'ligado',
+  // O histórico guarda o id da origem: mostra só que estava ligado (o processo de origem pode já não existir).
+  origem_id: () => 'ligado', ligacao: v => LIGACOES[v as LigacaoDeProcesso]?.nome ?? String(v),
   protecao: v => TIPOS_DE_PROTECAO[v as keyof typeof TIPOS_DE_PROTECAO]?.nome ?? String(v), apresentacao_marca: naLista(APRESENTACOES_DA_MARCA),
   natureza_marca: naLista(NATUREZAS_DA_MARCA), deposito: v => fmtData(String(v)), concessao: v => fmtData(String(v)), publicacao: v => fmtData(String(v)),
   criacao: v => fmtData(String(v)), classes_nice: v => Array.isArray(v) && v.length ? fmtClassesNice(v as number[]) : '—'
@@ -406,27 +416,72 @@ export const papeisQueFaltam = (partes: readonly { papel: PapelDaParte; pessoa: 
 /** Se ainda cabe outra pessoa com papel no processo (o banco tem o mesmo máximo). */
 export const cabeOutraParte = (partes: number) => partes < PARTES_MAXIMAS;
 
-// ---------- recursos e incidentais (#316) ----------
-/** O nome de cada ligação: no cadastro e no botão do cartão. */
-export const LIGACOES: Record<LigacaoDeProcesso, { nome: string; novo: string }> = {
-  recurso: { nome: 'Recurso', novo: 'Novo recurso' },
-  incidental: { nome: 'Incidental', novo: 'Novo incidental' }
+// ---------- recursos e incidentais (#316) e o judicial que nasceu do administrativo (#425) ----------
+interface ComoLiga {
+  /** No cadastro ("Este processo é") e no histórico. */
+  nome: string;
+  /** O botão do cartão de origem. */
+  novo: string;
+  /** De que tipos de processo ele nasce. */
+  daOrigem: readonly TipoProcesso[];
+  /** O tipo do processo novo; sem ele, o mesmo da origem. */
+  tipo?: TipoProcesso;
+  /** Como a origem aparece no cartão do processo novo. */
+  origem: RelacaoEntreProcessos;
+}
+/** Cada ligação entre processos (a lista do banco é a mesma: migração processo_judicial_do_administrativo). Ligação nova = entrada nova. */
+export const LIGACOES: Record<LigacaoDeProcesso, ComoLiga> = {
+  recurso: { nome: 'Recurso', novo: 'Novo recurso', daOrigem: ['judicial', 'administrativo'], origem: 'origem' },
+  incidental: { nome: 'Incidental', novo: 'Novo incidental', daOrigem: ['judicial', 'administrativo'], origem: 'origem' },
+  // O judicial ligado ao administrativo inteiro (#425), de qualquer área: nasce dele ou é ligado depois, e se desliga.
+  judicial: { nome: 'Processo judicial a partir do administrativo', novo: 'Novo processo judicial a partir deste', daOrigem: ['administrativo'], tipo: 'judicial',
+    origem: 'administrativo' }
 };
 export const TIPOS_DE_LIGACAO = Object.keys(LIGACOES) as LigacaoDeProcesso[];
+/** As ligações que um processo deste tipo oferece aos que nascem dele (no cadastro e nos botões do cartão). */
+export const ligacoesDaOrigem = (tipo: TipoProcesso) => TIPOS_DE_LIGACAO.filter(l => LIGACOES[l].daOrigem.includes(tipo));
+/** O tipo do processo que nasce de outro: o da ligação (o judicial do administrativo) ou, sem ela, o da origem. */
+export const tipoDoDerivado = (ligacao: LigacaoDeProcesso | '', tipoDaOrigem: TipoProcesso): TipoProcesso => (ligacao && LIGACOES[ligacao].tipo) || tipoDaOrigem;
+/** O "+" do título da seção no cartão: o que o cadastro vai perguntar. */
+export const ROTULO_DO_NOVO_DERIVADO: Record<TipoProcesso, string> = {
+  judicial: 'Novo recurso ou incidental deste processo',
+  administrativo: 'Novo recurso, incidental ou processo judicial a partir deste'
+};
 /** Como cada processo ligado aparece no cartão do outro. */
-export const RELACOES: Record<RelacaoEntreProcessos, string> = { origem: 'Processo de origem', recurso: 'Recurso deste processo', incidental: 'Incidental deste processo' };
+export const RELACOES: Record<RelacaoEntreProcessos, string> = {
+  origem: 'Processo de origem', recurso: 'Recurso deste processo', incidental: 'Incidental deste processo',
+  administrativo: 'Processo administrativo de origem', judicial: 'Processo judicial deste administrativo'
+};
+/** As recusas da ligação "judicial", as mesmas no banco e no fictício (#425). */
+export const SO_JUDICIAL_NO_ADMINISTRATIVO = 'Só um processo judicial pode ser ligado a um processo administrativo.';
+export const JUDICIAL_JA_LIGADO = 'Este processo judicial já está ligado a outro processo.';
+export const ARQUIVADO_SEM_LIGACAO = 'Processo arquivado não recebe ligação nova.';
 /**
- * Como o processo achado se relaciona com o aberto: é a origem dele, ou nasceu dele (recurso ou incidental). null quando não há ligação
- * entre os dois.
+ * Como o processo achado se relaciona com o aberto: é a origem dele (o administrativo, se o aberto é o judicial que nasceu dele), ou
+ * nasceu dele (recurso, incidental ou judicial). null quando não há ligação entre os dois.
  */
-export function relacaoEntreProcessos(achado: Pick<Processo, 'id' | 'origem_id' | 'ligacao'>, aberto: Pick<Processo, 'id' | 'origem_id'>): RelacaoEntreProcessos | null {
-  if (achado.id === aberto.origem_id) return 'origem';
+export function relacaoEntreProcessos(achado: Pick<Processo, 'id' | 'origem_id' | 'ligacao'>, aberto: Pick<Processo, 'id' | 'origem_id' | 'ligacao'>): RelacaoEntreProcessos | null {
+  if (achado.id === aberto.origem_id) return aberto.ligacao ? LIGACOES[aberto.ligacao].origem : 'origem';
   return achado.origem_id === aberto.id ? achado.ligacao ?? 'recurso' : null;
 }
+/**
+ * Se a ligação com o processo relacionado se desfaz no cartão (#425) e qual é o judicial dela (quem guarda a origem). null: não se
+ * desfaz (a origem do recurso e do incidental, e os que nasceram como eles).
+ */
+const QUEM_GUARDA_A_LIGACAO: Record<RelacaoEntreProcessos, (relacionadoId: string, abertoId: string) => string | null> = {
+  administrativo: (_r, aberto) => aberto, judicial: r => r, origem: () => null, recurso: () => null, incidental: () => null
+};
+export const judicialParaDesligar = (relacionado: Pick<ProcessoRelacionado, 'id' | 'relacao'>, abertoId: string): string | null =>
+  QUEM_GUARDA_A_LIGACAO[relacionado.relacao](relacionado.id, abertoId);
+/** O judicial que pode ser ligado ao administrativo: ativo e ainda sem origem (o recurso e o incidental já têm a deles). */
+export const judicialParaLigar = (p: Pick<Processo, 'tipo' | 'origem_id' | 'arquivado_em'>) => p.tipo === 'judicial' && !p.origem_id && !p.arquivado_em;
+/** As relações em que o processo achado é a origem do aberto. */
+const SAO_ORIGEM: readonly RelacaoEntreProcessos[] = Object.values(LIGACOES).map(l => l.origem);
+const ehOrigem = (r: RelacaoEntreProcessos) => Number(SAO_ORIGEM.includes(r));
 /** A ordem no cartão: a origem primeiro; depois os que nasceram dele, dos mais novos aos mais antigos. */
 export const ordemDosRelacionados = <T extends { relacao: RelacaoEntreProcessos; criado_em: string }>(lista: readonly T[]) =>
-  lista.toSorted((a, b) => Number(b.relacao === 'origem') - Number(a.relacao === 'origem') || b.criado_em.localeCompare(a.criado_em));
-/** O endereço do cadastro de um recurso ou incidental deste processo; sem a ligação, o cadastro pergunta qual dos dois. */
+  lista.toSorted((a, b) => ehOrigem(b.relacao) - ehOrigem(a.relacao) || b.criado_em.localeCompare(a.criado_em));
+/** O endereço do cadastro de um processo que nasce deste (recurso, incidental, judicial); sem a ligação, o cadastro pergunta qual. */
 export const cadastroDoDerivado = (origemId: string, ligacao?: LigacaoDeProcesso) =>
   `/processos/novo/?processo=${encodeURIComponent(origemId)}${ligacao ? '&ligacao=' + ligacao : ''}`;
 /** A ligação que vem do endereço (?ligacao=); fora da lista, nenhuma (a pessoa escolhe no cadastro). */
@@ -490,7 +545,7 @@ export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes
 }
 /** Os processos ligados ao aberto, cada um com a relação (os sem ligação com ele saem), na ordem do cartão. */
 export function relacionadosDoProcesso(achados: readonly (Omit<ProcessoRelacionado, 'relacao'> & Pick<Processo, 'origem_id' | 'ligacao'>)[],
-  aberto: Pick<Processo, 'id' | 'origem_id'>): ProcessoRelacionado[] {
+  aberto: Pick<Processo, 'id' | 'origem_id' | 'ligacao'>): ProcessoRelacionado[] {
   return ordemDosRelacionados(achados.flatMap(({ origem_id, ligacao, ...p }) => {
     const relacao = relacaoEntreProcessos({ id: p.id, origem_id, ligacao }, aberto);
     return relacao ? [{ ...p, relacao }] : [];

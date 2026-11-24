@@ -237,7 +237,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).embaixo} />}
     </Recolhivel>
 
-    {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo. O número: os prazos por vir. */}
+    {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo, só no administrativo (#425).
+        O número: os prazos por vir. */}
     {protecao && <Recolhivel titulo="Validade e anuidades" icone="relogio" preferencia="processos.cartao.validade" contador={prazosPorVir(protecao.datas, hoje)}>
       <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} />
     </Recolhivel>}
@@ -249,10 +250,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <PartesDoProcesso processoId={p.id} partes={partes} papeis={papeisParaEscolher(p)} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>
 
-    {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos. */}
-    <Recolhivel titulo="Recursos e incidentais" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
-      novo={podeLigar ? novoDerivado(p.id) : undefined}>
-      <ProcessosRelacionados lista={relacionados} processoId={p.id} />
+    {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos; o
+        administrativo e o judicial que nasceu dele, ligados um ao outro (#425). */}
+    <Recolhivel titulo="Processos relacionados" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
+      novo={podeLigar ? novoDerivado(p.id, p.tipo) : undefined}>
+      <ProcessosRelacionados lista={relacionados} processoId={p.id} tipo={p.tipo} aoMudar={depoisDeLigar} />
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}

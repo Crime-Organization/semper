@@ -233,7 +233,8 @@ export const ASSUNTOS: Assunto[] = [
       'criar-processo-e-tarefa-ligados', 'prazo-da-tarefa',
       'historico_processos_sem_nome_ordem', 'campos_de_processo', 'andamentos_e_prazos', 'painel_de_processos', 'painel_com_tipo_do_andamento', 'processo_demandas',
       'advogado_entra_no_processo', 'andamentos_tipo_e_comentarios_de_processos', 'colunas_de_acompanhamento_dos_processos', 'ligar_processo_existente',
-      'polo_criminal', 'processo_partes_recursos_e_tipos', 'investigacaoNoAdministrativo', 'investigacao_no_processo_administrativo', 'papel_do_cliente'
+      'polo_criminal', 'processo_partes_recursos_e_tipos', 'investigacaoNoAdministrativo', 'investigacao_no_processo_administrativo', 'papel_do_cliente',
+      'processoJudicialDoAdministrativo', 'processo_judicial_do_administrativo', 'processo-judicial-do-administrativo'
     ],
     tabelas: ['processos', 'processo_andamentos', 'processo_campos', 'processo_clientes', 'processo_demandas', 'processo_etiquetas', 'processo_historico',
       'processo_opcoes', 'processo_partes', 'processo_prazos'],
@@ -251,13 +252,14 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'propriedade-intelectual',
     titulo: 'Propriedade intelectual',
-    resumo: 'O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,\n'
+    resumo: 'O processo administrativo (no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,\n'
       + 'os papéis titular e inventor nas partes, a validade e os prazos do INPI na agenda.',
     arquivos: ['CamposDaProtecao', 'ValidadeDaProtecao', 'propriedadeIntelectual', 'propriedadeIntelectualNaAgenda',
       'propriedade-intelectual', 'propriedade-intelectual-na-agenda', 'propriedade_intelectual',
       'processo', 'CartaoProcesso', 'NovoProcesso', 'PartesDoProcesso'],
     armadilhas: [
       'É um processo com campos a mais: as tabelas, as funções de dados e as telas são as de [Processos](#processos) (área `AREA_DA_PI`; campos e validação em `regras/processo.ts`; papéis em `paginas/PartesDoProcesso.tsx`).',
+      'Os campos de PI e a validade são só do administrativo (`temProtecao`, #425): no judicial, o banco (gatilho `judicial_sem_protecao`) e o `falso.ts` os deixam vazios; o judicial da área liga-se ao administrativo inteiro, em Processos relacionados.',
       'O "Acompanhar na agenda" preenche o cadastro do compromisso que se repete (`compromissoRepetir`, `paginas/NovoCompromisso.tsx`; veja [Agenda e compromissos](#agenda)).',
       'A ordem das datas (a concessão depois do depósito) é conferida no banco e no `falso.ts`; a frase (`CONCESSAO_ANTES_DO_DEPOSITO`, em `regras/propriedadeIntelectual.ts`) traduz o erro do banco em `dados/erros.ts`.'
     ],

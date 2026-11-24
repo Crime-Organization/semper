@@ -13,7 +13,7 @@ import { diasEntre, somarDias } from './prazos';
 const HOJE = '2026-11-04';
 /** Um processo de PI com as datas dadas (e o número, se houver). */
 const processo = (d: Partial<DatasDaProtecao>, numero: string | null = null) =>
-  ({ protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, area: AREA_DA_PI, numero, ...d });
+  ({ protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, area: AREA_DA_PI, tipo: 'administrativo' as const, numero, ...d });
 
 describe('Acompanhar os prazos do INPI na agenda', () => {
   it('dada uma patente depositada em 10/03/2020, quando a pessoa acompanha na agenda, então a série começa na próxima anuidade e vai até a 20ª', () => {

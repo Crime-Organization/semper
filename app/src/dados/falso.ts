@@ -48,10 +48,11 @@ import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
 import {
   alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, ehTipoDeProcesso, TIPOS_PROCESSO,
-  LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, ehPapelDaParte, papeisAoGravar, type QuadroDeProcesso
+  LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, ehPapelDaParte, papeisAoGravar, type QuadroDeProcesso, ARQUIVADO_SEM_LIGACAO, JUDICIAL_JA_LIGADO, judicialParaLigar,
+  SO_JUDICIAL_NO_ADMINISTRATIVO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
-import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
 import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -2647,11 +2648,17 @@ function esquecerNasPartes(pessoaId: string) {
     }
   }
 }
-/** Como o gatilho conferir_origem e a regra processos_origem_com_ligacao: a origem é um processo que quem cria vê, e diz a ligação. */
-function conferirOrigemDoProcesso(d: DadosProcesso) {
+/**
+ * Como os gatilhos conferir_origem e conferir_origem_judicial e a regra processos_origem_com_ligacao: a origem é um processo que quem
+ * cria vê, e diz a ligação; o judicial do administrativo (#425) é judicial e nasce de um administrativo.
+ */
+function conferirOrigemDoProcesso(d: DadosProcesso, tipo: TipoProcesso) {
   if (!d.origem_id) return;
-  if (!d.ligacao || !(d.ligacao in LIGACOES)) throw new Error(FORMATO_INVALIDO);
-  if (!bd.processos!.some(p => p.id === d.origem_id && vejoNoModulo('processos', p.id))) throw new Error('O processo de origem não foi encontrado neste escritório.');
+  if (!d.ligacao || !Object.hasOwn(LIGACOES, d.ligacao)) throw new Error(FORMATO_INVALIDO);
+  const origem = bd.processos!.find(p => p.id === d.origem_id && vejoNoModulo('processos', p.id));
+  if (!origem) throw new Error('O processo de origem não foi encontrado neste escritório.');
+  const como = LIGACOES[d.ligacao];
+  if ((como.tipo && como.tipo !== tipo) || !como.daOrigem.includes(origem.tipo)) throw new Error(SO_JUDICIAL_NO_ADMINISTRATIVO);
 }
 const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...PI_VAZIA, ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
@@ -2690,7 +2697,8 @@ function conferirQuadroDoProcesso(tipo: TipoProcesso, etapaId: string | null | u
 }
 /** Como o gatilho preparar e o índice de número único da migração. */
 function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: ProcessoGuardado): DadosProcesso {
-  const d: DadosProcesso = { ...dados };
+  // Como o gatilho judicial_sem_protecao (#425): fora do administrativo, os campos de PI ficam vazios, sem recusar.
+  const d: DadosProcesso = TIPOS_COM_PROTECAO.includes(tipo) ? { ...dados } : { ...dados, ...PI_VAZIA };
   conferirProtecao(d, atual);
   if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   conferirQuadroDoProcesso(tipo, d.etapa_id);
@@ -4626,7 +4634,7 @@ export const SD: Dados = {
     altero: c => alteroNoFalso(souAdmin() || c.criado_por === eu || c.responsavel_id === eu || c.participantes.includes(eu)), busca: buscaCompromisso,
     pessoas: c => c.pessoas, sem: { processos: c => c.processo_id }
   }).map(c => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, pessoas: c.pessoas }))),
-  processosParaPorCliente: f => espera(paraLigarNoFalso(bd.processos!, f, { altero: p => alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso())), busca: buscaProcesso, pessoas: p => p.clientes })
+  processosParaPorCliente: f => espera(paraLigarNoFalso(bd.processos!.filter(p => !f.judicialSemOrigem || judicialParaLigar(p)), f, { altero: p => alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso())), busca: buscaProcesso, pessoas: p => p.clientes })
     .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), clientes: p.clientes }))),
   contratosParaLigar: f => espera(paraLigarNoFalso(bd.contratos!, f, { altero: k => alcancoContrato(k) && (alteroContrato(k) || !!bd.equipeEditaTudo), busca: buscaContrato })
     .map(k => ({ id: k.id, codigo: k.codigo, servico: k.servico, cliente_nome: nomeDoCliente(k) }))),
@@ -5376,7 +5384,7 @@ export const SD: Dados = {
     if (tipo === TIPO_QUE_FICA && dados.etapa_id) dados = { ...dados, etapa_id: colunaDoAdministrativo(dados.etapa_id) };
     if (ehTipoQueSaiu(pedido) && dados.numero) dados = { ...dados, numero: numeroQueNaoRepete(dados.numero, pedido, repeteEntreOsAdministrativos()) };
     if (!ehTipoDeProcesso(tipo)) return erro(FORMATO_INVALIDO);
-    conferirOrigemDoProcesso(dados);
+    conferirOrigemDoProcesso(dados, tipo);
     const pronto = prepararProcesso({ colaboradores: [], clientes: [], ...dados }, tipo);
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
@@ -5500,6 +5508,29 @@ export const SD: Dados = {
       id: x.id, codigo: x.codigo, tipo: x.tipo, numero: x.numero, titulo: x.titulo, cliente_nome: nomesDosClientes(x.clientes), etapa_id: x.etapa_id, arquivado_em: x.arquivado_em,
       criado_em: x.criado_em, origem_id: x.origem_id, ligacao: x.ligacao
     })), aberto));
+  },
+  // A ligação do judicial ao administrativo (#425), como as funções processo_judicial_ligar e processo_judicial_desligar.
+  async processoJudicialLigar(administrativoId, judicialId) {
+    const altero = (p: ProcessoGuardado | undefined) => !!p && vejoNoModulo('processos', p.id) && alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()));
+    const a = bd.processos!.find(x => x.id === administrativoId), j = bd.processos!.find(x => x.id === judicialId);
+    if (!a || !j || !altero(a) || !altero(j)) return erro(SEM_PERMISSAO);
+    if (a.arquivado_em || j.arquivado_em) return erro(ARQUIVADO_SEM_LIGACAO);
+    if (a.tipo !== 'administrativo' || j.tipo !== 'judicial') return erro(SO_JUDICIAL_NO_ADMINISTRATIVO);
+    if (j.origem_id) return erro(JUDICIAL_JA_LIGADO);
+    const novos = { origem_id: a.id, ligacao: 'judicial' as const };
+    historicoProcesso(j, novos);
+    Object.assign(j, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('processos', 'alteracao', j); gravar();
+  },
+  async processoJudicialDesligar(judicialId) {
+    const altero = (p: ProcessoGuardado | undefined) => !!p && vejoNoModulo('processos', p.id) && alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()));
+    const j = bd.processos!.find(x => x.id === judicialId && x.ligacao === 'judicial' && x.origem_id);
+    const a = j && bd.processos!.find(x => x.id === j.origem_id);
+    if (!j || !(altero(j) || altero(a))) return erro(SEM_PERMISSAO);
+    const novos = { origem_id: null, ligacao: null };
+    historicoProcesso(j, novos);
+    Object.assign(j, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('processos', 'alteracao', j); gravar();
   },
   processoOpcoes: () => espera([...bd.opcoesDeProcesso!].sort((a, b) => a.valor.localeCompare(b.valor, 'pt-BR'))),
   async processoOpcaoCriar(campo, valor) {

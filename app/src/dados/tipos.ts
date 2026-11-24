@@ -963,8 +963,11 @@ export interface DadosModelos {
 /** Processo: judicial ou administrativo (não muda depois; extrajudicial e investigação saíram na #406), com número e pelo menos um cliente. O código
  *  (curto e aleatório) é dado pelo banco. Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
 export type TipoProcesso = 'judicial' | 'administrativo';
-/** Como o processo nasceu de outro (#316): recurso ou incidental. */
-export type LigacaoDeProcesso = 'recurso' | 'incidental';
+/**
+ * Como o processo se liga ao de origem: recurso ou incidental (#316), que nascem dele; ou o judicial que nasceu de um administrativo
+ * (#425), ligado ao nascer ou depois.
+ */
+export type LigacaoDeProcesso = 'recurso' | 'incidental' | 'judicial';
 /**
  * O papel de uma pessoa no processo (#316) e o de cada cliente (#426). A lista do banco é a mesma (processo_partes e
  * processos.papeis_clientes). O apenado veio do antigo "Polo do cliente" (#426).
@@ -1002,11 +1005,14 @@ export interface Processo {
   papeis_clientes: PapeisDosClientes;
   /** Os valores dos campos que o escritório criou, por id do campo. */
   campos: Record<string, string>;
-  /** O processo de que este nasceu, como recurso ou incidental (#316). Gravados só ao criar; excluída a origem, origem_id fica vazio. */
+  /**
+   * O processo de que este nasceu, como recurso ou incidental (#316), ou o administrativo de que o judicial nasceu (#425). O recurso e o
+   * incidental são gravados só ao criar; a ligação "judicial" também se faz e se desfaz depois. Excluída a origem, origem_id fica vazio.
+   */
   origem_id: string | null;
   ligacao: LigacaoDeProcesso | null;
   /**
-   * Propriedade intelectual (#317): só nos processos da área "Propriedade intelectual"; vazios nos outros. As datas (aaaa-mm-dd) são
+   * Propriedade intelectual (#317): só nos processos administrativos (#425) da área "Propriedade intelectual"; vazios nos outros. As datas (aaaa-mm-dd) são
    * as de que os prazos do INPI partem (regras/propriedadeIntelectual.ts). Os processos de antes da migração vêm com tudo vazio.
    */
   protecao?: TipoProtecao | null; deposito?: string | null; concessao?: string | null; publicacao?: string | null; criacao?: string | null;
@@ -1015,8 +1021,11 @@ export interface Processo {
 }
 /** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
 export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
-/** Como um processo ligado se relaciona com o aberto: é a origem dele, ou nasceu dele como recurso ou incidental. */
-export type RelacaoEntreProcessos = 'origem' | LigacaoDeProcesso;
+/**
+ * Como um processo ligado se relaciona com o aberto: é a origem dele (o administrativo, quando o aberto é o judicial que nasceu dele,
+ * #425), ou nasceu dele como recurso, incidental ou judicial.
+ */
+export type RelacaoEntreProcessos = 'origem' | 'administrativo' | LigacaoDeProcesso;
 /** Processo ligado a outro (#316), como aparece no cartão. */
 export interface ProcessoRelacionado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   relacao: RelacaoEntreProcessos;
@@ -1125,8 +1134,18 @@ export interface DadosProcessos {
   /** Põe a pessoa no processo com o papel (#316): quem altera o processo, com ele ativo. O mesmo papel de novo é recusado. */
   processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte): Promise<ParteDoProcesso>;
   processoParteRetirar(id: string): Promise<void>;
-  /** Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê. */
+  /**
+   * Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê; e, desde
+   * a #425, o administrativo de que o judicial nasceu e os judiciais que nasceram do administrativo.
+   */
   processosRelacionados(processoId: string): Promise<ProcessoRelacionado[]>;
+  /**
+   * Liga ao administrativo um judicial que já existe (#425): quem liga altera os dois, ativos, e o judicial ainda não tem origem
+   * (o recurso e o incidental continuam ligados ao processo de que nasceram).
+   */
+  processoJudicialLigar(administrativoId: string, judicialId: string): Promise<void>;
+  /** Desfaz a ligação do judicial ao administrativo (#425; o recurso e o incidental não se desligam): quem altera um dos dois. */
+  processoJudicialDesligar(judicialId: string): Promise<void>;
   processoOpcoes(): Promise<OpcaoDeProcesso[]>;
   /** Só administradores. */
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
@@ -1941,8 +1960,11 @@ export interface DadosParaLigar {
   tarefasParaLigar(f: FiltroParaLigar<LigacaoDeUmSo> & { doProcesso?: string }): Promise<TarefaParaEscolher[]>;
   /** Os compromissos que quem lê muda por estar neles (quem criou, o responsável e os participantes). */
   compromissosParaLigar(f: FiltroParaLigar<'processos'>): Promise<CompromissoParaEscolher[]>;
-  /** Os processos que quem lê altera (como alteraOProcesso, em regras/processo.ts), para pôr uma pessoa como cliente. */
-  processosParaPorCliente(f: FiltroParaLigar): Promise<ProcessoParaEscolher[]>;
+  /**
+   * Os processos que quem lê altera (como alteraOProcesso, em regras/processo.ts), para pôr uma pessoa como cliente. `judicialSemOrigem`:
+   * só os judiciais que ainda não têm origem, para ligar ao administrativo (#425; veja judicialParaLigar).
+   */
+  processosParaPorCliente(f: FiltroParaLigar & { judicialSemOrigem?: boolean }): Promise<ProcessoParaEscolher[]>;
   /** Os contratos que quem lê altera (como alteraOContrato, em regras/contrato.ts; na fase de adaptação, todos). */
   contratosParaLigar(f: FiltroParaLigar): Promise<ContratoParaEscolher[]>;
 }

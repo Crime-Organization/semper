@@ -80,8 +80,8 @@ test.describe('Recursos e incidentais (#316)', () => {
     // Dado
     const processo = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     let cartao = await abrirCartao(page, '/processos/judicial/?id=' + processo, 'JOSÉ DA SILVA TESTE');
-    let ligados = await secao(cartao, 'Recursos e incidentais');
-    await expect(ligados).toContainText('Nenhum recurso ou incidental ligado a este processo.');
+    let ligados = await secao(cartao, 'Processos relacionados');
+    await expect(ligados).toContainText('Nenhum processo relacionado a este.');
     // Quando
     await ligados.getByRole('link', { name: 'Novo recurso', exact: true }).click();
     // Então o cadastro já vem como recurso, com os clientes do processo de origem
@@ -97,15 +97,15 @@ test.describe('Recursos e incidentais (#316)', () => {
     // Então volta ao processo de origem, que mostra o recurso
     cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
-    ligados = await secao(cartao, 'Recursos e incidentais');
+    ligados = await secao(cartao, 'Processos relacionados');
     const recurso = ligados.getByRole('link', { name: /Recurso deste processo/ });
     await expect(recurso).toContainText(NUMERO_DO_RECURSO);
-    await expect(cartao.getByRole('button', { name: 'Recursos e incidentais 1' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Processos relacionados 1' })).toBeVisible();
     // E o recurso mostra o processo de origem, com o próprio número
     await recurso.click();
     cartao = page.getByRole('dialog');
     await expect(cartao.getByText(NUMERO_DO_RECURSO, { exact: true })).toBeVisible();
-    ligados = await secao(cartao, 'Recursos e incidentais');
+    ligados = await secao(cartao, 'Processos relacionados');
     await expect(ligados.getByRole('link', { name: /Processo de origem/ })).toContainText('0001234-97.2026.8.13.0024');
   });
 
@@ -113,7 +113,7 @@ test.describe('Recursos e incidentais (#316)', () => {
     // Dado
     const processo = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     const cartao = await abrirCartao(page, '/processos/judicial/?id=' + processo, 'JOSÉ DA SILVA TESTE');
-    await abrirSecao(cartao, 'Recursos e incidentais');
+    await abrirSecao(cartao, 'Processos relacionados');
     // Quando
     await cartao.getByRole('link', { name: 'Novo recurso ou incidental deste processo' }).click();
     await expect(page.getByText(/Este processo nasce do processo/)).toBeVisible();

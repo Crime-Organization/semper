@@ -17,7 +17,7 @@ interface Filtros {
   demandas: Sem<'contratos'>;
   tarefas: Sem<LigacaoDeUmSo> & { doProcesso?: string };
   compromissos: Sem<'processos'>;
-  processos: Sem;
+  processos: Sem & { judicialSemOrigem?: boolean };
   contratos: Sem;
   pessoas: Pick<Sem, 'fora'>;
 }

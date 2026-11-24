@@ -2596,6 +2596,75 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('O administrativo ligado ao judicial que nasceu dele (#425)', () => {
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> & { tipo: 'judicial' | 'administrativo' }) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+      };
+
+      it('quando o judicial nasce do administrativo, então cada cartão mostra o outro', async () => {
+        // Dado
+        const administrativo = await novoProcesso({ tipo: 'administrativo', area: 'Previdenciário' });
+        // Quando
+        const judicial = await novoProcesso({ tipo: 'judicial', origem_id: administrativo.id, ligacao: 'judicial' });
+        // Então
+        expect(await SD.processosRelacionados(administrativo.id)).toEqual([expect.objectContaining({ id: judicial.id, relacao: 'judicial' })]);
+        expect(await SD.processosRelacionados(judicial.id)).toEqual([expect.objectContaining({ id: administrativo.id, relacao: 'administrativo' })]);
+      });
+
+      it('quando a ligação judicial não liga um judicial a um administrativo, então é recusado', async () => {
+        // Dado
+        const administrativo = await novoProcesso({ tipo: 'administrativo' }), judicial = await novoProcesso({ tipo: 'judicial' });
+        // Quando
+        const pedidos = await Promise.allSettled([
+          novoProcesso({ tipo: 'administrativo', origem_id: administrativo.id, ligacao: 'judicial' }),
+          novoProcesso({ tipo: 'judicial', origem_id: judicial.id, ligacao: 'judicial' }),
+          SD.processoJudicialLigar(judicial.id, administrativo.id)
+        ]);
+        // Então
+        expect(pedidos.map(r => r.status === 'rejected' && (r.reason as Error).message)).toEqual(Array(3).fill('Só um processo judicial pode ser ligado a um processo administrativo.'));
+      });
+
+      it('quando a pessoa liga um judicial que já existe e depois desfaz, então os dois cartões mostram e deixam de mostrar a ligação', async () => {
+        // Dado
+        const administrativo = await novoProcesso({ tipo: 'administrativo' }), judicial = await novoProcesso({ tipo: 'judicial' });
+        expect(await SD.processosParaPorCliente({ judicialSemOrigem: true, termo: '' })).toEqual(expect.arrayContaining([expect.objectContaining({ id: judicial.id })]));
+        // Quando
+        await SD.processoJudicialLigar(administrativo.id, judicial.id);
+        // Então
+        expect(await SD.processosRelacionados(administrativo.id)).toEqual([expect.objectContaining({ id: judicial.id, relacao: 'judicial' })]);
+        expect((await SD.processoHistorico(judicial.id))[0].alteracoes).toEqual({ origem_id: { de: null, para: administrativo.id }, ligacao: { de: null, para: 'judicial' } });
+        expect((await SD.processosParaPorCliente({ judicialSemOrigem: true })).map(p => p.id)).not.toContain(judicial.id);
+        await expect(SD.processoJudicialLigar(administrativo.id, judicial.id)).rejects.toThrow('Este processo judicial já está ligado a outro processo.');
+        // Quando
+        await SD.processoJudicialDesligar(judicial.id);
+        // Então
+        expect(await SD.processosRelacionados(administrativo.id)).toEqual([]);
+        expect(await SD.processoObter(judicial.id)).toMatchObject({ origem_id: null, ligacao: null });
+      });
+
+      it('quando a pessoa tenta desfazer um recurso, então é recusado: só a ligação judicial se desfaz', async () => {
+        // Dado
+        const judicial = await novoProcesso({ tipo: 'judicial' });
+        const recurso = await novoProcesso({ tipo: 'judicial', origem_id: judicial.id, ligacao: 'recurso' });
+        // Quando / Então
+        await expect(SD.processoJudicialDesligar(recurso.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect(await SD.processoObter(recurso.id)).toMatchObject({ origem_id: judicial.id, ligacao: 'recurso' });
+      });
+
+      it('quando o judicial recebe campos de PI, então ele é gravado sem eles; o administrativo os guarda', async () => {
+        // Dado
+        const pi = { area: 'Propriedade intelectual', protecao: 'marca' as const, deposito: '2020-03-10', classes_nice: [9] };
+        // Quando
+        const judicial = await novoProcesso({ tipo: 'judicial', ...pi });
+        const administrativo = await novoProcesso({ tipo: 'administrativo', ...pi });
+        await SD.processoAtualizar(judicial.id, { protecao: 'patente_invencao', deposito: '2021-01-01' });
+        // Então
+        expect(await SD.processoObter(judicial.id)).toMatchObject({ protecao: null, deposito: null, classes_nice: [] });
+        expect(await SD.processoObter(administrativo.id)).toMatchObject({ protecao: 'marca', deposito: '2020-03-10', classes_nice: [9] });
+      });
+    });
+
     describe('Processos', () => {
       // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const NUMERO = '0005678-13.2026.8.13.0433';

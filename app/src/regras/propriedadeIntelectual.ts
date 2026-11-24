@@ -28,7 +28,7 @@
 // - Não confirmados nos guias (nenhum deles trata do assunto): a anuidade da patente (o início no 3º ano, os 3 meses do prazo normal,
 //   os 6 meses do extra e a contagem pelo aniversário do depósito); os 36 meses do pedido de exame; os 180 dias do prazo extra da
 //   prorrogação do desenho; o 2º quinquênio pago no 5º ano; e o dia útil seguinte nos prazos de patente e de desenho.
-import type { ApresentacaoMarca, CompromissoLigado, NaturezaMarca, PapelDaParte, Processo, RegraDeRepeticao, TipoProtecao } from '../dados/tipos';
+import type { ApresentacaoMarca, CompromissoLigado, NaturezaMarca, PapelDaParte, Processo, RegraDeRepeticao, TipoProcesso, TipoProtecao } from '../dados/tipos';
 import { CLASSE_NICE_MAIOR, DEMANDA_DO_COMPROMISSO, TAMANHO_COMPROMISSO, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
 import type { CamposCompromisso } from './compromisso';
 import { descreverRepeticao, somarMeses } from './repeticao';
@@ -40,6 +40,15 @@ import { normal } from './texto';
 export const AREA_DA_PI = 'Propriedade intelectual';
 /** Se o processo é de propriedade intelectual: pela área, sem contar maiúsculas nem acentos. */
 export const ehDePropriedadeIntelectual = (area: string | null | undefined) => !!area && normal(area.trim()) === normal(AREA_DA_PI);
+/**
+ * Os tipos de processo que têm os campos de PI e a validade (#425): só o administrativo (o pedido no INPI). O judicial da área (a ação
+ * de nulidade, a de infração...) liga-se ao administrativo inteiro, em "Processos relacionados", e não repete os campos.
+ */
+export const TIPOS_COM_PROTECAO: readonly TipoProcesso[] = ['administrativo'];
+/** O que decide se o processo tem os campos de PI: o tipo e a área. */
+export interface OndeHaProtecao { tipo: TipoProcesso; area?: string | null }
+/** Se o processo tem os campos de PI (o tipo de proteção, os campos de cada tipo e a validade): administrativo da área de PI. */
+export const temProtecao = (p: OndeHaProtecao) => TIPOS_COM_PROTECAO.includes(p.tipo) && ehDePropriedadeIntelectual(p.area);
 
 /** Meses num ano. */
 const MESES_NO_ANO = 12;
@@ -262,10 +271,10 @@ export const fmtClassesNice = (classes: readonly number[] | null | undefined) =>
 // ---------- cadastro ----------
 /** A recusa da concessão antes do depósito (a mesma no cadastro, no banco e no fictício). */
 export const CONCESSAO_ANTES_DO_DEPOSITO = 'A concessão não pode ser antes do depósito.';
-type ComArea = CamposProtecao & { area: string };
+type ComArea = CamposProtecao & { area: string; tipo: TipoProcesso };
 /** O campo conta só no processo de PI, com um tipo que o tenha (os outros estão fora da tela e não são gravados). */
 export const campoDaProtecaoNaTela = (c: ComArea, campo: CampoDaProtecao) =>
-  ehDePropriedadeIntelectual(c.area) && !!c.protecao && TIPOS_DE_PROTECAO[c.protecao].campos.includes(campo);
+  temProtecao(c) && !!c.protecao && TIPOS_DE_PROTECAO[c.protecao].campos.includes(campo);
 
 const lerSemErro = (ler: () => unknown) => { try { ler(); return null; } catch (e) { return (e as Error).message; } };
 const DATAS: CampoDaProtecao[] = ['deposito', 'concessao', 'publicacao', 'criacao'];
@@ -302,7 +311,7 @@ export function dadosDaProtecao(c: ComArea): Required<Pick<Processo, 'protecao' 
   const tem = (campo: CampoDaProtecao) => campoDaProtecaoNaTela(c, campo);
   const data = (campo: CampoDaProtecao) => tem(campo) ? lerData(c[campo]) : null;
   return {
-    protecao: ehDePropriedadeIntelectual(c.area) && c.protecao ? c.protecao : null,
+    protecao: temProtecao(c) && c.protecao ? c.protecao : null,
     deposito: data('deposito'), concessao: data('concessao'), publicacao: data('publicacao'), criacao: data('criacao'),
     apresentacao_marca: tem('apresentacaoMarca') && c.apresentacaoMarca ? c.apresentacaoMarca : null,
     natureza_marca: tem('naturezaMarca') && c.naturezaMarca ? c.naturezaMarca : null,
@@ -323,8 +332,8 @@ export const camposDaProtecao = (p: Partial<Pick<Processo, 'protecao' | 'deposit
 
 // ---------- prazos no cartão ----------
 /** Os prazos do processo (null quando ele não é de PI ou não tem o tipo de proteção). */
-export const prazosDaProtecao = (p: DatasDaProtecao & { area?: string | null }, hoje: string): PrazosDaProtecao | null =>
-  ehDePropriedadeIntelectual(p.area) && p.protecao ? TIPOS_DE_PROTECAO[p.protecao].prazos(p, hoje) : null;
+export const prazosDaProtecao = (p: DatasDaProtecao & OndeHaProtecao, hoje: string): PrazosDaProtecao | null =>
+  temProtecao(p) && p.protecao ? TIPOS_DE_PROTECAO[p.protecao].prazos(p, hoje) : null;
 
 /** Onde o prazo está hoje: já passou (nem o extra cabe mais), no prazo extra, aberto ou ainda por vir. */
 export type SituacaoDoPrazo = 'passou' | 'extra' | 'aberto' | 'futuro';
@@ -364,7 +373,7 @@ export interface AcompanhamentoDaProtecao {
   observacoes: string;
 }
 /** Os prazos que o compromisso acompanha (os do tipo que ainda não acabaram), ou null se o processo não tem o que acompanhar. */
-export function acompanhamentoDaProtecao(p: DatasDaProtecao & { area?: string | null; numero?: string | null }, hoje: string): AcompanhamentoDaProtecao | null {
+export function acompanhamentoDaProtecao(p: DatasDaProtecao & OndeHaProtecao & { numero?: string | null }, hoje: string): AcompanhamentoDaProtecao | null {
   const prazos = prazosDaProtecao(p, hoje), como = p.protecao ? TIPOS_DE_PROTECAO[p.protecao].acompanhar : null;
   if (!prazos || !como) return null;
   const porVir = prazos.datas.filter(x => como.tipos.includes(x.tipo) && x.fim >= hoje);
@@ -414,7 +423,7 @@ export interface PrazoExtraDaProtecao {
   observacoes: string;
 }
 /** O primeiro prazo dos que o compromisso acompanha que está hoje no prazo extra, ou null. */
-export function prazoExtraDaProtecao(p: DatasDaProtecao & { area?: string | null; numero?: string | null }, hoje: string): PrazoExtraDaProtecao | null {
+export function prazoExtraDaProtecao(p: DatasDaProtecao & OndeHaProtecao & { numero?: string | null }, hoje: string): PrazoExtraDaProtecao | null {
   const prazos = prazosDaProtecao(p, hoje), como = p.protecao ? TIPOS_DE_PROTECAO[p.protecao].acompanhar : null;
   const x = prazos && como ? prazos.datas.find(d => como.tipos.includes(d.tipo) && situacaoDoPrazo(d, hoje) === 'extra') : undefined;
   if (!x?.fimExtra) return null;
@@ -443,7 +452,7 @@ export const compromissoDoAcompanhamento = <T extends Pick<CompromissoLigado, 't
 export const PARAMETRO_ACOMPANHAR = 'acompanhar';
 export const ACOMPANHAR_PROTECAO = 'protecao';
 export const ACOMPANHAR_PRAZO_EXTRA = 'prazo-extra';
-type ProcessoParaAcompanhar = DatasDaProtecao & { area?: string | null; numero?: string | null };
+type ProcessoParaAcompanhar = DatasDaProtecao & OndeHaProtecao & { numero?: string | null };
 /** O que cada valor de ?acompanhar= preenche no cadastro do compromisso (null: o processo não tem esse prazo). Valor novo = entrada nova. */
 const CAMPOS_PARA_ACOMPANHAR: Record<string, (p: ProcessoParaAcompanhar, hoje: string) => Partial<CamposCompromisso> | null> = {
   [ACOMPANHAR_PROTECAO]: (p, hoje) => { const a = acompanhamentoDaProtecao(p, hoje); return a && camposDoAcompanhamento(a); },

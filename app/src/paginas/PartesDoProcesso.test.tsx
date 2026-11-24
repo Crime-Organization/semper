@@ -70,14 +70,14 @@ describe('Pessoas com papel no cartão do processo', () => {
   });
 });
 
-describe('Recursos e incidentais no cartão do processo', () => {
+describe('Processos relacionados no cartão do processo (recursos e incidentais)', () => {
   beforeEach(() => { vi.spyOn(SD, 'colunasListar').mockResolvedValue([]); });
   const ORIGEM: ProcessoRelacionado = { id: 'o1', codigo: 'O1', tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', titulo: 'Ação de origem', cliente_nome: '', etapa_id: null,
     arquivado_em: null, criado_em: '2026-01-01', relacao: 'origem' };
 
   it('dado um recurso, quando a seção abre, então o processo de origem aparece com a relação, e há os botões de recurso e incidental', () => {
     // Quando
-    render(<MemoryRouter><ProcessosRelacionados lista={[ORIGEM]} processoId="r1" /></MemoryRouter>);
+    render(<MemoryRouter><ProcessosRelacionados lista={[ORIGEM]} processoId="r1" tipo="judicial" aoMudar={() => {}} /></MemoryRouter>);
     // Então
     expect(screen.getByRole('link', { name: /Ação de origem/ })).toHaveTextContent('Processo de origem');
     expect(screen.getByRole('link', { name: 'Novo recurso' })).toHaveAttribute('href', '/processos/novo/?processo=r1&ligacao=recurso');
@@ -86,9 +86,9 @@ describe('Recursos e incidentais no cartão do processo', () => {
 
   it('dado o cartão arquivado ou só para ler, quando a seção abre, então não há botões de criar', () => {
     // Quando
-    render(<MemoryRouter><CriarNoCartao pode={false}><ProcessosRelacionados lista={[]} processoId="r1" /></CriarNoCartao></MemoryRouter>);
+    render(<MemoryRouter><CriarNoCartao pode={false}><ProcessosRelacionados lista={[]} processoId="r1" tipo="judicial" aoMudar={() => {}} /></CriarNoCartao></MemoryRouter>);
     // Então
-    expect(screen.getByText('Nenhum recurso ou incidental ligado a este processo.')).toBeInTheDocument();
+    expect(screen.getByText('Nenhum processo relacionado a este.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Novo recurso' })).not.toBeInTheDocument();
   });
 });
