@@ -36,7 +36,10 @@ async function cadastrar(page: Page, protecao: string, datas: Record<string, str
   return cartao;
 }
 
-/** Muda uma data do processo na seção "Dados do processo" (#428), clicando no tipo de proteção, um minuto depois do que veio antes. */
+/**
+ * Muda uma data do processo na seção "Dados do processo" (#428), clicando no tipo de proteção, um minuto depois do que veio antes.
+ * Na seção aberta, cada campo tem o mesmo nome curto da leitura (#432: "Depósito", "Concessão"), não o do cadastro.
+ */
 async function mudarData(page: Page, cartao: Locator, protecao: string, rotulo: string, valor: string) {
   relogio = new Date(relogio.getTime() + UM_MINUTO);
   await page.clock.setFixedTime(relogio);
@@ -84,7 +87,7 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await expect(cartao.getByRole('link', { name: 'Pôr o prazo na agenda' })).toHaveCount(0);
 
     // Quando: a data do deferimento muda para 13/10/2026
-    await mudarData(page, cartao, 'Marca', 'Publicação do deferimento (RPI)', '13102026');
+    await mudarData(page, cartao, 'Marca', 'Publicação do deferimento', '13102026');
     // Então: o cartão oferece levar o compromisso para a data nova
     await abrirSecao(cartao, 'Validade e anuidades');
     await expect(cartao.getByText(`As datas do processo mudaram: "${titulo}" está na agenda em 05/01/2027, e a conta de agora dá 11/01/2027.`)).toBeVisible();
@@ -95,7 +98,7 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await expect(cartao.getByRole('button', { name: 'Atualizar as datas na agenda' })).toHaveCount(0);
 
     // Quando: a concessão é informada
-    await mudarData(page, cartao, 'Marca', 'Data da concessão', '03112026');
+    await mudarData(page, cartao, 'Marca', 'Concessão', '03112026');
     // Então: o prazo após o deferimento some, e o cartão oferece concluir o compromisso dele
     await abrirSecao(cartao, 'Validade e anuidades');
     await expect(cartao.getByRole('table', { name: 'Prazos do INPI' }).getByRole('row', { name: /Prazo após o deferimento/ })).toHaveCount(0);
@@ -121,7 +124,7 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await expect(cartao.getByText(`Estes prazos já estão na agenda: ${titulo}, na seção "Compromissos".`)).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Atualizar as datas na agenda' })).toHaveCount(0);
     // Quando: o depósito passa para 10/04/2020
-    await mudarData(page, cartao, 'Patente de invenção', 'Data do depósito', '10042020');
+    await mudarData(page, cartao, 'Patente de invenção', 'Depósito', '10042020');
     // Então
     await abrirSecao(cartao, 'Validade e anuidades');
     await expect(cartao.getByText(`As datas do processo mudaram: "${titulo}" está na agenda em 10/06/2027, e a conta de agora dá 10/07/2027.`)).toBeVisible();
@@ -144,7 +147,7 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await page.goto(doProcesso);
     cartao = page.getByRole('dialog');
     // Quando: o depósito passa para 10/07/2019 (a 8ª anuidade acabou em 10/10/2026: a conta dá 12, da 9ª em diante)
-    await mudarData(page, cartao, 'Patente de invenção', 'Data do depósito', '10072019');
+    await mudarData(page, cartao, 'Patente de invenção', 'Depósito', '10072019');
     await abrirSecao(cartao, 'Validade e anuidades');
     await expect(cartao.getByText(`As datas do processo mudaram: "${titulo}" está na agenda em 10/06/2027, e a conta de agora dá 10/10/2027.`)).toBeVisible();
     await cartao.getByRole('button', { name: 'Atualizar as datas na agenda' }).click();
