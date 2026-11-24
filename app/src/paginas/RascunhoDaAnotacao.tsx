@@ -20,7 +20,7 @@ import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { lojaDeEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
-import { LigarItem } from '../ui/LigarItem';
+import { LigarItem, rotuloDeLigarItem } from '../ui/LigarItem';
 import { CaminhoDaPasta } from '../ui/Pastas';
 import { useCtx } from '../ui/sessao';
 import { MoldeDoTopo } from '../ui/TopoDoCartao';
@@ -167,7 +167,7 @@ export function LigadosDoRascunho({ rascunho }: { rascunho: RascunhoDaAnotacao }
     {itens.length >= ITENS_DA_ANOTACAO
       ? <Nota>A anotação já vai ligada a {ITENS_DA_ANOTACAO} itens, o máximo.</Nota>
       : <div className="ligados-acoes">
-        <LigarItem modulos={modulos} ligados={itens} rotulo={itens.length ? 'Ligar a outro item' : 'Ligar a um item'} aoEscolher={rascunho.ligar} />
+        <LigarItem modulos={modulos} ligados={itens} rotulo={rotuloDeLigarItem(itens.length)} aoEscolher={rascunho.ligar} />
         {/* O "+ Novo…" espera a anotação ir ao banco: só então há a que ligar o item novo. */}
         <NovoNaAnotacao modulos={modulos} anotacaoId={null} />
       </div>}

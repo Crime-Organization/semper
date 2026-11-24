@@ -107,13 +107,15 @@ describe('Anotações no cartão de um item', () => {
     expect(screen.getByRole('button', { name: /Parecer sobre a prescrição/ })).toBeEnabled();
   });
 
-  it('então a seção aberta oferece "Ligar anotação existente" e "Nova anotação"; no cartão só para ler, nenhum dos dois (#341)', async () => {
+  it('então o título da seção oferece a corrente "Ligar anotação existente" e o "+" da anotação nova, sem botões embaixo; no cartão só para ler, nenhum dos dois (#341, #427)', async () => {
     // Dado / Quando
     iniciarPreferencias({ [preferenciaDasAnotacoes('pessoas')]: true });
     const { unmount } = montar({ modulo: 'pessoas', id: 'p1' });
     await screen.findByRole('list', { name: 'Anotações ligadas' });
     // Então: a pessoa não abre a anotação, e a busca não tem o que avisar
-    expect(screen.getByRole('link', { name: 'Nova anotação' })).toHaveAttribute('href', '/documentos/?nova=1&pessoa=p1');
+    expect(screen.getByRole('link', { name: 'Nova anotação ligada a este item' })).toHaveAttribute('href', '/documentos/?nova=1&pessoa=p1');
+    expect(screen.getAllByRole('link', { name: /Nova anotação/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Ligar anotação existente' })).toHaveLength(1);
     await userEvent.click(screen.getByRole('button', { name: 'Ligar anotação existente' }));
     expect(await screen.findByRole('button', { name: /Parecer sobre a prescrição/ })).toBeInTheDocument();
     expect(screen.queryByText(/passa a ler a anotação/)).not.toBeInTheDocument();
@@ -123,7 +125,7 @@ describe('Anotações no cartão de um item', () => {
     await screen.findByRole('list', { name: 'Anotações ligadas' });
     // Então
     expect(screen.queryByRole('button', { name: 'Ligar anotação existente' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Nova anotação' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Nova anotação/ })).not.toBeInTheDocument();
   });
 
   it('quando o cartão abre, então a seção vem fechada e já mostra quantas anotações estão ligadas ao item', async () => {

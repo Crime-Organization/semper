@@ -55,11 +55,15 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMuda
   // Na hora: a caixa muda já, até a lista voltar do banco como ficou.
   const [marcando, setMarcando] = useState<{ id: string; cumprido: boolean } | null>(null);
   const secao = useRef<HTMLDivElement>(null);
-  // O "+" do título da seção abre o mesmo formulário do botão de baixo.
-  usePedidoDeNovo(() => { if (!somenteLer) edicao.pedir(NOVO); });
-  /** Fecha o formulário; o foco volta ao botão que o abriu ("Mudar" do prazo ou "Novo prazo"), e quem usa o teclado não se perde. */
+  // O "+" do título da seção abre o formulário; com ele no título (#427), o botão daqui não aparece.
+  const { peloTitulo, voltarAoTitulo } = usePedidoDeNovo(() => { if (!somenteLer) edicao.pedir(NOVO); });
+  /**
+   * Fecha o formulário; o foco volta ao botão que o abriu ("Mudar" do prazo, ou o "Novo prazo": o "+" do título, quando ele está lá),
+   * e quem usa o teclado não se perde.
+   */
   function fechar(id: string) {
     edicao.fechar(id);
+    if (id === NOVO && peloTitulo) { voltarAoTitulo(); return; }
     setTimeout(() => secao.current?.querySelector<HTMLElement>(`[data-abre="${id}"]`)?.focus({ preventScroll: true }), 0);
   }
   /** O formulário de um prazo (ou do novo), ligado ao cartão: o que foi escrito vai para ele e para a faixa de um formulário por vez. */
@@ -146,6 +150,6 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMuda
     {prazos.length >= PRAZOS_DO_PROCESSO && <Nota>Mostrando os {PRAZOS_DO_PROCESSO} prazos de último dia mais novo.</Nota>}
     {editando === NOVO
       ? <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={lancar} {...doFormulario(NOVO)} />
-      : !somenteLer && <div><button type="button" className={estiloBotao()} data-abre={NOVO} onClick={() => edicao.pedir(NOVO)}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
+      : !somenteLer && !peloTitulo && <div><button type="button" className={estiloBotao()} data-abre={NOVO} onClick={() => edicao.pedir(NOVO)}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
   </div>;
 }

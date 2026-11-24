@@ -121,7 +121,7 @@ test.describe('Checklists da demanda', () => {
     // Dado
     const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
+    await cartao.getByRole('button', { name: 'Adicionar checklist', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Checklist em branco' }).click();
     await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('textbox').fill('Documentos do cliente');
     await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('button', { name: 'Salvar' }).click();
@@ -191,7 +191,7 @@ test.describe('Modelos de checklist', () => {
     // Dado
     const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
+    await cartao.getByRole('button', { name: 'Adicionar checklist', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
     // Então
     const lista = cartao.getByRole('region', { name: 'Checklist Documentos de pessoa física' });

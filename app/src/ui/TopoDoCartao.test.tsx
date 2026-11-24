@@ -10,6 +10,8 @@ import type { Etiqueta } from '../dados';
 import { lojaDeEtiquetas } from './Etiquetas';
 import { BotoesNoPainel } from './PainelCartao';
 import { FaixaDoArquivado, TopoDoCartao } from './TopoDoCartao';
+import { CONFIRMAR_O_TIRAR } from './base';
+import { Janelas } from './janela';
 
 const MINHA: Etiqueta = { id: 'e-minha', cor: 'azul', texto: 'Minha', criado_por: 'u-bruno' };
 const URGENTE: Etiqueta = { id: 'e-urgente', cor: 'vermelho', texto: 'Urgente', criado_por: 'u-ana' };
@@ -85,12 +87,16 @@ describe('O topo do cartão ativo, para quem altera', () => {
     expect(antes(selos, screen.getByRole('heading', { level: 2 }))).toBe(true);
   });
 
-  it('quando a pessoa tira uma etiqueta pelo x do selo, então ela sai do cartão', async () => {
+  // A regra mudou (#424, decisão do dono): o x pergunta antes de tirar.
+  it('quando a pessoa tira uma etiqueta pelo x do selo e confirma, então ela sai do cartão', async () => {
     // Dado
     noCartao = [MINHA.id];
     abrir();
+    render(<Janelas />);
     // Quando
     await userEvent.click(await screen.findByRole('button', { name: 'Tirar a etiqueta Minha' }));
+    expect(etiquetaTirarEmLote).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     await waitFor(() => expect(etiquetaTirarEmLote).toHaveBeenCalledWith('tarefas', ['t-1'], MINHA.id));
   });

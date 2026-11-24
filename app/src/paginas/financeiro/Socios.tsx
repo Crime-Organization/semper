@@ -79,8 +79,8 @@ export const ROTULO_DO_NOVO_SOCIO = 'Novo sócio';
 export function SociosDoEscritorio({ socios, hoje, aoMudar }: { socios: Socio[]; hoje: string; aoMudar: () => void }) {
   const [aberto, setAberto] = useState<{ o: 'novo' } | { o: 'mudar'; socio: Socio } | null>(null);
   const terminou = () => { setAberto(null); aoMudar(); };
-  // O "+" do título da seção abre o mesmo formulário do botão de baixo.
-  usePedidoDeNovo(() => setAberto({ o: 'novo' }));
+  // O "+" do título da seção abre o formulário; com ele no título (#427), o botão de baixo não aparece.
+  const { peloTitulo } = usePedidoDeNovo(() => setAberto({ o: 'novo' }));
   async function excluir(s: Socio) {
     try {
       await SD.financeiroSocioExcluir(s.id);
@@ -99,6 +99,6 @@ export function SociosDoEscritorio({ socios, hoje, aoMudar }: { socios: Socio[];
     </li>)}</ul>}
     {aberto?.o === 'novo' && <FormNovoSocio hoje={hoje} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormDoPeriodo key={aberto.socio.id} socio={aberto.socio} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
-    {aberto?.o !== 'novo' && <div className="financeiro-acoes"><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_SOCIO}</button></div>}
+    {aberto?.o !== 'novo' && !peloTitulo && <div className="financeiro-acoes"><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_SOCIO}</button></div>}
   </div>;
 }

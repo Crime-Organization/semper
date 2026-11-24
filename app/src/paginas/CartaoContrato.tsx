@@ -44,8 +44,10 @@ import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { ligarContratoNaTarefa, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
+import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
+import { ligarContratoNaTarefa, ligarEAvisar, ligarNoItem, tirarDaTarefa, tirarEAvisar } from './ligarNoCartao';
+import { TIRAR_DA_TAREFA } from '../regras/tirarDoCartao';
 
 /** O valor de "Assinado em", na faixa das datas, enquanto o contrato não tem a data da assinatura. */
 const NAO_ASSINADO = 'Ainda não';
@@ -260,13 +262,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
-    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + pendentes.length : undefined} novo={oculto && !semValores ? undefined : { para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
+    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + pendentes.length : undefined}
+      ligar={podeLigar ? ligarDoModulo('demandas') : undefined} novo={oculto && !semValores ? undefined : { para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
       {semObjeto && <Aviso tipo="info">{SEM_OBJETO_DEFINIDO}</Aviso>}
       <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
         antes={pendentes.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: AINDA_SEM_DEMANDA,
           acao: criaDemanda ? <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`${CRIAR_ESTA_DEMANDA}: ${objeto}`} onClick={() => criarDemandas([objeto])}>
             <Icone nome="mais" tam={13} /> {CRIAR_ESTA_DEMANDA}</Botao> : undefined }))} />
-      {podeLigar && <AcoesDosLigados novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda' }}>
+      {podeLigar && <AcoesDosLigados>
         <LigarDoModulo modulo="demandas" filtro={{ sem: 'contratos' }} aviso="Quem está neste contrato passa a ver, só para ler, a demanda que você ligar e as tarefas dela."
           aoEscolher={d => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
             { feito: `Demanda ligada: ${d.titulo}.`, oQue: 'ligação da demanda', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
@@ -278,12 +281,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="contratos.cartao.processos"
       contador={processosLidos ? processosLidos.visiveis.length + processosLidos.ocultos : undefined}
-      novo={podeLigar ? { para: novoProcesso, rotulo: 'Novo processo deste contrato' } : undefined}>
+      ligar={podeLigar ? { rotulo: LIGAR_PROCESSO } : undefined} novo={podeLigar ? { para: novoProcesso, rotulo: 'Novo processo deste contrato' } : undefined}>
       {/* Ligar ou criar um processo não mexe em valores: na fase de adaptação, quem não é parte também liga e cria (#376). */}
       <ProcessosDoCartao carregar={processosDoContrato} versao={versaoHist} somenteLer={!podeLigar}
         vazio="Nenhum processo ligado a este contrato." ligar={processoId => SD.contratoProcessoLigar(k.id, processoId)}
-        desligar={processoId => SD.contratoProcessoDesligar(k.id, processoId)} aoMudar={() => setVersaoHist(v => v + 1)}
-        novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
+        desligar={processoId => SD.contratoProcessoDesligar(k.id, processoId)} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
     <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" contador={partes.length}>
@@ -324,9 +326,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>}
 
 
-    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa' }}>
+    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas}
+      ligar={podeLigar ? ligarDoModulo('tarefas') : undefined} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
+      {/* O "x" de cada tarefa (#424): ela sai só deste contrato (os outros contratos e as demandas dela ficam). */}
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist}
+        tirar={podeLigar ? t => ({ oQue: `a tarefa ${t.codigo}`, explicacao: TIRAR_DA_TAREFA.contratos.explicacao,
+          aoTirar: () => tirarEAvisar(() => tirarDaTarefa('contratos', t.id, k.id), `Tarefa tirada do contrato: ${t.codigo}.`, TIRAR_DA_TAREFA.contratos.acao, depoisDeLigar) }) : undefined} />
+      {podeLigar && <AcoesDosLigados>
         {/* A tarefa pode estar em vários contratos (#283): a de outro contrato também entra neste, e continua no outro. */}
         <LigarDoModulo modulo="tarefas" motivo={t => t.contrato_id === k.id ? 'já ligada a este contrato' : ''}
           aviso="Quem está neste contrato passa a ver, só para ler, a tarefa que você ligar."

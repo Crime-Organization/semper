@@ -63,7 +63,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const clientes = await secao(cartao, 'Clientes');
     await expect(cartao.getByRole('button', { name: 'Clientes 1' })).toBeVisible();
     // Quando
-    await clientes.getByRole('link', { name: 'Nova pessoa', exact: true }).click();
+    await clientes.getByRole('link', { name: 'Nova pessoa como cliente desta demanda' }).click();
     await expect(cadastro(page).getByText(/Ao terminar, a pessoa fica ligada como cliente da demanda .* \(Notificar o devedor\)/)).toBeVisible();
     await cadastrarContato(page, 'cliente novo da demanda');
     // Então
@@ -79,7 +79,8 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const id = await idDe(page, 'tarefas', 'titulo', 'Renovar a procuração');
     const cartao = await abrirCartao(page, 'tarefas', id, 'Renovar a procuração');
     const pessoas = await secao(cartao, 'Pessoas');
-    await expect(pessoas.getByRole('link', { name: 'Nova pessoa', exact: true })).toBeVisible();
+    // Desde a #427, o "+" fica só no título: embaixo da lista não há o botão "Nova pessoa".
+    await expect(pessoas.getByRole('link', { name: 'Nova pessoa', exact: true })).toHaveCount(0);
     // Quando
     await cartao.getByRole('link', { name: 'Nova pessoa ligada a esta tarefa' }).click();
     await cadastrarContato(page, 'pessoa nova da tarefa');
@@ -95,7 +96,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const cartao = await abrirCartao(page, 'processos', id, 'JOSÉ DA SILVA TESTE');
     const clientes = await secao(cartao, 'Clientes');
     // Quando
-    await clientes.getByRole('link', { name: 'Nova pessoa', exact: true }).click();
+    await clientes.getByRole('link', { name: 'Nova pessoa como cliente deste processo' }).click();
     await cadastrarContato(page, 'cliente novo do processo');
     // Então
     await expect(page).toHaveURL(new RegExp(`/processos/judicial/\\?id=${id}$`));
@@ -109,7 +110,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const cartao = await abrirCartao(page, 'compromissos', id, 'Reunião de equipe');
     const pessoas = await secao(cartao, 'Pessoas');
     // Quando
-    await pessoas.getByRole('link', { name: 'Nova pessoa', exact: true }).click();
+    await pessoas.getByRole('link', { name: 'Nova pessoa ligada a este compromisso' }).click();
     await cadastrarContato(page, 'pessoa nova da reunião');
     // Então
     await expect(page).toHaveURL(new RegExp(`/agenda/\\?id=${id}$`));
@@ -123,7 +124,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const cartao = await abrirCartao(page, 'pessoas', id, 'MARIA APARECIDA EXEMPLO');
     const vinculos = await secao(cartao, 'Vínculos');
     // Quando
-    await vinculos.getByRole('button', { name: 'Nova pessoa vinculada' }).filter({ hasText: 'Nova pessoa vinculada' }).click();
+    await vinculos.getByRole('button', { name: 'Nova pessoa vinculada', exact: true }).click();
     const formulario = vinculos.getByRole('form', { name: 'Nova pessoa vinculada' });
     await formulario.getByLabel('Vínculo').selectOption({ label: 'Pai/mãe de' });
     await formulario.getByLabel('Descrição').fill('guarda compartilhada');
@@ -148,7 +149,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const id = await idDe(page, 'demandas', 'titulo', 'Notificar o devedor');
     const cartao = await abrirCartao(page, 'demandas', id, 'Notificar o devedor');
     const clientes = await secao(cartao, 'Clientes');
-    await clientes.getByRole('link', { name: 'Nova pessoa', exact: true }).click();
+    await clientes.getByRole('link', { name: 'Nova pessoa como cliente desta demanda' }).click();
     const janela = cadastro(page);
     await janela.getByText('Pessoa física', { exact: true }).click();
     await janela.getByLabel('Nome').fill('josé de novo');
@@ -194,7 +195,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     await arquivar(page, 'pessoas', await idDe(page, 'pessoas', 'nome', 'JOSÉ DA SILVA TESTE'));
     const cartao = await abrirCartao(page, 'demandas', id, 'Notificar o devedor');
     const clientes = await secao(cartao, 'Clientes');
-    await clientes.getByRole('link', { name: 'Nova pessoa', exact: true }).click();
+    await clientes.getByRole('link', { name: 'Nova pessoa como cliente desta demanda' }).click();
     const janela = cadastro(page);
     await janela.getByText('Pessoa física', { exact: true }).click();
     await janela.getByLabel('Nome').fill('josé de novo');

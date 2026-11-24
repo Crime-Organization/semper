@@ -1,6 +1,6 @@
 // Vínculos de uma pessoa com outras (cônjuge, sócio, representante legal...), nos dois sentidos.
 // Fica no cartão da pessoa, cada vínculo num quadrinho (ItensLigados), como toda ligação do sistema; clicar nele abre o
-// cartão da outra pessoa. Embaixo, "Vincular pessoa" (uma que já está no cadastro) e "+ Nova pessoa vinculada" (#376): escolhe o
+// cartão da outra pessoa. No título da seção (#427), a corrente "Vincular pessoa" (uma que já está no cadastro) e o "+ Nova pessoa vinculada" (#376): escolhe o
 // tipo do vínculo e abre o cadastro de pessoa, que ao terminar grava o vínculo e volta a este cartão.
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -15,15 +15,17 @@ import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
 import { janela } from '../ui/janela';
-import { usePedidoDeNovo } from '../ui/Recolhivel';
+import { usePedidoDeLigar, usePedidoDeNovo } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 
 const NOVO_TIPO = '__novo';
+/** O nome da corrente do título da seção (#427) e do botão que, fora dela, abre o formulário de vincular uma pessoa do cadastro. */
+export const VINCULAR_PESSOA = 'Vincular pessoa';
 
 /** O formulário aberto: vincular uma pessoa que já está no cadastro, ou escolher o vínculo e cadastrar uma nova. */
 type Formulario = 'existente' | 'nova';
 const FORMULARIO: Record<Formulario, { enviar: string; rotulo: string }> = {
-  existente: { enviar: 'Vincular', rotulo: 'Vincular pessoa' },
+  existente: { enviar: 'Vincular', rotulo: VINCULAR_PESSOA },
   nova: { enviar: 'Cadastrar a pessoa', rotulo: ORIGEM_DA_PESSOA.vinculos.novo }
 };
 
@@ -57,8 +59,10 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar 
     setFormulario(qual);
     if (!tipos) SD.vinculoTiposListar().then(setTipos).catch(falha);
   }
-  // O "+" do título da seção abre o mesmo formulário do "+ Nova pessoa vinculada" de baixo (que some com um formulário aberto).
-  usePedidoDeNovo(() => { if (podeCriar && !formulario) abrirFormulario('nova'); });
+  // O "+" do título da seção abre o formulário da pessoa nova, e a corrente o de vincular uma do cadastro (#427); com eles no título,
+  // os botões de baixo não aparecem.
+  const novoPeloTitulo = usePedidoDeNovo(() => { if (podeCriar && !formulario) abrirFormulario('nova'); }).peloTitulo;
+  const ligarPeloTitulo = usePedidoDeLigar(VINCULAR_PESSOA, () => { if (!formulario) abrirFormulario('existente'); });
   function fecharFormulario() { setFormulario(null); setOpcao(''); setOutra(null); setDescricao(''); }
 
   async function vincular(e: FormEvent) {
@@ -122,9 +126,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar 
       const { rotulo, outra: o } = lerVinculo(v, p.id);
       return { id: v.id, aoAbrir: () => aoAbrirPessoa(o.id), codigo: rotulo, titulo: o.nome, detalhe: v.descricao ?? undefined,
         selo: o.arquivado_em ? 'Arquivada' : undefined,
-        acao: <button type="button" className="icone-btn" title="Retirar o vínculo" aria-label={`Retirar o vínculo com ${o.nome}`} onClick={() => retirar(v)}>
-          <Icone nome="fechar" tam={14} />
-        </button> };
+        tirar: { oQue: `o vínculo com ${o.nome}`, explicacao: 'As duas pessoas continuam no cadastro. Dá para desfazer logo depois, no aviso do pé da tela.', aoTirar: () => retirar(v) } };
     })} /> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
 
     {formulario
@@ -153,8 +155,8 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar 
         </div>
       </form>
       : <AcoesDosLigados>
-        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('existente')}><Icone nome="vinculo" tam={13} /> {FORMULARIO.existente.rotulo}</button>
-        {podeCriar && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('nova')}><Icone nome="mais" tam={13} /> {FORMULARIO.nova.rotulo}</button>}
+        {!ligarPeloTitulo && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('existente')}><Icone nome="vinculo" tam={13} /> {FORMULARIO.existente.rotulo}</button>}
+        {podeCriar && !novoPeloTitulo && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('nova')}><Icone nome="mais" tam={13} /> {FORMULARIO.nova.rotulo}</button>}
       </AcoesDosLigados>}
   </>;
 }

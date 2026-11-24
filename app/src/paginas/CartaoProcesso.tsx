@@ -21,7 +21,7 @@ import {
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, DadosEditaveis, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadosEditaveis, Nota, Selo, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
 import { confirmar } from '../ui/janela';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
@@ -35,7 +35,7 @@ import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
-import { LIGAR_PARTE_NO_TITULO, PartesDoProcesso } from './PartesDoProcesso';
+import { ligarParte, PartesDoProcesso } from './PartesDoProcesso';
 import { novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
@@ -52,10 +52,14 @@ import { AndamentosDoProcesso, PrazosDoProcesso, useAcompanhamento } from './pro
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
-import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
-import { nomeDoCompromisso } from '../regras/compromisso';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
+import {
+  desligarContratoDoProcesso, desligarDemandaDoProcesso, desligarNoItem, ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarEAvisar, ligarNoItem, tirarEAvisar,
+  type Desfazer
+} from './ligarNoCartao';
+import { EXPLICACAO_DE_TIRAR_DO_PROCESSO } from '../regras/tirarDoCartao';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
+import { nomeDoCompromisso, TIPOS_COMPROMISSO } from '../regras/compromisso';
 
 interface Props {
   id: string;
@@ -138,6 +142,12 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
   const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
+  /**
+   * O "x" das demandas, dos contratos, das tarefas e dos compromissos ligados (#424): quem altera o processo, com ele ativo. O item
+   * continua no SEMPER; só a ligação sai, com a pergunta antes e o Desfazer.
+   */
+  const sai = (oQue: string, tirar: () => Promise<Desfazer | null>, aviso: string, acao: string): PedidoDeTirar | undefined => podeLigar
+    ? { oQue, explicacao: EXPLICACAO_DE_TIRAR_DO_PROCESSO, aoTirar: () => tirarEAvisar(tirar, aviso, acao, depoisDeLigar) } : undefined;
   // O cadastro da tarefa que nasce ligada a este processo (#376).
   const novaTarefa = '/tarefas/nova/?processo=' + p.id;
   async function entrar(como: ComoEntrarNoProcesso) {
@@ -148,7 +158,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
-    detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined });
+    detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined,
+    // O "x" de cada cliente (#424): nunca no último (o processo precisa de um cliente).
+    tirar: podeLigar ? tirarPessoaDoItem('processos', p.id, c, p.clientes.length, depoisDeLigar) : undefined });
 
   async function arquivar() {
     const estava = !!p!.arquivado_em;
@@ -252,28 +264,34 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* Tarefas e Compromissos vêm antes de Clientes (#429). O "+ Nova tarefa" (#376), com as condições do ligar: a tarefa nasce com o processo e os clientes dele, e a tela volta aqui. */}
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas" contador={quantos.tarefas}
-      novo={podeLigar ? { para: novaTarefa, rotulo: 'Nova tarefa deste processo' } : undefined}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados novo={{ para: novaTarefa, rotulo: 'Nova tarefa' }}>
+      ligar={podeLigar ? ligarDoModulo('tarefas') : undefined} novo={podeLigar ? { para: novaTarefa, rotulo: 'Nova tarefa deste processo' } : undefined}>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist}
+        tirar={t => sai(`a tarefa ${t.codigo}`, () => desligarNoItem('processo da tarefa', t.id, p.id), `Tarefa tirada do processo: ${t.codigo}.`, 'retirada da tarefa')} />
+      {podeLigar && <AcoesDosLigados>
         <LigarDoModulo modulo="tarefas" filtro={{ sem: 'processos' }}
           aoEscolher={t => ligarEAvisar(() => ligarNoItem('processo da tarefa', t.id, p.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este processo.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeCriarCompromisso ? { para: novoCompromisso, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos}
+      ligar={podeLigar ? ligarDoModulo('compromissos') : undefined} novo={podeCriarCompromisso ? { para: novoCompromisso, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
       {/* Lê a lista uma vez: muda a chave quando algo foi ligado ou desfeito. */}
-      <CompromissosLigados key={`${podeAlterar}:${versaoHist}`} carregar={() => SD.compromissosDoProcesso(p.id)} vazio={podeAlterar ? 'Nenhum compromisso ligado a este processo.' : SEM_COMPROMISSO_VISIVEL} />
-      {podeCriarCompromisso && <AcoesDosLigados novo={{ para: novoCompromisso, rotulo: 'Novo compromisso' }}>
-        {podeLigar && <LigarDoModulo modulo="compromissos" filtro={{ sem: 'processos' }} aviso="Quem está neste processo passa a ver o compromisso que você ligar."
+      {/* A audiência e a perícia precisam do processo: não saem por aqui (trocar o processo delas é pelo lápis do compromisso). */}
+      <CompromissosLigados key={`${podeAlterar}:${versaoHist}`} carregar={() => SD.compromissosDoProcesso(p.id)} vazio={podeAlterar ? 'Nenhum compromisso ligado a este processo.' : SEM_COMPROMISSO_VISIVEL}
+        tirar={c => TIPOS_COMPROMISSO[c.tipo].doProcesso ? undefined
+          : sai(`o compromisso ${nomeDoCompromisso(c)}`, () => desligarNoItem('processo do compromisso', c.id, p.id), `Compromisso tirado do processo: ${nomeDoCompromisso(c)}.`, 'retirada do compromisso')} />
+      {podeLigar && <AcoesDosLigados>
+        <LigarDoModulo modulo="compromissos" filtro={{ sem: 'processos' }} aviso="Quem está neste processo passa a ver o compromisso que você ligar."
           aoEscolher={c => ligarEAvisar(() => ligarNoItem('processo do compromisso', c.id, p.id),
-            { feito: `Compromisso ligado: ${nomeDoCompromisso(c)}.`, oQue: 'ligação do compromisso', ja: 'Este compromisso já estava ligado a este processo.' }, depoisDeLigar)} />}
+            { feito: `Compromisso ligado: ${nomeDoCompromisso(c)}.`, oQue: 'ligação do compromisso', ja: 'Este compromisso já estava ligado a este processo.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).titulo} atalho="ligacao">
+    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length}
+      ligar={ligarPessoaNoItem('processos', p.clientes, podeLigar)} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar)} atalho="ligacao">
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar).embaixo} />}
+      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} />}
     </Recolhivel>
 
     {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo. O número: os prazos por vir. */}
@@ -281,23 +299,24 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <ValidadeDaProtecao prazos={protecao} hoje={hoje} acompanhar={acompanharNaAgenda} />
     </Recolhivel>}
 
-    {/* As outras pessoas do processo, com o papel de cada uma (#316). O "+" do título abre o formulário de baixo. Nos de PI, também
-        titular, inventor e autor da criação (#317). */}
+    {/* As outras pessoas do processo, com o papel de cada uma (#316). A corrente do título (#427: liga uma pessoa que já está no
+        cadastro) abre o formulário de baixo. Nos de PI, também titular, inventor e autor da criação (#317). */}
     <Recolhivel titulo="Pessoas do processo" icone="pessoas" preferencia="processos.cartao.partes" contador={partes?.length}
-      novo={podeLigar ? { rotulo: LIGAR_PARTE_NO_TITULO } : undefined}>
+      ligar={podeLigar ? ligarParte(partes) : undefined}>
       <PartesDoProcesso processoId={p.id} partes={partes} papeis={papeisParaEscolher(p)} podeMudar={podeLigar} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>
 
     {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos. */}
     <Recolhivel titulo="Recursos e incidentais" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
       novo={podeLigar ? novoDerivado(p.id) : undefined}>
-      <ProcessosRelacionados lista={relacionados} processoId={p.id} />
+      <ProcessosRelacionados lista={relacionados} />
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}
-      novo={podeLigar ? { para: novaDemanda, rotulo: 'Nova demanda deste processo' } : undefined}>
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoProcesso(p.id)} vazio="Nenhuma demanda ligada a este processo que você possa abrir." versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados novo={{ para: novaDemanda, rotulo: 'Nova demanda' }}>
+      ligar={podeLigar ? ligarDoModulo('demandas') : undefined} novo={podeLigar ? { para: novaDemanda, rotulo: 'Nova demanda deste processo' } : undefined}>
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoProcesso(p.id)} vazio="Nenhuma demanda ligada a este processo que você possa abrir." versao={versaoHist}
+        tirar={d => sai(`a demanda ${d.codigo}`, () => desligarDemandaDoProcesso(p.id, d.id), `Demanda tirada do processo: ${d.codigo}.`, 'retirada da demanda')} />
+      {podeLigar && <AcoesDosLigados>
         <LigarDoModulo modulo="demandas" filtro={async () => ({ fora: (await SD.demandasDoProcesso(p.id)).map(d => d.id) })}
           aoEscolher={d => ligarEAvisar(() => ligarDemandaNoProcesso(p.id, d.id),
             { feito: `Demanda ligada: ${d.titulo}.`, oQue: 'ligação da demanda', ja: 'Esta demanda já estava ligada a este processo.' }, depoisDeLigar)} />
@@ -306,9 +325,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {modulos?.contratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="processos.cartao.contratos"
       contador={quantos.contratos ? quantos.contratos.visiveis.length + quantos.contratos.ocultos : undefined}
-      novo={podeLigar ? { para: novoContrato, rotulo: 'Novo contrato deste processo' } : undefined}>
-      <ContratosDoProcesso processoId={p.id} versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados novo={{ para: novoContrato, rotulo: 'Novo contrato' }}>
+      ligar={podeLigar ? ligarDoModulo('contratos') : undefined} novo={podeLigar ? { para: novoContrato, rotulo: 'Novo contrato deste processo' } : undefined}>
+      <ContratosDoProcesso processoId={p.id} versao={versaoHist}
+        tirar={k => sai(`o contrato ${k.codigo}`, () => desligarContratoDoProcesso(p.id, k.id), `Contrato tirado do processo: ${k.codigo}.`, 'retirada do contrato')} />
+      {podeLigar && <AcoesDosLigados>
         <LigarDoModulo modulo="contratos" filtro={async () => ({ fora: (await SD.contratosDoProcesso(p.id)).visiveis.map(k => k.id) })}
           aoEscolher={k => ligarEAvisar(() => ligarContratoNoProcesso(p.id, k.id),
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Este contrato já estava ligado a este processo.' }, depoisDeLigar)} />

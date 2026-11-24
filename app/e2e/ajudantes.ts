@@ -159,3 +159,11 @@ export async function acaoDaBolinha(page: Page, lugar: Page | Locator, bolinha: 
   const menu = await abrirMenuDaBolinha(page, lugar, bolinha);
   await menu.getByRole('menuitem', { name: acao, exact: true }).click();
 }
+
+/** A pergunta do "x" de tirar do cartão (#424): a janela "Tirar …?", e o "Tirar" dela confirma. */
+export const perguntaDoTirar = (page: Page) => page.getByRole('dialog', { name: /^Tirar .+\?$/ });
+/** Clica no "x" de tirar (o botão "Tirar …") e confirma na pergunta. */
+export async function tirarDoCartao(page: Page, x: Locator) {
+  await x.click();
+  await perguntaDoTirar(page).getByRole('button', { name: 'Tirar', exact: true }).click();
+}

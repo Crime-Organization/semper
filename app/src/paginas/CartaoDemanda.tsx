@@ -16,7 +16,7 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { acaoDeConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
@@ -50,9 +50,11 @@ import { ListasDoCartao } from './ListasDoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
-import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
+import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
+import { desligarNoItem, ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda, tirarEAvisar } from './ligarNoCartao';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
+import { EXPLICACAO_DE_TIRAR_O_CONTRATO_DA_DEMANDA, podeTirarOContratoDaDemanda } from '../regras/tirarDoCartao';
 
 interface Props {
   id: string;
@@ -116,11 +118,17 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   // O contrato, ligado (o que existe) ou criado já ligado (#376): um só, e só enquanto a demanda não tem.
   const ligaContrato = ligaNaDemanda && !d.contrato_id && !!ctx.escritorio?.modulos?.contratos, novoContrato = '/contratos/novo/?demanda=' + d.id;
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
-    detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
+    detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined, tirar: ligaNaDemanda ? tirarPessoaDoItem('demandas', d.id, p, d.clientes.length, depoisDeLigar) : undefined });
+  // O "x" do contrato (#424): só na demanda que não nasceu de um objeto dele (essa troca de contrato pelo lápis).
+  const tirarContrato = ligaNaDemanda && d.contrato_id && podeTirarOContratoDaDemanda(d) ? contratoQueSai(d.contrato_id, d.contrato?.codigo ?? d.contrato_codigo ?? '') : undefined;
+  function contratoQueSai(contratoId: string, codigo: string): PedidoDeTirar {
+    return { oQue: `o contrato ${codigo}`, explicacao: EXPLICACAO_DE_TIRAR_O_CONTRATO_DA_DEMANDA,
+      aoTirar: () => tirarEAvisar(() => desligarNoItem('contrato da demanda', d!.id, contratoId), `Contrato tirado da demanda: ${codigo}.`, 'retirada do contrato', depoisDeLigar) };
+  }
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
   const contrato: ItemLigado | null = d.contrato
-    ? { id: 'contrato', para: '/contratos/?id=' + d.contrato.id, codigo: d.contrato.codigo, titulo: d.contrato.servico, detalhe: 'Contrato' }
-    : d.contrato_codigo ? { id: 'contrato', para: veTudo && d.contrato_id ? '/contratos/?id=' + d.contrato_id : undefined, codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' } : null;
+    ? { id: 'contrato', para: '/contratos/?id=' + d.contrato.id, codigo: d.contrato.codigo, titulo: d.contrato.servico, detalhe: 'Contrato', tirar: tirarContrato }
+    : d.contrato_codigo ? { id: 'contrato', para: veTudo && d.contrato_id ? '/contratos/?id=' + d.contrato_id : undefined, codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato', tirar: tirarContrato } : null;
 
   async function arquivar() {
     const estava = !!d!.arquivado_em;
@@ -229,9 +237,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     <ListasDoCartao modulo="demandas" id={d.id} somenteLer={!podeAlterar} />
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}
-      novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
+      ligar={ligaNaDemanda ? ligarDoModulo('tarefas') : undefined} novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
-      {ligaNaDemanda && <AcoesDosLigados novo={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa' }}>
+      {ligaNaDemanda && <AcoesDosLigados>
         {/* A tarefa pode estar em várias demandas (#283): a de outra demanda também entra nesta, e continua na outra. */}
         <LigarDoModulo modulo="tarefas" motivo={t => t.demanda_id === d.id ? 'já ligada a esta demanda' : ''}
           aviso="Quem está nesta demanda passa a ver a tarefa que você ligar. A tarefa leva o contrato da demanda e, se ainda não tem pessoas, os clientes dela."
@@ -241,22 +249,23 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}
-      novo={novoProcessoDaDemanda(d.id, 'Novo processo desta demanda')}>
+      ligar={!d.arquivado_em && podeAlterar ? { rotulo: LIGAR_PROCESSO } : undefined} novo={novoProcessoDaDemanda(d.id, 'Novo processo desta demanda')}>
       <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length} novo={novaPessoaNoItem('demandas', d.id, d.clientes, ligaNaDemanda).titulo} atalho="ligacao">
+    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}
+      ligar={ligarPessoaNoItem('demandas', d.clientes, ligaNaDemanda)} novo={novaPessoaNoItem('demandas', d.id, d.clientes, ligaNaDemanda)} atalho="ligacao">
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
-      {ligaNaDemanda && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('demandas', d.id, d.clientes, ligaNaDemanda).embaixo}
+      {ligaNaDemanda && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar}
         aviso={d.contrato_id ? 'Esta demanda é de um contrato: confira se a pessoa também é parte dele.' : undefined} />}
     </Recolhivel>
 
     <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" contador={contrato ? 1 : 0}
-      novo={ligaContrato ? { para: novoContrato, rotulo: 'Novo contrato desta demanda' } : undefined}>
+      ligar={ligaContrato ? ligarDoModulo('contratos') : undefined} novo={ligaContrato ? { para: novoContrato, rotulo: 'Novo contrato desta demanda' } : undefined}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
       {/* Um contrato só: com ele, trocar é pelo lápis (a demanda pode ter nascido de um objeto dele). */}
-      {ligaContrato && <AcoesDosLigados novo={{ para: novoContrato, rotulo: 'Novo contrato' }}>
+      {ligaContrato && <AcoesDosLigados>
         <LigarDoModulo modulo="contratos" aviso="Quem está no contrato passa a ver, só para ler, esta demanda e as tarefas dela."
           aoEscolher={k => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
@@ -265,7 +274,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* As demandas ligadas a esta, nos dois sentidos (#310). */}
     <Recolhivel titulo="Demandas relacionadas" icone="demandas" preferencia="demandas.cartao.relacionadas"
-      contador={Array.isArray(relacionadas) ? relacionadas.length : undefined}>
+      contador={Array.isArray(relacionadas) ? relacionadas.length : undefined} ligar={podeLigar ? ligarDoModulo('demandas') : undefined}>
       <DemandasRelacionadas demandaId={d.id} relacionadas={relacionadas} colunas={quadro.colunas} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
     </Recolhivel>
     {/* Os compromissos ligados à demanda (#306), com o + Novo compromisso já ligado. */}

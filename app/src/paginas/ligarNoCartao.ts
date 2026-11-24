@@ -3,13 +3,14 @@
 // e nada foi gravado (a tela então avisa sem Desfazer, que apagaria a ligação feita por outra pessoa). O Desfazer também lê antes
 // e tira só o que esta ligação pôs. As regras de cada passo estão em regras/ligarExistente.ts. O que as regras recusam vem como
 // RecusaDaLigacao: tentar de novo pelo cartão daria a mesma recusa (#376).
-import { SD, type ModuloDoCompromisso, type Tarefa } from '../dados';
+import { SD, type DadosTarefa, type ModuloDoCompromisso, type Tarefa } from '../dados';
 import {
   acrescentar, desfazerTarefaEmMaisUmaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, RecusaDaLigacao, semOId,
   TAREFA_DE_OUTRO_PROCESSO, tarefaEmMaisUmaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
 } from '../regras/ligarExistente';
 import { CONTRATOS_DA_TAREFA_CHEIA, contratosDaTarefa, DEMANDAS_DA_TAREFA_CHEIA, demandasDaTarefa } from '../regras/tarefa';
-import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA } from '../dados/limites';
+import { CLIENTES_MAXIMOS, CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA } from '../dados/limites';
+import { devolverNaLista, podeTirarADemandaDaTarefa, podeTirarAPessoa, TAREFA_FICARIA_SEM_DEMANDA, ULTIMO_CLIENTE_DO_PROCESSO } from '../regras/tirarDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 
 /** Volta o que a ligação gravou. */
@@ -185,4 +186,80 @@ export async function ligarEAvisar(ligar: () => Promise<Desfazer | null>, t: Tex
     else avisar(t.ja, 'info');
     depois();
   } catch (e) { falha(e); }
+}
+
+// ---------- tirar do cartão (#424) ----------
+// O "x" de cada item ligado (ui/base/BotaoTirar.tsx), depois da pergunta. Como ao ligar, cada gravação lê a lista (ou a ligação)
+// logo antes, para não apagar o que outra pessoa acabou de mudar, e devolve o Desfazer; null quando o item já não estava lá (outra
+// pessoa tirou antes). As regras de cada passo estão em regras/tirarDoCartao.ts.
+
+/** Tira a pessoa da lista do item (o cliente da demanda e do processo, a pessoa da tarefa e do compromisso). */
+export async function tirarAPessoa(modulo: ItemComPessoas, itemId: string, pessoaId: string): Promise<Desfazer | null> {
+  const l = PESSOAS_DO_ITEM[modulo];
+  const atual = await l.ler(itemId);
+  if (!atual) throw new RecusaDaLigacao(ITEM_SUMIU);
+  if (!atual.includes(pessoaId)) return null;
+  if (!podeTirarAPessoa(modulo, atual.length)) throw new RecusaDaLigacao(ULTIMO_CLIENTE_DO_PROCESSO);
+  const posicao = atual.indexOf(pessoaId);
+  await l.gravar(itemId, semOId(atual, pessoaId));
+  return async () => {
+    const volta = devolverNaLista(await l.ler(itemId) ?? [], pessoaId, posicao, CLIENTES_MAXIMOS);
+    if (volta) await l.gravar(itemId, volta);
+  };
+}
+
+/** Desliga o item de `valor` (a ligação de um só: o contrato da demanda, o processo da tarefa ou do compromisso), se ainda é ele. */
+export async function desligarNoItem(qual: LigacaoNoItem, itemId: string, valor: string): Promise<Desfazer | null> {
+  const l = LIGACOES_NO_ITEM[qual];
+  const atual = await l.ler(itemId);
+  if (atual === undefined) throw new RecusaDaLigacao(ITEM_SUMIU);
+  if (atual !== valor) return null;
+  await l.gravar(itemId, null);
+  // Outra pessoa ligou outro enquanto isso: fica o dela.
+  return async () => { if (await l.ler(itemId) === null) await l.gravar(itemId, valor); };
+}
+
+/** A lista de demandas ou de contratos da tarefa (#283), no que tirar mexe. */
+interface ListaDaTarefa { ler: (t: Tarefa) => string[]; dados: (lista: string[]) => DadosTarefa; maximo: number; minimo: (quantas: number) => boolean; recusa: string }
+const LISTAS_DA_TAREFA: Record<'demandas' | 'contratos', ListaDaTarefa> = {
+  demandas: { ler: demandasDaTarefa, dados: demanda_ids => ({ demanda_ids }), maximo: DEMANDAS_POR_TAREFA, minimo: podeTirarADemandaDaTarefa, recusa: TAREFA_FICARIA_SEM_DEMANDA },
+  contratos: { ler: contratosDaTarefa, dados: contrato_ids => ({ contrato_ids }), maximo: CONTRATOS_POR_TAREFA, minimo: () => true, recusa: '' }
+};
+/** Tira a tarefa de uma das demandas (só se ela continua em outra) ou de um dos contratos dela. */
+export async function tirarDaTarefa(qual: keyof typeof LISTAS_DA_TAREFA, tarefaId: string, id: string): Promise<Desfazer | null> {
+  const l = LISTAS_DA_TAREFA[qual];
+  const t = await SD.tarefaObter(tarefaId);
+  if (!t) throw new RecusaDaLigacao(ITEM_SUMIU);
+  const lista = l.ler(t);
+  if (!lista.includes(id)) return null;
+  if (!l.minimo(lista.length)) throw new RecusaDaLigacao(l.recusa);
+  const posicao = lista.indexOf(id);
+  await SD.tarefaAtualizar(tarefaId, l.dados(semOId(lista, id)));
+  return async () => {
+    const agora = await SD.tarefaObter(tarefaId);
+    const volta = agora && devolverNaLista(l.ler(agora), id, posicao, l.maximo);
+    if (volta) await SD.tarefaAtualizar(tarefaId, l.dados(volta));
+  };
+}
+
+/** Os textos do aviso de tirar: o que foi feito, o nome da ação (para o Desfazer) e o aviso de quando já não estava. */
+export const JA_TIRADO = 'Este item já não estava ligado aqui.';
+/** Tira e avisa, com o Desfazer, como ligarEAvisar; `depois` relê o cartão. */
+export const tirarEAvisar = (tirar: () => Promise<Desfazer | null>, feito: string, oQue: string, depois: () => unknown) =>
+  ligarEAvisar(tirar, { feito, oQue, ja: JA_TIRADO }, depois);
+
+/** Desliga o compromisso da tarefa, da demanda ou do contrato (#306, #424); o Desfazer o liga de novo. */
+export async function desligarCompromissoDoItem(modulo: ModuloDoCompromisso, itemId: string, compromissoId: string): Promise<Desfazer | null> {
+  await SD.compromissoDesligar(compromissoId, modulo, itemId);
+  return async () => { await SD.compromissoLigar(compromissoId, modulo, itemId); };
+}
+/** Desliga a demanda do processo (#424); o Desfazer a liga de novo, como a ligação feita no cartão ("atua"). */
+export async function desligarDemandaDoProcesso(processoId: string, demandaId: string): Promise<Desfazer | null> {
+  await SD.processoDemandaDesligar(processoId, demandaId);
+  return async () => { await SD.processoDemandaLigar(processoId, demandaId, 'atua'); };
+}
+/** Desliga o contrato do processo (#424); o Desfazer o liga de novo. */
+export async function desligarContratoDoProcesso(processoId: string, contratoId: string): Promise<Desfazer | null> {
+  await SD.contratoProcessoDesligar(contratoId, processoId);
+  return async () => { await SD.contratoProcessoLigar(contratoId, processoId); };
 }

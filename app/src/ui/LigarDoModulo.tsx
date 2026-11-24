@@ -10,6 +10,7 @@ import { clientesPorExtenso } from '../regras/contrato';
 import { fmtData, fmtDocumento, TIPOS } from '../regras/pessoa';
 import { detalheDoProcesso, nomeDoProcesso } from '../regras/processo';
 import { LigarExistente, type AchadoParaLigar } from './LigarExistente';
+import type { LigarNaSecao } from './Recolhivel';
 
 /** O filtro de cada busca, sem o texto (que é o que a pessoa digita). As pessoas só saem pelos já ligados. */
 type Sem<S extends LigacaoDeUmSo = never> = Omit<FiltroParaLigar<S>, 'termo'>;
@@ -86,6 +87,12 @@ const MODULOS: { [M in ModuloParaLigar]: Modulo<M> } = {
     semAchados: { comTexto: 'Nenhuma pessoa ativa com esse texto que ainda não esteja aqui.', semTexto: 'Nenhuma pessoa ativa que ainda não esteja aqui.' }
   }
 };
+
+/**
+ * A corrente do título de uma seção (#427) que abre a busca do módulo aqui embaixo: o nome dela é o do botão "Ligar … existente"
+ * (ou o `rotulo` próprio, o mesmo passado ao LigarDoModulo, como "Ligar mais uma demanda").
+ */
+export const ligarDoModulo = (modulo: ModuloParaLigar, rotulo?: string): LigarNaSecao => ({ rotulo: rotulo ?? MODULOS[modulo].rotulo });
 
 interface Props<M extends ModuloParaLigar> {
   modulo: M;

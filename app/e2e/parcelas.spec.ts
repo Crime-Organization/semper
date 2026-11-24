@@ -10,7 +10,7 @@ const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.
 async function prepararCaixa(page: Page) {
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
-  await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
   const conta = page.getByRole('form', { name: 'Nova conta' });
   await conta.getByLabel('Nome da conta').fill('PJ');
   await conta.getByLabel('Saldo inicial').fill('0,00');
@@ -172,7 +172,7 @@ test.describe('Parcelas do contrato', () => {
     await expect(cartao.getByText('Este contrato não gera parcelas sozinho', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
     // Quando: lança
-    await cartao.getByRole('button', { name: 'Nova parcela' }).filter({ hasText: 'Nova parcela' }).click();
+    await cartao.getByRole('button', { name: 'Nova parcela', exact: true }).click();
     const nova = cartao.getByRole('form', { name: 'Nova parcela' });
     await nova.getByRole('button', { name: 'Salvar parcela' }).click();
     await expect(nova.getByText('Informe o valor.')).toBeVisible();
@@ -202,7 +202,7 @@ test.describe('Parcelas do contrato', () => {
     // Dado
     const cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');
     await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
-    await cartao.getByRole('button', { name: 'Nova parcela' }).filter({ hasText: 'Nova parcela' }).click();
+    await cartao.getByRole('button', { name: 'Nova parcela', exact: true }).click();
     const nova = cartao.getByRole('form', { name: 'Nova parcela' });
     await nova.getByLabel('Valor').fill('500,00');
     await nova.getByRole('button', { name: 'Salvar parcela' }).click();
@@ -341,7 +341,7 @@ test.describe('Receber', () => {
   test('quando o responsável é sócio, então a parte dele fica no escritório, sem repasse', async ({ page }) => {
     // Dado
     await abrirSecao(page, 'Sócios');
-    await page.getByRole('button', { name: 'Novo sócio' }).filter({ hasText: 'Novo sócio' }).click();
+    await page.getByRole('button', { name: 'Novo sócio', exact: true }).click();
     const socio = page.getByRole('form', { name: 'Novo sócio' });
     await socio.getByLabel('Pessoa').fill('MAURO TEIXEIRA');
     await socio.getByRole('button', { name: /MAURO TEIXEIRA/ }).click();
@@ -514,7 +514,7 @@ test.describe('A conta de destino do contrato (#269)', () => {
     // Dado: além da PJ (com DAS, a que a nova entrada sugeriria sozinha), uma conta PF sem DAS
     await page.goto('/financeiro/contas/');
     await abrirSecao(page, 'Contas');
-    await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
+    await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
     const nova = page.getByRole('form', { name: 'Nova conta' });
     await nova.getByLabel('Nome da conta').fill('PF');
     await nova.getByLabel('Saldo inicial').fill('0,00');

@@ -25,7 +25,7 @@ import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoDeIcone, Carregando, Codigo, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Icone } from '../ui/Icone';
-import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
+import { CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -43,8 +43,9 @@ import { CompromissosLigados } from './CompromissosLigados';
 import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { ORIGEM_DA_PESSOA } from '../regras/origemDaPessoa';
 import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
-import { VinculosPessoa } from './VinculosPessoa';
-import { LigarAPessoa } from './PessoasNosItens';
+import { VINCULAR_PESSOA, VinculosPessoa } from './VinculosPessoa';
+import { LigarAPessoa, ligarAPessoa, tirarAPessoaDoItem } from './PessoasNosItens';
+import { nomeDoCompromisso } from '../regras/compromisso';
 import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 
@@ -259,35 +260,38 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       contador={Array.isArray(contratos) ? contratos.length : undefined} novo={novoContrato(p.id, 'Novo contrato com esta pessoa como cliente')}>
       {contratos === null ? <Carregando />
         : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
-        : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
+        : <ContratosDaPessoa lista={contratos} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.financeiro && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="pessoas.cartao.parcelas" contador={quantos.parcelas}>
       <ParcelasDaPessoa pessoaId={p.id} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }}>
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." versao={versaoHist} />
-      {podeLigar && <LigarAPessoa modulo="demandas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda' }} />}
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas} ligar={ligarAPessoa('demandas', podeLigar)} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }}>
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." versao={versaoHist}
+        tirar={podeLigar ? d => tirarAPessoaDoItem('demandas', p, d, `da demanda ${d.codigo}`, depoisDeLigar) : undefined} />
+      {podeLigar && <LigarAPessoa modulo="demandas" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}
-      novo={novoProcessoDaPessoa(id, 'Novo processo com esta pessoa como cliente')}>
-      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
+      ligar={ligarAPessoa('processos', podeLigar)} novo={novoProcessoDaPessoa(id, 'Novo processo com esta pessoa como cliente')}>
+      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} pessoa={p} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }}>
-      <CompromissosLigados key={versaoHist} carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa." />
-      {podeLigar && <LigarAPessoa modulo="compromissos" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso' }} />}
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos} ligar={ligarAPessoa('compromissos', podeLigar)} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }}>
+      <CompromissosLigados key={versaoHist} carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa."
+        tirar={podeLigar ? c => tirarAPessoaDoItem('compromissos', p, c, `do compromisso ${nomeDoCompromisso(c)}`, depoisDeLigar) : undefined} />
+      {podeLigar && <LigarAPessoa modulo="compromissos" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." versao={versaoHist} />
-      {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa' }} />}
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} ligar={ligarAPessoa('tarefas', podeLigar)} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." versao={versaoHist}
+        tirar={podeLigar ? t => tirarAPessoaDoItem('tarefas', p, t, `da tarefa ${t.codigo}`, depoisDeLigar) : undefined} />
+      {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}
-      novo={podeLigar ? { rotulo: ORIGEM_DA_PESSOA.vinculos.novo } : undefined} atalho="ligacao">
+      ligar={{ rotulo: VINCULAR_PESSOA }} novo={podeLigar ? { rotulo: ORIGEM_DA_PESSOA.vinculos.novo } : undefined} atalho="ligacao">
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} podeCriar={podeLigar} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
@@ -332,7 +336,7 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode]
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
 
 // ---------- contratos ----------
-function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pessoaId: string }) {
+function ContratosDaPessoa({ lista }: { lista: ContratoDaPessoa[] }) {
   // A situação de cada contrato é o nome da coluna dele no quadro de contratos.
   const [colunas, setColunas] = useState<Coluna[]>([]);
   useEffect(() => { SD.colunasListar('contratos').then(setColunas).catch(() => {}); }, []);
@@ -342,7 +346,6 @@ function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pes
       id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, selo: k.arquivado_em ? 'Arquivado' : undefined,
       detalhe: k.papeis.map(x => PAPEIS_NO_CONTRATO[x]).join(', ') + ' · ' + situacao(k.etapa_id)
     }))} />
-    <AcoesDosLigados novo={novoContrato(pessoaId, 'Novo contrato')} />
   </>;
 }
 /** O contrato novo com a pessoa como cliente: o cadastro volta a este cartão depois de gravar (#376). */

@@ -29,58 +29,44 @@ describe('Itens ligados a um cadastro', () => {
   });
 });
 
-describe('O atalho para criar um item ligado', () => {
-  const NOVA = { para: '/tarefas/nova/?contrato=k1', rotulo: 'Nova tarefa deste contrato' };
 
-  it('dado itens na lista, quando aparece, então o atalho é só o "+", com o nome para o leitor de tela', () => {
+describe('Os atalhos de criar e ligar ficam só no título da seção (#427)', () => {
+  it('dado itens na lista, quando aparece, então não há "+" ao lado da lista nem botão embaixo', () => {
     // Quando
-    render(<MemoryRouter><ItensLigados vazio="Nada." novo={NOVA} itens={[{ id: 't1', para: '/tarefas/?id=t1', titulo: 'Protocolar' }]} /></MemoryRouter>);
-    // Então
-    const mais = screen.getByRole('link', { name: 'Nova tarefa deste contrato' });
-    expect(mais).toHaveAttribute('href', NOVA.para);
-    expect(mais).not.toHaveTextContent('Nova tarefa');
+    render(<MemoryRouter><ItensLigados vazio="Nada." itens={[{ id: 't1', para: '/tarefas/?id=t1', titulo: 'Protocolar' }]} /></MemoryRouter>);
+    // Então: o único link é o do item
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /Protocolar/ })).toHaveAttribute('href', '/tarefas/?id=t1');
   });
 
-  it('dado a lista vazia, quando aparece, então mostra o texto de vazio e o botão com o nome escrito', () => {
+  it('dada a linha de baixo sem a busca aberta, quando aparece, então não ocupa lugar nenhum', () => {
     // Quando
-    render(<MemoryRouter><ItensLigados vazio="Nenhuma tarefa ligada a este contrato." novo={NOVA} itens={[]} /></MemoryRouter>);
+    const { container } = render(<AcoesDosLigados />);
     // Então
-    expect(screen.getByText('Nenhuma tarefa ligada a este contrato.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveTextContent('Nova tarefa deste contrato');
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
 describe('O cartão só para ler (#376)', () => {
   const NOVA = { para: '/tarefas/nova/?contrato=k1', rotulo: 'Nova tarefa deste contrato' };
-  const tudo = <>
-    <Recolhivel titulo="Tarefas" icone="tarefas" novo={NOVA}><p>dentro</p></Recolhivel>
-    <ItensLigados vazio="Nenhuma tarefa." novo={NOVA} itens={[]} />
-    <AcoesDosLigados novo={{ para: NOVA.para, rotulo: 'Nova tarefa' }}><button type="button">Ligar tarefa existente</button></AcoesDosLigados>
-  </>;
+  const LIGAR = { rotulo: 'Ligar tarefa existente' };
+  const secao = <Recolhivel titulo="Tarefas" icone="tarefas" ligar={LIGAR} novo={NOVA}><p>dentro</p></Recolhivel>;
 
-  it('dado o cartão que deixa criar, quando aparece, então o "+" do título, o da lista e o "+ Nova tarefa" de baixo levam ao cadastro', () => {
+  it('dado o cartão que deixa criar, quando aparece, então o título tem a corrente e o "+" que leva ao cadastro', () => {
     // Quando
-    render(<MemoryRouter><CriarNoCartao pode>{tudo}</CriarNoCartao></MemoryRouter>);
+    render(<MemoryRouter><CriarNoCartao pode>{secao}</CriarNoCartao></MemoryRouter>);
     // Então
-    expect(screen.getAllByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveLength(2);
-    expect(screen.getByRole('link', { name: 'Nova tarefa' })).toHaveAttribute('href', NOVA.para);
-  });
-
-  it('dado o cartão arquivado (ou de quem só lê), quando aparece, então nenhum atalho de criar aparece, e o resto continua', () => {
-    // Quando
-    render(<MemoryRouter><CriarNoCartao pode={false}>{tudo}</CriarNoCartao></MemoryRouter>);
-    // Então
-    expect(screen.queryByRole('link')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Tarefas' })).toBeInTheDocument();
-    expect(screen.getByText('Nenhuma tarefa.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveAttribute('href', NOVA.para);
     expect(screen.getByRole('button', { name: 'Ligar tarefa existente' })).toBeInTheDocument();
   });
 
-  it('dado o cartão arquivado e uma seção que só tinha o "+ Novo …" embaixo, quando aparece, então não sobra a linha vazia dos botões', () => {
+  it('dado o cartão arquivado (ou de quem só lê), quando aparece, então nem a corrente nem o "+" aparecem, e o título continua', () => {
     // Quando
-    const { container } = render(<MemoryRouter><CriarNoCartao pode={false}><AcoesDosLigados novo={NOVA} /></CriarNoCartao></MemoryRouter>);
+    render(<MemoryRouter><CriarNoCartao pode={false}>{secao}</CriarNoCartao></MemoryRouter>);
     // Então
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ligar tarefa existente' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Tarefas' })).toBeInTheDocument();
   });
 
   it('dado uma seção fora de qualquer cartão, quando tem o atalho, então ele aparece (cada seção decide)', () => {

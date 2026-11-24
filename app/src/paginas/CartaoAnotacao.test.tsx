@@ -19,6 +19,7 @@ import { lojaDeEtiquetas } from '../ui/Etiquetas';
 import { lojaDePastas } from '../ui/pastasDoEscritorio';
 import { ESPERA_PARA_SALVAR } from '../ui/tempos';
 import { Janelas } from '../ui/janela';
+import { CONFIRMAR_O_TIRAR } from '../ui/base';
 import { BotoesNoPainel, ColunaDoCartao } from '../ui/PainelCartao';
 import { iniciarPreferencias } from '../ui/preferencias';
 import { CartaoAnotacao, ITEM_JA_LIGADO } from './CartaoAnotacao';
@@ -592,14 +593,15 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
     if (secao.getAttribute('aria-expanded') === 'false') await userEvent.click(secao);
   }
 
-  it('dado quem altera a anotação, quando abre "Ligada a", então o "+ Novo…" fica ao lado de "Ligar a outro item" e abre o menu', async () => {
+  it('dado quem altera a anotação, quando abre "Ligada a", então o título tem a corrente "Ligar a outro item" e o "+", que abre o menu do item novo (#427)', async () => {
     // Dado
     anotacaoObter.mockImplementation(async () => anotacao(''));
     // Quando
     await abrirLigadaA();
-    await userEvent.click(await screen.findByRole('button', { name: 'Novo…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo item ligado a esta anotação' }));
     // Então
     expect(screen.getByRole('button', { name: /^Ligar a (outro|um) item/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
     // (o escritório destes casos não tem módulos ligados: só as pessoas, que existem sempre)
     expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).toEqual(['Pessoa']);
   });
@@ -611,7 +613,7 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
     await abrirLigadaA();
     // Então
     expect(await screen.findByText('Esta anotação não está ligada a nenhum item.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Novo/ })).not.toBeInTheDocument();
   });
 
   it('dada a anotação arquivada, quando abre "Ligada a", então não há "+ Novo…"', async () => {
@@ -621,7 +623,7 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
     await abrirLigadaA();
     // Então
     expect(await screen.findByText('Esta anotação não está ligada a nenhum item.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Novo/ })).not.toBeInTheDocument();
   });
 
   it('dada a anotação já ligada ao máximo de itens, quando abre "Ligada a", então não há "+ Novo…", e a nota diz o máximo', async () => {
@@ -632,7 +634,7 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
     await abrirLigadaA();
     // Então
     expect(await screen.findByText(`A anotação já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo.`)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Novo/ })).not.toBeInTheDocument();
   });
 });
 
@@ -825,6 +827,8 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     expect(selos.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Urgente' }));
+    // A regra mudou (#424, decisão do dono): o x pergunta antes de tirar.
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     expect(within(screen.getByRole('group', { name: 'Etiquetas' })).queryByText('Urgente')).not.toBeInTheDocument();
     expect(anotacaoCriar).not.toHaveBeenCalled();
@@ -994,7 +998,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
   it('dada a anotação nova, quando ainda não foi ao banco, então o "+ Novo…" espera; quando a pessoa escreve o título, então ele abre o menu (#376)', async () => {
     // Dado
     abrirNova();
-    const esperando = screen.getByRole('button', { name: 'Novo…' });
+    const esperando = screen.getByRole('button', { name: 'Novo item ligado a esta anotação' });
     expect(esperando).toHaveAttribute('aria-disabled', 'true');
     expect(esperando).toHaveAccessibleDescription(NOVO_ESPERA_A_ANOTACAO);
     await userEvent.click(esperando);
@@ -1004,8 +1008,8 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
     await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
     // Então
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Novo…' })).not.toHaveAttribute('aria-disabled'));
-    await userEvent.click(screen.getByRole('button', { name: 'Novo…' }));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Novo item ligado a esta anotação' })).not.toHaveAttribute('aria-disabled'));
+    await userEvent.click(screen.getByRole('button', { name: 'Novo item ligado a esta anotação' }));
     expect(screen.getByRole('menu', { name: 'Novo item ligado a esta anotação' })).toBeInTheDocument();
   });
 });

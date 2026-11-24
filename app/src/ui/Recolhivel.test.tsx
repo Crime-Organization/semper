@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { CriarNoCartao } from './ItensLigados';
 import { iniciarPreferencias, lerPreferencia } from './preferencias';
-import { GrupoDeSecoes, Recolhivel, usePedidoDeNovo } from './Recolhivel';
+import { GrupoDeSecoes, Recolhivel, usePedidoDeLigar, usePedidoDeNovo } from './Recolhivel';
+import { MemoryRouter } from 'react-router';
 
 describe('Seção recolhível', () => {
   it('quando começa fechada, então só o título aparece', () => {
@@ -232,5 +233,116 @@ describe('O "+" do título que pede o item novo à própria seção (#390)', () 
     render(<CriarNoCartao pode={false}><Recolhivel titulo="Prazos" icone="calendario" novo={{ rotulo: 'Novo prazo' }}><ComFormulario /></Recolhivel></CriarNoCartao>);
     // Então
     expect(screen.queryByRole('button', { name: 'Novo prazo' })).not.toBeInTheDocument();
+  });
+});
+
+/** O conteúdo de uma seção com a busca de ligar (como a das tarefas): fora da seção com a corrente, o botão; dentro, só a busca. */
+function ComBusca({ rotulo = 'Ligar tarefa existente', aoPedir = () => {} }: { rotulo?: string; aoPedir?: (botao: HTMLElement) => void }) {
+  const [buscando, setBuscando] = useState(false);
+  const peloTitulo = usePedidoDeLigar(rotulo, botao => { setBuscando(true); aoPedir(botao); });
+  return <>
+    <p>As tarefas</p>
+    {buscando ? <input aria-label={`Busca: ${rotulo}`} /> : !peloTitulo && <button type="button">{rotulo}</button>}
+  </>;
+}
+/** Quem atende o "+" diz se o título o tem: com ele, o botão de dentro some. */
+function ComBotaoDeDentro() {
+  const { peloTitulo } = usePedidoDeNovo(() => {});
+  return peloTitulo ? <p>Sem botão</p> : <button type="button">Novo prazo</button>;
+}
+
+describe('A corrente do título, que liga um item que já existe (#427)', () => {
+  it('dada a seção com a corrente, quando aparece, então o título tem o número, a corrente e o "+", com o nome na dica e para o leitor de tela', () => {
+    // Quando
+    render(<MemoryRouter><Recolhivel titulo="Tarefas" icone="tarefas" contador={2} ligar={{ rotulo: 'Ligar tarefa existente' }}
+      novo={{ para: '/tarefas/nova/', rotulo: 'Nova tarefa deste contrato' }}><ComBusca /></Recolhivel></MemoryRouter>);
+    // Então
+    const titulo = screen.getByRole('heading', { name: /Tarefas/ });
+    expect(within(titulo).getByRole('button', { name: 'Tarefas2' })).toBeInTheDocument();
+    expect(within(titulo).getByRole('button', { name: 'Ligar tarefa existente' })).toHaveAttribute('data-dica', 'Ligar tarefa existente');
+    expect(within(titulo).getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveAttribute('data-dica', 'Nova tarefa deste contrato');
+  });
+
+  it('dada a seção fechada, quando a pessoa clica na corrente, então ela abre só com a busca de dentro, sem o botão de baixo, e a escolha guardada continua fechada', async () => {
+    // Dado
+    iniciarPreferencias({ 'teste.tarefas': false });
+    const aoPedir = vi.fn();
+    render(<Recolhivel titulo="Tarefas" icone="tarefas" preferencia="teste.tarefas" ligar={{ rotulo: 'Ligar tarefa existente' }}><ComBusca aoPedir={aoPedir} /></Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar tarefa existente' }));
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Busca: Ligar tarefa existente' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Ligar tarefa existente' })).toHaveLength(1);
+    expect(aoPedir).toHaveBeenCalledWith(screen.getByRole('button', { name: 'Ligar tarefa existente' }));
+    expect(lerPreferencia('teste.tarefas', true)).toBe(false);
+  });
+
+  it('dada uma busca de outro rótulo na seção (a de uma linha da lista), quando aparece, então ela continua com o seu botão e não atende a corrente', async () => {
+    // Dado
+    const deOutra = vi.fn();
+    render(<Recolhivel titulo="Prazos" icone="calendario" abertaAoIniciar ligar={{ rotulo: 'Ligar tarefa existente' }}>
+      <ComBusca rotulo="Ligar tarefa ao prazo" aoPedir={deOutra} />
+    </Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar tarefa existente' }));
+    // Então
+    expect(screen.getByRole('button', { name: 'Ligar tarefa ao prazo' })).toBeInTheDocument();
+    expect(deOutra).not.toHaveBeenCalled();
+  });
+
+  it('dada a corrente sem lugar (a lista cheia), quando a pessoa clica nela, então nada abre, e a dica diz o motivo', async () => {
+    // Dado
+    const aoPedir = vi.fn();
+    render(<Recolhivel titulo="Clientes" icone="pessoas" abertaAoIniciar ligar={{ rotulo: 'Ligar cliente existente', indisponivel: 'A lista já está cheia.' }}>
+      <ComBusca rotulo="Ligar cliente existente" aoPedir={aoPedir} />
+    </Recolhivel>);
+    const corrente = screen.getByRole('button', { name: 'Ligar cliente existente' });
+    // Quando
+    await userEvent.click(corrente);
+    // Então
+    expect(corrente).toHaveAttribute('aria-disabled', 'true');
+    expect(corrente).toHaveAttribute('data-dica', 'A lista já está cheia.');
+    expect(aoPedir).not.toHaveBeenCalled();
+  });
+
+  it('dada a corrente de vários tipos, quando a pessoa clica nela e escolhe um, então a busca desse tipo abre', async () => {
+    // Dado
+    render(<Recolhivel titulo="Ligado a" icone="vinculo" ligar={{ rotulo: 'Ligar a um item existente', opcoes: [{ rotulo: 'Ligar tarefa existente' }, { rotulo: 'Ligar demanda existente' }] }}>
+      <ComBusca /><ComBusca rotulo="Ligar demanda existente" />
+    </Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar a um item existente' }));
+    await userEvent.click(within(screen.getByRole('menu', { name: 'Ligar a um item existente' })).getByRole('menuitem', { name: 'Ligar demanda existente' }));
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Busca: Ligar demanda existente' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Busca: Ligar tarefa existente' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
+describe('O "+" de vários tipos e o botão de dentro (#427)', () => {
+  it('dado o "+" com dois tipos, quando a pessoa clica nele, então escolhe o tipo num menu pequeno, cada um com o seu cadastro', async () => {
+    // Dado
+    render(<MemoryRouter><Recolhivel titulo="Recursos e incidentais" icone="processos" novo={{ rotulo: 'Novo recurso ou incidental', opcoes: [
+      { para: '/processos/novo/?ligacao=recurso', rotulo: 'Novo recurso' }, { para: '/processos/novo/?ligacao=incidental', rotulo: 'Novo incidental' }] }}><p>nada</p></Recolhivel></MemoryRouter>);
+    const mais = screen.getByRole('button', { name: 'Novo recurso ou incidental' });
+    // Quando
+    await userEvent.click(mais);
+    // Então
+    expect(mais).toHaveAttribute('aria-haspopup', 'menu');
+    const menu = screen.getByRole('menu', { name: 'Novo recurso ou incidental' });
+    expect(within(menu).getAllByRole('menuitem').map(i => i.getAttribute('href'))).toEqual(['/processos/novo/?ligacao=recurso', '/processos/novo/?ligacao=incidental']);
+  });
+
+  it('dado o "+" no título, quando a seção abre, então quem está dentro sabe e não mostra o seu botão; fora de uma seção, mostra', () => {
+    // Dado / Quando
+    render(<>
+      <Recolhivel titulo="Prazos" icone="calendario" abertaAoIniciar novo={{ rotulo: 'Novo prazo' }}><ComBotaoDeDentro /></Recolhivel>
+      <ComBotaoDeDentro />
+    </>);
+    // Então
+    expect(screen.getByText('Sem botão')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Novo prazo' })).toHaveLength(2);
+    expect(within(screen.getByRole('heading', { name: /Prazos/ })).getByRole('button', { name: 'Novo prazo' })).toBeInTheDocument();
   });
 });

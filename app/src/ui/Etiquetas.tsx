@@ -1,4 +1,4 @@
-// Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e, no topo dos cartões, o botão que
+// Etiquetas do escritório na tela: o selo colorido (com o "x" para tirar, que pergunta antes, #424), o filtro dos módulos e, no topo dos cartões, o botão que
 // abre a escolha (BotaoDasEtiquetas, o ícone de etiqueta), onde a pessoa aplica, cria, muda e exclui etiquetas, e os selos
 // (SelosDasEtiquetas, entre o topo e o título). Todo módulo com quadro usa estas peças (os cartões, por ui/TopoDoCartao.tsx, #382;
 // a anotação, direto); a lista fica em etiquetasDoEscritorio.ts.
@@ -7,7 +7,7 @@ import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
 import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta, etiquetasQueCombinam } from '../regras/etiquetas';
 import { falha, feito, sinalizarMudanca, useMudancas } from './avisos';
-import { Aviso, Campo, estiloBotao, Nota, propsDaDica, propsDoCampo } from './base';
+import { Aviso, BotaoTirar, Campo, estiloBotao, Nota, propsDaDica, propsDoCampo } from './base';
 import { BotaoDuplo } from './Botoes';
 import { buscarEtiquetas, lojaDeEtiquetas, procurarEtiquetas, useEtiquetas } from './etiquetasDoEscritorio';
 import { Icone } from './Icone';
@@ -52,13 +52,16 @@ export function filtroDeEtiqueta(etiquetas: Etiqueta[], valor: string | undefine
   return [{ id: 'etiqueta', rotulo: 'Etiqueta', valor: valor || '', aoMudar, opcoes: [['', 'Todas'], ...etiquetas.map(e => [e.id, nomeDaEtiqueta(e)] as [string, string])] }];
 }
 
-/** A etiqueta: com texto, uma pílula colorida; só de cor, uma faixa. Com aoTirar, mostra o x ao passar o mouse. */
-export function SeloEtiqueta({ e, aoTirar }: { e: Pick<Etiqueta, 'cor' | 'texto'>; aoTirar?: () => void }) {
+/** O que a janela do "x" da etiqueta explica (#424). */
+export const EXPLICACAO_DO_TIRAR_ETIQUETA = 'A etiqueta continua no escritório: só sai deste cartão. Dá para desfazer logo depois, no aviso do pé da tela.';
+
+/**
+ * A etiqueta: com texto, uma pílula colorida; só de cor, uma faixa. Com aoTirar, mostra o "x" ao passar o mouse (a peça comum de
+ * tirar, #424, que pergunta antes).
+ */
+export function SeloEtiqueta({ e, aoTirar }: { e: Pick<Etiqueta, 'cor' | 'texto'>; aoTirar?: () => unknown }) {
   const nome = nomeDaEtiqueta(e);
-  const tirar = aoTirar && <button type="button" className="etiqueta-tirar" aria-label={`Tirar a etiqueta ${nome}`} title="Tirar a etiqueta"
-    onClick={ev => { ev.stopPropagation(); aoTirar(); }} onKeyDown={ev => ev.stopPropagation()}>
-    <Icone nome="fechar" tam={11} />
-  </button>;
+  const tirar = aoTirar && <BotaoTirar forma="etiqueta" pode oQue={`a etiqueta ${nome}`} explicacao={EXPLICACAO_DO_TIRAR_ETIQUETA} aoTirar={aoTirar} />;
   const classes = `etiqueta cor-${e.cor}${aoTirar ? ' com-tirar' : ''}`;
   if (e.texto) return <span className={classes}>{e.texto}{tirar}</span>;
   return <span className={`${classes} so-cor`} title={nome}><span role="img" aria-label={nome} />{tirar}</span>;

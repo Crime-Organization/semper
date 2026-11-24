@@ -4,7 +4,7 @@
 // procuração" é uma tarefa avulsa; "Registro de marca" é um contrato; "Reunião de equipe" é a reunião de hoje às 09:00. Quem está
 // logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, tirarDoCartao } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 const HOJE = '04/11/2026';
@@ -63,7 +63,7 @@ test.describe('Compromisso que nasce no cartão de uma demanda ou de um contrato
     const compromissos = await secao(cartao, 'Compromissos');
     await expect(compromissos.getByText('Nenhum compromisso ligado a esta demanda.')).toBeVisible();
     // Quando
-    await compromissos.getByRole('link', { name: 'Novo compromisso', exact: true }).click();
+    await compromissos.getByRole('link', { name: 'Novo compromisso desta demanda' }).click();
     // Então: o cadastro diz de onde o compromisso nasce
     await expect(page.getByRole('dialog', { name: 'Cadastro' }).getByText(/Este compromisso nasce da demanda \w+ \(Notificar o devedor\) e fica ligado a ela\./)).toBeVisible();
     // Quando
@@ -89,7 +89,7 @@ test.describe('Compromisso que nasce no cartão de uma demanda ou de um contrato
     let cartao = await abrirCartao(page, 'contratos', id, 'Compromissos');
     await expect(cartao.getByRole('link', { name: 'Novo compromisso deste contrato' })).toBeVisible();
     // Quando
-    await (await secao(cartao, 'Compromissos')).getByRole('link', { name: 'Novo compromisso', exact: true }).click();
+    await (await secao(cartao, 'Compromissos')).getByRole('link', { name: 'Novo compromisso deste contrato' }).click();
     await expect(page.getByRole('dialog', { name: 'Cadastro' }).getByText(/Este compromisso nasce do contrato/)).toBeVisible();
     await salvarAtendimento(page, 'Explicar o registro');
     // Então
@@ -108,8 +108,9 @@ test.describe('Ligar o compromisso a itens que já existem (#306)', () => {
     let cartao = await abrirCartao(page, 'compromissos', reuniao, 'Ligado a');
     const ligado = await secao(cartao, 'Ligado a');
     await expect(ligado.getByText('Este compromisso não está ligado a nenhuma tarefa, demanda ou contrato.')).toBeVisible();
-    // Quando
-    await ligado.getByRole('button', { name: 'Ligar tarefa existente' }).click();
+    // Quando: a corrente do título (#427) abre o menu dos tipos que se ligam ao compromisso
+    await cartao.getByRole('button', { name: 'Ligar a um item existente' }).click();
+    await page.getByRole('menu', { name: 'Ligar a um item existente' }).getByRole('menuitem', { name: 'Ligar tarefa existente' }).click();
     await ligado.getByRole('textbox', { name: 'Buscar tarefa para ligar' }).fill('renovar');
     await ligado.getByRole('list', { name: 'Tarefas para ligar' }).getByRole('button', { name: /Renovar a procuração/ }).click();
     // Então
@@ -122,7 +123,7 @@ test.describe('Ligar o compromisso a itens que já existem (#306)', () => {
     await expect((await secao(cartao, 'Compromissos')).getByRole('link', { name: /Reunião de equipe/ })).toBeVisible();
     // Quando: no compromisso, desliga a tarefa
     cartao = await abrirCartao(page, 'compromissos', reuniao, 'Ligado a');
-    await (await secao(cartao, 'Ligado a')).getByRole('button', { name: 'Desligar Renovar a procuração' }).click();
+    await tirarDoCartao(page, (await secao(cartao, 'Ligado a')).getByRole('button', { name: 'Tirar Renovar a procuração' }));
     // Então
     await expect(page.getByText('Desligado de tarefa: Renovar a procuração.')).toBeVisible();
     cartao = await abrirCartao(page, 'tarefas', tarefa, 'Compromissos');

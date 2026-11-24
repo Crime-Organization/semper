@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O "+" no título das seções cujo "Novo…" abre um formulário ou um menu ali mesmo (#390): Prazos, Andamentos, Checklists, Honorários,
 // Vínculos, Contas, Sócios e "Ligada a". Ele abre a seção, se estiver fechada, sem mudar a escolha guardada, e abre o mesmo que o
-// botão com o nome, que continua embaixo. No cartão arquivado, não aparece.
+// botão com o nome que ficava embaixo e, desde a #427, saiu (o "+" do título é o único). No cartão arquivado, não aparece.
 // A semente do banco fictício: o processo judicial de JOSÉ DA SILVA TESTE. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
@@ -74,10 +74,11 @@ test.describe('Contas e sócios do financeiro', () => {
     // Então
     await expect(page.getByRole('form', { name: 'Nova conta' })).toBeVisible();
     await expect(page.getByRole('form', { name: 'Novo sócio' })).toBeVisible();
-    // E o botão com o nome continua embaixo, nas seções abertas sem o formulário
+    // E, desde a #427, o "+" do título é o único: depois de cancelar, não aparece o botão com o nome embaixo
     await page.getByRole('form', { name: 'Nova conta' }).getByRole('button', { name: 'Cancelar' }).click();
     await abrirSecao(page, 'Contas');
-    await expect(page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' })).toBeVisible();
+    await expect(maisDoTitulo(page, 'Contas', 'Nova conta')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' })).toHaveCount(0);
   });
 });
 

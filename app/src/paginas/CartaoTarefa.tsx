@@ -24,7 +24,7 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -53,9 +53,11 @@ import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { acaoDeConclusao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { ligarContratoNaTarefa, ligarEAvisar, ligarTarefaNaDemanda } from './ligarNoCartao';
-import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
+import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
+import { ligarContratoNaTarefa, ligarEAvisar, ligarTarefaNaDemanda, tirarDaTarefa, tirarEAvisar } from './ligarNoCartao';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
+import { podeTirarADemandaDaTarefa, TIRAR_DA_TAREFA } from '../regras/tirarDoCartao';
 import { copiarParaOutraDemanda } from './copiarTarefa';
 import { COPIAR_PARA_OUTRA_DEMANDA } from '../regras/copiaDaTarefa';
 import { FaixaDaAprovacao } from './AprovacaoDaTarefa';
@@ -124,15 +126,23 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     : [];
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
+  // O "x" de cada pessoa, demanda e contrato (#424): tira só a ligação, com a pergunta antes e o Desfazer.
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
-    selo: p.arquivado_em ? 'Arquivada' : undefined });
+    selo: p.arquivado_em ? 'Arquivada' : undefined, tirar: tirarPessoaDoItem('tarefas', t.id, p, t.pessoas.length, depoisDeLigar) });
+  const tirarDaLista = (qual: 'demandas' | 'contratos', id: string, codigo: string): PedidoDeTirar => ({ oQue: TIRAR_DA_TAREFA[qual].oQue(codigo),
+    explicacao: TIRAR_DA_TAREFA[qual].explicacao,
+    aoTirar: () => tirarEAvisar(() => tirarDaTarefa(qual, t.id, id), TIRAR_DA_TAREFA[qual].feito(codigo), TIRAR_DA_TAREFA[qual].acao, depoisDeLigar) });
+  // A tarefa só sai de uma demanda se continua em outra (regras/tirarDoCartao.ts).
+  const tiraDemanda = podeTirarADemandaDaTarefa(demandasLigadas.length);
   // Cada demanda e cada contrato abrem só para quem pode vê-los; os outros veem o código, sem o link.
-  const demandas: ItemLigado[] = demandasLigadas.map(({ id, codigo, item }) => item
+  const demandas: ItemLigado[] = demandasLigadas.map(({ id, codigo, item }) => ({ ...(item
     ? { id: 'demanda-' + id, para: '/demandas/?id=' + id, codigo: item.codigo, titulo: item.titulo, detalhe: 'Demanda' }
-    : { id: 'demanda-' + id, codigo, titulo: 'Demanda ligada', detalhe: 'Você não tem acesso a esta demanda' });
-  const contratos: ItemLigado[] = contratosLigados.map(({ id, codigo, item }) => item
+    : { id: 'demanda-' + id, codigo, titulo: 'Demanda ligada', detalhe: 'Você não tem acesso a esta demanda' }),
+    tirar: tiraDemanda ? tirarDaLista('demandas', id, item?.codigo ?? codigo) : undefined }));
+  const contratos: ItemLigado[] = contratosLigados.map(({ id, codigo, item }) => ({ ...(item
     ? { id: 'contrato-' + id, para: '/contratos/?id=' + id, codigo: item.codigo, titulo: item.servico, detalhe: 'Contrato' }
-    : { id: 'contrato-' + id, para: veTudo ? '/contratos/?id=' + id : undefined, codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' });
+    : { id: 'contrato-' + id, para: veTudo ? '/contratos/?id=' + id : undefined, codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' }),
+    tirar: tirarDaLista('contratos', id, item?.codigo ?? codigo) }));
 
   async function arquivar() {
     const estava = !!t!.arquivado_em;
@@ -261,10 +271,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* As demandas (#283): a tarefa pode fazer parte de várias; cada uma conta, e o "+" liga mais uma. */}
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demandas.length}
+      ligar={ligaDemanda ? ligarDoModulo('demandas', demandas.length ? 'Ligar mais uma demanda' : undefined) : undefined}
       novo={ligaDemanda ? { para: novaDemanda, rotulo: 'Nova demanda desta tarefa' } : undefined}>
       {demandas.length ? <ItensLigados itens={demandas} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
       {podeLigar && !!modulos?.demandas && !ligaDemanda && <Nota>{DEMANDAS_DA_TAREFA_CHEIA}</Nota>}
-      {ligaDemanda && <AcoesDosLigados novo={{ para: novaDemanda, rotulo: 'Nova demanda' }}>
+      {ligaDemanda && <AcoesDosLigados>
         <LigarDoModulo modulo="demandas" rotulo={demandas.length ? 'Ligar mais uma demanda' : undefined}
           motivo={d => demandasLigadas.some(l => l.id === d.id) ? 'já ligada a esta tarefa' : ''}
           aviso="Quem está na demanda passa a ver esta tarefa. A tarefa leva o contrato da demanda e, se ainda não tem pessoas, os clientes dela."
@@ -275,19 +286,22 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* O "+ Novo processo" (#376), como o ligar: só enquanto a tarefa não tem processo, nem um que a pessoa não pode abrir. */}
     {(comProcessos || t.processo_id) && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={t.processo_id ? 1 : 0}
+      ligar={podeLigar && comProcessos && !t.processo_id ? { rotulo: LIGAR_PROCESSO } : undefined}
       novo={podeLigar && comProcessos && !t.processo_id ? { para: novoProcesso, rotulo: 'Novo processo desta tarefa' } : undefined}>
       <ProcessosDoCartao carregar={processoDaTarefa} versao={versaoHist} somenteLer={!podeLigar || !comProcessos} maximo={1}
         vazio="Esta tarefa não está ligada a um processo."
         ligar={processoId => SD.tarefaAtualizar(t.id, { processo_id: processoId })} desligar={() => SD.tarefaAtualizar(t.id, { processo_id: null })}
-        aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
+        aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).titulo} atalho="ligacao">
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}
+      ligar={ligarPessoaNoItem('tarefas', t.pessoas, podeLigar)} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar)} atalho="ligacao">
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).embaixo} />}
+      {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} />}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contratos.length}>
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contratos.length}
+      ligar={ligaContrato ? ligarDoModulo('contratos', contratos.length ? 'Ligar mais um contrato' : undefined) : undefined}>
       {contratos.length ? <ItensLigados itens={contratos} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
       {podeLigar && !!modulos?.contratos && !ligaContrato && <Nota>{CONTRATOS_DA_TAREFA_CHEIA}</Nota>}
       {ligaContrato && <AcoesDosLigados>

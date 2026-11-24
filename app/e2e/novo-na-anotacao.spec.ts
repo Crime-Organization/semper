@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Criar, pela seção "Ligada a" da anotação, um item novo já ligado a ela (#376): o "+ Novo…", ao lado de "Ligar a outro item", abre
+// Criar, pela seção "Ligada a" da anotação, um item novo já ligado a ela (#376): o "+" do título, ao lado da corrente "Ligar a outro item" (#427), abre
 // um menu com um item por módulo ligado no escritório (as pessoas sempre; o processo nunca). Cada um abre o cadastro com a anotação
 // de origem; ao salvar, o item nasce ligado a ela e a tela volta à anotação, com o item em "Ligada a" e o número maior. Se a anotação
-// tem uma pessoa só, ela já vem como cliente (demanda, contrato) ou pessoa (tarefa, compromisso). Na anotação nova, o botão espera
+// tem uma pessoa só, ela já vem como cliente (demanda, contrato) ou pessoa (tarefa, compromisso). Na anotação nova, o "+" espera
 // ela ir ao banco; quem só lê a anotação não o vê.
 // Na semente do banco fictício não há anotações. JOSÉ DA SILVA TESTE é uma pessoa do cadastro; a demanda "Registro de marca" tem o
 // Bruno (estagiário, não administrador) de colaborador. Quem está logado é o Mauro (administrador).
@@ -16,9 +16,9 @@ const TITULO = 'Reunião com o cliente';
 const anotacaoAberta = (page: Page) => page.getByRole('dialog', { name: 'Anotação', exact: true });
 /** A janela do cadastro, aberta por cima da página do módulo. */
 const cadastro = (page: Page) => page.getByRole('dialog', { name: 'Cadastro' });
-/** O botão "+ Novo…" de "Ligada a". */
-const botaoNovo = (anotacao: Locator) => anotacao.getByRole('button', { name: 'Novo…' });
-/** O menu do "+ Novo…". */
+/** O "+" do título de "Ligada a" (desde a #427, o único: o botão "+ Novo…" de baixo saiu). */
+const botaoNovo = (anotacao: Locator) => anotacao.getByRole('button', { name: 'Novo item ligado a esta anotação' });
+/** O menu do "+". */
 const menuDoNovo = (page: Page) => page.getByRole('menu', { name: 'Novo item ligado a esta anotação' });
 
 /**

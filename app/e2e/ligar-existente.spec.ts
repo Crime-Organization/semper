@@ -55,7 +55,9 @@ test.describe('Ligar, no cartão de um item, outro que já existe (#341)', () =>
     const id = await idDe(page, 'pessoas', 'nome', 'JOSÉ DA SILVA TESTE');
     let cartao = await abrirCartao(page, 'pessoas', id, 'JOSÉ DA SILVA TESTE');
     const tarefas = await secao(cartao, 'Tarefas');
-    await expect(tarefas.getByRole('link', { name: 'Nova tarefa', exact: true })).toBeVisible();
+    // Desde a #427, o "+" fica só no título: embaixo da lista não há o botão "Nova tarefa".
+    await expect(tarefas.getByRole('link', { name: 'Nova tarefa ligada a esta pessoa' })).toBeVisible();
+    await expect(tarefas.getByRole('link', { name: 'Nova tarefa', exact: true })).toHaveCount(0);
     // Quando
     await ligar(tarefas, { ...TAREFA, texto: 'renovar', achado: /Renovar a procuração/ });
     // Então

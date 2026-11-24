@@ -1,0 +1,5 @@
+{
+  "titulo": "Seções do cartão mais limpas: a corrente e o \"+\" no título",
+  "texto": "As seções dos cartões não têm mais botões de ligar e de criar embaixo da lista. No título de cada uma ficam o número, a corrente, que liga algo que já existe, e o \"+\", que cria um novo. Passe o mouse sobre eles para ver o que fazem. Quando há dois tipos de novo, como em Recursos e incidentais, o \"+\" abre um menu pequeno para escolher.",
+  "ondeAchar": "Em qualquer cartão (processo, pessoa, contrato, demanda, tarefa, compromisso e anotação), no título de cada seção, ao lado do número."
+}

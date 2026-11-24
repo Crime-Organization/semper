@@ -25,7 +25,7 @@ async function abrirAndamentos(cartao: Locator) {
   await expect(botao).toHaveAttribute('aria-expanded', 'true');
 }
 async function lancarAndamento(cartao: Locator, tipo: string, texto: string) {
-  await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
+  await cartao.getByRole('button', { name: 'Novo andamento', exact: true }).click();
   const form = cartao.getByRole('form', { name: 'Novo andamento' });
   await form.getByLabel('Tipo').selectOption({ label: tipo });
   await form.getByLabel('O que aconteceu').fill(texto);
@@ -52,7 +52,7 @@ test.describe('Andamentos com tipo e comentários no processo (#362)', () => {
     // Dado
     const cartao = await abrirProcesso(page);
     await abrirAndamentos(cartao);
-    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento', exact: true }).click();
     const tipos = cartao.getByRole('form', { name: 'Novo andamento' }).getByLabel('Tipo').getByRole('option');
     await expect(tipos).toHaveText(['Escolha o tipo', 'Despacho', 'Decisão', 'Sentença', 'Intimação', 'Petição', 'Audiência']);
     await cartao.getByRole('button', { name: 'Cancelar' }).click();

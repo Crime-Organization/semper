@@ -11,7 +11,7 @@ import { TAMANHO_LISTA } from '../dados/limites';
 import { arvoreDoChecklist } from '../regras/gruposDaLista';
 import { moverNaLista } from '../regras/listas';
 import { avisar, falha } from '../ui/avisos';
-import { Aviso, Carregando, estiloBotao, Nota } from '../ui/base';
+import { Aviso, Carregando, Nota } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { confirmar, pedirTexto } from '../ui/janela';
 import { MenuFlutuante } from '../ui/Menu';
@@ -86,7 +86,7 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
   const total = Array.isArray(listas) ? listas.length : undefined;
   return <Recolhivel titulo="Checklists" icone="check" preferencia={`${modulo}.cartao.listas`} contador={total}
     novo={somenteLer ? undefined : { rotulo: ADICIONAR_CHECKLIST, menu: true }} atalho="checklist">
-    {/* O "+" do título abre o mesmo menu do botão de baixo, preso a ele, mesmo antes de os checklists chegarem. */}
+    {/* O "+" do título (o único lugar dele, #427) abre o menu, preso a ele, mesmo antes de os checklists chegarem. */}
     {!somenteLer && <AoPedirNovo atender={abrirMenuNova} />}
     {listas === null ? <Carregando />
       : typeof listas === 'string' ? <Aviso tipo="erro">{listas}</Aviso>
@@ -94,7 +94,7 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
         {!listas.length && <Nota>{DO_CARTAO[modulo].vazio}</Nota>}
         {listas.map(l => <Lista key={l.id} lista={l} somenteLer={somenteLer} menuAberto={menu?.lista.id === l.id}
           aoAbrirMenu={botao => setMenu({ botao, lista: l })} mexer={mexer} mudarNaTela={mudarNaTela} />)}
-        {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> {ADICIONAR_CHECKLIST}</button></div>}
+
       </>}
     {menuNova && <MenuFlutuante botao={menuNova.botao} aoFechar={() => setMenuNova(null)} rotulo={ADICIONAR_CHECKLIST}>
       <button type="button" role="menuitem" onClick={() => { setMenuNova(null); void novaLista(); }}><Icone nome="mais" tam={15} /> Checklist em branco</button>

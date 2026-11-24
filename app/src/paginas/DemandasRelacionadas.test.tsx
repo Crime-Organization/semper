@@ -4,6 +4,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CONFIRMAR_O_TIRAR } from '../ui/base';
+import { Janelas } from '../ui/janela';
 import { SD, type Coluna, type DemandaRelacionada } from '../dados';
 import { DETALHE_SEM_ACESSO, RELACIONADA_SEM_ACESSO } from '../regras/demandasRelacionadas';
 import { DemandasRelacionadas } from './DemandasRelacionadas';
@@ -40,13 +42,17 @@ describe('Demandas relacionadas no cartão da demanda (#310)', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('dado quem altera a demanda, quando clica no X de uma relacionada, então a ligação é desfeita e o cartão lê de novo', async () => {
+  // A regra mudou (#424): o x é a peça comum de tirar ("Tirar …"), que pergunta antes.
+  it('dado quem altera a demanda, quando clica no X de uma relacionada e confirma, então a ligação é desfeita e o cartão lê de novo', async () => {
     // Dado
     const desfazer = vi.spyOn(SD, 'demandaDesrelacionar').mockResolvedValue(undefined);
     const aoMudar = vi.fn();
     mostrar([VISIVEL, OCULTA], false, aoMudar);
+    render(<Janelas />);
     // Quando
-    fireEvent.click(screen.getByRole('button', { name: 'Desfazer a ligação com a demanda EF56GH78' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tirar a ligação com a demanda EF56GH78' }));
+    expect(desfazer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     await waitFor(() => expect(aoMudar).toHaveBeenCalled());
     expect(desfazer).toHaveBeenCalledWith('d1', 'd3');
@@ -56,7 +62,7 @@ describe('Demandas relacionadas no cartão da demanda (#310)', () => {
     // Quando
     mostrar([VISIVEL], true);
     // Então
-    expect(screen.queryByRole('button', { name: /Desfazer a ligação/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Tirar a ligação/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ligar demanda existente/ })).not.toBeInTheDocument();
   });
 

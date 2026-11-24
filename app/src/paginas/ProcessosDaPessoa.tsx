@@ -1,7 +1,7 @@
 // Os processos ligados ao cartão da pessoa, cada um num quadrinho que abre o cartão dele, com o papel dela (cliente, equipe ou
 // um papel como testemunha ou perito, #316), o tipo e a
-// situação. Embaixo, "Ligar processo existente" (ela entra como cliente de um processo que já existe, #341) e o atalho para um
-// processo novo com ela como cliente, que também fica no "+" do título da seção (#376). Com a pessoa arquivada, nenhum dos dois.
+// situação. Embaixo, a busca "Ligar processo existente", que a corrente do título abre (ela entra como cliente de um processo que já existe, #341, #427); o atalho para um
+// processo novo com ela como cliente fica no "+" do título da seção (#376). Com a pessoa arquivada, nenhum dos dois.
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { nomeDoProcesso, papeisPorExtenso, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
@@ -9,7 +9,7 @@ import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { situacaoDoItem } from '../regras/quadro';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados, type NovoLigado } from '../ui/ItensLigados';
-import { LigarAPessoa } from './PessoasNosItens';
+import { LigarAPessoa, tirarAPessoaDoItem } from './PessoasNosItens';
 
 interface Props {
   pessoaId: string;
@@ -18,14 +18,16 @@ interface Props {
   versao?: number;
   /** A pessoa arquivada: sem ligar e sem criar. */
   somenteLer?: boolean;
-  /** Depois de ligar: o cartão atualiza a lista e o contador. */
+  /** Depois de ligar ou tirar: o cartão atualiza a lista e o contador. */
   aoMudar?: () => void;
+  /** A pessoa como o "x" a nomeia (#424): ela sai do processo em que é cliente. Sem isto, nenhum "x". */
+  pessoa?: { id: string; nome: string };
 }
 
 /** O processo novo com a pessoa como cliente: o cadastro volta ao cartão dela depois de gravar (#376). */
 export const novoProcessoDaPessoa = (pessoaId: string, rotulo: string): NovoLigado => ({ para: cadastroComVolta('/processos/novo/', 'cliente', pessoaId), rotulo });
 
-export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer = false, aoMudar = () => {} }: Props) {
+export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer = false, aoMudar = () => {}, pessoa }: Props) {
   const [lista, setLista] = useState<ProcessoLigado[] | string | null>(null);
   // A situação de cada um é o nome da coluna dele no quadro do tipo dele: as colunas dos dois quadros servem.
   const [colunas, setColunas] = useState<Coluna[]>([]);
@@ -43,8 +45,9 @@ export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer =
   return <>
     <ItensLigados vazio="Nenhum processo ligado a esta pessoa." itens={lista.map(p => ({
       id: p.id, para: TIPOS_PROCESSO[p.tipo].caminho + '?id=' + p.id, codigo: p.codigo, titulo: nomeDoProcesso(p), selo: p.arquivado_em ? 'Arquivado' : undefined,
-      detalhe: [TIPOS_PROCESSO[p.tipo].nome, p.numero, papeisPorExtenso(p), situacao(p.etapa_id)].filter(Boolean).join(' · ')
+      detalhe: [TIPOS_PROCESSO[p.tipo].nome, p.numero, papeisPorExtenso(p), situacao(p.etapa_id)].filter(Boolean).join(' · '),
+      tirar: pessoa && !somenteLer ? tirarAPessoaDoItem('processos', pessoa, p, `do processo ${nomeDoProcesso(p)}`, aoMudar) : undefined
     }))} />
-    {!somenteLer && <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} novo={novoProcessoDaPessoa(pessoaId, 'Novo processo')} />}
+    {!somenteLer && <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} />}
   </>;
 }

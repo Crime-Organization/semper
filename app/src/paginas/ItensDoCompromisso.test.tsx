@@ -6,6 +6,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONFIRMAR_O_TIRAR } from '../ui/base';
+import { Janelas } from '../ui/janela';
 import { SD, type CompromissoLigado, type ItemDoCompromisso } from '../dados';
 import { CompromissosDoItem } from './CompromissosDoItem';
 import { ItensDoCompromisso } from './ItensDoCompromisso';
@@ -30,7 +32,7 @@ beforeEach(() => {
 describe('A seção "Ligado a" do cartão do compromisso', () => {
   const montar = (somenteLer = false) => render(<MemoryRouter><ItensDoCompromisso id="c1" somenteLer={somenteLer} versao={0} aoMudar={() => undefined} /></MemoryRouter>);
 
-  it('dado um compromisso ligado a uma tarefa e a uma demanda, quando o cartão abre, então o número aparece com a seção fechada e, aberta, os itens', async () => {
+  it('dado um compromisso ligado a uma tarefa e a uma demanda, quando o cartão abre, então o número aparece com a seção fechada e, aberta, os itens, com a corrente no título', async () => {
     // Dado
     vi.spyOn(SD, 'compromissoItens').mockResolvedValue({ visiveis: [item('demandas', 'd1', 'Inventário'), item('tarefas', 't1', 'Ligar para o cliente')], ocultos: 1 });
     // Quando
@@ -42,17 +44,24 @@ describe('A seção "Ligado a" do cartão do compromisso', () => {
     expect(screen.getByRole('link', { name: /Ligar para o cliente/ })).toHaveAttribute('href', '/tarefas/?id=t1');
     expect(screen.getByRole('link', { name: /Inventário/ })).toHaveAttribute('href', '/demandas/?id=d1');
     expect(screen.getByText(/1 item ligado aqui que você não tem acesso/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ligar contrato existente/ })).toBeInTheDocument();
+    // A corrente do título (#427) abre um menu com a busca de cada módulo; embaixo, nenhum botão de ligar.
+    expect(screen.queryByRole('button', { name: /Ligar contrato existente/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar a um item existente' }));
+    expect(within(screen.getByRole('menu', { name: 'Ligar a um item existente' })).getByRole('menuitem', { name: 'Ligar contrato existente' })).toBeInTheDocument();
   });
 
-  it('dado quem muda o compromisso, quando desliga um item, então a ligação sai', async () => {
+  // A regra mudou (#424): o x é a peça comum de tirar ("Tirar …"), que pergunta antes.
+  it('dado quem muda o compromisso, quando tira um item e confirma, então a ligação sai', async () => {
     // Dado
     vi.spyOn(SD, 'compromissoItens').mockResolvedValue({ visiveis: [item('contratos', 'k1', 'Registro de marca')], ocultos: 0 });
     const desligar = vi.spyOn(SD, 'compromissoDesligar').mockResolvedValue();
     montar();
+    render(<Janelas />);
     await userEvent.click(await screen.findByRole('button', { name: /Ligado a/ }));
     // Quando
-    await userEvent.click(await screen.findByRole('button', { name: 'Desligar Registro de marca' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Tirar Registro de marca' }));
+    expect(desligar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     expect(desligar).toHaveBeenCalledWith('c1', 'contratos', 'k1');
   });
@@ -64,7 +73,7 @@ describe('A seção "Ligado a" do cartão do compromisso', () => {
     montar(true);
     await userEvent.click(await screen.findByRole('button', { name: /Ligado a/ }));
     // Então
-    expect(screen.queryByRole('button', { name: /Desligar/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Tirar/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ligar tarefa existente/ })).not.toBeInTheDocument();
   });
 });

@@ -60,7 +60,7 @@ test.describe('Processos de propriedade intelectual (#317)', () => {
     await expect(cartao.getByText('Patente de invenção', { exact: true })).toBeVisible();
     // E, nas pessoas do processo, titular e inventor estão entre os papéis (o autor da criação é do desenho e do programa)
     await abrirSecao(cartao, 'Pessoas do processo');
-    await cartao.getByRole('button', { name: 'Ligar pessoa com papel', exact: true }).click();
+    await cartao.getByRole('button', { name: 'Ligar pessoa com papel a este processo' }).click();
     // O nome do cartão também é um botão com o nome da cliente: a busca é a do formulário.
     const form = cartao.getByRole('form', { name: 'Ligar pessoa com papel' }), papel = form.getByLabel('Papel no processo');
     await expect(papel.getByRole('option', { name: 'Titular' })).toHaveCount(1);
@@ -85,7 +85,7 @@ test.describe('Processos de propriedade intelectual (#317)', () => {
     // Então
     await expect(cartao.getByRole('button', { name: /^Validade e anuidades/ })).toHaveCount(0);
     await abrirSecao(cartao, 'Pessoas do processo');
-    await cartao.getByRole('button', { name: 'Ligar pessoa com papel', exact: true }).click();
+    await cartao.getByRole('button', { name: 'Ligar pessoa com papel a este processo' }).click();
     await expect(cartao.getByLabel('Papel no processo').getByRole('option', { name: 'Titular' })).toHaveCount(0);
   });
 });

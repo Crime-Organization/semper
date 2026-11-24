@@ -2,11 +2,13 @@
 // do que vem abaixo, como LigarProcesso e LigarItem, e a lista mostra o que a seção oferece. Quem usa diz como buscar (a camada de
 // dados já tira o que não se pode ligar: arquivado, já ligado, sem permissão), como mostrar cada achado (o título, o detalhe e,
 // se ele não pode ser escolhido, o motivo, que aparece no lugar do detalhe) e o que fazer ao escolher. Sem nada digitado,
-// aparecem os mais recentes. No cartão só para ler (ou arquivado), a peça não aparece.
+// aparecem os mais recentes. No cartão só para ler (ou arquivado), a peça não aparece. Dentro de uma seção com a corrente no título
+// (#427, com o mesmo rótulo), o botão de baixo não aparece: a corrente abre a busca aqui, e o foco volta a ela ao fechar.
 import { useEffect, useId, useRef, useState } from 'react';
 import { falha } from './avisos';
 import { estiloBotao, IconeDoBotao, Nota, propsDoBotaoDeIcone } from './base';
 import { Icone, type NomeIcone } from './Icone';
+import { usePedidoDeLigar } from './Recolhivel';
 import { useAtrasado } from './util';
 
 /** Como cada achado aparece na lista. */
@@ -58,7 +60,15 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
+  /** A corrente do título que abriu a busca (#427): ao fechar, o foco volta a ela. */
+  const corrente = useRef<HTMLElement | null>(null);
   const motivo = useId();
+  // Com a corrente no título da seção (o mesmo rótulo), o botão de baixo não aparece: a corrente abre a busca aqui.
+  const peloTitulo = usePedidoDeLigar(naJanela || somenteLer ? undefined : rotulo, alvo => {
+    if (indisponivel) return;
+    corrente.current = alvo;
+    setBuscando(true);
+  });
   // A busca de quem usa costuma ser uma função nova a cada desenho: fica guardada aqui, para não buscar de novo a cada desenho.
   const busca = useRef(buscar);
   busca.current = buscar;
@@ -85,13 +95,15 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
     setBuscando(false);
     setTermo('');
     setAchados(null);
-    setTimeout(() => botao.current?.focus(), 0);
+    setTimeout(() => (botao.current ?? corrente.current)?.focus(), 0);
   }
   function escolher(x: T) {
     if (!naJanela) fechar();
     void aoEscolher(x);
   }
 
+  // Pela corrente do título, fechada a busca só fica o motivo, quando não se pode ligar (a corrente está desligada).
+  if (!buscando && peloTitulo) return indisponivel ? <Nota>{indisponivel}</Nota> : null;
   if (!buscando) return <div className={indisponivel ? 'ligar-indisponivel' : undefined}>
     <button ref={botao} type="button" className={estiloBotao({ forma: soIcone ? 'icone' : 'mini' })} onClick={() => setBuscando(true)}
       disabled={!!indisponivel} aria-describedby={indisponivel ? motivo : undefined} {...(soIcone ? propsDoBotaoDeIcone(rotulo) : {})}>
