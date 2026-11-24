@@ -8,7 +8,8 @@
 // mostrá-los. Logo abaixo, a data e o horário (#361), que também se mudam no próprio lugar; o lápis não os repete.
 // No compromisso que se repete (#307), mudar a data e o horário ou arquivar pergunta se vale só para esta data ou para esta e as
 // seguintes ainda em aberto (arquivar as seguintes faz a repetição parar). Desde a #417, mudar o título (aqui ou no lápis), o local, a
-// equipe ou as pessoas (no lápis) também pergunta; os outros campos mudam só nesta data. O lápis também dá repetição ao compromisso que
+// equipe ou as pessoas (só no lápis) também pergunta; os outros campos mudam só nesta data. A equipe mudada nas bolinhas do topo e as
+// pessoas ligadas ou tiradas na seção Pessoas mudam só nesta data, sem perguntar. O lápis também dá repetição ao compromisso que
 // ainda não se repete e liga, muda ou desliga a demanda de cada data do que já se repete, como o cadastro.
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
@@ -23,7 +24,7 @@ import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { perguntarNosCampos, soEstaOuSeguintes } from './agenda/soEstaOuSeguintes';
-import { avisoDasSeguintes, type MudancaDasSeguintes } from '../regras/repeticao';
+import { avisoDasSeguintes, falhaNoLapis, type MudancaDasSeguintes } from '../regras/repeticao';
 import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
@@ -136,10 +137,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const salvarTitulo = async (titulo: string) => {
     const novo = { titulo: tituloOpcionalAoGravar(titulo) };
     const escolha = c.repeticao_id ? await perguntarNosCampos(novo) : 'esta';
-    if (escolha === 'seguintes') return mudarAsSeguintes('mudados', async () => {
-      await SD.compromissoAtualizar(c.id, novo);
-      return 1 + await SD.compromissoMudarCamposSeguintes(c.id, novo);
-    });
+    if (escolha === 'seguintes') return mudarOTituloNasSeguintes(novo);
     if (escolha) return gravarNoLugar<Pick<Compromisso, 'titulo'>>({
       novo, antes: { titulo: c.titulo }, gravar: x => SD.compromissoAtualizar(c.id, x),
       aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
@@ -147,6 +145,16 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     });
   };
 
+  /**
+   * O título "desta e das seguintes" (#417), em dois passos, como o lápis: grava esta data e passa o título às seguintes. Se o segundo
+   * não der (quem foi posto só nesta data, por exemplo), esta data já mudou: a mensagem diz isso, e o cartão mostra como ficou.
+   */
+  async function mudarOTituloNasSeguintes(novo: Pick<Compromisso, 'titulo'>) {
+    try { await SD.compromissoAtualizar(c!.id, novo); } catch (e) { falha(e); return; }
+    try { avisar(avisoDasSeguintes('mudados', 1 + await SD.compromissoMudarCamposSeguintes(c!.id, novo))); }
+    catch (e) { falha(new Error(falhaNoLapis(c!.codigo, 'seguintes', (e as Error).message))); }
+    aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+  }
   /** "Esta e as seguintes" (#307): o banco muda a série toda de uma vez; sem Desfazer, porque cada data pode ter mudado de um jeito. */
   async function mudarAsSeguintes(mudanca: MudancaDasSeguintes, gravar: () => Promise<number>) {
     try {
