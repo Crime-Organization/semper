@@ -127,6 +127,17 @@ test.describe('Desligar os atalhos de uma tecla só', () => {
     // Então
     await expect(page).toHaveURL(/\/pessoas\/nova\/$/);
   });
+
+  test('dada Minha conta, quando a pessoa lê a seção Teclado, então a explicação diz que o "?" abre a ajuda em qualquer tela (#411)', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    // Quando
+    const teclado = page.getByRole('region', { name: 'Teclado' });
+    // Então
+    await expect(teclado).toContainText('Nas páginas dos módulos, / vai à busca e N abre o cadastro novo');
+    await expect(teclado).toContainText('em qualquer tela, ? abre a ajuda dela, com os atalhos');
+    await expect(teclado).not.toContainText('? mostra a lista');
+  });
 });
 
 test.describe('Atalhos de teclado em Tarefas', () => {

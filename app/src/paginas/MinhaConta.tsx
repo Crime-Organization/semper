@@ -40,13 +40,13 @@ export default function PaginaMinhaConta() {
   </div>;
 }
 
-/** Os atalhos de uma tecla só (#86): quem dita por voz pode desligá-los, e é aqui que se religa (desligados, nem o "?" abre a lista). */
+/** Os atalhos de uma tecla só (#86): quem dita por voz pode desligá-los, e é aqui que se religa (desligados, nem a tecla "?" abre a ajuda da tela). */
 function Teclado() {
   return <section aria-labelledby="tTeclado" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <TituloSecao id="tTeclado">Teclado</TituloSecao>
     <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <InterruptorDosAtalhos className="perfil-no-site" />
-      <Nota>Nas páginas dos módulos, / vai à busca, N abre o cadastro novo e ? mostra a lista; no cartão da tarefa, T liga o cronômetro. Desligue se você dita por voz ou se as letras disparam algo sem querer.</Nota>
+      <Nota>Nas páginas dos módulos, / vai à busca e N abre o cadastro novo; em qualquer tela, ? abre a ajuda dela, com os atalhos; no cartão da tarefa, T liga o cronômetro. Desligue se você dita por voz ou se as letras disparam algo sem querer.</Nota>
     </Cartao>
   </section>;
 }
