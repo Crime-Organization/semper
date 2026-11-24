@@ -359,12 +359,12 @@ function folgaDaBarra(lugar: HTMLElement | null) {
   return Math.max(0, barra.getBoundingClientRect().bottom + esmaecido - alto);
 }
 
-export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, maximo, placeholder, className, focarAoChegar, folgaEmbaixo, comecarEm }: PropsDoMiolo) {
+export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, maximo, placeholder, className, focarAoChegar, folgaEmbaixo, comecarEm, botaoAoChegar }: PropsDoMiolo) {
   const lugar = useRef<HTMLDivElement>(null);
   const vista = useRef<EditorView | null>(null);
   /** Os textos que o editor mandou a quem o usa e que ainda não voltaram em "valor" (veja acompanharValor). */
   const enviados = useRef<string[]>([]);
-  const { barra, marcar } = barraDeFormatacao({
+  const { barra, marcar, apertar } = barraDeFormatacao({
     id, maximo,
     escolha: () => {
       const v = vista.current, s = v?.state.selection.main;
@@ -375,8 +375,8 @@ export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, max
     marcarNoCursor: marca => !!vista.current && marcarComOCursor(vista.current, marca, maximo)
   });
   /** O que muda a cada desenho, para o editor (criado uma vez) chamar sempre o de agora. */
-  const agora = useRef({ aoMudar, marcar, valor, folgaEmbaixo, comecarEm });
-  agora.current = { aoMudar, marcar, valor, folgaEmbaixo, comecarEm };
+  const agora = useRef({ aoMudar, marcar, apertar, valor, folgaEmbaixo, comecarEm, botaoAoChegar });
+  agora.current = { aoMudar, marcar, apertar, valor, folgaEmbaixo, comecarEm, botaoAoChegar };
 
   useEffect(() => {
     if (!lugar.current) return;
@@ -419,8 +419,11 @@ export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, max
     enviados.current = [];
     // Quem pediu um lugar para o cursor (a descrição aberta no lugar do texto lido, #433) recebe o foco ali. Senão: a pessoa pediu o
     // texto (Enter no título) enquanto o editor ainda chegava: o cursor vai para ele, se ela não foi para outro lugar.
-    if (agora.current.comecarEm) comecar(view, agora.current.comecarEm);
-    else if (focarAoChegar?.current &&(!document.activeElement || document.activeElement === document.body)) view.focus();
+    // Se ela abriu pela barra da descrição lida, o botão que ela apertou vale já aqui.
+    if (agora.current.comecarEm) {
+      comecar(view, agora.current.comecarEm);
+      if (agora.current.botaoAoChegar) agora.current.apertar(agora.current.botaoAoChegar);
+    } else if (focarAoChegar?.current && (!document.activeElement || document.activeElement === document.body)) view.focus();
     if (focarAoChegar) focarAoChegar.current = false;
     return () => { view.destroy(); vista.current = null; };
   }, [id, rotulo, placeholder, maximo, focarAoChegar]);

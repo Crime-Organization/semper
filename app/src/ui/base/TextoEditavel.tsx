@@ -1,7 +1,10 @@
 // Texto formatado que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no texto e escreve ali
 // mesmo. Desde a #433, a edição é a do texto das anotações em Documentos: o editor ao vivo (EditorAoVivo), sem caixa nem borda, com
 // a formatação à vista enquanto se escreve e a mesma barra de formatação no alto; o cursor começa onde a pessoa clicou. Salvar e
-// Cancelar logo abaixo; Ctrl+Enter (ou Ctrl+S, como na anotação) salva; Esc cancela e, com algo mudado, pergunta antes de descartar.
+// Cancelar logo abaixo; Ctrl+Enter (ou Ctrl+S, como na anotação) salva; Esc e Cancelar cancelam e, com algo mudado, perguntam antes
+// de descartar. Como na anotação, a barra de formatação está sempre ali, discreta, também no texto lido (para quem pode mudar): ao
+// clicar, o texto não sai do lugar, e o botão apertado na barra do texto lido abre a edição e já vale nela. Sem texto, a dica fica
+// no lugar do texto, na letra e na cor da dica da anotação, sem caixa nem borda.
 // O clique num link ou numa caixinha de tarefa faz o que sempre fez (abre o link, marca a caixinha) e não abre a edição, nem o
 // clique que termina escolhendo um trecho para copiar. Pelo teclado (#385), o próprio texto recebe o foco com o Tab e Enter abre a
 // edição, com o cursor no fim; ao cancelar ou salvar, o foco volta a ele. O texto não vira um botão: ele tem links e caixinhas
@@ -12,7 +15,7 @@ import { avisar, falha } from '../avisos';
 import { confirmar } from '../janela';
 import { estiloBotao } from './botao';
 import { EditorAoVivo, prepararEditorAoVivo, type ComecoDoCursor } from './EditorAoVivo';
-import { TextoFormatado } from './TextoFormatado';
+import { barraDeFormatacao, TextoFormatado } from './TextoFormatado';
 
 /** O que, dentro do texto, tem clique próprio: o clique nele não abre a edição. */
 const COM_CLIQUE_PROPRIO = 'a, button, input, label, summary';
@@ -20,6 +23,8 @@ const COM_CLIQUE_PROPRIO = 'a, button, input, label, summary';
 const COMO_MUDAR_PELO_TECLADO = 'Tecle Enter para mudar.';
 /** As teclas que, com o Ctrl (ou o Cmd), salvam: o Enter de sempre e o S da anotação. */
 const SALVA_COM_CTRL = new Set(['enter', 's']);
+/** A dica no editor aberto com o texto vazio, no lugar da dica do texto lido. */
+const DICA_AO_ESCREVER = 'Escreva aqui.';
 
 interface Props {
   /** O texto gravado. */
@@ -37,11 +42,11 @@ interface Props {
   /** O nome da caixa para o leitor de tela. */
   rotulo?: string;
   maximo?: number;
-  /** A dica dentro da caixa vazia. */
+  /** A dica no editor aberto com o texto vazio. */
   placeholder?: string;
   /** O que aparece no lugar do texto vazio, para quem só lê. */
   vazio?: ReactNode;
-  /** O convite no lugar do texto vazio, para quem pode escrever. */
+  /** A dica no lugar do texto vazio, para quem pode escrever (é ela que abre a edição). */
   convite?: string;
   /** A classe do texto formatado (ex.: a medida de leitura da anotação). */
   className?: string;
@@ -50,13 +55,15 @@ interface Props {
 }
 
 export function TextoEditavel({
-  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', className,
+  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder = DICA_AO_ESCREVER, vazio, convite = 'Clique para escrever.', className,
   aoMudarRascunho
 }: Props) {
   const id = useId();
   const [rascunho, setRascunho] = useState<string | null>(null);
   /** Onde o cursor começa ao abrir: no ponto clicado do texto, ou no fim (pelo teclado e no texto vazio). */
   const [comeco, setComeco] = useState<ComecoDoCursor>('fim');
+  /** O botão da barra que a pessoa apertou no texto lido: o editor o aperta assim que aparece. */
+  const [botaoAoChegar, setBotaoAoChegar] = useState<string>();
   const [ocupado, setOcupado] = useState(false);
   // Onde a edição abriu (o texto ou o convite do texto vazio): o foco volta para lá ao fechar.
   const area = useRef<HTMLDivElement>(null);
@@ -66,6 +73,9 @@ export function TextoEditavel({
   // Ao sair da tela no meio da edição, o cartão deixa de esperar este rascunho.
   useEffect(() => () => avisarRascunho.current?.(null), []);
   const editando = rascunho !== null;
+  // A barra do texto lido: só se mostra (fora do Tab e do leitor de tela, sem caixa para mudar); o clique num botão dela abre a
+  // edição (veja apertarNaLeitura).
+  const barraDaLeitura = barraDeFormatacao({ escolha: () => null, trocar: () => undefined, focar: () => undefined, soParaVer: true }).barra;
   const podeMudar = !!aoSalvar;
   // Quem pode mudar já começa a baixar o editor: ao clicar no texto, ele aparece na hora, sem o texto piscar.
   useEffect(() => { if (podeMudar) void prepararEditorAoVivo(); }, [podeMudar]);
@@ -83,8 +93,9 @@ export function TextoEditavel({
     setRascunho(novo);
     avisarRascunho.current?.(novo);
   }
-  function abrir(onde: ComecoDoCursor) {
+  function abrir(onde: ComecoDoCursor, botao?: string) {
     setComeco(onde);
+    setBotaoAoChegar(botao);
     mudar(texto);
   }
   function fechar() {
@@ -101,6 +112,12 @@ export function TextoEditavel({
     if (window.getSelection()?.toString()) return;
     const canto = (e.currentTarget.firstElementChild ?? e.currentTarget).getBoundingClientRect();
     abrir({ x: e.clientX - canto.left, y: e.clientY - canto.top });
+  }
+  /** Um botão da barra do texto lido abre a edição, com o cursor no fim, e vale já nela (o B liga o negrito, a Lista começa a lista…). */
+  function apertarNaLeitura(e: MouseEvent<HTMLDivElement>) {
+    const botao = (e.target as Element).closest('[role="toolbar"] button');
+    const nome = botao?.getAttribute('aria-label');
+    if (nome) abrir('fim', nome);
   }
   /** Pelo teclado, Enter no próprio texto abre a edição; Enter num link ou numa caixinha de dentro faz o que sempre fez. */
   function teclarNoTexto(e: KeyboardEvent<HTMLDivElement>) {
@@ -141,24 +158,33 @@ export function TextoEditavel({
     void cancelar();
   }
 
-  if (editando) return <div className="texto-editavel-edicao" onKeyDown={teclar}>
-    <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={rascunho} aoMudar={mudar} comecarEm={comeco} />
+  if (editando) return <div className="texto-editavel texto-editavel-edicao" onKeyDown={teclar}>
+    <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={rascunho} aoMudar={mudar} comecarEm={comeco}
+      botaoAoChegar={botaoAoChegar} />
     <div className="texto-editavel-acoes">
-      <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={fechar}>Cancelar</button>
+      <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={() => void cancelar()}>Cancelar</button>
       <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={() => void salvar()}>
         {ocupado ? 'Salvando…' : 'Salvar'}
       </button>
     </div>
   </div>;
 
-  // Sem texto, o convite já é o botão que abre a edição.
-  if (!texto.trim()) return <button ref={botaoDoConvite} type="button" className="texto-editavel-vazio" onClick={() => abrir('fim')}>{convite}</button>;
+  // Sem texto, a dica já é o botão que abre a edição.
+  if (!texto.trim()) return <div className="texto-editavel">
+    <div className="caixa-formatada" onClick={apertarNaLeitura}>
+      {barraDaLeitura}
+      <button ref={botaoDoConvite} type="button" className="texto-editavel-vazio" onClick={() => abrir('fim')}>{convite}</button>
+    </div>
+  </div>;
   // O texto é um grupo com nome (o rótulo, ex.: "Descrição") que recebe o foco, e o leitor de tela diz como mudá-lo. Não é um
   // botão: os links e as caixinhas de dentro sumiriam para o leitor de tela e deixariam de ser alcançados pelo Tab.
   return <div className="texto-editavel">
-    <div ref={area} className="texto-editavel-area" role="group" aria-label={rotulo} aria-describedby={id + '-como-mudar'} tabIndex={0}
-      onClick={clicar} onKeyDown={teclarNoTexto}>
-      <TextoFormatado className={className} texto={texto} aoMarcar={aoMarcar} />
+    <div className="caixa-formatada" onClick={apertarNaLeitura}>
+      {barraDaLeitura}
+      <div ref={area} id={id} className="texto-editavel-area" role="group" aria-label={rotulo} aria-describedby={id + '-como-mudar'} tabIndex={0}
+        onClick={clicar} onKeyDown={teclarNoTexto}>
+        <TextoFormatado className={className} texto={texto} aoMarcar={aoMarcar} />
+      </div>
     </div>
     <span className="sr" id={id + '-como-mudar'}>{COMO_MUDAR_PELO_TECLADO}</span>
   </div>;

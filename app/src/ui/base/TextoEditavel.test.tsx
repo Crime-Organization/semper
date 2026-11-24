@@ -86,7 +86,9 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     expect(aoSalvar).toHaveBeenCalledWith('Rascunho final');
   });
 
-  it('dado o texto em edição, quando a pessoa clica em Cancelar, então nada é salvo e o texto gravado volta', async () => {
+  // Até a #433, o Cancelar apagava o que a pessoa escreveu sem perguntar (só o Esc perguntava). Desde a revisão da #433, o Cancelar
+  // faz o mesmo que o Esc: com mudança, pergunta antes de descartar (regra nova).
+  it('dado o texto em edição com mudança, quando a pessoa clica em Cancelar e escolhe descartar, então nada é salvo e o texto gravado volta', async () => {
     // Dado
     const aoSalvar = vi.fn();
     render(<Cartao inicial="Como estava" aoSalvar={aoSalvar} />);
@@ -94,10 +96,25 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     await escrever(' e o que não fica');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Descartar' }));
     // Então
     expect(aoSalvar).not.toHaveBeenCalled();
     expect(screen.getByText('Como estava')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('dado o texto em edição com mudança, quando a pessoa clica em Cancelar e desiste de descartar, então o que ela escreveu fica', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao inicial="Com mudança" aoSalvar={aoSalvar} />);
+    await userEvent.click(screen.getByText('Com mudança'));
+    await escrever('!');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Cancelar' }));
+    // Então
+    expect(await naCaixa()).toBe('Com mudança!');
+    expect(aoSalvar).not.toHaveBeenCalled();
   });
 
   it('dado o texto em edição sem mudança, quando a pessoa aperta Esc, então a edição fecha, sem o Esc chegar ao cartão em volta', async () => {
@@ -279,6 +296,8 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     await userEvent.click(screen.getByText('A'));
     await escrever('B');
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    // (com mudança, o Cancelar pergunta antes; a pessoa descarta)
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Descartar' }));
     // Então
     expect(rascunhos.mock.calls.map(([r]) => r)).toEqual(['A', 'AB', null]);
   });
@@ -328,6 +347,50 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     rerender(<TextoEditavel texto="A" aoSalvar={aoSalvar} aoMudarRascunho={rascunhos} />);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(aoSalvar).not.toHaveBeenCalled();
+  });
+});
+
+describe('A barra de formatação já no texto lido, como na anotação (#433)', () => {
+  it('dado quem pode alterar, quando o texto é lido, então a barra já está no lugar, só para ver: fora do Tab e do leitor de tela', async () => {
+    // Quando
+    render(<Cartao inicial="Levar a procuração." />);
+    // Então: a barra está na tela, escondida do leitor de tela, e o Tab vai direto ao texto
+    const barra = screen.getByRole('toolbar', { hidden: true });
+    expect(barra).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    await userEvent.tab();
+    expect(screen.getByRole('group', { name: 'Texto' })).toHaveFocus();
+  });
+
+  it('dado o texto lido, quando a pessoa aperta um botão da barra (Lista), então a edição abre e o botão já vale nela', async () => {
+    // Dado
+    render(<Cartao inicial="Levar a procuração." />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Lista', hidden: true }));
+    // Então: o editor abre com o cursor no fim, e a linha virou item de lista
+    const editor = await caixa();
+    expect(editor).toHaveFocus();
+    expect(textoDoEditor(editor)).toBe('- Levar a procuração.');
+    expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('dado o texto vazio, quando a pessoa clica na dica, então o editor abre vazio, com a dica de escrever, e a mesma barra', async () => {
+    // Dado
+    render(<Cartao inicial="" />);
+    expect(screen.getByRole('toolbar', { hidden: true })).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Clique para escrever.' }));
+    // Então
+    expect(await naCaixa()).toBe('');
+    expect(screen.getByText('Escreva aqui.')).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).toBeInTheDocument();
+  });
+
+  it('dado quem só lê, então não há barra nenhuma', () => {
+    // Quando
+    render(<TextoEditavel texto="Só para ler." />);
+    // Então
+    expect(screen.queryByRole('toolbar', { hidden: true })).not.toBeInTheDocument();
   });
 });
 

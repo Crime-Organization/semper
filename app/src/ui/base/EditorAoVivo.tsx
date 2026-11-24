@@ -4,7 +4,7 @@
 // o Obsidian usa), que só é baixado quando um editor aparece na tela: o resto do site não fica mais pesado. Enquanto ele chega,
 // o texto aparece formatado no lugar.
 import { lazy, Suspense, useRef, type RefObject } from 'react';
-import { TextoFormatado } from './TextoFormatado';
+import { barraDeFormatacao, TextoFormatado } from './TextoFormatado';
 
 /**
  * Onde o cursor começa quando o editor aparece (#433): no fim do texto, ou no ponto em que a pessoa clicou no texto lido, em pixels a
@@ -30,6 +30,11 @@ export interface PropsEditorAoVivo {
   folgaEmbaixo?: () => number;
   /** Com isto, o editor pega o foco assim que aparece, com o cursor nesse lugar (a descrição que abre no lugar do texto lido). */
   comecarEm?: ComecoDoCursor;
+  /**
+   * O botão da barra (pelo nome, ex.: "Lista") que o editor aperta assim que aparece, depois de pôr o cursor em comecarEm: a pessoa
+   * apertou esse botão na barra da descrição lida, e a formatação vale já no editor aberto (#433).
+   */
+  botaoAoChegar?: string;
 }
 
 /** O que o miolo (o CodeMirror) recebe além disso: se a pessoa pediu o foco enquanto ele chegava. */
@@ -49,9 +54,13 @@ const Editor = lazy(prepararEditorAoVivo);
 export function EditorAoVivo(props: PropsEditorAoVivo) {
   const focarAoChegar = useRef(false);
   // Enquanto o editor chega, o lugar dele recebe o foco (o Enter no título, por exemplo) e o passa ao editor quando ele chegar.
-  const espera = <div id={props.id} tabIndex={-1} onFocus={() => { focarAoChegar.current = true; }} aria-busy="true"
-    className={['editor-ao-vivo', 'editor-ao-vivo-chegando', props.className].filter(Boolean).join(' ')}>
-    <TextoFormatado texto={props.valor} />
+  // A espera tem a mesma barra, no mesmo lugar (só para ver, fora do Tab): quando o editor chega, o texto não pula (#433).
+  const { barra } = barraDeFormatacao({ id: props.id, escolha: () => null, trocar: () => undefined, focar: () => undefined, soParaVer: true });
+  const espera = <div className={['caixa-formatada', 'editor-ao-vivo', props.className].filter(Boolean).join(' ')}>
+    {barra}
+    <div id={props.id} tabIndex={-1} onFocus={() => { focarAoChegar.current = true; }} aria-busy="true" className="editor-ao-vivo-chegando">
+      <TextoFormatado texto={props.valor} />
+    </div>
   </div>;
   return <Suspense fallback={espera}><Editor {...props} focarAoChegar={focarAoChegar} /></Suspense>;
 }

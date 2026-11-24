@@ -359,9 +359,10 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(caixa).toHaveText('A procuração vence este mês.');
     await expect(cartao.getByRole('button', { name: 'Negrito (Ctrl+B)' })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    // Quando: Cancelar desfaz
+    // Quando: Cancelar desfaz (desde a revisão da #433, com mudança, ele pergunta antes, como o Esc: regra nova)
     await caixa.fill('Texto que não fica');
     await cartao.getByRole('button', { name: 'Cancelar' }).click();
+    await page.getByRole('dialog', { name: 'Descartar as mudanças?' }).getByRole('button', { name: 'Descartar' }).click();
     // Então
     await expect(caixa).toHaveCount(0);
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
@@ -378,6 +379,23 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     cartao = await abrirTarefa(page, 'Renovar a procuração');
     await expect(cartao.locator('strong', { hasText: 'este mês' })).toBeVisible();
     await expect(cartao.getByText('**este mês**')).toHaveCount(0);
+  });
+
+  test('dada a descrição lida, quando a pessoa clica nela, então o texto não sai do lugar: a barra de formatação já estava ali (#433)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const barra = cartao.getByRole('toolbar', { includeHidden: true });
+    const barraAntes = await barra.boundingBox();
+    const textoAntes = await cartao.getByRole('group', { name: 'Descrição' }).boundingBox();
+    // Quando
+    await cartao.getByText('A procuração vence este mês.').click();
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toBeFocused();
+    // Então: a barra e o texto continuam na mesma altura
+    const barraDepois = await cartao.getByRole('toolbar', { name: 'Formatação do texto' }).boundingBox();
+    const textoDepois = await caixa.boundingBox();
+    expect(Math.abs(barraDepois!.y - barraAntes!.y)).toBeLessThan(1);
+    expect(Math.abs(textoDepois!.y - textoAntes!.y)).toBeLessThan(1);
   });
 
   test('dada a descrição mudada e não salva, quando a pessoa fecha o cartão, então o SEMPER pergunta antes', async ({ page }) => {
