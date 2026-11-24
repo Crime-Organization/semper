@@ -4,6 +4,7 @@
 // Os testes de ponta a ponta (e2e/) digitam de verdade, no navegador.
 import { EditorView } from '@codemirror/view';
 import { act, screen } from '@testing-library/react';
+import { prepararEditorAoVivo } from '../ui/base/EditorAoVivo';
 
 /** O editor de uma caixa (achada pelo papel e pelo nome, como a pessoa a acha). */
 export function editorDe(caixa: HTMLElement): EditorView {
@@ -12,8 +13,16 @@ export function editorDe(caixa: HTMLElement): EditorView {
   return v;
 }
 
-/** Espera o editor chegar (ele é baixado à parte) e devolve a caixa. */
-export const acharEditor = (nome = 'Texto') => screen.findByRole('textbox', { name: nome });
+/**
+ * Espera o editor chegar (ele é baixado à parte) e devolve a caixa. O código do editor (o CodeMirror) é o mesmo que o React.lazy
+ * de ui/base/EditorAoVivo baixa: na primeira vez em cada arquivo de teste, ele é preparado na hora, e com a máquina carregada isso
+ * passava do segundo que o findBy espera, e o primeiro teste do arquivo falhava (#420). Por isso a chegada do código é esperada
+ * antes, e o findBy confere, como sempre, que a caixa aparece na tela.
+ */
+export async function acharEditor(nome = 'Texto') {
+  await act(async () => { await prepararEditorAoVivo(); });
+  return screen.findByRole('textbox', { name: nome });
+}
 
 /** O texto guardado no editor (o Markdown, com os sinais). */
 export const textoDoEditor = (caixa: HTMLElement) => editorDe(caixa).state.doc.toString();
