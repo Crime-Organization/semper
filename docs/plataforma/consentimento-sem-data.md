@@ -18,23 +18,25 @@ A consulta abaixo **só conta**: não mostra nome, CPF, telefone nem nada de cli
 
    ```sql
    -- Só contagem, sem nomes: quantas pessoas de cada escritório têm a base legal "consentimento" e a data vazia.
-   select e.nome as escritorio,
+   -- O escritório sai só pelo código (escritorio_id), nunca pelo nome.
+   select p.escritorio_id,
           count(*) filter (where p.arquivado_em is null)     as ativas,
           count(*) filter (where p.arquivado_em is not null) as arquivadas,
           count(*)                                            as total
      from public.pessoas p
-     join public.escritorios e on e.id = p.escritorio_id
     where p.lgpd_base = 'consentimento'
       and p.lgpd_consentimento is null
-    group by e.nome
-    order by e.nome;
+    group by p.escritorio_id
+    order by p.escritorio_id;
    ```
 
 3. Leia o resultado:
    - **Nenhuma linha** ("No rows returned"): nenhum escritório tem cadastro nessa situação. Não há nada a fazer; anote na
      tarefa #409 que a contagem deu zero.
    - **Uma linha por escritório**: `ativas` são os cadastros em uso, `arquivadas` os que estão no arquivo e `total` a soma.
-     Anote os números na tarefa #409 (só os números e o nome do escritório, nunca nomes de clientes).
+     Anote na tarefa #409 **só os números** (ativas, arquivadas e total). A tarefa fica no GitHub, que é público: não escreva
+     ali o nome nem o código do escritório, nem nome de cliente. Se houver mais de um escritório, anote "escritório 1",
+     "escritório 2" e assim por diante.
 
 ## Depois da contagem: o escritório completa as datas
 
