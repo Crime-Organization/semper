@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR, objetosSemDemanda, objetosNovosSemDemanda, avisoDosObjetosNovos, mesmoObjeto, diasDeNegociacao, textoDaNegociacao, CAMPOS_CONTRATO,
-  camposDoContrato, contratoComAssinatura, CONTRATO_VAZIO, dadosDoContrato, erroDaAssinatura, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
+  camposDoContrato, contratoComAssinatura, contratoComObservacoes, CONTRATO_VAZIO, dadosDoContrato, erroDaAssinatura, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
 
@@ -245,6 +245,19 @@ describe('A assinatura mudada no cartão (#395)', () => {
     // Então
     expect(d).toEqual({ ...dadosDoContrato(camposDoContrato(k)), assinado_em: '2026-02-02' });
     expect(contratoComAssinatura(k, null).assinado_em).toBeNull();
+  });
+
+  it('dado um contrato gravado, quando as observações mudam no cartão, então grava o contrato como estava, só com as observações novas', () => {
+    // Dado
+    const k = { cliente_id: 'p1', clientes: [{ id: 'p1', codigo: 'P1', nome: 'JOSÉ', tipo: 'pf' }], responsavel_id: 'u1', objetos: ['Registro de marca'], servico: 'Registro de marca', categoria: 'pro_labore', valor: 5000, entrada: null,
+      parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30, participantes: [], indicador_id: null, indicador_percentual: null,
+      documento_url: null, observacoes: 'Antes', codigo_antigo: null } as unknown as Contrato;
+    // Quando
+    const d = contratoComObservacoes(k, '  Cliente prefere **e-mail**.\n- Ligar às sextas  ');
+    // Então: o resto como estava; as observações sem os espaços das pontas; em branco, nenhuma
+    expect(d).toEqual({ ...dadosDoContrato(camposDoContrato(k)), observacoes: 'Cliente prefere **e-mail**.\n- Ligar às sextas' });
+    expect(contratoComObservacoes(k, '   ').observacoes).toBeNull();
+    expect(contratoComObservacoes(k, null).observacoes).toBeNull();
   });
 });
 

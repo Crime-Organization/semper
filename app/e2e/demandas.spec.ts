@@ -347,7 +347,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
     await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').click();
     const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
-    await expect(caixa).toHaveValue('Mandar a notificação extrajudicial antes da ação.');
+    await expect(caixa).toHaveText('Mandar a notificação extrajudicial antes da ação.');
     await caixa.fill('Mandar a notificação com *aviso de recebimento*.');
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(caixa).toHaveCount(0);
@@ -468,7 +468,7 @@ test.describe('A descrição no topo do cartão da demanda (#385)', () => {
     // Então
     const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
     await expect(caixa).toBeFocused();
-    await expect(caixa).toHaveValue('Mandar a notificação extrajudicial antes da ação.');
+    await expect(caixa).toHaveText('Mandar a notificação extrajudicial antes da ação.');
     // Quando
     await cartao.getByRole('button', { name: 'Cancelar' }).click();
     // Então

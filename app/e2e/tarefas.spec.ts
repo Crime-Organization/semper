@@ -355,12 +355,14 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
     // Então
     await expect(caixa).toBeFocused();
-    await expect(caixa).toHaveValue('A procuração vence este mês.');
+    // Desde a #433, a caixa é o editor das anotações (sem caixa de texto comum): o texto se confere pelo que ela mostra.
+    await expect(caixa).toHaveText('A procuração vence este mês.');
     await expect(cartao.getByRole('button', { name: 'Negrito (Ctrl+B)' })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    // Quando: Cancelar desfaz
+    // Quando: Cancelar desfaz (desde a revisão da #433, com mudança, ele pergunta antes, como o Esc: regra nova)
     await caixa.fill('Texto que não fica');
     await cartao.getByRole('button', { name: 'Cancelar' }).click();
+    await page.getByRole('dialog', { name: 'Descartar as mudanças?' }).getByRole('button', { name: 'Descartar' }).click();
     // Então
     await expect(caixa).toHaveCount(0);
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
@@ -379,6 +381,23 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(cartao.getByText('**este mês**')).toHaveCount(0);
   });
 
+  test('dada a descrição lida, quando a pessoa clica nela, então o texto não sai do lugar: a barra de formatação já estava ali (#433)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const barra = cartao.getByRole('toolbar', { includeHidden: true });
+    const barraAntes = await barra.boundingBox();
+    const textoAntes = await cartao.getByRole('group', { name: 'Descrição' }).boundingBox();
+    // Quando
+    await cartao.getByText('A procuração vence este mês.').click();
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toBeFocused();
+    // Então: a barra e o texto continuam na mesma altura
+    const barraDepois = await cartao.getByRole('toolbar', { name: 'Formatação do texto' }).boundingBox();
+    const textoDepois = await caixa.boundingBox();
+    expect(Math.abs(barraDepois!.y - barraAntes!.y)).toBeLessThan(1);
+    expect(Math.abs(textoDepois!.y - textoAntes!.y)).toBeLessThan(1);
+  });
+
   test('dada a descrição mudada e não salva, quando a pessoa fecha o cartão, então o SEMPER pergunta antes', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
@@ -390,7 +409,64 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     const pergunta = page.getByRole('dialog', { name: 'Sair sem salvar?' });
     await expect(pergunta).toBeVisible();
     await pergunta.getByRole('button', { name: 'Continuar no cadastro' }).click();
-    await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Uma ideia que não pode se perder.');
+    await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveText('Uma ideia que não pode se perder.');
+  });
+
+  test('dada a descrição de uma tarefa, quando a pessoa clica no começo do texto e escreve, então escreve ali mesmo, sem caixa com borda e com o texto no mesmo lugar (#433)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const lido = cartao.getByText('A procuração vence este mês.');
+    await alturaParada(lido);   // o cartão chega deslizando: mede depois de ele parar
+    const antes = (await lido.boundingBox())!;
+    // Quando: clica logo antes da primeira letra
+    await lido.click({ position: { x: 1, y: antes.height / 2 } });
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    // Então: o texto continua na mesma coluna, no mesmo tamanho de letra, e nada desenha uma caixa em volta dele
+    await expect(caixa).toBeFocused();
+    const depois = (await caixa.boundingBox())!;
+    expect(Math.abs(depois.x - antes.x)).toBeLessThanOrEqual(1);
+    const letra = (el: Element) => getComputedStyle(el).fontSize;
+    expect(await caixa.evaluate(letra)).toBe(await lido.evaluate(letra));
+    const bordas = await caixa.evaluate(el => {
+      const vistas: string[] = [];
+      for (let e: Element | null = el; e && !e.matches('[role="group"], [role="dialog"]') && vistas.length < 4; e = e.parentElement) {
+        const s = getComputedStyle(e);
+        vistas.push(s.borderTopWidth, s.borderLeftWidth, s.outlineStyle === 'none' ? '0px' : s.outlineWidth);
+      }
+      return [...new Set(vistas)];
+    });
+    expect(bordas).toEqual(['0px']);
+    await expect(cartao.getByText('Ctrl+Enter salva')).toHaveCount(0);
+    // Quando: escreve, e o que escreve entra onde clicou, e não no fim
+    await page.keyboard.type('Hoje: ');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(cartao.getByText('Hoje: A procuração vence este mês.')).toBeVisible();
+  });
+
+  test('dada a descrição mudada, quando a pessoa aperta Esc, então o SEMPER pergunta antes de descartar e, descartando, o texto gravado volta (#433)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByText('A procuração vence este mês.').click();
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toBeFocused();
+    await page.keyboard.type(' Ligar antes.');
+    // Quando
+    await page.keyboard.press('Escape');
+    // Então: pergunta, e quem desiste de descartar continua escrevendo
+    const pergunta = page.getByRole('dialog', { name: 'Descartar as mudanças?' });
+    await expect(pergunta).toBeVisible();
+    await pergunta.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(pergunta).toHaveCount(0);
+    await expect(caixa).toContainText('Ligar antes.');
+    // Quando: Esc de novo, e descarta
+    await caixa.press('Escape');
+    await pergunta.getByRole('button', { name: 'Descartar' }).click();
+    // Então: o cartão continua aberto, com o texto gravado
+    await expect(caixa).toHaveCount(0);
+    await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
+    await expect(page.getByText('Tarefa atualizada.')).toHaveCount(0);
   });
 
   test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas, e salvar não os muda', async ({ page }) => {
@@ -481,7 +557,7 @@ test.describe('A descrição no topo do cartão (#385)', () => {
     // Então
     const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
     await expect(caixa).toBeFocused();
-    await expect(caixa).toHaveValue('A procuração vence este mês.');
+    await expect(caixa).toHaveText('A procuração vence este mês.');
     // Quando
     await cartao.getByRole('button', { name: 'Cancelar' }).click();
     // Então

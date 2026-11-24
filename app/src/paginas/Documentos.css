@@ -160,7 +160,7 @@ span.pasta-abrir { cursor: default }
 .anotacao-conflito-acoes { display: flex; flex-wrap: wrap; gap: 8px }
 
 /* O texto formatado (para quem só lê): o corpo de leitura do DESIGN.md (16/1.65), na largura de leitura. */
-.texto-formatado.anotacao-texto { max-width: 68ch; margin: 0; font-size: var(--texto-nota); line-height: 1.65 }
+.texto-formatado.anotacao-texto { max-width: 68ch; margin: 0; font-size: var(--texto-nota); line-height: var(--passo-da-nota) }
 .texto-formatado.anotacao-texto > :is(h3, h4, h5) { margin-top: 20px }
 .texto-formatado.anotacao-texto > :is(h3, h4, h5):first-child { margin-top: 0 }
 /* Os títulos com os mesmos tamanhos do editor ao vivo (#364): ler e escrever mostram o texto igual */

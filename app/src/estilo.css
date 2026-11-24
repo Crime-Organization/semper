@@ -75,6 +75,10 @@
   --texto-tabela: 14px;
   /* A letra da nota (o texto da anotação, lido e escrito, #339): um ponto acima do texto corrido, para ler e escrever com folga */
   --texto-nota: 16px;
+  /* O passo de linha da nota (o corpo de leitura do DESIGN.md, 16/1.65): o texto da anotação e a descrição dos cartões (#433) */
+  --passo-da-nota: 1.65;
+  /* A folga em cima e embaixo do texto que se muda no lugar (o fundo do mouse em volta dele), lido e aberto: o texto não pula (#433) */
+  --folga-do-texto-editavel: 2px;
   /* O texto corrido das telas: campos e convites */
   --texto-corrido: 15px;
   /* A letra miúda das dicas de atalho ("Ctrl+Enter salva") */
@@ -83,6 +87,14 @@
   --altura-campo: 48px;
   /* O campo numa linha discreta (a equipe da anotação nova, #339): um pouco mais baixo que o das perguntas (--altura-campo) */
   --campo-discreto: 40px;
+  /* O campo na linha da seção de dados aberta (#432): cabe, com a folga em cima e embaixo, na altura da linha lida (.dados) */
+  --campo-na-linha: 30px; --folga-na-linha: 4px;
+  /* Quanto o campo na linha avança para a esquerda: a borda e o recuo de dentro, para o texto começar onde começa o valor lido */
+  --recuo-na-linha: 9px;
+  /* A coluna dos rótulos da tabela de dados do cartão (.dados) e da mesma tabela aberta (.linha-dos-dados), e o vão depois deles */
+  --coluna-do-rotulo-dos-dados: minmax(120px, 38%); --vao-depois-do-rotulo-dos-dados: 12px;
+  /* O texto dos campos no aparelho de toque: abaixo disto, o celular aproxima a tela ao tocar no campo */
+  --texto-do-campo-no-toque: 16px;
   /* Quanto os campos de uma seção do formulário entram sob o título dela (<SecaoDoFormulario>, #359) */
   --recuo-dos-campos: 16px;
   /* Quanto cada nível das pastas entra (#342): na árvore da página Documentos e no menu de escolher a pasta, que fica fora dela */
@@ -409,6 +421,19 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-formatado-tabela [data-alinhamento="direita"] { text-align: right }
 .texto-formatado > :is(ol, ul, blockquote, pre, hr, .texto-formatado-tabela):first-child { margin-top: 0 }
 .descricao-formatada { margin-top: var(--vao-do-titulo-a-descricao) }
+/* A descrição dos cartões tem a cara do texto da anotação (#433): a letra da nota, o mesmo passo de linha, a mesma cor e os mesmos
+   títulos do editor ao vivo, lida e escrita. Assim as linhas quebram no mesmo ponto da anotação, e o texto não muda ao clicar. */
+.texto-formatado.descricao-formatada { font-size: var(--texto-nota); line-height: var(--passo-da-nota); color: var(--ink) }
+.texto-formatado.descricao-formatada > h3 { font-size: var(--texto-nota-titulo-1) }
+.texto-formatado.descricao-formatada > h4 { font-size: var(--texto-nota-titulo-2) }
+.texto-formatado.descricao-formatada > h5 { font-size: var(--texto-nota-titulo-3) }
+/* Como no editor: o espaço no fim da linha ocupa lugar (break-spaces), as listas e os títulos sem margem própria (o título com a folga
+   de cima do editor), para a quebra e a altura das linhas serem as mesmas, lido e aberto. */
+.texto-formatado.descricao-formatada :is(p, li, h3, h4, h5, blockquote) { white-space: break-spaces }
+.texto-formatado.descricao-formatada > :is(ul, ol) { margin-block: 0 }
+.texto-formatado.descricao-formatada > ul:not(.texto-formatado-tarefas) { padding-left: var(--recuo-da-lista) }
+.texto-formatado.descricao-formatada li::marker { color: var(--muted) }
+.texto-formatado.descricao-formatada > :is(h3, h4, h5) { margin: 0; padding-top: .5em }
 /* A caixa de escrever com a barra de formatação. Ela é a medida da barra (container caixa-formatada): na caixa estreita (o
    celular), a barra muda de arranjo, veja abaixo. O fundo e a borda de cada botão ficam em variáveis (--fundo-do-botao e
    --borda-do-botao), que mudam com o mouse e no editor de texto, para a bolinha da caixa estreita seguir as mesmas cores. */
@@ -424,15 +449,19 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    cobre o espaço entre o alto de quem rola e a barra (--editor-barra-acima: a distância dela e, se quem rola tem recuo no alto, o
    recuo), mas só sobre o texto: a caixa corta (clip, que não rola nem solta a barra) o que passa do alto dela, e o título e o que
    vem antes da caixa continuam à vista. */
-.editor-de-texto { --editor-barra-topo: 0px; --editor-barra-acima: var(--editor-barra-topo); --editor-vao: 10px; display: flex; flex-direction: column; gap: 6px }
-.editor-de-texto .caixa-formatada { gap: var(--editor-vao); overflow-y: clip }
-.editor-de-texto .caixa-formatada-barra { position: sticky; top: var(--editor-barra-topo); z-index: 1; padding: 4px 0; background: var(--superficie) }
-.editor-de-texto .caixa-formatada-barra::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-barra-acima); background: var(--superficie) }
-.editor-de-texto .caixa-formatada-barra::after { content: ''; position: absolute; inset: 100% 0 auto; height: var(--editor-vao); background: linear-gradient(var(--superficie), transparent); pointer-events: none }
-.editor-de-texto .caixa-formatada-barra > * { opacity: .55; transition: opacity .15s ease-out }
-.editor-de-texto:is(:focus-within, :hover) .caixa-formatada-barra > * { opacity: 1 }
-.editor-de-texto .caixa-formatada-botao { --fundo-do-botao: transparent; --borda-do-botao: transparent; border-color: transparent; background: none }
-.editor-de-texto .caixa-formatada-botao:hover { --fundo-do-botao: var(--soft); --borda-do-botao: var(--line); background: var(--soft); border-color: var(--line) }
+/* A descrição do cartão (<TextoEditavel>, #433) tem a mesma barra, discreta, já no texto lido (.texto-editavel), no mesmo lugar em
+   que fica com o texto aberto (.texto-editavel-edicao): ao clicar, nada pula. Só aberta ela fica presa no alto ao rolar. */
+:is(.editor-de-texto, .texto-editavel) { --editor-barra-topo: 0px; --editor-barra-acima: var(--editor-barra-topo); --editor-vao: 10px }
+.editor-de-texto { display: flex; flex-direction: column; gap: 6px }
+:is(.editor-de-texto, .texto-editavel) .caixa-formatada { gap: var(--editor-vao); overflow-y: clip }
+:is(.editor-de-texto, .texto-editavel) .caixa-formatada-barra { position: sticky; top: var(--editor-barra-topo); z-index: 1; padding: 4px 0; background: var(--superficie) }
+.texto-editavel:not(.texto-editavel-edicao) .caixa-formatada-barra { position: relative }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-barra-acima); background: var(--superficie) }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra::after { content: ''; position: absolute; inset: 100% 0 auto; height: var(--editor-vao); background: linear-gradient(var(--superficie), transparent); pointer-events: none }
+:is(.editor-de-texto, .texto-editavel) .caixa-formatada-barra > * { opacity: .55; transition: opacity .15s ease-out }
+:is(.editor-de-texto, .texto-editavel):is(:focus-within, :hover) .caixa-formatada-barra > * { opacity: 1 }
+:is(.editor-de-texto, .texto-editavel) .caixa-formatada-botao { --fundo-do-botao: transparent; --borda-do-botao: transparent; border-color: transparent; background: none }
+:is(.editor-de-texto, .texto-editavel) .caixa-formatada-botao:hover { --fundo-do-botao: var(--soft); --borda-do-botao: var(--line); background: var(--soft); border-color: var(--line) }
 /* A barra na caixa estreita (#374): no celular, os nove botões não cabiam numa linha com o vão de sempre, e o Link ficava sozinho
    na segunda. Com o alvo do dedo inteiro (o --alvo-de-toque nas duas medidas), nove botões também não cabem numa linha. Até 420px
    de caixa (a mesma medida dos indicadores e do grupo de datas; a condição do @container não aceita variável), a barra vira uma
@@ -451,7 +480,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   /* O contorno do foco do teclado fica em volta da bolinha, como no computador, e não do alvo inteiro */
   .caixa-formatada-barra > .caixa-formatada-botao:focus-visible { outline: 0 }
   .caixa-formatada-barra > .caixa-formatada-botao:focus-visible::before { outline: 2px solid var(--accent); outline-offset: 2px }
-  .editor-de-texto .caixa-formatada-barra { padding-block: 0 }
+  :is(.editor-de-texto, .texto-editavel) .caixa-formatada-barra { padding-block: 0 }
 }
 .editor-de-texto-situacao { margin: 0; min-height: 18px; font-size: var(--texto-miudo); color: var(--muted); text-align: right }
 .editor-de-texto-situacao:is(.naoSalvo, .conflito) { color: var(--erro); font-weight: 700 }
@@ -461,13 +490,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    verde à esquerda que havia): como numa folha, só o cursor, na cor de destaque, mostra onde se escreve. Vale também para o
    lugar do texto enquanto o editor chega (.editor-ao-vivo-chegando), que recebe o foco do Enter no título. Os outros campos do
    sistema guardam o contorno de sempre. */
-.editor-ao-vivo .cm-editor { font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); background: none }
+.editor-ao-vivo .cm-editor { font: inherit; font-size: var(--texto-nota); line-height: var(--passo-da-nota); color: var(--ink); background: none }
 .editor-ao-vivo .cm-editor.cm-focused, .editor-ao-vivo .cm-editor .cm-content:focus-visible, .editor-ao-vivo-chegando:focus-visible { outline: 0 }
 .editor-ao-vivo .cm-editor .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible }
 .editor-ao-vivo .cm-editor .cm-content { min-height: var(--altura-do-texto); padding: 0; caret-color: var(--accent); overflow-wrap: anywhere }
 .editor-ao-vivo .cm-editor .cm-line { padding: 0 }
 .editor-ao-vivo .cm-editor .cm-placeholder { color: var(--faint) }
-.editor-ao-vivo-chegando { min-height: var(--altura-do-texto); font-size: var(--texto-nota); line-height: 1.65 }
+.editor-ao-vivo-chegando { min-height: var(--altura-do-texto); font-size: var(--texto-nota); line-height: var(--passo-da-nota); color: var(--ink) }
 .ao-vivo-negrito { font-weight: 800; color: var(--ink) }
 .ao-vivo-italico { font-style: italic }
 .ao-vivo-tachado { text-decoration: line-through; color: var(--muted) }
@@ -502,29 +531,74 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .titulo-editavel-campo { background: var(--superficie); resize: none; overflow: hidden; field-sizing: content }
 .titulo-editavel-campo:focus { outline: 2px solid var(--accent); outline-offset: 2px }
 .titulo-editavel-campo::placeholder { color: var(--faint); opacity: 1 }
-.texto-editavel { display: flex; flex-direction: column; align-items: flex-start }
-.texto-editavel-area, .dados-editaveis { align-self: stretch; margin: 0 -10px; padding: 2px 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
+.texto-editavel { display: flex; flex-direction: column }
+.texto-editavel-area, .dados-editaveis { align-self: stretch; margin: 0 -10px; padding: var(--folga-do-texto-editavel) 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
 /* O texto recebe o foco do teclado (#385): Enter abre a edição. No foco, o mesmo fundo do mouse e o contorno verde, colado nele. */
 .texto-editavel-area:hover, .texto-editavel-area:focus-visible, .dados-editaveis:hover, .dados-editaveis:focus-visible { background: var(--soft) }
 .texto-editavel-area:focus-visible, .dados-editaveis:focus-visible { outline-offset: 0 }
-.texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
-.texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
-.texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
-.texto-editavel-caixa { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); resize: vertical }
-.texto-editavel-caixa:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
-.texto-editavel-caixa::placeholder { color: var(--muted); opacity: 1 }
-/* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
-.texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
-.texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
-/* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar; aberta, os campos
-   em coluna, com o vão das etapas do lápis, e Cancelar e Salvar presos ao pé do cartão (.edicao-rodape). */
+/* Sem texto, a dica no lugar dele (#433), como a dica da anotação vazia: a mesma letra e a mesma cor, onde o texto começaria, sem
+   caixa nem borda; o mouse mostra o mesmo fundo do texto. */
+.texto-editavel-vazio { align-self: stretch; margin: 0 -10px; padding: var(--folga-do-texto-editavel) 10px; border: 0; border-radius: 8px; background: none; color: var(--faint);
+  font: inherit; font-size: var(--texto-nota); line-height: var(--passo-da-nota); text-align: left; cursor: text; transition: background-color .15s ease-out }
+.texto-editavel-vazio:hover { background: var(--soft) }
+/* O texto aberto (#433) é o editor das anotações, sem caixa nem borda: só o cursor mostra onde se escreve. A letra, o passo e a cor
+   são os da anotação, também no texto lido (.descricao-formatada), e o texto começa onde começava o lido: ao clicar, ele não muda
+   de tamanho nem de lugar, e o cursor cai na palavra clicada. A caixa tem a altura do texto, sem a folha alta da anotação. */
+.texto-editavel-edicao { gap: 6px }
+/* O texto lido fica no recuo do fundo do mouse (.texto-editavel-area); o aberto tem a mesma folga em cima e embaixo, e não sobe. O
+   vão entre a barra e o texto é o da caixa (--editor-vao), lido ou aberto. */
+.texto-editavel-edicao .editor-ao-vivo .cm-editor .cm-content, .texto-editavel-edicao .editor-ao-vivo-chegando { min-height: 0; padding-block: var(--folga-do-texto-editavel) }
+.texto-editavel .descricao-formatada { margin-top: 0 }
+/* Salvar e Cancelar, pequenos, à direita, presos ao pé do cartão enquanto o texto longo rola: sem fio, o texto que passa por baixo
+   some aos poucos logo acima deles, como no pé da anotação. */
+.texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 0; background: var(--superficie) }
+.texto-editavel-acoes::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-vao); background: linear-gradient(transparent, var(--superficie)); pointer-events: none }
+/* No cartão, a barra presa fica logo abaixo dos botões redondos da janela (ou no alto do corpo, com a coluna ao lado), como na anotação. */
+.cartao-painel:not(:has(.cartao-coluna)) .texto-editavel-edicao { --editor-barra-topo: var(--abaixo-dos-botoes-da-janela) }
+.cartao-painel:has(.cartao-coluna) .texto-editavel-edicao { --editor-barra-acima: var(--cartao-topo) }
+/* Na cabeça do cartão, logo abaixo do Salvar vem o "Expandir tudo" (.secoes-todas), que passa da ponta da linha a
+   --sobra-do-botao-redondo, no eixo das setas das seções (#381): o Salvar vai até a mesma borda, e os dois ficam alinhados (#433). */
+.cartao-cabeca-descricao .texto-editavel-acoes { margin-right: calc(-1 * var(--sobra-do-botao-redondo)) }
+/* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar. Aberta (#432), ela
+   tem a mesma cara da leitura: a mesma tabela de rótulo e valor (.dados), no mesmo fundo, nas mesmas colunas e na mesma altura de
+   linha; cada valor vira um campo discreto, branco, cujo texto começa onde começa o valor lido. Todas as linhas têm o mesmo passo:
+   o rótulo fica no meio da altura do campo, e a linha da caixa de marcar tem a altura das outras. Salvar e Cancelar, pequenos, no
+   pé da seção, logo depois da última linha (sem ficar presos à tela, para não cortar as linhas de baixo).
+   Ao abrir e ao rolar até um campo, ele para abaixo dos botões redondos que flutuam no alto do cartão (--abaixo-dos-botoes-flutuantes). */
 .dados-editaveis { display: block; cursor: pointer }
-.dados-editaveis-edicao { display: flex; flex-direction: column; gap: 20px }
+.dados-editaveis-edicao { --abaixo-dos-botoes-flutuantes: calc(var(--botoes-da-janela-acima, 0px) + var(--botao-redondo) + var(--botao-redondo-vao));
+  margin: 0 -10px; padding: 2px 10px; border-radius: 8px; background: var(--soft); font-size: var(--texto-tabela); scroll-margin-top: var(--abaixo-dos-botoes-flutuantes) }
+.dados-editaveis-edicao :is(.linha-dos-dados, input, select, textarea) { scroll-margin-top: var(--abaixo-dos-botoes-flutuantes) }
+.linha-dos-dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; align-items: start; padding: var(--folga-na-linha) 0 }
+.linha-dos-dados-rotulo { display: flex; align-items: center; min-height: var(--campo-na-linha); padding-right: var(--vao-depois-do-rotulo-dos-dados); color: var(--muted); overflow-wrap: anywhere }
+.linha-dos-dados-valor { display: flex; flex-direction: column; gap: 2px; min-width: 0; min-height: var(--campo-na-linha); margin-left: calc(-1 * var(--recuo-na-linha)) }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea) { width: 100%; height: var(--campo-na-linha); padding: 0 calc(var(--recuo-na-linha) - 1px); border: 1px solid var(--line); border-radius: 6px; background: var(--superficie); font: inherit; color: var(--ink); transition: border-color .15s ease-out }
+.linha-dos-dados-valor textarea { display: block; height: auto; min-height: var(--campo-na-linha); padding-block: var(--folga-na-linha); line-height: 1.5; resize: none; field-sizing: content }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea):hover { border-color: var(--line2) }
+.linha-dos-dados-valor :is(input[type="text"], select, textarea):focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent }
+/* O campo vazio (o "DD/MM/AAAA", a lista em "Não informado") fica apagado, como quem ainda não foi preenchido. */
+.linha-dos-dados-valor ::placeholder { color: var(--muted); opacity: 1 }
+.linha-dos-dados-valor select:has(option[value=""]:checked) { color: var(--muted) }
+.linha-dos-dados-valor option { color: var(--ink) }
+.linha-dos-dados.erro :is(input[type="text"], select, textarea) { border-color: var(--erro); outline-color: var(--erro) }
+.linha-dos-dados .msg-erro { padding-left: var(--recuo-na-linha); font-size: var(--texto-miudo); font-weight: 700; color: var(--erro) }
+/* A data: o botão do calendário cabe dentro do campo baixo. */
+.linha-dos-dados-valor .campo-data > input[type="text"] { padding-right: var(--campo-na-linha) }
+.linha-dos-dados-valor .campo-data-botao { right: var(--folga-na-linha); width: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)); height: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)) }
+/* As caixas de marcar: a caixinha do navegador, na cor do sistema, e o texto do tamanho do lido, sem a moldura das perguntas. */
+.linha-dos-dados .escolhas { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; min-height: var(--campo-na-linha); padding-left: var(--recuo-na-linha) }
+.linha-dos-dados .escolhas label, .linha-dos-dados .escolhas label:has(input:checked) { min-height: var(--campo-na-linha); gap: 8px; padding: 0; border: 0; border-radius: 4px; background: none; box-shadow: none; font-size: inherit; font-weight: 400; color: var(--ink) }
+.linha-dos-dados .escolhas label::before { display: none }
+.linha-dos-dados .escolhas input { position: static; flex-shrink: 0; width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: 0; opacity: 1; pointer-events: auto; accent-color: var(--accent); cursor: pointer }
+.dados-editaveis-acoes { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 8px }
+/* No aparelho de toque, o texto do campo fica no tamanho que não faz o celular aproximar a tela ao tocar nele. */
+@media (pointer: coarse) {
+  .linha-dos-dados-valor :is(input[type="text"], select, textarea) { font-size: var(--texto-do-campo-no-toque) }
+}
 /* A descrição na cabeça dos cartões (#346), depois dos dados (#397): o vão acima dela é o da cabeça (.cartao-cabeca-descricao), o
    mesmo para a descrição lida, a caixa aberta e o convite da descrição vazia, e fica fora do texto que se muda (#385): o fundo do
-   mouse e o contorno do foco começam no texto. O convite da descrição vazia é discreto, para não pesar mais que o título. */
-.cartao-cabeca-descricao :is(.texto-editavel, .texto-editavel-edicao, .texto-editavel-vazio, .descricao-formatada, .demanda-descricao) { margin-top: 0 }
-.cartao-cabeca .texto-editavel-vazio { padding: 8px 12px; border-radius: 8px; font-size: var(--texto-tabela) }
+   mouse e o contorno do foco começam no texto. */
+.cartao-cabeca-descricao :is(.texto-editavel, .texto-editavel-edicao, .texto-editavel-vazio, .descricao-formatada) { margin-top: 0 }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
 
@@ -1497,10 +1571,25 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .escolhida > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .escolhida > .mini { flex-shrink: 0 }
 .qualificacao { background: var(--soft); border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: anywhere }
-.dados { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 0; margin: 0; font-size: 14px }
+.dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; gap: 0; margin: 0; font-size: 14px }
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
-.dados dt { color: var(--muted); padding-right: 12px; overflow-wrap: anywhere }
+.dados dt { color: var(--muted); padding-right: var(--vao-depois-do-rotulo-dos-dados); overflow-wrap: anywhere }
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
+/* A tabela de dados no espaço estreito (o cartão no celular, #432): na coluna de 38%, os rótulos longos ("Gratuidade de justiça",
+   "Apresentação da marca") quebravam em duas linhas, e a tabela ficava em degraus; numa coluna mais larga, o número do processo
+   não cabia no valor. Abaixo de 480px (a condição do @container não aceita variável), o rótulo sobe para cima do valor, em letra
+   miúda, na leitura e na edição do mesmo jeito: todas as linhas têm o mesmo passo, e o campo ganha a largura toda. Na edição, o
+   rótulo fica onde estava na leitura, e o campo, embaixo dele, tem a mesma folga dos dois lados do fundo. Na leitura, o vão em cima do
+   rótulo e embaixo do valor é o --vao-da-linha-empilhada; na edição, a folga e o campo somam o mesmo passo. */
+:root { --vao-da-linha-empilhada: 8px; --vao-entre-rotulo-e-valor: 2px }
+@container (max-width: 480px) {
+  .dados { grid-template-columns: 1fr }
+  .dados dt { padding: var(--vao-da-linha-empilhada) 0 0; border-bottom: 0; font-size: var(--texto-miudo) }
+  .dados dd { padding: var(--vao-entre-rotulo-e-valor) 0 var(--vao-da-linha-empilhada) }
+  .linha-dos-dados { grid-template-columns: 1fr; row-gap: var(--vao-entre-rotulo-e-valor) }
+  .linha-dos-dados-rotulo { min-height: 0; padding-right: 0; font-size: var(--texto-miudo) }
+  .linha-dos-dados-valor { margin-left: 0 }
+}
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
 /* Embaixo da lista, a busca de ligar que a corrente do título abre (#427), na linha toda; fechada, a linha some. */

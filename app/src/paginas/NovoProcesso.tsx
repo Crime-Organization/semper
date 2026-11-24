@@ -14,7 +14,7 @@ import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, 
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
   comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, errosDosDadosDoProcesso, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso,
-  processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao, tipoDoDerivado, tipoDoEndereco, TIPOS,
+  CAMPOS_PROCESSO, processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao, tipoDoDerivado, tipoDoEndereco, TIPOS,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -51,7 +51,7 @@ const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: []
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
 /** A primeira pergunta com erro: na etapa que está na tela ou, na seção de dados do cartão (#428), no formulário dela. */
-const PERGUNTA_COM_ERRO = '.etapa.ativa .pergunta.erro, .dados-editaveis-edicao .pergunta.erro';
+const PERGUNTA_COM_ERRO = '.etapa.ativa .pergunta.erro, .dados-editaveis-edicao .linha-dos-dados.erro';
 /** A base dos ids do grupo Clientes (idsDoCampoDeVarios): o papel de cada linha aponta para a dica e o erro dele. */
 const GRUPO_DOS_CLIENTES = 'clientes-do-processo';
 
@@ -342,7 +342,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // A escolhida, quando é uma das que o escritório acrescentou: o administrador pode retirá-la (ex.: digitada errado).
   // Se ela também é de uma lista pronta, retirar não a tira da lista: o botão não aparece (#288).
   const opcaoEscolhida = (campo: CampoDeOpcao) => ehOpcaoPronta(campo, c[campo]) ? undefined : opcoes.find(o => o.campo === campo && o.valor === c[campo]);
-  const listaDe = (campo: CampoDeOpcao, escolhida = opcaoEscolhida(campo)) => <Campo rotulo={LISTAS_DO_PROCESSO[campo].rotulo} para={campo}
+  const listaDe = (campo: CampoDeOpcao, escolhida = opcaoEscolhida(campo)) => <Campo rotulo={LISTAS_DO_PROCESSO[campo].rotulo} para={campo} curto={CAMPOS_PROCESSO[campo]}
     depois={ctx.ehAdmin && <div className="acoes-lote">
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void acrescentarOpcao(campo)}><Icone nome="mais" tam={13} /> Acrescentar opção</button>
       {escolhida && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void retirarOpcao(escolhida)}><Icone nome="fechar" tam={13} /> Retirar da lista</button>}
@@ -437,21 +437,26 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     }
   }
 
-  // O número e o órgão: no cadastro, na primeira etapa; na seção de dados do cartão (#428), juntos com os detalhes.
+  // O número e o órgão: no cadastro, na primeira etapa; na seção de dados do cartão (#428), juntos com os detalhes. Na seção, as caixas
+  // de marcar dizem só o valor, como a leitura ("Segredo de justiça: Sim", #432): o rótulo da linha já diz o resto.
   const numeroEOrgao = () => <>
-      <Campo rotulo="Número do processo" para="numero" obrigatorio erro={erros.numero}
+      <Campo rotulo="Número do processo" curto={CAMPOS_PROCESSO.numero} para="numero" obrigatorio erro={erros.numero}
         dica={noPadrao ? 'No padrão do CNJ. O sistema confere o número e indica o órgão.' : judicial ? 'Como aparece nos autos.' : 'O número do pedido ou do protocolo no órgão.'}>
         <input type="text" {...propsDoCampo('numero', { dica: true, erro: erros.numero })} inputMode={noPadrao ? 'numeric' : undefined} maxLength={TAMANHO_PROCESSO.numero} value={c.numero}
           onChange={e => mudarNumero({ numero: e.target.value })} />
       </Campo>
-      {judicial && <Escolhas rotulo="Formato do número">
-        <label><input type="checkbox" checked={c.numeroAntigo} onChange={e => mudarNumero({ numeroAntigo: e.target.checked })} />É um número antigo, de antes do padrão do CNJ</label>
+      {judicial && <Escolhas rotulo="Formato do número" curto="Número antigo">
+        <label><input type="checkbox" checked={c.numeroAntigo} onChange={e => mudarNumero({ numeroAntigo: e.target.checked })} />{soOsDados ? 'De antes do padrão do CNJ' : 'É um número antigo, de antes do padrão do CNJ'}</label>
       </Escolhas>}
       <Campo rotulo="Órgão" para="orgao" erro={erros.orgao} dica="A sigla. Ex.: TJMG, TRF6, INPI, INSS. Aparece acima do nome do cartão.">
         <CampoComSugestoes type="text" {...propsDoCampo('orgao', { dica: true, erro: erros.orgao })} maxLength={TAMANHO_PROCESSO.orgao} valor={c.orgao}
           aoMudar={orgao => mudar({ orgao: orgao.toUpperCase() })} sugestoes={emSugestoes(siglas)} />
       </Campo>
   </>;
+
+  /** Os campos que o escritório criou para o tipo do processo. */
+  const extrasDoEscritorio = () => camposDoTipo(camposDoEscritorio, c.tipo).map(campo => <CampoDoEscritorio key={campo.id} campo={campo} valor={c.extras[campo.id] ?? ''}
+    erro={errosVisiveisDosExtras[campo.id]} aoMudar={valor => setC(atual => ({ ...atual, extras: { ...atual.extras, [campo.id]: valor } }))} />);
 
   const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
     processo: () => <>
@@ -544,7 +549,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         <Campo rotulo="Juiz ou relator" para="juiz" erro={erros.juiz}>
           <input type="text" {...propsDoCampo('juiz', { erro: erros.juiz })} maxLength={TAMANHO_PROCESSO.juiz} value={c.juiz} onChange={e => mudar({ juiz: e.target.value })} />
         </Campo>
-        <Campo rotulo="Data da distribuição" para="distribuicao" erro={erros.distribuicao}>
+        <Campo rotulo="Data da distribuição" curto={CAMPOS_PROCESSO.distribuicao} para="distribuicao" erro={erros.distribuicao}>
           <CampoData {...propsDoCampo('distribuicao', { erro: erros.distribuicao })} valor={c.distribuicao} aoMudar={distribuicao => mudar({ distribuicao })} />
         </Campo>
         <Campo rotulo="Valor da causa" para="valorCausa" erro={erros.valorCausa}>
@@ -555,19 +560,20 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <input type="text" {...propsDoCampo('instancia', { erro: erros.instancia })} maxLength={TAMANHO_PROCESSO.instancia} value={c.instancia} onChange={e => mudar({ instancia: e.target.value })} />
         </Campo>
         <Escolhas rotulo="Segredo de justiça">
-          <label><input type="checkbox" checked={c.segredo} onChange={e => mudar({ segredo: e.target.checked })} />Este processo corre em segredo de justiça</label>
+          <label><input type="checkbox" checked={c.segredo} onChange={e => mudar({ segredo: e.target.checked })} />{soOsDados ? 'Sim' : 'Este processo corre em segredo de justiça'}</label>
         </Escolhas>
-        <Campo rotulo="Advogado da parte contrária" para="advogadoContrario" erro={erros.advogadoContrario}>
+        <Campo rotulo="Advogado da parte contrária" curto={CAMPOS_PROCESSO.advogado_contrario} para="advogadoContrario" erro={erros.advogadoContrario}>
           <input type="text" {...propsDoCampo('advogadoContrario', { erro: erros.advogadoContrario })} maxLength={TAMANHO_PROCESSO.advogadoContrario} value={c.advogadoContrario}
             onChange={e => mudar({ advogadoContrario: e.target.value })} />
         </Campo>
       </>}
-      {camposDoTipo(camposDoEscritorio, c.tipo).map(campo => <CampoDoEscritorio key={campo.id} campo={campo} valor={c.extras[campo.id] ?? ''} erro={errosVisiveisDosExtras[campo.id]}
-        aoMudar={valor => setC(atual => ({ ...atual, extras: { ...atual.extras, [campo.id]: valor } }))} />)}
+      {!soOsDados && extrasDoEscritorio()}
       <Campo rotulo="Observações" para="observacoes" erro={erros.observacoes}>
         <textarea {...propsDoCampo('observacoes', { erro: erros.observacoes })} maxLength={TAMANHO_PROCESSO.observacoes} value={c.observacoes}
           onChange={e => mudar({ observacoes: e.target.value })} />
       </Campo>
+      {/* Na seção de dados (#432), os campos do escritório vêm depois das observações, na ordem da leitura (linhasDosCampos). */}
+      {soOsDados && extrasDoEscritorio()}
     </>
   };
 

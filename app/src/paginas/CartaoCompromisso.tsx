@@ -18,14 +18,14 @@ import {
   CAMPOS_COMPROMISSO, compromissoVazio, continuaPeloProcesso, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, SEM_SITUACAO_COMPROMISSO,
   TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
 } from '../regras/compromisso';
-import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
+import { descricaoAoGravar, erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { perguntarNosCampos, soEstaOuSeguintes } from './agenda/soEstaOuSeguintes';
 import { avisoDaRepeticao, avisoDasSeguintes, falhaNoLapis, REPETIDO_NO_CARTAO, type MudancaDasSeguintes } from '../regras/repeticao';
-import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
 import { QuandoDoCompromisso } from './QuandoDoCompromisso';
@@ -155,6 +155,14 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     catch (e) { falha(new Error(falhaNoLapis(c!.codigo, 'seguintes', (e as Error).message))); }
     aoMudar(); await carregar(); setVersaoHist(v => v + 1);
   }
+
+  /** O resultado escrito no próprio cartão (#433), como a descrição da tarefa: o mesmo aviso do lápis, com Desfazer. Em branco, sai. */
+  const salvarResultado = (texto: string) => gravarNoLugar<Pick<Compromisso, 'resultado'>>({
+    novo: { resultado: descricaoAoGravar(texto) }, antes: { resultado: c.resultado }, gravar: x => SD.compromissoAtualizar(c.id, x),
+    aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
+    mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   /** "Esta e as seguintes" (#307): o banco muda a série toda de uma vez; sem Desfazer, porque cada data pode ter mudado de um jeito. */
   async function mudarAsSeguintes(mudanca: MudancaDasSeguintes, gravar: () => Promise<number>) {
     try {
@@ -195,7 +203,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   // Nenhum "+ Novo …" com o compromisso arquivado nem para quem só lê (#376), em seção nenhuma.
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={!somenteLer}>
-    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: c.titulo, descricao: c.resultado }} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao
       topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
@@ -240,7 +248,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     {doProcesso && <Recolhivel titulo="Resultado" icone="check" preferencia="compromissos.cartao.resultado" contador={c.resultado ? 1 : 0}>
-      {c.resultado ? <p className="demanda-descricao">{c.resultado}</p> : <Nota>Ainda sem resultado. Depois do compromisso, registre aqui pelo lápis do cartão.</Nota>}
+      {/* O resultado se escreve no próprio lugar (#433), como a descrição da tarefa: quem muda o compromisso, com ele ativo. */}
+      <TextoEditavel key={'resultado-' + noLugar.chave} texto={c.resultado || ''} rotulo="Resultado" className="descricao-formatada"
+        vazio={<Nota>Ainda sem resultado.</Nota>} convite="Ainda sem resultado. Clique para escrever o que aconteceu." maximo={TAMANHO_COMPROMISSO.resultado}
+        aoMudarRascunho={noLugar.rascunhoDe('descricao')} aoSalvar={somenteLer ? undefined : salvarResultado} />
     </Recolhivel>}
 
     <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={c.processo_id ? 1 : 0}

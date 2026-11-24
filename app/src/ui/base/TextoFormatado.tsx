@@ -160,6 +160,11 @@ export interface AlvoDaFormatacao {
    * entre eles (alternarMarca).
    */
   marcarNoCursor?: (marca: MarcaDoBotao) => boolean;
+  /**
+   * A barra só se mostra, no lugar da barra do editor (a descrição lida e o editor que ainda chega, #433): os botões ficam fora do
+   * Tab e do leitor de tela, que abrem o texto com Enter nele e encontram a barra de verdade no editor.
+   */
+  soParaVer?: boolean;
 }
 
 /**
@@ -202,18 +207,22 @@ export function barraDeFormatacao(alvo: AlvoDaFormatacao) {
     else if (!aplicar(() => comLink, escolha)) avisar(`O link não cabe: o texto passaria do limite de ${alvo.maximo} caracteres.`, 'erro');
     alvo.focar();
   }
-  const botao = estiloBotao({ forma: 'mini' }, 'caixa-formatada-botao');
-  const botoes = [
-    <button key="negrito" type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>,
-    <button key="italico" type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>,
-    ...BOTOES.map(({ rotulo, icone, fazer }) =>
-      <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>),
-    <button key="link" type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
+  /** Cada botão da barra: o nome (o mesmo do leitor de tela e da dica), o desenho e o que ele faz. */
+  const itens: { rotulo: string; desenho: ReactNode; fazer: () => unknown }[] = [
+    { rotulo: 'Negrito (Ctrl+B)', desenho: <b aria-hidden="true">B</b>, fazer: () => marcar('negrito') },
+    { rotulo: 'Itálico (Ctrl+I)', desenho: <i aria-hidden="true">I</i>, fazer: () => marcar('italico') },
+    ...BOTOES.map(({ rotulo, icone, fazer }) => ({ rotulo, desenho: <Icone nome={icone} tam={TAMANHO_DO_ICONE} />, fazer: () => aplicar(fazer) })),
+    { rotulo: 'Link', desenho: <Icone nome="vinculo" tam={TAMANHO_DO_ICONE} />, fazer: () => void link() }
   ];
-  const barra = <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={alvo.id} style={porLinha(botoes.length)}>
-    {botoes}
+  /** Faz o que o botão com esse nome faz (a descrição lida passa ao editor o botão que a pessoa apertou nela, #433). */
+  const apertar = (rotulo: string) => { itens.find(i => i.rotulo === rotulo)?.fazer(); };
+  const botao = estiloBotao({ forma: 'mini' }, 'caixa-formatada-botao');
+  const barra = <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" style={porLinha(itens.length)}
+    {...alvo.soParaVer ? { 'aria-hidden': true } : { 'aria-controls': alvo.id }}>
+    {itens.map(({ rotulo, desenho, fazer }) =>
+      <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} tabIndex={alvo.soParaVer ? -1 : undefined} onClick={() => void fazer()}>{desenho}</button>)}
   </div>;
-  return { barra, marcar };
+  return { barra, marcar, apertar };
 }
 
 /** A marca do atalho (Ctrl+B, Ctrl+I, ou Cmd no Mac), ou undefined se a tecla não é um atalho da barra. */

@@ -41,18 +41,18 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Etiquetas](#etiquetas), linhas 667–683: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
 - [Ligações entre itens](#ligacoes), linhas 684–707: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.
 - [Quadros (kanban) e situação](#quadros), linhas 708–734: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 735–759: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 760–772: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 773–787: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 788–808: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 809–822: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 823–842: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 843–861: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 862–875: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 876–891: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 892–903: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 904–1008: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 1009–1012: nada.
+- [Cartão dos itens](#cartao), linhas 735–760: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 761–773: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 774–788: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 789–809: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 810–823: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 824–843: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google e contatos](#google), linhas 844–862: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+- [Novidades e versão](#novidades), linhas 863–876: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 877–892: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 893–904: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 905–1009: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 1010–1013: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -756,6 +756,7 @@ Peça comum: mexer aqui muda os cartões de todos os módulos.
 - **Armadilhas:**
   - Toda seção de itens ligados mostra a contagem ao lado do título, mesmo recolhida (`regras/secoes.ts`, `ui/useQuantos.ts`).
   - As datas de todos os cartões abrem na janela das datas (#422, `ui/base/JanelaDasDatas.tsx`), que flutua sobre o cartão e vai para fora dele na página: nos testes de tela, ache-a pela página (`page.getByRole("dialog", …)`), e não dentro do cartão.
+  - A descrição aberta no cartão (#433, `ui/base/TextoEditavel.tsx`) é o editor das anotações (`ui/base/EditorAoVivo.tsx`), e não uma caixa de texto comum: nos testes de tela, confira o texto com `toHaveText` (não `toHaveValue`); nos de componente, com `src/testes/editorAoVivo.ts`. A letra e o passo dela são os do texto lido (`estilo.css`, `.texto-editavel-edicao`): mudou um, mude o outro, para o texto não pular ao clicar.
 
 <a id="busca-geral"></a>
 ## Busca geral

@@ -529,7 +529,8 @@ export const ASSUNTOS: Assunto[] = [
       'arrumacao-do-cartao', 'atalhos-do-cartao', 'cartao', 'coluna-do-cartao', 'eixo-dos-botoes-do-cartao', 'situacao-e-expandir-tudo', 'topo-do-cartao',
       'datas-nos-cartoes', 'datas', 'novo-padrao-das-secoes', 'sair_do_cartao'],
     armadilhas: ['Toda seção de itens ligados mostra a contagem ao lado do título, mesmo recolhida (`regras/secoes.ts`, `ui/useQuantos.ts`).',
-      'As datas de todos os cartões abrem na janela das datas (#422, `ui/base/JanelaDasDatas.tsx`), que flutua sobre o cartão e vai para fora dele na página: nos testes de tela, ache-a pela página (`page.getByRole("dialog", …)`), e não dentro do cartão.']
+      'As datas de todos os cartões abrem na janela das datas (#422, `ui/base/JanelaDasDatas.tsx`), que flutua sobre o cartão e vai para fora dele na página: nos testes de tela, ache-a pela página (`page.getByRole("dialog", …)`), e não dentro do cartão.',
+      'A descrição aberta no cartão (#433, `ui/base/TextoEditavel.tsx`) é o editor das anotações (`ui/base/EditorAoVivo.tsx`), e não uma caixa de texto comum: nos testes de tela, confira o texto com `toHaveText` (não `toHaveValue`); nos de componente, com `src/testes/editorAoVivo.ts`. A letra e o passo dela são os do texto lido (`estilo.css`, `.texto-editavel-edicao`): mudou um, mude o outro, para o texto não pular ao clicar.']
   },
   {
     id: 'busca-geral',

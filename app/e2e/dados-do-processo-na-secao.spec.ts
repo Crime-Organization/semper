@@ -31,7 +31,8 @@ test.describe('Dados do processo mudados na própria seção (#428)', () => {
     // Então
     const form = formulario(cartao);
     await expect(form).toBeVisible();
-    await expect(form.getByLabel('Número do processo')).toHaveValue(NUMERO);
+    // Cada linha da edição tem o rótulo da leitura (#432): "Número", e não mais "Número do processo", como no cadastro.
+    await expect(form.getByLabel('Número', { exact: true })).toHaveValue(NUMERO);
     await expect(form.getByLabel('Comarca')).toHaveValue('Montes Claros');
     await expect(form.getByLabel('Juiz ou relator')).toHaveValue('');
     await expect(form.getByRole('button', { name: 'Salvar' })).toBeVisible();
@@ -41,6 +42,85 @@ test.describe('Dados do processo mudados na própria seção (#428)', () => {
     await expect(form.getByRole('textbox', { name: 'Cliente', exact: true })).toHaveCount(0);
     // E o lápis continua no topo
     await expect(page.getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
+  });
+
+  test('dado quem é administrador, quando abre a edição, então ela tem a cara da leitura: os mesmos rótulos, sem textos de ajuda e sem "Acrescentar opção" (#432)', async ({ page }) => {
+    // Dado: o Mauro é administrador (no lápis, ele vê o "+ Acrescentar opção" das listas)
+    const cartao = await abrirDados(page);
+    const lida = (texto: string) => cartao.getByRole('definition').filter({ hasText: texto });
+    const passoNaLeitura = (await lida('2ª Vara Cível').boundingBox())!.y - (await lida('Montes Claros').boundingBox())!.y;
+    // Quando
+    await lida('Montes Claros').click();
+    // Então: os rótulos são os da leitura
+    const form = formulario(cartao);
+    for (const rotulo of ['Número', 'Órgão', 'Sistema', 'Comarca', 'Vara', 'Distribuição', 'Advogado contrário']) await expect(form.getByLabel(rotulo, { exact: true })).toBeVisible();
+    await expect(form.getByRole('checkbox', { name: 'Sim' })).toBeVisible();
+    // E nada de ajuda nem de botões no meio da tabela: só Cancelar e Salvar, no pé
+    // (a dica do número fica só para o leitor de tela, que a lê junto do campo)
+    await expect(form.getByLabel('Número', { exact: true })).toHaveAccessibleDescription(/No padrão do CNJ/);
+    expect((await form.getByText(/No padrão do CNJ/).boundingBox())?.height ?? 0).toBeLessThanOrEqual(1);
+    await expect(form.getByRole('button', { name: 'Acrescentar opção' })).toHaveCount(0);
+    const botoes = form.getByRole('button');
+    await expect(botoes).toHaveCount(3);
+    for (const [i, nome] of ['Abrir o calendário', 'Cancelar', 'Salvar'].entries()) await expect(botoes.nth(i)).toHaveAccessibleName(nome);
+    // E a linha aberta tem a altura da linha lida: de Comarca a Vara, a mesma distância
+    const passoNaEdicao = (await form.getByLabel('Vara', { exact: true }).boundingBox())!.y - (await form.getByLabel('Comarca', { exact: true }).boundingBox())!.y;
+    expect(Math.abs(passoNaEdicao - passoNaLeitura)).toBeLessThanOrEqual(1);
+  });
+
+  test('dado a edição aberta, então as linhas das caixas de marcar têm o mesmo passo das outras, e o rótulo fica no meio do campo (#432)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDados(page);
+    // Quando
+    await cartao.getByRole('definition').filter({ hasText: 'Montes Claros' }).click();
+    // Então: de uma linha à outra, a mesma distância, com ou sem a caixa de marcar no meio
+    const form = formulario(cartao);
+    const alto = async (rotulo: string) => (await form.getByText(rotulo, { exact: true }).boundingBox())!.y;
+    const passo = await alto('Órgão') - await alto('Número antigo');
+    for (const ordem of [['Número', 'Número antigo', 'Órgão', 'Sistema'], ['Instância', 'Segredo de justiça', 'Advogado contrário']])
+      for (let i = 1; i < ordem.length; i++) expect(Math.abs(await alto(ordem[i]) - await alto(ordem[i - 1]) - passo)).toBeLessThanOrEqual(1);
+    // E o rótulo fica no meio da altura do campo dele
+    const campo = (await form.getByLabel('Comarca', { exact: true }).boundingBox())!;
+    const rotulo = (await form.getByText('Comarca', { exact: true }).boundingBox())!;
+    expect(Math.abs((rotulo.y + rotulo.height / 2) - (campo.y + campo.height / 2))).toBeLessThanOrEqual(2);
+  });
+
+  test('dado a seção rolada até o alto do cartão, quando a pessoa abre a edição, então o primeiro campo fica abaixo dos botões do cartão, sem nada por cima (#432)', async ({ page }) => {
+    // Dado: a tabela lida rolada até o alto, debaixo dos botões redondos que flutuam no cartão
+    const cartao = await abrirDados(page);
+    const lida = cartao.getByRole('definition').filter({ hasText: 'Montes Claros' });
+    await lida.evaluate(el => el.closest('dl')!.scrollIntoView({ block: 'start' }));
+    // Quando
+    await lida.click();
+    // Então: o número, com o cursor nele, aparece inteiro abaixo do lápis e do X
+    const numero = formulario(cartao).getByLabel('Número', { exact: true });
+    await expect(numero).toBeFocused();
+    const embaixoDosBotoes = Math.max(...await Promise.all(['Editar', 'Fechar'].map(async nome => {
+      const caixa = (await cartao.getByRole('button', { name: nome, exact: true }).boundingBox())!;
+      return caixa.y + caixa.height;
+    })));
+    expect((await numero.boundingBox())!.y).toBeGreaterThan(embaixoDosBotoes);
+  });
+
+  test('dado o cartão no celular, quando a pessoa abre a edição, então cada rótulo fica numa linha só, em cima do campo, e todas as linhas têm o mesmo passo da leitura (#432)', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 390, height: 844 });
+    const cartao = await abrirDados(page);
+    const passoNaLeitura = (await dado(cartao, 'Vara').boundingBox())!.y - (await dado(cartao, 'Comarca').boundingBox())!.y;
+    // Quando
+    await cartao.getByRole('definition').filter({ hasText: 'Montes Claros' }).click();
+    // Então: os rótulos longos não quebram (têm a altura de um curto) e ficam em cima do campo
+    const form = formulario(cartao);
+    const altura = async (rotulo: string) => (await form.getByText(rotulo, { exact: true }).boundingBox())!.height;
+    for (const rotulo of ['Gratuidade de justiça', 'Natureza processual', 'Advogado contrário', 'Meio de tramitação']) {
+      expect(await altura(rotulo)).toBeLessThanOrEqual(await altura('Órgão') + 1);
+      const caixaDoRotulo = (await form.getByText(rotulo, { exact: true }).boundingBox())!;
+      expect((await form.getByLabel(rotulo, { exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(caixaDoRotulo.y + caixaDoRotulo.height);
+    }
+    // E de uma linha à outra, a mesma distância, que é a da leitura
+    const alto = async (rotulo: string) => (await form.getByText(rotulo, { exact: true }).boundingBox())!.y;
+    const ordem = ['Número', 'Número antigo', 'Órgão', 'Sistema', 'Meio de tramitação', 'Área do direito', 'Natureza processual', 'Gratuidade de justiça', 'Comarca', 'Vara'];
+    for (let i = 1; i < ordem.length; i++) expect(Math.abs(await alto(ordem[i]) - await alto(ordem[i - 1]) - passoNaLeitura)).toBeLessThanOrEqual(1);
   });
 
   test('dado a edição aberta, quando a pessoa preenche um campo vazio e salva, então grava, a seção mostra só os preenchidos e o aviso oferece Desfazer', async ({ page }) => {

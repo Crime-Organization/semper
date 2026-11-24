@@ -5,7 +5,6 @@
 .contrato-calculado { font-size: 15px; font-weight: 700; color: var(--ink); min-height: var(--altura-campo); display: flex; align-items: center; font-variant-numeric: tabular-nums }
 .contrato-salvar { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap }
 .contrato-link { color: var(--accent-ink); font-weight: 700; border-bottom: 1px solid currentColor; overflow-wrap: anywhere }
-.contrato-obs { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: var(--ink); margin: 0 }
 .contrato-form { display: flex; flex-direction: column; gap: 18px }
 .contrato-form .cartao { display: flex; flex-direction: column; gap: 16px }
 .contrato-form .cartao > .nota { margin: 0 }

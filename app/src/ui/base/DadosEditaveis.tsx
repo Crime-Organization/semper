@@ -6,7 +6,11 @@
 // - FormularioDosDados: o formulário aberto. Enter passa ao próximo campo (no último, salva); Esc fecha sem salvar (com algo
 //   mudado, pergunta antes de descartar) e nunca fecha o cartão em volta; com algo mudado, sair do cartão pergunta antes
 //   (AvisoAoSair). Quem só lê vê os dados, e nada vira formulário nem recebe o foco.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+// A edição tem a mesma cara da leitura (#432): a mesma tabela de rótulo e valor, no mesmo fundo e no mesmo tamanho, e cada valor
+// vira um campo discreto na própria linha (LinhaDosDados). Dentro do FormularioDosDados, o <Campo> e o <Escolhas> de ui/base viram
+// essas linhas sozinhos (useNaLinhaDosDados): sem dica à vista (o leitor de tela ainda a lê) e sem o que vem depois do campo (o
+// "+ Acrescentar opção" fica no lápis). Salvar e Cancelar, pequenos, no pé da seção.
+import { createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { AvisoAoSair } from '../AvisoAoSair';
 import { confirmar } from '../janela';
 import { estiloBotao } from './botao';
@@ -17,6 +21,35 @@ const COM_CLIQUE_PROPRIO = 'a, button, input, select, textarea, label, summary';
 const COMO_MUDAR = 'Clique ou tecle Enter para mudar estes dados.';
 /** Os campos que o Enter percorre, na ordem da tela (as opções e as caixas de marcar têm o Enter delas). */
 const CAMPOS_DO_ENTER = 'input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), select';
+
+/** Os campos estão dentro de um FormularioDosDados: cada um vira uma linha da tabela (LinhaDosDados), e não uma pergunta. */
+const NaLinhaDosDados = createContext(false);
+/** Para as peças que mudam de cara dentro da edição da seção (o <Campo>, o <Escolhas>, uma nota que só cabe no cadastro). */
+export const useNaLinhaDosDados = () => useContext(NaLinhaDosDados);
+
+interface PropsDaLinha {
+  /** O rótulo, à esquerda, o mesmo da leitura. */
+  rotulo: ReactNode;
+  /** O id do campo (o rótulo aponta para ele). Sem isto, a linha é um grupo (caixas de marcar), com o rótulo como nome. */
+  para?: string;
+  /** A ajuda do campo: não aparece, mas o leitor de tela a lê (o campo aponta para ela por propsDoCampo). */
+  dica?: ReactNode;
+  erro?: ReactNode;
+  children: ReactNode;
+}
+/** Uma linha da seção de dados aberta: o rótulo à esquerda e o campo à direita, na altura da linha lida, com o erro embaixo dele. */
+export function LinhaDosDados({ rotulo, para, dica, erro, children }: PropsDaLinha) {
+  const id = useId();
+  const classe = erro ? 'linha-dos-dados erro' : 'linha-dos-dados';
+  const valor = <div className="linha-dos-dados-valor">
+    {children}
+    {dica && para && <span className="sr" id={para + '-dica'}>{dica}</span>}
+    {erro && <span className="msg-erro" id={para ? para + '-erro' : undefined} role="alert">{erro}</span>}
+  </div>;
+  return para
+    ? <div className={classe}><label className="linha-dos-dados-rotulo" htmlFor={para}>{rotulo}</label>{valor}</div>
+    : <div className={classe} role="group" aria-labelledby={id}><span className="linha-dos-dados-rotulo" id={id}>{rotulo}</span>{valor}</div>;
+}
 
 interface PropsDaSecao {
   /** O nome dos dados (ex.: "Dados do processo"), para o leitor de tela. */
@@ -87,8 +120,15 @@ export function FormularioDosDados({ rotulo, estado, ocupado, aoSalvar, aoCancel
   avisarSujo.current = aoMudarSujo;
   useEffect(() => { avisarSujo.current?.(mudou); }, [mudou]);
   useEffect(() => () => avisarSujo.current?.(false), []);
-  // Ao abrir, o cursor vai para o primeiro campo.
-  useEffect(() => { form.current?.querySelector<HTMLElement>(CAMPOS_DO_ENTER)?.focus({ preventScroll: true }); }, []);
+  // Ao abrir, a seção aparece o mais inteira que der, e o cursor vai para o primeiro campo, com a linha dele (o rótulo, que no celular
+  // fica em cima, e o campo) à vista, abaixo dos botões redondos que flutuam no alto do cartão (o CSS dá a folga deles no
+  // scroll-margin-top), para nenhum botão cobrir o campo nem o erro dele (#432).
+  useEffect(() => {
+    const primeiro = form.current?.querySelector<HTMLElement>(CAMPOS_DO_ENTER);
+    form.current?.scrollIntoView?.({ block: 'nearest' });
+    (primeiro?.closest('.linha-dos-dados') ?? primeiro)?.scrollIntoView?.({ block: 'nearest' });
+    primeiro?.focus({ preventScroll: true });
+  }, []);
 
   async function desistir() {
     if (mudou && !await confirmar('Descartar as mudanças?', 'O que você mudou nestes dados não será salvo.', 'Descartar', true)) return;
@@ -111,13 +151,13 @@ export function FormularioDosDados({ rotulo, estado, ocupado, aoSalvar, aoCancel
     if (i >= 0 && i < campos.length - 1) campos[i + 1].focus(); else aoSalvar();
   }
 
-  return <form ref={form} className="form-grade dados-editaveis-edicao" aria-label={rotulo} noValidate autoComplete="off" onKeyDown={teclar}
+  return <form ref={form} className="dados-editaveis-edicao" aria-label={rotulo} noValidate autoComplete="off" onKeyDown={teclar}
     onSubmit={e => e.preventDefault()}>
     <AvisoAoSair preenchido={mudou} liberada={liberada} ocupado={ocupado} />
-    {children}
-    <div className="edicao-rodape">
-      <button type="button" className={estiloBotao()} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
-      <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado} onClick={aoSalvar}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
+    <NaLinhaDosDados.Provider value>{children}</NaLinhaDosDados.Provider>
+    <div className="dados-editaveis-acoes">
+      <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
+      <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={aoSalvar}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
     </div>
   </form>;
 }

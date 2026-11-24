@@ -7,6 +7,7 @@ import { createMemoryRouter, Link, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Janelas } from '../janela';
 import { DadosEditaveis, FormularioDosDados } from './DadosEditaveis';
+import { Campo, Escolhas, propsDoCampo } from './index';
 
 afterEach(cleanup);
 
@@ -163,5 +164,77 @@ describe('Seção de dados que se muda no próprio lugar (#428)', () => {
     // Então
     expect(formulario()).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Dados do processo' })).not.toBeInTheDocument();
+  });
+});
+
+describe('A seção de dados aberta tem a cara da leitura (#432)', () => {
+  /** Um formulário da seção com as peças comuns de formulário dentro (Campo e Escolhas), como o dos dados do processo. */
+  function Aberta() {
+    const [numero, setNumero] = useState('123');
+    return <>
+      <Janelas />
+      <FormularioDosDados rotulo="Editar os dados" estado={{ numero }} ocupado={false} aoCancelar={vi.fn()} aoSalvar={vi.fn()}>
+        <Campo rotulo="Número do processo" curto="Número" para="numero" dica="O número do pedido no órgão." erro="Falta o número."
+          depois={<button type="button">Acrescentar opção</button>}>
+          <input type="text" {...propsDoCampo('numero', { dica: true, erro: 'Falta o número.' })} value={numero} onChange={e => setNumero(e.target.value)} />
+        </Campo>
+        <Escolhas rotulo="Segredo de justiça"><label><input type="checkbox" />Sim</label></Escolhas>
+      </FormularioDosDados>
+    </>;
+  }
+  function abrirAberta() {
+    render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <Aberta /> }])} />);
+  }
+
+  it('dado um campo com rótulo curto, quando a seção abre, então a linha usa o rótulo da leitura, e não o do cadastro', () => {
+    // Dado / Quando
+    abrirAberta();
+    // Então
+    expect(campo('Número')).toHaveValue('123');
+    expect(screen.queryByText('Número do processo')).not.toBeInTheDocument();
+  });
+
+  it('dado um campo com dica e um botão depois dele, quando a seção abre, então nenhum dos dois aparece no meio da tabela, mas o leitor de tela ainda ouve a dica', () => {
+    // Dado / Quando
+    abrirAberta();
+    // Então
+    expect(screen.queryByRole('button', { name: 'Acrescentar opção' })).not.toBeInTheDocument();
+    expect(campo('Número')).toHaveAccessibleDescription(/O número do pedido no órgão\./);
+  });
+
+  it('dado um campo com erro, quando a seção abre, então o erro aparece na linha dele', () => {
+    // Dado / Quando
+    abrirAberta();
+    // Então
+    expect(screen.getByRole('alert')).toHaveTextContent('Falta o número.');
+    expect(campo('Número')).toBeInvalid();
+  });
+
+  it('dado um grupo de opções, quando a seção abre, então ele fica na linha, com o rótulo como nome do grupo', () => {
+    // Dado / Quando
+    abrirAberta();
+    // Então
+    expect(screen.getByRole('group', { name: 'Segredo de justiça' })).toContainElement(screen.getByRole('checkbox', { name: 'Sim' }));
+  });
+
+  it('dado a seção aberta, quando a pessoa a vê, então Salvar e Cancelar ficam no pé dela', () => {
+    // Dado / Quando
+    abrirAberta();
+    // Então
+    const botoes = screen.getAllByRole('button').map(b => b.textContent);
+    expect(botoes.slice(-2)).toEqual(['Cancelar', 'Salvar']);
+  });
+});
+
+describe('Campo fora da seção de dados', () => {
+  it('dado um cadastro comum, quando mostra um campo com rótulo curto, dica e botão depois, então continua como pergunta, com o rótulo inteiro, a dica e o botão', () => {
+    // Dado / Quando
+    render(<Campo rotulo="Número do processo" curto="Número" para="n" dica="O número do pedido no órgão." depois={<button type="button">Acrescentar opção</button>}>
+      <input type="text" {...propsDoCampo('n', { dica: true })} />
+    </Campo>);
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Número do processo' })).toBeInTheDocument();
+    expect(screen.getByText('O número do pedido no órgão.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Acrescentar opção' })).toBeInTheDocument();
   });
 });

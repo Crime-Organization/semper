@@ -549,3 +549,29 @@ test.describe('Coluna-marco do contrato assinado', () => {
     await expect(page.getByRole('menu').getByRole('menuitem', { name: 'Excluir coluna' })).toBeVisible();
   });
 });
+
+test.describe('Observações escritas no próprio cartão (#433)', () => {
+  test('dado um contrato sem observações, quando a pessoa clica na dica e escreve, então salva ali mesmo, sem o lápis, e continua ao reabrir', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/');
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    let cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Documento e observações');
+    // Quando
+    await cartao.getByRole('button', { name: 'Sem observações. Clique para escrever.' }).click();
+    const caixa = cartao.getByRole('textbox', { name: 'Observações' });
+    await expect(caixa).toBeFocused();
+    await page.keyboard.insertText('Cliente prefere **e-mail**.');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'Contrato atualizado.' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Observações' })).toContainText('Cliente prefere e-mail.');
+    // E continua assim ao fechar e abrir o cartão
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Documento e observações');
+    await expect(cartao.getByRole('group', { name: 'Observações' })).toContainText('Cliente prefere e-mail.');
+  });
+});

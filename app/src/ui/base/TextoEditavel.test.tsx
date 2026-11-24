@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { acharEditor, editorDe, escreverNoEditor, textoDoEditor, trocarTextoDoEditor } from '../../testes/editorAoVivo';
 import { Avisos } from '../avisos';
+import { Janelas } from '../janela';
 import { TextoEditavel } from './TextoEditavel';
 
 const TEXTO = 'Levar a **procuração**.\n- [ ] Conferir o RG\n\nVeja [o tribunal](https://www.exemplo.jus.br).';
@@ -16,23 +18,34 @@ function Cartao({ inicial = TEXTO, aoSalvar = vi.fn(), aoMarcar = vi.fn(), rascu
   const [texto, setTexto] = useState(inicial);
   return <>
     <Avisos />
+    <Janelas />
     <TextoEditavel texto={texto} aoMudarRascunho={rascunhos} aoMarcar={t => { setTexto(t); aoMarcar(t); }}
       aoSalvar={async t => { const r = await aoSalvar(t); if (r !== false) setTexto(t); return r; }} />
   </>;
 }
-const caixa = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Texto' });
+/** A caixa aberta: desde a #433, o editor ao vivo das anotações, e não mais uma caixa de texto comum. */
+const caixa = (nome = 'Texto') => acharEditor(nome);
+/** O texto (o Markdown) na caixa aberta. */
+const naCaixa = async (nome = 'Texto') => textoDoEditor(await caixa(nome));
+const escrever = async (texto: string) => escreverNoEditor(await caixa(), texto);
 
 describe('Texto que se muda no próprio lugar (#339)', () => {
-  it('dado quem pode alterar, quando clica no texto, então ele vira a caixa de escrever ali mesmo, com o Markdown como foi escrito', async () => {
+  // Desde a #433, a caixa aberta é o editor das anotações (sem caixa com borda, a formatação à vista), e não mais a caixa de texto
+  // comum com o Markdown à mostra: o teste segue a regra nova.
+  it('dado quem pode alterar, quando clica no texto, então escreve ali mesmo, no editor das anotações, com a barra e sem o atalho escrito', async () => {
     // Dado
     render(<Cartao />);
     // Quando
     await userEvent.click(screen.getByText('procuração'));
-    // Então
-    expect(caixa()).toHaveValue(TEXTO);
-    expect(caixa()).toHaveFocus();
+    // Então: o mesmo Markdown, no editor ao vivo, com o foco nele
+    const editor = await caixa();
+    expect(textoDoEditor(editor)).toBe(TEXTO);
+    expect(editor).toHaveFocus();
+    expect(editor).toHaveAttribute('contenteditable', 'true');
     expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).toBeInTheDocument();
-    expect(screen.queryByText('procuração')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Enter salva')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
   });
 
   it('dado o texto em edição, quando a pessoa escreve e clica em Salvar, então salva o texto novo e volta a mostrá-lo formatado', async () => {
@@ -41,8 +54,7 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     render(<Cartao inicial="Primeira versão" aoSalvar={aoSalvar} />);
     await userEvent.click(screen.getByText('Primeira versão'));
     // Quando
-    await userEvent.clear(caixa());
-    await userEvent.type(caixa(), 'Segunda **versão**');
+    trocarTextoDoEditor(await caixa(), 'Segunda **versão**');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então
     expect(aoSalvar).toHaveBeenCalledWith('Segunda **versão**');
@@ -55,25 +67,54 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     const aoSalvar = vi.fn();
     render(<Cartao inicial="Rascunho" aoSalvar={aoSalvar} />);
     await userEvent.click(screen.getByText('Rascunho'));
-    await userEvent.type(caixa(), ' final');
+    await escrever(' final');
     // Quando
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
     // Então
     expect(aoSalvar).toHaveBeenCalledWith('Rascunho final');
   });
 
-  it('dado o texto em edição, quando a pessoa clica em Cancelar, então nada é salvo e o texto gravado volta', async () => {
+  it('dado o texto em edição, quando a pessoa aperta Ctrl+S, como na anotação, então salva', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao inicial="Rascunho" aoSalvar={aoSalvar} />);
+    await userEvent.click(screen.getByText('Rascunho'));
+    await escrever(' final');
+    // Quando
+    await userEvent.keyboard('{Control>}s{/Control}');
+    // Então
+    expect(aoSalvar).toHaveBeenCalledWith('Rascunho final');
+  });
+
+  // Até a #433, o Cancelar apagava o que a pessoa escreveu sem perguntar (só o Esc perguntava). Desde a revisão da #433, o Cancelar
+  // faz o mesmo que o Esc: com mudança, pergunta antes de descartar (regra nova).
+  it('dado o texto em edição com mudança, quando a pessoa clica em Cancelar e escolhe descartar, então nada é salvo e o texto gravado volta', async () => {
     // Dado
     const aoSalvar = vi.fn();
     render(<Cartao inicial="Como estava" aoSalvar={aoSalvar} />);
     await userEvent.click(screen.getByText('Como estava'));
-    await userEvent.type(caixa(), ' e o que não fica');
+    await escrever(' e o que não fica');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Descartar' }));
     // Então
     expect(aoSalvar).not.toHaveBeenCalled();
     expect(screen.getByText('Como estava')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('dado o texto em edição com mudança, quando a pessoa clica em Cancelar e desiste de descartar, então o que ela escreveu fica', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao inicial="Com mudança" aoSalvar={aoSalvar} />);
+    await userEvent.click(screen.getByText('Com mudança'));
+    await escrever('!');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Cancelar' }));
+    // Então
+    expect(await naCaixa()).toBe('Com mudança!');
+    expect(aoSalvar).not.toHaveBeenCalled();
   });
 
   it('dado o texto em edição sem mudança, quando a pessoa aperta Esc, então a edição fecha, sem o Esc chegar ao cartão em volta', async () => {
@@ -83,6 +124,7 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     document.addEventListener('keydown', escNoCartao);
     render(<Cartao inicial="Sem mudança" />);
     await userEvent.click(screen.getByText('Sem mudança'));
+    await caixa();
     // Quando
     await userEvent.keyboard('{Escape}');
     // Então
@@ -91,15 +133,38 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     document.removeEventListener('keydown', escNoCartao);
   });
 
-  it('dado o texto em edição com mudança, quando a pessoa aperta Esc, então o que ela escreveu não se perde', async () => {
+  // Até a #433, o Esc com mudança não fazia nada (a pessoa escolhia entre Salvar e Cancelar). Desde a #433, o Esc cancela, e pergunta
+  // antes: o que a pessoa escreveu continua não se perdendo por engano (regra nova).
+  it('dado o texto em edição com mudança, quando a pessoa aperta Esc, então pergunta antes; ao continuar, o que ela escreveu fica', async () => {
     // Dado
-    render(<Cartao inicial="Com mudança" />);
+    const aoSalvar = vi.fn();
+    render(<Cartao inicial="Com mudança" aoSalvar={aoSalvar} />);
     await userEvent.click(screen.getByText('Com mudança'));
-    await userEvent.type(caixa(), '!');
+    await escrever('!');
     // Quando
     await userEvent.keyboard('{Escape}');
     // Então
-    expect(caixa()).toHaveValue('Com mudança!');
+    const pergunta = await screen.findByRole('dialog', { name: 'Descartar as mudanças?' });
+    // Quando: a pessoa desiste de descartar
+    await userEvent.click(within(pergunta).getByRole('button', { name: 'Cancelar' }));
+    // Então
+    expect(await naCaixa()).toBe('Com mudança!');
+    expect(aoSalvar).not.toHaveBeenCalled();
+  });
+
+  it('dado o texto em edição com mudança, quando a pessoa aperta Esc e escolhe descartar, então a edição fecha sem salvar e o texto gravado volta', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao inicial="Com mudança" aoSalvar={aoSalvar} />);
+    await userEvent.click(screen.getByText('Com mudança'));
+    await escrever(' que não fica');
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Descartar' }));
+    // Então
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Com mudança')).toBeInTheDocument();
+    expect(aoSalvar).not.toHaveBeenCalled();
   });
 
   it('dado um link no texto, quando a pessoa clica nele, então o link abre e o texto não entra em edição', async () => {
@@ -138,8 +203,8 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     // Quando
     await userEvent.keyboard('{Enter}');
     // Então
-    expect(caixa()).toHaveFocus();
-    expect(caixa()).toHaveValue(TEXTO);
+    expect(await caixa()).toHaveFocus();
+    expect(await naCaixa()).toBe(TEXTO);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     // Então
@@ -151,7 +216,7 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     render(<Cartao inicial="Antes" />);
     await userEvent.tab();
     await userEvent.keyboard('{Enter}');
-    await userEvent.type(caixa(), ' e depois');
+    await escrever(' e depois');
     // Quando
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
     // Então
@@ -179,36 +244,48 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     expect(screen.getByRole('group', { name: 'Texto' })).toBeInTheDocument();
   });
 
+  it('dado quem usa só o teclado, quando abre o texto com Enter, então o cursor fica no fim, como quem continua a escrever', async () => {
+    // Dado
+    render(<Cartao inicial="Levar a procuração." />);
+    await userEvent.tab();
+    // Quando
+    await userEvent.keyboard('{Enter}');
+    // Então
+    const editor = editorDe(await caixa());
+    expect(editor.state.selection.main.head).toBe('Levar a procuração.'.length);
+  });
+
   it('dado o texto vazio e quem pode escrever, quando clica no convite, então a caixa abre vazia', async () => {
     // Dado
     render(<Cartao inicial="" />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Clique para escrever.' }));
     // Então
-    expect(caixa()).toHaveValue('');
+    expect(await naCaixa()).toBe('');
+    expect(await caixa()).toHaveFocus();
   });
 
   it('dada uma gravação que não deu certo, quando a pessoa salva, então a edição continua aberta com o que ela escreveu', async () => {
     // Dado
     render(<Cartao inicial="Antes" aoSalvar={() => false} />);
     await userEvent.click(screen.getByText('Antes'));
-    await userEvent.type(caixa(), ' e depois');
+    await escrever(' e depois');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então
-    expect(caixa()).toHaveValue('Antes e depois');
+    expect(await naCaixa()).toBe('Antes e depois');
   });
 
   it('dada uma gravação que falha, quando a pessoa salva, então o erro aparece e a edição continua aberta', async () => {
     // Dado
     render(<Cartao inicial="Antes" aoSalvar={() => Promise.reject(new Error('Sem conexão.'))} />);
     await userEvent.click(screen.getByText('Antes'));
-    await userEvent.type(caixa(), '!');
+    await escrever('!');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então
     expect(await screen.findByText('Sem conexão.')).toBeInTheDocument();
-    expect(caixa()).toHaveValue('Antes!');
+    expect(await naCaixa()).toBe('Antes!');
   });
 
   it('quando a pessoa abre, escreve e cancela, então o cartão fica sabendo do rascunho a cada passo', async () => {
@@ -217,8 +294,10 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     render(<Cartao inicial="A" rascunhos={rascunhos} />);
     // Quando
     await userEvent.click(screen.getByText('A'));
-    await userEvent.type(caixa(), 'B');
+    await escrever('B');
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    // (com mudança, o Cancelar pergunta antes; a pessoa descarta)
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Descartar as mudanças?' })).getByRole('button', { name: 'Descartar' }));
     // Então
     expect(rascunhos.mock.calls.map(([r]) => r)).toEqual(['A', 'AB', null]);
   });
@@ -257,7 +336,7 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     const aoSalvar = vi.fn(), rascunhos = vi.fn();
     const { rerender } = render(<TextoEditavel texto="A" aoSalvar={aoSalvar} aoMudarRascunho={rascunhos} />);
     await userEvent.click(screen.getByText('A'));
-    await userEvent.type(caixa(), 'B');
+    await escrever('B');
     // Quando
     rerender(<TextoEditavel texto="A" aoMudarRascunho={rascunhos} />);
     // Então
@@ -271,6 +350,50 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
   });
 });
 
+describe('A barra de formatação já no texto lido, como na anotação (#433)', () => {
+  it('dado quem pode alterar, quando o texto é lido, então a barra já está no lugar, só para ver: fora do Tab e do leitor de tela', async () => {
+    // Quando
+    render(<Cartao inicial="Levar a procuração." />);
+    // Então: a barra está na tela, escondida do leitor de tela, e o Tab vai direto ao texto
+    const barra = screen.getByRole('toolbar', { hidden: true });
+    expect(barra).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    await userEvent.tab();
+    expect(screen.getByRole('group', { name: 'Texto' })).toHaveFocus();
+  });
+
+  it('dado o texto lido, quando a pessoa aperta um botão da barra (Lista), então a edição abre e o botão já vale nela', async () => {
+    // Dado
+    render(<Cartao inicial="Levar a procuração." />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Lista', hidden: true }));
+    // Então: o editor abre com o cursor no fim, e a linha virou item de lista
+    const editor = await caixa();
+    expect(editor).toHaveFocus();
+    expect(textoDoEditor(editor)).toBe('- Levar a procuração.');
+    expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('dado o texto vazio, quando a pessoa clica na dica, então o editor abre vazio, com a dica de escrever, e a mesma barra', async () => {
+    // Dado
+    render(<Cartao inicial="" />);
+    expect(screen.getByRole('toolbar', { hidden: true })).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Clique para escrever.' }));
+    // Então
+    expect(await naCaixa()).toBe('');
+    expect(screen.getByText('Escreva aqui.')).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).toBeInTheDocument();
+  });
+
+  it('dado quem só lê, então não há barra nenhuma', () => {
+    // Quando
+    render(<TextoEditavel texto="Só para ler." />);
+    // Então
+    expect(screen.queryByRole('toolbar', { hidden: true })).not.toBeInTheDocument();
+  });
+});
+
 describe('A descrição de um cartão, no mesmo jeito do texto (#346, #385)', () => {
   // Desde a #385, a descrição não tem mais o botão "Mudar a descrição": o nome próprio vai ao texto e à caixa (regra nova).
   it('dado um nome próprio (Descrição), quando a pessoa usa o teclado, então o texto e a caixa têm esse nome, e não há botão "Mudar"', async () => {
@@ -281,7 +404,7 @@ describe('A descrição de um cartão, no mesmo jeito do texto (#346, #385)', ()
     await userEvent.tab();
     await userEvent.keyboard('{Enter}');
     // Então
-    expect(screen.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Pagar até sexta.');
+    expect(await naCaixa('Descrição')).toBe('Pagar até sexta.');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     // Então

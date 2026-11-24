@@ -7,10 +7,12 @@ import { TAMANHO_PROTECAO } from '../../dados/limites';
 import {
   APRESENTACOES_DA_MARCA, CAMPOS_DA_PROTECAO, NATUREZAS_DA_MARCA, temProtecao, TIPOS_DE_PROTECAO, TIPOS_DE_PROTECAO_EM_ORDEM, type CampoDaProtecao
 } from '../../regras/propriedadeIntelectual';
-import type { CamposProcesso } from '../../regras/processo';
-import { Campo, CampoData, Nota, propsDoCampo } from '../../ui/base';
+import { CAMPOS_PROCESSO, type CamposProcesso } from '../../regras/processo';
+import { Campo, CampoData, Nota, propsDoCampo, useNaLinhaDosDados } from '../../ui/base';
 
 const NAO_INFORMADO = 'Não informado';
+/** O nome do campo na leitura do cartão (CAMPOS_PROCESSO, com o nome da coluna: classesNice → classes_nice), para a seção de dados aberta (#432). */
+const naLeitura = (campo: CampoDaProtecao) => CAMPOS_PROCESSO[campo.replace(/[A-Z]/g, l => '_' + l.toLowerCase())];
 /** O id de cada campo na tela (o rótulo aponta para ele). */
 const idDo = (campo: CampoDaProtecao | 'protecao') => 'pi-' + campo;
 
@@ -44,6 +46,8 @@ interface Props {
 }
 
 export function CamposDaProtecao({ c, erros, mudar }: Props) {
+  // Na seção de dados aberta (#432), a nota de ajuda não entra no meio da tabela.
+  const naLinha = useNaLinhaDosDados();
   if (!temProtecao(c)) return null;
   const tipo = c.protecao ? TIPOS_DE_PROTECAO[c.protecao] : null;
   return <>
@@ -53,8 +57,8 @@ export function CamposDaProtecao({ c, erros, mudar }: Props) {
         {TIPOS_DE_PROTECAO_EM_ORDEM.map(t => <option key={t} value={t}>{TIPOS_DE_PROTECAO[t].nome}</option>)}
       </select>
     </Campo>
-    {!tipo && <Nota>Escolha o tipo de proteção para ver os campos dele e as datas de validade e de anuidades no cartão.</Nota>}
-    {tipo?.campos.map(campo => <Campo key={campo} rotulo={CAMPOS_DA_PROTECAO[campo].rotulo} para={idDo(campo)} dica={CAMPOS_DA_PROTECAO[campo].dica} erro={erros[campo]}>
+    {!tipo && !naLinha && <Nota>Escolha o tipo de proteção para ver os campos dele e as datas de validade e de anuidades no cartão.</Nota>}
+    {tipo?.campos.map(campo => <Campo key={campo} rotulo={CAMPOS_DA_PROTECAO[campo].rotulo} curto={naLeitura(campo)} para={idDo(campo)} dica={CAMPOS_DA_PROTECAO[campo].dica} erro={erros[campo]}>
       {CONTROLES[campo]({ c, campo, erro: erros[campo], mudar })}
     </Campo>)}
   </>;

@@ -5,14 +5,15 @@ import { useId, useRef, type ComponentProps, type CSSProperties, type KeyboardEv
 import { Link } from 'react-router';
 import { avisoDoBanco } from '../../regras/qualBanco';
 import { estiloBotao, type EstiloBotao } from './botao';
+import { LinhaDosDados, useNaLinhaDosDados } from './DadosEditaveis';
 
 export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } from './botao';
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
 export { TextoEditavel } from './TextoEditavel';
-export { DadosEditaveis, FormularioDosDados } from './DadosEditaveis';
+export { DadosEditaveis, FormularioDosDados, LinhaDosDados, useNaLinhaDosDados } from './DadosEditaveis';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
-export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
+export { EditorAoVivo, prepararEditorAoVivo, type ComecoDoCursor, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CalendarioDoMes, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
@@ -44,16 +45,20 @@ interface PropsCampo {
   dica?: ReactNode;
   /** Mensagem de erro; com ela, o campo fica marcado e a mensagem aparece. */
   erro?: ReactNode;
-  /** O que vem depois da mensagem de erro (ex.: o resultado de uma busca de CEP). */
+  /** O que vem depois da mensagem de erro (ex.: o resultado de uma busca de CEP). Não aparece na seção de dados aberta (#432). */
   depois?: ReactNode;
+  /** O rótulo na seção de dados aberta (FormularioDosDados, #432), quando o da leitura é mais curto (ex.: "Número", e não "Número do processo"). */
+  curto?: ReactNode;
   className?: string;
   children: ReactNode;
 }
 /**
  * Pergunta de formulário: rótulo (com * se obrigatório), dica, o campo e a mensagem de erro.
  * O campo recebe o id indicado em "para"; aria-invalid e aria-describedby ficam a cargo de propsDoCampo().
+ * Dentro da seção de dados aberta (FormularioDosDados), vira uma linha da tabela, com o rótulo da leitura (#432).
  */
-export function Campo({ rotulo, para, obrigatorio, dica, erro, depois, className, children }: PropsCampo) {
+export function Campo({ rotulo, para, obrigatorio, dica, erro, depois, curto, className, children }: PropsCampo) {
+  if (useNaLinhaDosDados()) return <LinhaDosDados rotulo={curto ?? rotulo} para={para} dica={dica} erro={erro}>{children}</LinhaDosDados>;
   return <div className={['pergunta', erro ? 'erro' : '', className].filter(Boolean).join(' ')}>
     <label htmlFor={para}>{rotulo}{obrigatorio && <span className="req">*</span>}</label>
     {dica && <p className="dica" id={para + '-dica'}>{dica}</p>}
@@ -75,11 +80,17 @@ interface PropsEscolhas {
   erro?: ReactNode;
   /** Arranjo das opções: em coluna única (listas longas) ou várias marcáveis lado a lado. */
   arranjo?: 'coluna-unica' | 'multipla';
+  /** O rótulo na seção de dados aberta (FormularioDosDados, #432), quando o da leitura é outro. */
+  curto?: ReactNode;
   children: ReactNode;
 }
-/** Grupo de opções (rádios ou caixas) com um rótulo comum, como "Gênero" ou "Tipo de cadastro". */
-export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }: PropsEscolhas) {
+/**
+ * Grupo de opções (rádios ou caixas) com um rótulo comum, como "Gênero" ou "Tipo de cadastro". Dentro da seção de dados aberta
+ * (FormularioDosDados), as opções ficam na linha da tabela, pequenas como o texto lido (#432).
+ */
+export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, curto, children }: PropsEscolhas) {
   const id = useId();
+  if (useNaLinhaDosDados()) return <LinhaDosDados rotulo={curto ?? rotulo} erro={erro}><div className="escolhas">{children}</div></LinhaDosDados>;
   return <div className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={id}>
     <span className="rot" id={id}>{rotulo}{obrigatorio && <span className="req">*</span>}</span>
     {dica && <p className="dica">{dica}</p>}
