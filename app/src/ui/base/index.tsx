@@ -12,12 +12,13 @@ export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } f
 export { TextoEditavel } from './TextoEditavel';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
-export { APARELHO_DE_TOQUE, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { APARELHO_DE_TOQUE, CalendarioDoMes, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
-export { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
-export { PrazoEditavel } from './PrazoEditavel';
+export { DadoDoGrupo, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo } from './GrupoDeDatas';
+export { DatasDoCartao, ResumoDasDatas, type DataDaJanela, type EntregaDaJanela } from './JanelaDasDatas';
+export { InicioEPrazo, MUDAR_AS_DATAS, NOME_DAS_DATAS } from './InicioEPrazo';
 
 /**
  * A dica que aparece junto de um botão pequeno, só de ícone ou de iniciais (as bolinhas da equipe), ao passar o mouse e no foco

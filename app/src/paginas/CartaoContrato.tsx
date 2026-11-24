@@ -237,13 +237,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       titulo={<h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>}
       /* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
          valores do contrato também não vê a assinatura, como antes, e aí não há dados (#385): sobraria só a criação, que o
-         rodapé já mostra. Quem altera o contrato muda a assinatura ali mesmo (#395), como o início da tarefa. */
+         rodapé já mostra. Quem altera o contrato muda a assinatura na janela das datas (#422), como as datas da tarefa. */
       dados={!oculto && <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
         {/* O início das negociações (#311), antes da assinatura, e, com as duas datas, quantos dias a negociação levou. */}
         {k.negociacao_inicio && <DadoDoGrupo rotulo="Início das negociações"><b className="num">{fmtData(k.negociacao_inicio)}</b></DadoDoGrupo>}
         <DadoDoGrupo rotulo="Assinado em">
-          <DataEditavel key={'assinatura-' + noLugar.chave} nome="Data da assinatura" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
-            aoMudarRascunho={noLugar.rascunhoDe('assinatura')} aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
+          <DataEditavel nome="Data da assinatura" rotulo="Assinado em" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
+            aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
         </DadoDoGrupo>
         {negociacao !== null && <DadoDoGrupo rotulo="Negociação"><b className="num">{textoDaNegociacao(negociacao)}</b></DadoDoGrupo>}
       </FaixaDasDatas>} />

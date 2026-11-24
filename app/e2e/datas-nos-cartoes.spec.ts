@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// A edição das datas nos cartões (#395): cada defeito que os testadores acharam virou um teste. Ao mexer numa data, as outras
-// ficam no lugar e à vista (o formulário abre embaixo da faixa); o calendário só abre quando a pessoa pede, abre dentro do
-// formulário e não cobre a hora, o lembrete, o Cancelar nem o Salvar; o Tab não foge do cartão; uma data aberta de cada vez; e
-// o mesmo jeito de salvar, cancelar e desistir no início, no prazo, na data do compromisso, nos prazos do processo e no contrato.
+// A edição das datas nos cartões (#395, refeita na #422): as datas abrem numa janela que flutua sobre o cartão, como a das
+// etiquetas, e nada é empurrado no cartão; a janela cabe na tela, com o calendário do mês, os campos e o Salvar ao alcance; o Esc
+// e o clique fora fecham sem gravar; o mesmo jeito no início, no prazo, na data do compromisso e na assinatura do contrato. Os
+// prazos do processo continuam com o formulário deles (#395), e o calendário dos campos de data abre dentro dele.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
@@ -49,226 +49,112 @@ async function aVista(local: Locator) {
     return !!noPonto && (noPonto === el || el.contains(noPonto));
   });
 }
-/** O foco está dentro do cartão? */
-const focoNoCartao = (cartao: Locator) => cartao.evaluate(el => el.contains(el.ownerDocument.activeElement));
+/** A coisa cabe inteira na tela, de cima a baixo e de um lado ao outro. */
+async function cabeNaTela(page: Page, local: Locator) {
+  const caixa = (await local.boundingBox())!, tela = page.viewportSize()!;
+  return caixa.y >= 0 && caixa.x >= 0 && caixa.y + caixa.height <= tela.height && caixa.x + caixa.width <= tela.width;
+}
 
-/** No máximo quantos Tabs o campo de hora do navegador pede até sair dele (uma parte para as horas, outra para os minutos…). */
-const PARTES_DA_HORA = 4;
 const TELAS = [{ nome: 'computador', viewport: { width: 1300, height: 900 } }, { nome: 'celular', viewport: { width: 375, height: 812 } }];
 const CARTOES = [
   { modulo: 'tarefas', titulo: 'Emitir a GRU', prazo: 'Prazo', criacao: 'Criada em' },
   { modulo: 'demandas', titulo: 'Notificar o devedor', prazo: 'Prazo de entrega', criacao: 'Criada em' }
 ];
+/** A janela das datas (#422): flutua sobre o cartão, e por isso é achada na página. */
+const janelaDasDatas = (page: Page) => page.getByRole('dialog', { name: 'Mudar as datas' });
 
 for (const c of CARTOES) {
-  const faixa = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true });
+  const faixa = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
   const dado = (cartao: Locator, nome: string) => faixa(cartao).getByRole('group', { name: nome, exact: true });
-  const inicio = (cartao: Locator) => cartao.getByRole('button', { name: /^Data de início: / });
-  const prazo = (cartao: Locator) => cartao.getByRole('button', { name: new RegExp(`^${c.prazo}: `) });
-  const doPrazo = (cartao: Locator) => cartao.getByRole('group', { name: `Mudar o ${c.prazo.toLowerCase()}` });
-  const doInicio = (cartao: Locator) => cartao.getByRole('group', { name: 'Mudar a data de início' });
+  const datas = (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / });
 
   for (const tela of TELAS) {
-    test.describe(`Dado o cartão (${c.modulo}) no ${tela.nome} (#395)`, () => {
+    test.describe(`Dado o cartão (${c.modulo}) no ${tela.nome} (#422)`, () => {
       test.use({ viewport: tela.viewport });
 
-      test('quando a pessoa clica no início, então a criação e o prazo ficam onde estavam, à vista, e o prazo continua alcançável', async ({ page }) => {
+      test('quando a pessoa clica em "Datas", então a janela flutua sobre o cartão, inteira na tela, e as datas do cartão ficam onde estavam', async ({ page }) => {
         // Dado
         const cartao = await abrirCartao(page, c.modulo, c.titulo);
-        const antes = { criacao: await posicao(dado(cartao, c.criacao)), inicio: await posicao(dado(cartao, 'Início')), prazo: await posicao(dado(cartao, c.prazo)),
-          nome: await posicao(dado(cartao, 'Início').getByText('Início', { exact: true })) };
+        const antes = { criacao: await posicao(dado(cartao, c.criacao)), datas: await posicao(dado(cartao, 'Datas')) };
         // Quando
-        await inicio(cartao).click();
-        // Então
-        await expect(doInicio(cartao)).toBeVisible();
-        await expect(calendario(page)).toHaveCount(0);
+        await datas(cartao).click();
+        // Então: a janela, com o calendário, abre por cima, sem empurrar nada no cartão
+        const janela = janelaDasDatas(page);
+        await expect(janela.getByRole('group', { name: 'Calendário' })).toBeVisible();
+        await esperarParar(janela);
         expect(await posicao(dado(cartao, c.criacao))).toEqual(antes.criacao);
-        expect(await posicao(dado(cartao, 'Início'))).toEqual(antes.inicio);
-        expect(await posicao(dado(cartao, c.prazo))).toEqual(antes.prazo);
-        // No celular, o nome "Início" continua à esquerda do valor, como os outros
-        expect(await posicao(dado(cartao, 'Início').getByText('Início', { exact: true }))).toEqual(antes.nome);
-        expect(await aVista(prazo(cartao))).toBe(true);
-      });
-
-      test('quando a pessoa clica no prazo, então o calendário não abre sozinho, as outras datas ficam no lugar, e Cancelar e Salvar ficam à vista', async ({ page }) => {
-        // Dado
-        const cartao = await abrirCartao(page, c.modulo, c.titulo);
-        const antes = { criacao: await posicao(dado(cartao, c.criacao)), inicio: await posicao(dado(cartao, 'Início')) };
-        // Quando
-        await prazo(cartao).click();
-        // Então
-        await expect(doPrazo(cartao)).toBeVisible();
-        await expect(calendario(page)).toHaveCount(0);
-        await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toBeFocused();
-        expect(await posicao(dado(cartao, c.criacao))).toEqual(antes.criacao);
-        expect(await posicao(dado(cartao, 'Início'))).toEqual(antes.inicio);
-        for (const botao of ['Cancelar', 'Salvar']) expect(await aVista(doPrazo(cartao).getByRole('button', { name: botao }))).toBe(true);
-      });
-
-      test('quando a pessoa abre o calendário do prazo, então ele fica no formulário e não cobre a hora, o lembrete, o Cancelar nem o Salvar', async ({ page }) => {
-        // Dado
-        const cartao = await abrirCartao(page, c.modulo, c.titulo);
-        await prazo(cartao).click();
-        // Quando
-        await doPrazo(cartao).getByRole('button', { name: 'Abrir o calendário' }).click();
-        // Então
-        await expect(doPrazo(cartao).getByRole('dialog', { name: 'Calendário' })).toBeVisible();
-        expect(await aVista(doPrazo(cartao).getByLabel(`Hora do ${c.prazo.toLowerCase()}`))).toBe(true);
-        expect(await aVista(doPrazo(cartao).getByRole('button', { name: /^Lembrete:/ }))).toBe(true);
-        for (const botao of ['Cancelar', 'Salvar']) expect(await aVista(doPrazo(cartao).getByRole('button', { name: botao }))).toBe(true);
-        // E fecha com Esc, sem fechar o formulário
-        await page.keyboard.press('Escape');
-        await expect(calendario(page)).toHaveCount(0);
-        await expect(doPrazo(cartao)).toBeVisible();
+        expect(await posicao(dado(cartao, 'Datas'))).toEqual(antes.datas);
+        expect(await cabeNaTela(page, janela)).toBe(true);
+        // E o que se muda está à vista e ao alcance: o início, a entrega, a hora, o lembrete e Salvar
+        for (const campo of [janela.getByRole('textbox', { name: 'Data de início' }), janela.getByRole('textbox', { name: c.prazo, exact: true }),
+          janela.getByLabel(`Hora do ${c.prazo.toLowerCase()}`), janela.getByRole('combobox', { name: 'Lembrete' }), janela.getByRole('button', { name: 'Salvar' })]) {
+          expect(await aVista(campo)).toBe(true);
+        }
       });
     });
   }
 
-  test.describe(`Dado o cartão (${c.modulo}) (#395)`, () => {
-    test('numa janela baixa de notebook, quando a pessoa abre o calendário do prazo ou do início, então ele aparece inteiro, com o "Hoje"', async ({ page }) => {
+  test.describe(`Dado o cartão (${c.modulo}) (#422)`, () => {
+    test('numa janela baixa de notebook, quando a pessoa abre as datas, então a janela cabe na tela e o "Hoje" e o Salvar são alcançáveis', async ({ page }) => {
       // Dado
       await page.setViewportSize({ width: 1366, height: 650 });
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      for (const [abrir, formulario] of [[prazo, doPrazo], [inicio, doInicio]] as const) {
-        await abrir(cartao).click();
-        // Quando
-        await formulario(cartao).getByRole('button', { name: 'Abrir o calendário' }).click();
-        // Então
-        const cal = formulario(cartao).getByRole('dialog', { name: 'Calendário' });
-        await expect(cal.getByRole('button', { name: 'Hoje', exact: true })).toBeInViewport();
-        await esperarParar(cal);
-        const caixa = (await cal.boundingBox())!;
-        expect(caixa.y).toBeGreaterThanOrEqual(0);
-        expect(caixa.y + caixa.height).toBeLessThanOrEqual(650);
-        await page.keyboard.press('Escape');
-        await formulario(cartao).getByRole('button', { name: 'Cancelar' }).click();
-      }
-    });
-
-    test('dado o prazo mudado e não salvo, quando a pessoa clica no início, então o prazo continua aberto com o que ela escreveu, lembra de salvar ou cancelar, e o início não abre', async ({ page }) => {
-      // Dado
-      const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      await prazo(cartao).click();
-      await doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true }).fill('04/04/2031');
       // Quando
-      await inicio(cartao).click();
+      await datas(cartao).click();
       // Então
-      await expect(doInicio(cartao)).toHaveCount(0);
-      await expect(doPrazo(cartao).getByRole('status')).toHaveText('Salve ou cancele esta mudança antes de abrir outra.');
-      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toHaveValue('04/04/2031');
-      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toBeFocused();
+      const janela = janelaDasDatas(page);
+      await esperarParar(janela);
+      expect(await cabeNaTela(page, janela)).toBe(true);
+      expect(await aVista(janela.getByRole('button', { name: 'Hoje', exact: true }))).toBe(true);
+      expect(await aVista(janela.getByRole('button', { name: 'Salvar' }))).toBe(true);
     });
 
-    test('dado o calendário do prazo aberto pelo teclado, quando a pessoa aperta Tab, então o foco vai à hora, ao lembrete, ao Cancelar e ao Salvar, sem sair do cartão', async ({ page }) => {
+    test('dada a janela aberta, quando a pessoa aperta Esc, então só a janela fecha, sem mudar nada, o foco volta às datas, e o cartão continua aberto', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      await prazo(cartao).focus();
-      await page.keyboard.press('Enter');
-      await page.keyboard.press('ArrowDown');
-      await expect(calendario(page)).toBeVisible();
-      // Quando / Então
-      await page.keyboard.press('Tab');
-      await expect(calendario(page).getByRole('button', { name: 'Hoje', exact: true })).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(doPrazo(cartao).getByLabel(`Hora do ${c.prazo.toLowerCase()}`)).toBeFocused();
-      // A hora do navegador tem partes (as horas, os minutos): o Tab passa por cada uma antes de sair dela
-      const lembrete = doPrazo(cartao).getByRole('button', { name: /^Lembrete:/ });
-      for (let partes = 0; partes < PARTES_DA_HORA && !await lembrete.evaluate(el => el === el.ownerDocument.activeElement); partes++) await page.keyboard.press('Tab');
-      await expect(lembrete).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(doPrazo(cartao).getByRole('button', { name: 'Cancelar' })).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(doPrazo(cartao).getByRole('button', { name: 'Salvar' })).toBeFocused();
-      expect(await focoNoCartao(cartao)).toBe(true);
-      // E para trás, do calendário volta ao prazo
-      await doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true }).focus();
-      await page.keyboard.press('ArrowDown');
-      for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+Tab');
-      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toBeFocused();
-    });
-
-    test('dado um prazo com lembrete, quando a pessoa apaga a data e salva, então o prazo sai inteiro e o cartão diz "Sem prazo"', async ({ page }) => {
-      // Dado
-      const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      await prazo(cartao).click();
-      await doPrazo(cartao).getByRole('button', { name: /^Lembrete:/ }).click();
-      await page.getByRole('menuitemradio', { name: '1 dia antes' }).click();
-      await doPrazo(cartao).getByRole('button', { name: 'Salvar' }).click();
-      await expect(doPrazo(cartao)).toHaveCount(0);
-      await expect(prazo(cartao)).toContainText('1 dia antes');
+      const antes = await datas(cartao).textContent();
+      await datas(cartao).click();
+      await janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' }).fill('08/08/2027');
       // Quando
-      await prazo(cartao).click();
-      await doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true }).fill('');
-      await doPrazo(cartao).getByRole('button', { name: 'Salvar' }).click();
+      await page.keyboard.press('Escape');
       // Então
-      await expect(doPrazo(cartao)).toHaveCount(0);
-      await expect(prazo(cartao)).toHaveText('Sem prazo');
+      await expect(janelaDasDatas(page)).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+      await expect(datas(cartao)).toHaveText(antes!);
+      await expect(datas(cartao)).toBeFocused();
+      await expect(cartao).toBeVisible();
     });
 
-    test('quando a pessoa muda o início, então ele se comporta como o prazo: sair do campo não grava, e a data errada fica marcada no próprio campo', async ({ page }) => {
+    test('dada a janela aberta com uma data que não existe, quando a pessoa salva, então o campo fica marcado, a mensagem aparece e nada é gravado', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      const antes = await inicio(cartao).textContent();
-      await inicio(cartao).click();
-      const campo = doInicio(cartao).getByRole('textbox', { name: 'Data de início' });
-      // Quando: escreve e clica fora (no título)
-      await campo.fill('08/08/2027');
-      await cartao.getByRole('heading', { name: c.titulo, level: 2 }).click();
-      // Então: nada gravado, e o formulário continua com o que ela escreveu
-      await expect(inicio(cartao)).toHaveText(antes!);
-      await expect(campo).toHaveValue('08/08/2027');
-      // Quando: uma data que não existe, e Enter
+      const antes = await datas(cartao).textContent();
+      await datas(cartao).click();
+      const campo = janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' });
+      // Quando
       await campo.fill('31/02/2026');
       await campo.press('Enter');
       // Então
-      await expect(doInicio(cartao).getByRole('alert')).toHaveText('Data inexistente.');
+      await expect(janelaDasDatas(page).getByRole('alert')).toHaveText('Data inexistente.');
       await expect(campo).toHaveAttribute('aria-invalid', 'true');
-      await expect(inicio(cartao)).toHaveText(antes!);
+      await expect(datas(cartao)).toHaveText(antes!);
     });
 
-    test('dado o prazo mudado e não salvo, quando a pessoa clica no lápis Editar, então o prazo continua aberto com o que ela escreveu, lembra de salvar ou cancelar, e o lápis não abre', async ({ page }) => {
+    test('dada a janela aberta, quando a pessoa clica fora dela (no título) e depois no lápis Editar, então a janela fecha sem gravar e o lápis abre', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      await prazo(cartao).click();
-      await doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true }).fill('04/04/2031');
-      // Quando
+      const antes = await datas(cartao).textContent();
+      await datas(cartao).click();
+      await janelaDasDatas(page).getByRole('textbox', { name: c.prazo, exact: true }).fill('04/04/2031');
+      // Quando: a janela flutua por cima do topo do cartão; o clique fora dela a fecha, e aí o lápis fica ao alcance
+      await cartao.getByRole('heading', { name: c.titulo, level: 2 }).click({ position: { x: 1, y: 1 } });
+      await expect(janelaDasDatas(page)).toHaveCount(0);
       await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
       // Então
-      await expect(cartao.getByRole('form', { name: /^Editar / })).toHaveCount(0);
-      await expect(doPrazo(cartao).getByRole('status')).toHaveText('Salve ou cancele esta mudança antes de abrir outra.');
-      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toHaveValue('04/04/2031');
-      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toBeFocused();
-      // Quando: cancela o prazo, e aí o lápis abre
-      await doPrazo(cartao).getByRole('button', { name: 'Cancelar' }).click();
-      await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
-      // Então
+      await expect(janelaDasDatas(page)).toHaveCount(0);
       await expect(cartao.getByRole('form', { name: /^Editar / })).toBeVisible();
-    });
-
-    test('dado o início aberto, quando a pessoa usa Shift+Tab, Tab e Esc, então o foco vai do formulário ao início e volta, e o Esc no valor desfaz só o início, sem fechar o cartão', async ({ page }) => {
-      // Dado
-      const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      const antes = await inicio(cartao).textContent();
-      await inicio(cartao).click();
-      const campo = doInicio(cartao).getByRole('textbox', { name: 'Data de início' });
-      await expect(campo).toBeFocused();
-      await campo.fill('');
-      // Quando
-      await page.keyboard.press('Shift+Tab');
-      // Então: volta ao início, e não ao prazo
-      await expect(inicio(cartao)).toBeFocused();
-      // Quando
-      await page.keyboard.press('Tab');
-      // Então
-      await expect(campo).toBeFocused();
-      // Quando: volta ao valor e aperta Esc
-      await page.keyboard.press('Shift+Tab');
-      await page.keyboard.press('Escape');
-      // Então
-      await expect(doInicio(cartao)).toHaveCount(0);
-      await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
-      await expect(inicio(cartao)).toHaveText(antes!);
-      await expect(cartao).toBeVisible();
+      await cartao.getByRole('form', { name: /^Editar / }).getByRole('button', { name: 'Cancelar' }).click();
+      await expect(datas(cartao)).toHaveText(antes!);
     });
   });
 }
@@ -314,13 +200,13 @@ test.describe('Dados o lápis e a descrição mudada no lugar, no mesmo cartão 
   });
 });
 
-test.describe('Dado o compromisso (#395)', () => {
+test.describe('Dado o compromisso (#422)', () => {
   const quando = (cartao: Locator) => cartao.getByRole('button', { name: /^Data e horário: / });
-  const formulario = (cartao: Locator) => cartao.getByRole('group', { name: 'Mudar a data e o horário' });
-  const criado = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).getByRole('group', { name: 'Criado em', exact: true });
+  const janela = (page: Page) => page.getByRole('dialog', { name: 'Mudar a data e o horário' });
+  const criado = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Criado em', exact: true });
 
   for (const tela of TELAS) {
-    test(`no ${tela.nome}, quando a pessoa clica na data e no horário, então "Criado em" fica no lugar e o calendário só abre quando ela pede, sem cobrir o Até, o Cancelar e o Salvar`, async ({ page }) => {
+    test(`no ${tela.nome}, quando a pessoa clica na data e no horário, então a janela abre sobre o cartão, com o calendário, a data, a hora, o "Até" e o Salvar à vista, e "Criado em" fica no lugar`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela.viewport);
       const cartao = await abrirCompromisso(page, 'Reunião de equipe');
@@ -328,30 +214,27 @@ test.describe('Dado o compromisso (#395)', () => {
       // Quando
       await quando(cartao).click();
       // Então
-      await expect(formulario(cartao)).toBeVisible();
-      await expect(calendario(page)).toHaveCount(0);
+      await expect(janela(page).getByRole('group', { name: 'Calendário' })).toBeVisible();
+      await esperarParar(janela(page));
       expect(await posicao(criado(cartao))).toEqual(antes);
-      // Quando
-      await formulario(cartao).getByRole('textbox', { name: 'Data' }).click();
-      // Então
-      await expect(formulario(cartao).getByRole('dialog', { name: 'Calendário' })).toBeVisible();
-      expect(await aVista(formulario(cartao).getByLabel('Até'))).toBe(true);
-      for (const botao of ['Cancelar', 'Salvar']) expect(await aVista(formulario(cartao).getByRole('button', { name: botao }))).toBe(true);
+      expect(await cabeNaTela(page, janela(page))).toBe(true);
+      for (const campo of [janela(page).getByRole('textbox', { name: 'Data' }), janela(page).getByLabel('Hora do compromisso'), janela(page).getByLabel('Até'),
+        janela(page).getByRole('button', { name: 'Salvar' })]) {
+        expect(await aVista(campo)).toBe(true);
+      }
     });
   }
 
-  test('quando a pessoa usa só o teclado, então do calendário o Tab vai para a hora, sem sair do cartão', async ({ page }) => {
+  test('quando a pessoa usa só o teclado, então abre a janela com Enter, o foco vai à data, e o Tab passa pela hora', async ({ page }) => {
     // Dado
     const cartao = await abrirCompromisso(page, 'Reunião de equipe');
     await quando(cartao).focus();
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('ArrowDown');
     // Quando
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
     // Então
-    await expect(formulario(cartao).getByLabel('Hora do compromisso')).toBeFocused();
-    expect(await focoNoCartao(cartao)).toBe(true);
+    await expect(janela(page).getByRole('textbox', { name: 'Data' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(janela(page).getByLabel('Hora do compromisso')).toBeFocused();
   });
 });
 
@@ -465,7 +348,7 @@ test.describe('Dados os prazos do processo (#395)', () => {
   });
 });
 
-test.describe('Dado o contrato (#395)', () => {
+test.describe('Dado o contrato (#395, #422)', () => {
   /** Abre o cartão do contrato do José. */
   async function abrirContrato(page: Page) {
     await page.goto('/contratos/');
@@ -477,12 +360,12 @@ test.describe('Dado o contrato (#395)', () => {
   }
   const assinatura = (cartao: Locator) => cartao.getByRole('button', { name: /^Data da assinatura: / });
 
-  test('quando a pessoa clica em "Assinado em", então muda a data ali mesmo, como o início da tarefa, e ela fica ao fechar e abrir', async ({ page }) => {
+  test('quando a pessoa clica em "Assinado em", então muda a data na janela das datas, como a tarefa, e ela fica ao fechar e abrir', async ({ page }) => {
     // Dado
     let cartao = await abrirContrato(page);
     // Quando
     await assinatura(cartao).click();
-    const formulario = cartao.getByRole('group', { name: 'Mudar a data da assinatura' });
+    const formulario = page.getByRole('dialog', { name: 'Mudar a data da assinatura' });
     await formulario.getByRole('textbox', { name: 'Data da assinatura' }).fill('02/02/2026');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     // Então
@@ -512,18 +395,20 @@ test.describe('Dado o contrato (#395)', () => {
     await expect(pergunta).toBeVisible();
   });
 
-  test('dada a assinatura mudada e não salva, quando a pessoa clica no lápis Editar, então a data continua aberta com o que ela escreveu e lembra de salvar ou cancelar', async ({ page }) => {
+  test('dada a assinatura mudada e não salva, quando a pessoa clica no lápis Editar, então a janela fecha sem gravar e o lápis abre', async ({ page }) => {
     // Dado
     const cartao = await abrirContrato(page);
+    const antes = await assinatura(cartao).textContent();
     await assinatura(cartao).click();
-    const formulario = cartao.getByRole('group', { name: 'Mudar a data da assinatura' });
+    const formulario = page.getByRole('dialog', { name: 'Mudar a data da assinatura' });
     await formulario.getByRole('textbox', { name: 'Data da assinatura' }).fill('02/02/2026');
     // Quando
     await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
     // Então
-    await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toHaveCount(0);
-    await expect(formulario.getByRole('status')).toHaveText('Salve ou cancele esta mudança antes de abrir outra.');
-    await expect(formulario.getByRole('textbox', { name: 'Data da assinatura' })).toHaveValue('02/02/2026');
+    await expect(formulario).toHaveCount(0);
+    await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toBeVisible();
+    await expect(assinatura(cartao)).toHaveCount(0);
+    expect(antes).not.toBe('02/02/2026');
   });
 
   test('no celular, quando a pessoa abre o calendário da assinatura no lápis, então ele não cobre o nome do campo', async ({ page }) => {

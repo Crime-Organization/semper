@@ -97,3 +97,26 @@ describe('Menu flutuante com as setas (#399)', () => {
     expect(screen.getByRole('menuitem', { name: 'Exportar' })).toHaveFocus();
   });
 });
+
+describe('Menu flutuante travado (#422)', () => {
+  /** Um painel que trava enquanto grava, como a janela das datas. */
+  function Travado() {
+    const [botao, setBotao] = useState<HTMLElement | null>(null);
+    return <>
+      <button type="button" onClick={e => setBotao(e.currentTarget)}>Abrir</button>
+      <p>Fora do painel</p>
+      {botao && <MenuFlutuante painel travado botao={botao} rotulo="Gravando" aoFechar={() => setBotao(null)}><button type="button">Dentro</button></MenuFlutuante>}
+    </>;
+  }
+
+  it('dado o painel travado (gravando), quando a pessoa aperta Esc ou clica fora, então ele continua aberto', async () => {
+    // Dado
+    render(<Travado />);
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByText('Fora do painel'));
+    // Então
+    expect(screen.getByRole('dialog', { name: 'Gravando' })).toBeInTheDocument();
+  });
+});

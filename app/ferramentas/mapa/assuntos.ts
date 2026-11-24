@@ -513,10 +513,11 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.\n'
       + 'Peça comum: mexer aqui muda os cartões de todos os módulos.',
     arquivos: ['AcoesDoCartao', 'AcrescentarAoCartao', 'CabecaDoCartao', 'EdicaoNoLugar', 'TopoDoCartao', 'registroDeAtalhos', 'sairDoCartao', 'useEdicaoUnica',
-      'HistoricoDoCartao', 'atalhosDoCartao', 'datasNoCartao', 'edicaoNoLugar', 'edicaoUnica', 'topoDoCartao', 'secoes',
+      'HistoricoDoCartao', 'atalhosDoCartao', 'datasNoCartao', 'janelaDasDatas', 'edicaoNoLugar', 'edicaoUnica', 'topoDoCartao', 'secoes',
       'arrumacao-do-cartao', 'atalhos-do-cartao', 'cartao', 'coluna-do-cartao', 'eixo-dos-botoes-do-cartao', 'situacao-e-expandir-tudo', 'topo-do-cartao',
       'datas-nos-cartoes', 'datas', 'novo-padrao-das-secoes', 'sair_do_cartao'],
-    armadilhas: ['Toda seção de itens ligados mostra a contagem ao lado do título, mesmo recolhida (`regras/secoes.ts`, `ui/useQuantos.ts`).']
+    armadilhas: ['Toda seção de itens ligados mostra a contagem ao lado do título, mesmo recolhida (`regras/secoes.ts`, `ui/useQuantos.ts`).',
+      'As datas de todos os cartões abrem na janela das datas (#422, `ui/base/JanelaDasDatas.tsx`), que flutua sobre o cartão e vai para fora dele na página: nos testes de tela, ache-a pela página (`page.getByRole("dialog", …)`), e não dentro do cartão.']
   },
   {
     id: 'busca-geral',

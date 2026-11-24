@@ -1,0 +1,5 @@
+{
+  "titulo": "As datas do cartão abrem numa janela própria",
+  "texto": "No cartão ficam só as datas resumidas. Ao clicar nelas, abre uma janela pequena por cima do cartão, como a das etiquetas, com o calendário do mês, o início, a entrega (com a caixa de marcar), a hora, o lembrete e os botões Salvar e Remover. Esc ou um clique fora fecham sem mudar nada.",
+  "ondeAchar": "No cartão da tarefa, da demanda, do compromisso e do contrato, clicando nas datas (logo abaixo do título) ou em \"Mudar as datas\", no botão \"+\" do topo do cartão."
+}

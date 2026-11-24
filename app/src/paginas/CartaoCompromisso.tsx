@@ -194,11 +194,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       titulo={<TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />}
-      /* A data e o horário (#361), que quem muda o compromisso muda no próprio lugar, como o lápis grava; e a criação, fixa. */
+      /* A data e o horário (#361), que quem muda o compromisso muda na janela das datas (#422), como o lápis grava; e a criação, fixa. */
       dados={<FaixaDasDatas criacao={{ rotulo: 'Criado em', em: c.criado_em }} criacaoNoFim>
         <DadoDoGrupo rotulo="Data e horário">
-          <QuandoDoCompromisso key={'quando-' + noLugar.chave} c={c} aoMudarRascunho={noLugar.rascunhoDe('quando')}
-            aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
+          <QuandoDoCompromisso c={c} aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
         </DadoDoGrupo>
       </FaixaDasDatas>} />
 

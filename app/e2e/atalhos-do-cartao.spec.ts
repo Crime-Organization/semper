@@ -77,7 +77,7 @@ test.describe('O menu "Acrescentar ao cartão" (#399)', () => {
     // Quando
     const menu = await abrirAcrescentar(page, cartao);
     // Então
-    expect(await nomesDoMenu(menu)).toEqual(['Ver datas', 'Mudar o prazo', 'Ver checklists (0)', 'Adicionar checklist', 'Ver anotações (0)',
+    expect(await nomesDoMenu(menu)).toEqual(['Ver datas', 'Mudar as datas', 'Ver checklists (0)', 'Adicionar checklist', 'Ver anotações (0)',
       'Nova anotação ligada a este item', expect.stringMatching(/^Ver ligações \(\d+\)$/), 'Nova pessoa ligada a esta tarefa']);
   });
 
@@ -107,15 +107,16 @@ test.describe('O menu "Acrescentar ao cartão" (#399)', () => {
     await expect(secao).toBeInViewport();
   });
 
-  test('dada uma tarefa, quando escolhe mudar o prazo no menu, então o prazo abre para mudar ali mesmo', async ({ page }) => {
+  test('dada uma tarefa, quando escolhe mudar as datas no menu, então a janela das datas abre sobre o cartão (#422)', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     const menu = await abrirAcrescentar(page, cartao);
     // Quando
-    await menu.getByRole('menuitem', { name: 'Mudar o prazo' }).click();
+    await menu.getByRole('menuitem', { name: 'Mudar as datas' }).click();
     // Então
-    await expect(cartao.getByRole('group', { name: 'Mudar o prazo' })).toBeVisible();
-    await expect(cartao.getByRole('group', { name: 'Mudar o prazo' }).getByRole('button', { name: 'Salvar' })).toBeVisible();
+    const janela = page.getByRole('dialog', { name: 'Mudar as datas' });
+    await expect(janela).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Salvar' })).toBeVisible();
   });
 
   test('dado um processo, quando escolhe "Novo prazo" no menu, então a seção Prazos abre com o formulário do novo prazo, com o foco no primeiro campo', async ({ page }) => {
@@ -143,7 +144,7 @@ test.describe('O menu "Acrescentar ao cartão" (#399)', () => {
     await expect(page).toHaveURL(/\/pessoas\/nova\/\?tarefa=/);
   });
 
-  test('dado um compromisso, quando escolhe mudar a data no menu, então a data e o horário abrem para mudar ali mesmo', async ({ page }) => {
+  test('dado um compromisso, quando escolhe mudar a data no menu, então a janela da data e do horário abre sobre o cartão', async ({ page }) => {
     // Dado
     await page.goto('/agenda/');
     await page.getByRole('group', { name: 'Visualização' }).getByRole('button', { name: 'Tabela' }).click();
@@ -153,7 +154,7 @@ test.describe('O menu "Acrescentar ao cartão" (#399)', () => {
     // Quando
     await menu.getByRole('menuitem', { name: 'Mudar a data e o horário' }).click();
     // Então
-    await expect(cartao.getByRole('group', { name: 'Mudar a data e o horário' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Mudar a data e o horário' })).toBeVisible();
   });
 
   test('dada uma pessoa, quando escolhe a pessoa vinculada no menu, então os Vínculos abrem com o formulário da nova pessoa vinculada', async ({ page }) => {
@@ -220,11 +221,11 @@ test.describe('O menu "Acrescentar ao cartão" (#399)', () => {
     const menu = page.getByRole('menu', { name: 'Acrescentar ao cartão' });
     await expect(menu.getByRole('menuitem', { name: 'Ver datas' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(menu.getByRole('menuitem', { name: 'Mudar o prazo' })).toBeFocused();
+    await expect(menu.getByRole('menuitem', { name: 'Mudar as datas' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(menu.getByRole('menuitem', { name: 'Ver checklists (0)' })).toBeFocused();
     await page.keyboard.press('ArrowUp');
-    await expect(menu.getByRole('menuitem', { name: 'Mudar o prazo' })).toBeFocused();
+    await expect(menu.getByRole('menuitem', { name: 'Mudar as datas' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
     await expect(bolinha).toBeFocused();

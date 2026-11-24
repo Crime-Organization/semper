@@ -5,6 +5,7 @@
 import type { Compromisso, Lembrete, TipoCompromisso } from '../dados/tipos';
 import { compromissoVazio, fmtHora, TIPOS_COMPROMISSO, validarCompromisso, type CamposCompromisso } from './compromisso';
 import { CAMPOS_NO_LUGAR } from './edicaoNoLugar';
+import { DATAS_VAZIAS, datasQueValem, type CampoDasDatas, type CamposDasDatas, type PartesDasDatas, type PedacoDoResumo } from './janelaDasDatas';
 import { horaELembreteAoGravar, horaELembreteDoCartao, prazoComHora, textoDoLembrete, type CamposDoLembrete } from './lembrete';
 import { fmtData, lerData } from './pessoa';
 
@@ -71,6 +72,61 @@ export const errosDoQuando = (tipo: TipoCompromisso, c: CamposDoQuando) =>
 export const quandoAoGravar = (c: CamposDoQuando): QuandoGravado => ({ data: lerData(c.data)!, hora: c.hora || null, hora_fim: c.horaFim || null });
 /** A data e o horário como estão gravados, para o Desfazer. */
 export const quandoComoEsta = (c: QuandoGravado): QuandoGravado => ({ data: c.data, hora: c.hora, hora_fim: c.hora_fim });
+
+// ---------- a janela das datas (#422) ----------
+/** Só os erros que há (a janela junta os erros de regras diferentes; o vazio quer dizer "está certo"). */
+const soOsErros = (erros: Partial<Record<CampoDasDatas, string | undefined>>): ErrosDosCampos<CampoDasDatas> =>
+  Object.fromEntries(Object.entries(erros).filter(([, erro]) => erro)) as ErrosDosCampos<CampoDasDatas>;
+
+/** O nome do resumo do início e do prazo na faixa do cartão. */
+export const ROTULO_DAS_DATAS = 'Datas';
+/** A tarefa e a demanda: o início, que não fica sem data, e a entrega (o prazo, com a hora e o lembrete), que pode ficar. */
+export const PARTES_DO_PRAZO: PartesDasDatas = { inicio: { opcional: false }, entrega: { opcional: true } };
+/** O início e o prazo como a tarefa e a demanda os têm gravados. */
+export interface InicioEPrazoGravados extends PrazoGravado { data_inicio: string }
+/** A janela começa com o início e o prazo gravados (sem prazo, a entrega desmarcada, sem hora e sem lembrete). */
+export const datasDoPrazo = (g: InicioEPrazoGravados): CamposDasDatas => ({
+  ...DATAS_VAZIAS, inicio: fmtData(g.data_inicio), temInicio: true, entrega: fmtData(g.prazo), temEntrega: !!g.prazo, ...horaELembreteDoCartao(g)
+});
+/** O prazo da janela, nos campos do cadastro (a entrega desmarcada é "sem prazo"). */
+export function prazoDasDatas(c: CamposDasDatas): CamposDoPrazo {
+  const vale = datasQueValem(c, PARTES_DO_PRAZO);
+  return { prazo: vale.entrega, hora: vale.hora, lembrete: vale.lembrete };
+}
+/** Os erros da janela pelas regras do cadastro: o início pela regra dele; o prazo, a hora e o lembrete pelas da tarefa ou da demanda. */
+export function errosDasDatasDoPrazo(c: CamposDasDatas, conferirInicio: (texto: string) => string,
+  conferirPrazo: (p: CamposDoPrazo) => ErrosDosCampos<keyof CamposDoPrazo>): ErrosDosCampos<CampoDasDatas> {
+  const prazo = conferirPrazo(prazoParaConferir(prazoDasDatas(c)));
+  return soOsErros({ inicio: conferirInicio(c.inicio), entrega: prazo.prazo, hora: prazo.hora, lembrete: prazo.lembrete });
+}
+/** O que vai para o banco (só depois de conferido): o início e o prazo, com a hora e o lembrete. */
+export const datasDoPrazoAoGravar = (c: CamposDasDatas): Required<InicioEPrazoGravados> => ({ data_inicio: lerData(c.inicio)!, ...prazoAoGravar(prazoDasDatas(c)) });
+/** O início e o prazo como estão gravados, para o Desfazer. */
+export const datasDoPrazoComoEstao = (g: InicioEPrazoGravados): Required<InicioEPrazoGravados> => ({ data_inicio: g.data_inicio, ...prazoComoEsta(g) });
+/** O resumo curto do cartão: "Início 20/11/2026 · Entrega 15/12/2030 às 14:00" (sem prazo: "Início 20/11/2026 · Sem prazo"). */
+export const resumoDoInicioEPrazo = (g: InicioEPrazoGravados): PedacoDoResumo[] => [
+  { rotulo: 'Início', valor: fmtData(g.data_inicio) },
+  g.prazo ? { rotulo: 'Entrega', valor: textoDoPrazo(g) } : { rotulo: '', valor: SEM_PRAZO }
+];
+
+/** O compromisso: a data, que não fica vazia, com a hora e o fim ("Até"). */
+export const PARTES_DO_QUANDO: PartesDasDatas = { entrega: { opcional: false } };
+/** A janela começa com a data e o horário gravados. */
+export const datasDoQuando = (c: QuandoGravado): CamposDasDatas => ({ ...DATAS_VAZIAS, entrega: fmtData(c.data), temEntrega: true, hora: fmtHora(c.hora), horaFim: fmtHora(c.hora_fim) });
+/** A data e o horário da janela, nos campos do cadastro do compromisso. */
+export const quandoDasDatas = (c: CamposDasDatas): CamposDoQuando => ({ data: c.entrega, hora: c.hora, horaFim: c.horaFim });
+/** Os erros da janela pelas regras do cadastro do compromisso. */
+export function errosDasDatasDoQuando(tipo: TipoCompromisso, c: CamposDasDatas): ErrosDosCampos<CampoDasDatas> {
+  const erros = errosDoQuando(tipo, quandoDasDatas(c));
+  return soOsErros({ entrega: erros.data, hora: erros.hora, horaFim: erros.horaFim });
+}
+
+/** Uma data só, que pode ficar vazia (a assinatura do contrato). */
+export const PARTES_DE_UMA_DATA: PartesDasDatas = { entrega: { opcional: true } };
+/** A janela começa com a data gravada (aaaa-mm-dd), ou desmarcada. */
+export const datasDeUmaData = (iso: string | null): CamposDasDatas => ({ ...DATAS_VAZIAS, entrega: fmtData(iso), temEntrega: !!iso });
+/** A data da janela como a pessoa escreveu (dd/mm/aaaa), ou vazio se ficou desmarcada. */
+export const umaDataDasDatas = (c: CamposDasDatas) => datasQueValem(c, PARTES_DE_UMA_DATA).entrega;
 
 // ---------- o lápis de um item já existente ----------
 /** Os módulos cujo cartão muda as datas no próprio lugar. */

@@ -24,9 +24,9 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
-import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
-import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
+import { Aviso, Carregando, DadoDoGrupo, InicioEPrazo, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { CAMPOS_DO_PRAZO, datasDoPrazoComoEstao, errosDosCampos, ROTULO_DAS_DATAS } from '../regras/datasNoCartao';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
@@ -228,20 +228,14 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />}
-      /* As datas lado a lado (#361, #383): a criação (fixa), o início (#357), o prazo com a hora e o lembrete, que quem altera muda
-         no próprio lugar, como o lápis grava (com o histórico e o Desfazer), e o tempo total (#397). Logo abaixo, na faixa própria do
-         tempo, o cronômetro de quem altera, com o resumo de quem registrou tempo. */
-      dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} datas={<>
-        <DadoDoGrupo rotulo="Início">
-          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio} aoMudarRascunho={noLugar.rascunhoDe('inicio')}
-            aoSalvar={mudaNoLugar && !editando ? data_inicio => data_inicio && salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
-        </DadoDoGrupo>
-        <DadoDoGrupo rotulo="Prazo">
-          <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" atalho="datas" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
-            aoMudarRascunho={noLugar.rascunhoDe('prazo')}
-            aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(t)) : undefined} />
-        </DadoDoGrupo>
-      </>} />} />
+      /* As datas lado a lado (#361, #383): a criação (fixa), o resumo do início e do prazo, que quem altera muda na janela das datas
+         (#422), como o lápis grava (com o histórico e o Desfazer), e o tempo total (#397). Logo abaixo, na faixa própria do tempo, o
+         cronômetro de quem altera, com o resumo de quem registrou tempo. */
+      dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} datas={
+        <DadoDoGrupo rotulo={ROTULO_DAS_DATAS}>
+          <InicioEPrazo nomeDoPrazo="Prazo" atalho="datas" valor={t} conferirPrazo={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
+            aoSalvar={mudaNoLugar && !editando ? g => salvarNoLugar(g, datasDoPrazoComoEstao(t)) : undefined} />
+        </DadoDoGrupo>} />} />
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 

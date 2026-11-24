@@ -41,7 +41,8 @@ test.describe('Objetos sem demanda no cartão do contrato (#349)', () => {
     // Dado: a assinatura escrita no próprio cartão, sem mudar a coluna
     let cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');
     await cartao.getByRole('button', { name: /^Data da assinatura: / }).click();
-    const formulario = cartao.getByRole('group', { name: 'Mudar a data da assinatura' });
+    const formulario = page.getByRole('dialog', { name: 'Mudar a data da assinatura' });
+    await formulario.getByRole('checkbox', { name: 'Assinado em' }).check();
     await formulario.getByRole('textbox', { name: 'Data da assinatura' }).fill('10/03/2026');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Contrato atualizado.' })).toBeVisible();

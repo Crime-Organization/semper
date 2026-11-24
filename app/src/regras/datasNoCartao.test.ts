@@ -2,10 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { DEMANDA_VAZIA, ETAPAS_DEMANDA, validarDemanda } from './demanda';
 import {
-  camposDoPrazo, camposDoQuando, camposForaDoLapis, DATAS_NO_LUGAR, datasForaDoLapisDoCompromisso, errosDoQuando, errosDosCampos, etapasDoLapis,
+  camposDoPrazo, camposDoQuando, datasDeUmaData, datasDoPrazo, datasDoPrazoAoGravar, datasDoPrazoComoEstao, datasDoQuando, errosDasDatasDoPrazo,
+  errosDasDatasDoQuando, quandoDasDatas, resumoDoInicioEPrazo, umaDataDasDatas, type CamposDoPrazo, camposForaDoLapis, DATAS_NO_LUGAR, datasForaDoLapisDoCompromisso, errosDoQuando, errosDosCampos, etapasDoLapis,
   horaNoLapis, lembreteDoPrazo, prazoAoGravar, prazoComoEsta, prazoParaConferir, quandoAoGravar, quandoComoEsta, resumoDoPrazo, semOsCampos, SEM_PRAZO, temErro, textoDoPrazo
 } from './datasNoCartao';
 import { ETAPAS_COMPROMISSO } from './compromisso';
+import { erroDaDataDeInicio } from './dataDeInicio';
+import { DATAS_VAZIAS } from './janelaDasDatas';
 import { ETAPAS_TAREFA, TAREFA_VAZIA, validarTarefa } from './tarefa';
 
 const CAMPOS = ['prazo', 'hora', 'lembrete'] as const;
@@ -138,5 +141,56 @@ describe('O lápis de um item já existente sem as datas (#361)', () => {
     // Quando / Então
     expect(horaNoLapis(tipo, hora)).toBe(pede);
     expect(datasForaDoLapisDoCompromisso(tipo, hora).dados).toEqual(pede ? ['data'] : ['data', 'hora', 'hora_fim']);
+  });
+});
+
+describe('As datas de cada módulo na janela das datas (#422)', () => {
+  const tarefa = { data_inicio: '2026-11-18', prazo: '2030-12-15', prazo_hora: '14:00:00', lembrete: 60 as const };
+  const conferirPrazo = (c: CamposDoPrazo) => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS);
+
+  it('dada uma tarefa com prazo, quando a janela abre, então começa com o início e a entrega marcada, a hora e o lembrete', () => {
+    // Quando / Então
+    expect(datasDoPrazo(tarefa)).toEqual({ ...DATAS_VAZIAS, inicio: '18/11/2026', temInicio: true, entrega: '15/12/2030', temEntrega: true, hora: '14:00', lembrete: 60 });
+    expect(datasDoPrazo({ ...tarefa, prazo: null })).toMatchObject({ entrega: '', temEntrega: false, hora: '', lembrete: null });
+  });
+
+  it('dada a entrega desmarcada, quando a janela grava, então o prazo sai inteiro (com a hora e o lembrete) e o início fica', () => {
+    // Dado
+    const c = { ...datasDoPrazo(tarefa), temEntrega: false };
+    // Quando / Então
+    expect(datasDoPrazoAoGravar(c)).toEqual({ data_inicio: '2026-11-18', prazo: null, prazo_hora: null, lembrete: null });
+    expect(datasDoPrazoComoEstao(tarefa)).toEqual({ data_inicio: '2026-11-18', prazo: '2030-12-15', prazo_hora: '14:00:00', lembrete: 60 });
+  });
+
+  it('dado um início que não existe e uma hora sem prazo, quando a janela confere, então cada erro vai para o seu campo', () => {
+    // Dado
+    const c = { ...DATAS_VAZIAS, inicio: '31/02/2026', temInicio: true, entrega: '', temEntrega: true, hora: '10:00' };
+    // Quando
+    const erros = errosDasDatasDoPrazo(c, erroDaDataDeInicio, conferirPrazo);
+    // Então: sem prazo, a hora vai junto com ele e não pede nada
+    expect(erros).toEqual({ inicio: 'Data inexistente.' });
+    expect(errosDasDatasDoPrazo({ ...c, inicio: '18/11/2026', entrega: '31/02/2031' }, erroDaDataDeInicio, conferirPrazo)).toHaveProperty('entrega');
+  });
+
+  it('dado o resumo curto do cartão, quando há prazo e quando não há, então diz o início e a entrega, ou "Sem prazo"', () => {
+    // Quando / Então
+    expect(resumoDoInicioEPrazo(tarefa)).toEqual([{ rotulo: 'Início', valor: '18/11/2026' }, { rotulo: 'Entrega', valor: '15/12/2030 às 14:00' }]);
+    expect(resumoDoInicioEPrazo({ ...tarefa, prazo: null })[1]).toEqual({ rotulo: '', valor: SEM_PRAZO });
+  });
+
+  it('dado o compromisso, quando a janela abre e confere, então usa a data e o horário com as regras do cadastro', () => {
+    // Dado
+    const c = datasDoQuando({ data: '2026-11-20', hora: '14:00:00', hora_fim: null });
+    // Quando / Então
+    expect(c).toMatchObject({ entrega: '20/11/2026', temEntrega: true, hora: '14:00', horaFim: '' });
+    expect(quandoDasDatas(c)).toEqual({ data: '20/11/2026', hora: '14:00', horaFim: '' });
+    expect(errosDasDatasDoQuando('reuniao', { ...c, hora: '' })).toEqual({ hora: 'Informe a hora.' });
+  });
+
+  it('dada uma data só (a assinatura), quando a janela abre e grava, então desmarcada ela fica vazia', () => {
+    // Quando / Então
+    expect(datasDeUmaData('2026-02-02')).toMatchObject({ entrega: '02/02/2026', temEntrega: true });
+    expect(datasDeUmaData(null)).toMatchObject({ entrega: '', temEntrega: false });
+    expect(umaDataDasDatas({ ...datasDeUmaData('2026-02-02'), temEntrega: false })).toBe('');
   });
 });
