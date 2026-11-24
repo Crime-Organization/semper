@@ -48,12 +48,13 @@ test.describe('Consentimento sem data', () => {
   });
 
   test('quando quem entra não é administrador, então o Início não mostra o aviso', async ({ page }) => {
-    // Dado
+    // Dado: as pessoas sem a data existem (o administrador vê o aviso)
     await comConsentimentoSemData(page);
+    await expect(page.getByRole('link', { name: 'Completar as datas' })).toBeVisible();
     // Quando
     await entrarComo(page, 'u-bruno');
-    // Então
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    // Então: com o painel já carregado, o aviso não está lá
+    await expect(page.getByRole('group', { name: 'Números do dia' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Completar as datas' })).toHaveCount(0);
   });
 
