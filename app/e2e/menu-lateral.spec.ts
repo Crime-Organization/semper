@@ -13,6 +13,8 @@ const CELULAR = { width: 375, height: 812 };
 const COMPUTADOR = { width: 1280, height: 800 };
 /** Quanto os meios podem diferir, em pixels: o arredondamento do navegador. */
 const FOLGA_DO_EIXO = 0.5;
+/** Quanto, no mínimo, o texto das opções de um submenu fica à direita do texto do item, para se notar que estão dentro dele. */
+const RECUO_MINIMO_DAS_OPCOES = 8;
 
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Seções' });
 const agenda = (page: Page) => menu(page).getByRole('button', { name: 'Agenda e calendário' });
@@ -221,4 +223,39 @@ test.describe('A ordem do menu e a casinha do Início (#435)', () => {
       expect(Math.abs(await meioNaHorizontal(setaDe(processos)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
     });
   }
+});
+
+// As opções de um submenu ficam claramente dentro do item: o texto delas começa um passo à direita do texto do item. E o fundo do
+// item marcado tem a mesma largura nas opções e nos itens com o "+" (vai até a ponta da coluna dos "+").
+test.describe('As opções dos submenus do menu lateral', () => {
+  /** A ponta esquerda de um texto. */
+  const inicioDoTexto = (alvo: Locator) => alvo.evaluate(el => el.getBoundingClientRect().left);
+  /** A ponta direita do fundo marcado: o do próprio item ou, num item com o "+", o da linha dele. */
+  const pontaDoFundo = (alvo: Locator) => alvo.evaluate(el => {
+    const comFundo = (e: Element | null): Element | null =>
+      !e ? null : getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)' ? e : comFundo(e.parentElement);
+    return comFundo(el)!.getBoundingClientRect().right;
+  });
+
+  test('dado Processos aberto em Judicial, quando a pessoa vê o menu, então o texto das opções começa à direita do de Processos', async ({ page }) => {
+    // Quando
+    await page.goto('/processos/judicial/');
+    // Então
+    const processos = menu(page).getByRole('button', { name: 'Processos' });
+    await expect(processos).toHaveAttribute('aria-expanded', 'true');
+    const texto = await inicioDoTexto(processos.getByText('Processos', { exact: true }));
+    for (const opcao of ['Administrativo', 'Judicial'])
+      expect(await inicioDoTexto(menu(page).getByRole('link', { name: opcao }).getByText(opcao))).toBeGreaterThanOrEqual(texto + RECUO_MINIMO_DAS_OPCOES);
+  });
+
+  test('dado um item com o "+" marcado e uma opção de submenu marcada, quando a pessoa os vê, então os fundos acabam no mesmo ponto', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    const tarefas = await pontaDoFundo(menu(page).getByRole('link', { name: 'Tarefas', exact: true }));
+    // Quando
+    await page.goto('/processos/judicial/');
+    // Então
+    const judicial = await pontaDoFundo(menu(page).getByRole('link', { name: 'Judicial' }));
+    expect(Math.abs(judicial - tarefas)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+  });
 });

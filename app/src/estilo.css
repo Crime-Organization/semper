@@ -162,6 +162,14 @@
   --largura-do-mais-do-menu: 28px;
   /* A altura de cada item do menu lateral */
   --altura-do-item-do-menu: 36px;
+  /* O ícone de cada item do menu lateral (o tamanho padrão de <Icone>) e o vão entre ele e o texto. Daí sai a coluna do texto */
+  --icone-do-item-do-menu: 17px;
+  --vao-do-item-do-menu: 10px;
+  --texto-do-item-do-menu: calc(var(--recuo-do-item-do-menu) + var(--icone-do-item-do-menu) + var(--vao-do-item-do-menu));
+  /* As opções de um submenu (Processos, Agenda): a linha-guia desce do meio do ícone do item, com este vão até o fundo das opções,
+     e o texto das opções começa um passo à direita do texto do item, para ficar claro que estão dentro dele */
+  --vao-da-guia-do-submenu: 6px;
+  --passo-do-submenu: 12px;
   /* A logomarca do escritório (#323) no lugar da letra, na barra lateral e na barra do topo do celular: a placa clara nos dois
      temas (a logomarca é feita para fundo claro, como na prévia das Configurações), a altura dela (a da letra, um pouco maior,
      para a logomarca larga dar para ler), a largura máxima (para o nome do escritório caber ao lado) e a folga em volta */
@@ -636,19 +644,25 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .marca-app b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; text-wrap: balance; font-weight: 900; font-size: 14px; line-height: 1.25 }
 .marca-app small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink) }
 .nav { display: flex; flex-direction: column; gap: 2px }
-.nav a, .nav button { display: flex; align-items: center; gap: 10px; padding: 0 var(--recuo-do-item-do-menu); min-height: var(--altura-do-item-do-menu); border-radius: 6px; color: var(--text); background: none; border: 0; font-size: 14px; cursor: pointer; text-align: left; width: 100% }
+.nav a, .nav button { display: flex; align-items: center; gap: var(--vao-do-item-do-menu); padding: 0 var(--recuo-do-item-do-menu); min-height: var(--altura-do-item-do-menu); border-radius: 6px; color: var(--text); background: none; border: 0; font-size: 14px; cursor: pointer; text-align: left; width: 100% }
 .nav a:hover, .nav button:hover { background: var(--line) }
 .nav a[aria-current="page"] { background: var(--line); font-weight: 700; color: var(--ink) }
 .nav svg { flex-shrink: 0 }
-/* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta, e as opções ficam recuadas, alinhadas ao texto do botão. */
+/* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta; as opções ficam à direita de uma linha-guia que desce do meio do
+   ícone, com o texto um passo à direita do texto do botão. */
 .nav-grupo { display: flex; flex-direction: column; gap: 2px }
 /* A seta, sempre na coluna dos "+" (.nav-coluna-do-mais, com o meio no eixo deles, #435). */
 .nav-seta { color: var(--muted) }
 /* O cadastro dentro de um submenu (o "Novo compromisso" da Agenda, #435): o "+" e o texto na cor dos "+", por ser uma ação. */
 .nav .nav-novo { color: var(--accent-ink) }
-.nav-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 30px }
+.nav-sub { display: flex; flex-direction: column; gap: 2px; margin-left: calc(var(--recuo-do-item-do-menu) + var(--icone-do-item-do-menu) / 2); padding-left: var(--vao-da-guia-do-submenu); border-left: 1px solid var(--line2) }
+.nav .nav-sub > a { padding-left: calc(var(--texto-do-item-do-menu) + var(--passo-do-submenu) - var(--recuo-do-item-do-menu) - var(--icone-do-item-do-menu) / 2 - 1px - var(--vao-da-guia-do-submenu)) }
 .nav-sub[hidden] { display: none }
-.nav-linha { display: flex; align-items: center; gap: 2px }
+/* A linha de um módulo com o "+": marcada (ou com o mouse em cima do nome) a linha toda ganha o fundo, "+" incluído, para o fundo
+   ter a mesma largura em todos os itens do menu, com ou sem "+", e nas opções dos submenus. */
+.nav-linha { display: flex; align-items: center; gap: 2px; border-radius: 6px }
+.nav-linha:has(> a:first-child[aria-current="page"]), .nav-linha:has(> a:first-child:hover) { background: var(--line) }
+.nav .nav-linha > a:first-child { background: none }
 .nav-contador { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums }
 /* Ponto de "há o que ver" (Novidades, #353): o sinal verde, sem número. */
 .nav-ponto { margin-left: auto; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--accent) }
