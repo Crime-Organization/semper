@@ -18,6 +18,7 @@
 import { useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router';
 import type { GrupoDaEquipe, Membro } from '../dados';
+import { SEM_FUNCAO } from '../regras/funcoesNaTarefa';
 import { GRUPOS_DEMAIS, nomeDoGrupo, numeroDoGrupo } from '../regras/gruposDaEquipe';
 import { NOME_DA_ACAO, type AcaoDaBolinha, type PerfilNaBolinha } from '../regras/menuDaBolinha';
 import { GruposNoCartao } from './GruposDoItem';
@@ -39,6 +40,8 @@ const ICONE_DO_MENU = 15;
 const GRAVANDO_A_EQUIPE = 'Gravando a mudança na equipe…';
 /** O título da escolha da função de quem entra pelo "+" da tarefa (#313). */
 export const ENTRA_COMO = 'Função de quem entra';
+/** As escolhas da função de um participante (#421): nenhuma ("Sem função", null) e as do escritório. */
+const comNenhuma = (opcoes: readonly { id: string; nome: string }[]): { id: string | null; nome: string }[] => [{ id: null, nome: SEM_FUNCAO }, ...opcoes];
 /** O nome da busca que troca (ou escolhe) o responsável. */
 const TROCAR_O_RESPONSAVEL = NOME_DA_ACAO.trocarResponsavel;
 /** O que a bolinha vazia diz, quando o cartão está sem responsável. */
@@ -92,13 +95,12 @@ export interface MudarALista {
   aoTirar: (p: PessoaDaEquipe) => unknown;
   /**
    * A função de cada participante (#313): as opções, a de cada um e a troca, no menu da bolinha; e, no "+", a escolha da função de
-   * quem entra, que começa na `padrao`. Sem isto, nem o menu nem o "+" as mostram.
+   * quem entra, que começa em "Sem função" (#421). Nos dois, dá para escolher nenhuma (null). Sem isto, nem o menu nem o "+" as mostram.
    */
   funcoes?: {
     opcoes: readonly { id: string; nome: string }[];
-    padrao?: string | null;
     de: (p: PessoaDaEquipe) => string | null;
-    aoTrocar: (p: PessoaDaEquipe, funcao: string) => unknown;
+    aoTrocar: (p: PessoaDaEquipe, funcao: string | null) => unknown;
   };
 }
 
@@ -232,7 +234,7 @@ export function EquipeDoCartao(props: Props) {
   const doResponsavel = useRef<HTMLButtonElement>(null);
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
   const focarNoResponsavel = () => setTimeout(() => doResponsavel.current?.focus(), 0);
-  // A função de quem entra pelo "+" (#313): começa na padrão a cada vez que alguém entra.
+  // A função de quem entra pelo "+" (#313): começa em "Sem função" (null) a cada vez que alguém entra (#421).
   const [funcaoDeQuemEntra, setFuncaoDeQuemEntra] = useState<string | null>(null);
   const nomeDasFuncoes = useId();
   // Só a lista, para quem só vê, e ninguém nela: nada a mostrar (nem um grupo vazio para o leitor de tela).
@@ -244,9 +246,9 @@ export function EquipeDoCartao(props: Props) {
   const semGrupos = !(comGrupos && !comGrupos.cheio && comGrupos.candidatos('').length);
   const motivoComGrupos = semPessoas && semGrupos ? mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined) : undefined;
   const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : comGrupos ? motivoComGrupos : mudar?.cheia;
-  // Com mais de uma função no escritório, o "+" da tarefa pergunta a de quem entra (#313: "escolhe-se ao adicionar a pessoa").
-  const comFuncao = mudar?.funcoes && mudar.funcoes.opcoes.length > 1 ? mudar.funcoes : undefined;
-  const funcaoEscolhida = funcaoDeQuemEntra ?? comFuncao?.padrao ?? null;
+  // Com alguma função no escritório, o "+" da tarefa pergunta a de quem entra (#313: "escolhe-se ao adicionar a pessoa"), ou nenhuma.
+  const comFuncao = mudar?.funcoes && mudar.funcoes.opcoes.length > 0 ? mudar.funcoes : undefined;
+  const funcaoEscolhida = funcaoDeQuemEntra;
   const menuDe = (m: MudarALista, p: PessoaDaEquipe, acoes: readonly AcaoDaBolinha[]) => montarMenu(acoes, { p, lista: m, equipe, focarNoMais, focarNoResponsavel });
   return <div className="equipe-cartao" role="group" aria-label="Equipe" style={MEDIDA_DA_BOLINHA}>
     {!props.semPrincipal && <>
@@ -271,7 +273,7 @@ export function EquipeDoCartao(props: Props) {
         setFuncaoDeQuemEntra(null);
       }}
       cabeca={comFuncao && <Escolhas rotulo={ENTRA_COMO} arranjo="coluna-unica">
-        {comFuncao.opcoes.map(f => <label key={f.id}>
+        {comNenhuma(comFuncao.opcoes).map(f => <label key={f.id ?? ''}>
           <input type="radio" name={nomeDasFuncoes} checked={funcaoEscolhida === f.id} onChange={() => setFuncaoDeQuemEntra(f.id)} /> {f.nome}
         </label>)}
       </Escolhas>}
@@ -312,7 +314,7 @@ function BolinhaComMenu({ p, itens, botao, busca, funcoes }: {
   /** A busca de trocar o responsável, que o "Trocar o responsável" abre. */
   busca?: { buscar: (termo: string) => Membro[]; aoEscolher: (m: Membro) => void };
   /** A função deste participante (#313): as opções, a de agora e a troca. */
-  funcoes?: { opcoes: readonly { id: string; nome: string }[]; atual: string | null; desligado: boolean; aoEscolher: (funcao: string) => void };
+  funcoes?: { opcoes: readonly { id: string; nome: string }[]; atual: string | null; desligado: boolean; aoEscolher: (funcao: string | null) => void };
 }) {
   const proprio = useRef<HTMLButtonElement>(null);
   const ref = botao ?? proprio;
@@ -343,6 +345,8 @@ function BolinhaComMenu({ p, itens, botao, busca, funcoes }: {
   }
   // O mesmo motivo (ex.: "Gravando a mudança na equipe…") aparece uma vez só, no lugar da primeira ação que ele impede.
   const visiveis = itens.filter((i, n) => !i.motivo || itens.findIndex(x => x.motivo === i.motivo) === n);
+  // A função de agora, entre as opções (a apagada conta como nenhuma: "Sem função" fica marcada).
+  const atual = funcoes?.opcoes.some(f => f.id === funcoes.atual) ? funcoes.atual : null;
   return <>
     <button ref={ref} type="button" className={'equipe-bolinha' + (p.executa ? ' executa' : '')} aria-label={nomeDaBolinha(p)} {...propsDaDica(quemE(p))}
       aria-haspopup="menu" aria-expanded={!!aberto} onClick={e => abrirOuFechar(e.currentTarget)}>
@@ -352,9 +356,9 @@ function BolinhaComMenu({ p, itens, botao, busca, funcoes }: {
       <p className="kmenu-titulo equipe-menu-titulo"><b>{p.nome}</b><span>{p.papel}</span></p>
       {funcoes && funcoes.opcoes.length > 0 && <div role="group" aria-label={`Função de ${p.nome}`}>
         <p className="kmenu-nota">{funcoes.desligado ? GRAVANDO_A_EQUIPE : 'Função na tarefa'}</p>
-        {funcoes.opcoes.map(f => <button key={f.id} type="button" role="menuitemradio" aria-checked={f.id === funcoes.atual} disabled={funcoes.desligado}
-          onClick={() => { escolheu.current = true; setAberto(null); devolverFoco(); if (f.id !== funcoes.atual) funcoes.aoEscolher(f.id); }}>
-          <span className={f.id === funcoes.atual ? 'marca-da-funcao' : 'marca-da-funcao apagada'}><Icone nome="check" tam={ICONE_DO_MENU} /></span> {f.nome}
+        {comNenhuma(funcoes.opcoes).map(f => <button key={f.id ?? ''} type="button" role="menuitemradio" aria-checked={f.id === atual} disabled={funcoes.desligado}
+          onClick={() => { escolheu.current = true; setAberto(null); devolverFoco(); if (f.id !== atual) funcoes.aoEscolher(f.id); }}>
+          <span className={f.id === atual ? 'marca-da-funcao' : 'marca-da-funcao apagada'}><Icone nome="check" tam={ICONE_DO_MENU} /></span> {f.nome}
         </button>)}
       </div>}
       {visiveis.map(i => <ItemDaBolinha key={i.acao} item={i} aoEscolher={() => escolher(i)} />)}

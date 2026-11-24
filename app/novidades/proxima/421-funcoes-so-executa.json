@@ -1,0 +1,5 @@
+{
+  "titulo": "Funções dos participantes: só \"Executa\" de fábrica",
+  "texto": "A função \"Acompanha\" saiu da lista pronta: quem estava com ela ficou sem função. Quem entra numa tarefa agora fica sem função até alguém escolher uma, e o escritório cria as funções que quiser.",
+  "ondeAchar": "No cartão da tarefa, clicando na bolinha de um participante (ou no \"+\"), e no cadastro da tarefa, em Participantes. As funções se criam em Configurações, em “Funções dos participantes da tarefa”."
+}

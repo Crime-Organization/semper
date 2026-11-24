@@ -446,8 +446,8 @@ export interface Tarefa {
   /** Quem pediu a tarefa (#313): alguém da equipe, que a vê (lê e comenta) sem trocar o responsável. null: não informado. */
   solicitante_id: string | null;
   /**
-   * A função de cada participante (#313): o id do participante → o id da função (FuncaoNaTarefa). O banco dá a função padrão a quem
-   * entra sem ela e tira quem sai. A função é só um rótulo: não muda quem vê nem quem altera.
+   * A função de cada participante (#313): o id do participante → o id da função (FuncaoNaTarefa). Quem entra sem escolher fica sem
+   * função (#421), e quem sai sai das funções. A função é só um rótulo: não muda quem vê nem quem altera.
    */
   funcoes: Record<string, string>;
   /**

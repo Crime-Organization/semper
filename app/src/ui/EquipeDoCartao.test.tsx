@@ -467,16 +467,60 @@ describe('Equipe do cartão: a função de cada participante da tarefa (#313)', 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('quando quem altera abre o "+", então escolhe a função de quem entra (começa na padrão), e quem chama recebe a pessoa com a função', async () => {
+  it('quando quem altera escolhe "Sem função" no menu de um participante, então quem chama recebe a troca para nenhuma (#421)', async () => {
+    // Dado
+    const aoTrocar = vi.fn();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[executa, acompanha]} mudar={mudar(aoTrocar)} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · Executa' }));
+    const funcoes = within(screen.getByRole('menu')).getByRole('group', { name: 'Função de Bruno Exemplo Souza' });
+    // Então
+    expect(within(funcoes).getByRole('menuitemradio', { name: 'Sem função' })).toHaveAttribute('aria-checked', 'false');
+    // Quando
+    await userEvent.click(within(funcoes).getByRole('menuitemradio', { name: 'Sem função' }));
+    // Então
+    expect(aoTrocar).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-bruno' }), null);
+  });
+
+  it('quando o participante está sem função, então "Sem função" vem marcada no menu dele', async () => {
+    // Dado
+    const semFuncao = { id: 'u-carla', nome: 'Carla Teste Reis', papel: 'Participante' };
+    const m: MudarAEquipe = { ...mudar(), funcoes: { ...mudar().funcoes!, de: () => null } };
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[semFuncao]} mudar={m} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Carla Teste Reis, Participante' }));
+    // Então
+    expect(within(screen.getByRole('menu')).getByRole('menuitemradio', { name: 'Sem função' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(screen.getByRole('menu')).getByRole('menuitemradio', { name: 'Executa' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('quando o escritório só tem "Executa" e quem altera põe alguém pelo "+" sem escolher, então ele entra sem função (#421)', async () => {
     // Dado
     const carla = { id: 'u-carla', nome: 'Carla Teste Reis', ativo: true };
-    const m: MudarAEquipe = { ...mudar(), candidatos: () => [carla], funcoes: { ...mudar().funcoes!, padrao: 'f-aco' } };
+    const m: MudarAEquipe = { ...mudar(), candidatos: () => [carla], funcoes: { ...mudar().funcoes!, opcoes: [OPCOES[0]] } };
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={m} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(within(grupo()).getByRole('button', { name: 'Pôr participante' }));
+    const funcao = screen.getByRole('group', { name: ENTRA_COMO });
+    // Então
+    expect(within(funcao).getByRole('radio', { name: 'Sem função' })).toBeChecked();
+    expect(within(funcao).getByRole('radio', { name: 'Executa' })).not.toBeChecked();
+    // Quando
+    await userEvent.click(within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Carla Teste Reis' }));
+    // Então
+    expect(m.aoPor).toHaveBeenCalledWith(carla, undefined);
+  });
+
+  it('quando quem altera abre o "+", então escolhe a função de quem entra (começa em "Sem função"), e quem chama recebe a pessoa com a função', async () => {
+    // Dado
+    const carla = { id: 'u-carla', nome: 'Carla Teste Reis', ativo: true };
+    const m: MudarAEquipe = { ...mudar(), candidatos: () => [carla] };
     render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[acompanha]} mudar={m} /></MemoryRouter>);
     // Quando
     await userEvent.click(within(grupo()).getByRole('button', { name: 'Pôr participante' }));
     const funcao = screen.getByRole('group', { name: ENTRA_COMO });
     // Então
-    expect(within(funcao).getByRole('radio', { name: 'Acompanha' })).toBeChecked();
+    expect(within(funcao).getByRole('radio', { name: 'Sem função' })).toBeChecked();
     // Quando
     await userEvent.click(within(funcao).getByRole('radio', { name: 'Executa' }));
     await userEvent.click(within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Carla Teste Reis' }));

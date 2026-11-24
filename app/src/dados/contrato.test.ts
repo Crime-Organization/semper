@@ -5214,11 +5214,11 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       afterEach(() => entrarComo('u-master'));
       const funcao = async (nome: string) => (await SD.funcoesNaTarefaListar()).find(f => f.nome === nome)!;
 
-      it('dado o escritório, então as funções de fábrica são "Executa" (de execução) e "Acompanha", nessa ordem', async () => {
+      it('dado o escritório, então a única função de fábrica é "Executa", de execução (#421)', async () => {
         // Quando
         const lista = await SD.funcoesNaTarefaListar();
         // Então
-        expect(lista.slice(0, 2).map(f => [f.nome, f.executa])).toEqual([['Executa', true], ['Acompanha', false]]);
+        expect(lista.map(f => [f.nome, f.executa])).toEqual([['Executa', true]]);
       });
 
       it('quando a administradora cria uma função, então ela vai para o fim da lista; o nome repetido e quem não é administrador são recusados', async () => {
@@ -5236,25 +5236,34 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(deFora).toBe('Você não tem permissão para fazer isso.');
       });
 
-      it('quando a tarefa é criada com a função de um participante, então os outros ficam com a padrão, e a troca de função vai ao histórico', async () => {
-        // Dado
-        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+      it('quando a tarefa é criada com a função de um participante, então os outros ficam sem função, e a troca de função vai ao histórico', async () => {
+        // Dado: o escritório tem também uma função que não é de execução, e ela não é posta sozinha (#421)
+        await SD.funcaoNaTarefaCriar({ nome: 'Revisa ' + marca(), executa: false });
+        const executa = await funcao('Executa');
         const { id } = await novaTarefa({ participantes: ['u-bruno', 'u-master'], funcoes: { 'u-bruno': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id });
         // Quando
         await SD.tarefaAtualizar(id, { funcoes: { 'u-bruno': executa.id, 'u-master': executa.id } });
         // Então
         expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': executa.id, 'u-master': executa.id });
-        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: ' + acompanha.nome, para: 'Mauro Teixeira Duarte: Executa' });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Mauro Teixeira Duarte: Sem função', para: 'Mauro Teixeira Duarte: Executa' });
+        // Quando: o Bruno fica sem função
+        await SD.tarefaAtualizar(id, { funcoes: { 'u-master': executa.id } });
+        // Então
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': executa.id });
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toEqual({ de: 'Bruno Exemplo Souza: Executa', para: 'Bruno Exemplo Souza: Sem função' });
       });
 
-      it('quando um participante sai, então sai também das funções; quem entra pela lista ganha a padrão', async () => {
+      it('quando um participante sai, então sai também das funções; quem entra pela lista fica sem função', async () => {
         // Dado
-        const [executa, acompanha] = [await funcao('Executa'), await funcao('Acompanha')];
+        const executa = await funcao('Executa');
         const { id } = await novaTarefa({ participantes: ['u-bruno'], funcoes: { 'u-bruno': executa.id } });
         // Quando
         await SD.tarefaAtualizar(id, { participantes: ['u-master'] });
         // Então
-        expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-master': acompanha.id });
+        expect((await SD.tarefaObter(id))?.funcoes).toEqual({});
+        expect((await SD.tarefaHistorico(id))[0].alteracoes.funcoes).toBeUndefined();
       });
 
       it('quando a função de outro escritório chega, então é recusada', async () => {
@@ -10478,5 +10487,48 @@ describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
     const ficou = await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
     // Então
     expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
+  });
+});
+
+// A sessão aberta antes da #421 só existe no banco fictício; no banco de verdade, a conversão é provada em
+// supabase/tests/funcoes_so_executa_de_fabrica.test.sql.
+describe('Funções dos participantes: a sessão aberta antes da #421 (banco fictício)', () => {
+  /** O id que a "Acompanha" de fábrica tinha no banco fictício antes da #421. */
+  const ACOMPANHA_DE_FABRICA = 'fn-acompanha';
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+  interface BancoGuardado { funcoesNaTarefa: { id: string; nome: string; executa: boolean; ordem: number }[]; tarefas: { id: string; funcoes: Record<string, string> }[] }
+
+  /** Uma sessão aberta antes da #421: a "Acompanha" de fábrica na lista (com o nome e a marca dados) e o Bruno com ela numa tarefa. */
+  async function sessaoAntiga(acompanha: { nome: string; executa: boolean }) {
+    sessionStorage.clear();
+    const SD = await reabrir();
+    const { id } = await SD.tarefaCriar({ titulo: 'Protocolar', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as BancoGuardado;
+    bd.funcoesNaTarefa.push({ id: ACOMPANHA_DE_FABRICA, ...acompanha, ordem: 2 });
+    bd.tarefas.find(t => t.id === id)!.funcoes = { 'u-bruno': ACOMPANHA_DE_FABRICA };
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    return id;
+  }
+
+  it('dada a "Acompanha" de fábrica como veio, quando a sessão é reaberta, então ela sai e o Bruno fica na tarefa sem função', async () => {
+    // Dado
+    const id = await sessaoAntiga({ nome: 'Acompanha', executa: false });
+    // Quando
+    const SD = await reabrir();
+    // Então
+    expect((await SD.funcoesNaTarefaListar()).map(f => f.nome)).toEqual(['Executa']);
+    expect(await SD.tarefaObter(id)).toMatchObject({ participantes: ['u-bruno'], funcoes: {} });
+  });
+
+  it('dada a "Acompanha" de fábrica renomeada ou marcada como de execução, quando a sessão é reaberta, então ela fica, com o Bruno (como o banco)', async () => {
+    for (const adotada of [{ nome: 'Revisa', executa: false }, { nome: 'Acompanha', executa: true }]) {
+      // Dado
+      const id = await sessaoAntiga(adotada);
+      // Quando
+      const SD = await reabrir();
+      // Então
+      expect((await SD.funcoesNaTarefaListar()).map(f => f.nome)).toEqual(['Executa', adotada.nome]);
+      expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': ACOMPANHA_DE_FABRICA });
+    }
   });
 });

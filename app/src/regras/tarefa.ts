@@ -113,7 +113,7 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
   return {
     titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), ...inicioAoGravar(c), responsavel_id: c.responsavelId,
     participantes, solicitante_id: c.solicitanteId || null,
-    // Só as funções de quem é participante; quem ficou sem função ganha a padrão no banco.
+    // Só as funções de quem é participante; quem entra sem escolher fica sem função (#421).
     funcoes: Object.fromEntries(participantes.flatMap(p => c.funcoes[p] ? [[p, c.funcoes[p]]] : [])),
     pessoas: [...new Set(escolhidos(c.pessoas))], demanda_ids: [...new Set(c.demandas)], contrato_ids: [...new Set(c.contratos)],
     processo_id: c.processoId || null, diligencia: c.diligencia, diligencia_motivo: c.diligencia ? c.motivoDaDiligencia.trim() : null,

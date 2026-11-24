@@ -1,7 +1,8 @@
 // As funções dos participantes da tarefa (#313, decisão do dono): cada participante tem uma função que diz por que ele está na tarefa
-// ("Executa": recebeu a tarefa para fazer; "Acompanha": o participante de sempre). A lista é de cada escritório, editada nas
-// Configurações por quem administra. A função é só um rótulo: não muda quem vê nem quem altera a tarefa. Tudo puro, sem tela nem banco;
-// as mesmas contas do banco (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql).
+// ("Executa": recebeu a tarefa para fazer). A lista é de cada escritório, editada nas Configurações por quem administra; de fábrica, só
+// "Executa" (#421). O participante pode ficar sem função: ninguém ganha uma sozinho. A função é só um rótulo: não muda quem vê nem quem
+// altera a tarefa. Tudo puro, sem tela nem banco; as mesmas contas do banco (supabase/migrations/20261122232702_tarefa_solicitante_e_funcoes.sql
+// e 20261123233405_funcoes_so_executa_de_fabrica.sql).
 import type { FuncaoNaTarefa } from '../dados/tipos';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
 import { normal } from './texto';
@@ -9,21 +10,20 @@ import { normal } from './texto';
 /** As funções na ordem da lista (a ordem que o banco dá, a da criação). */
 export const funcoesNaOrdem = (funcoes: readonly FuncaoNaTarefa[]) => funcoes.toSorted((a, b) => a.ordem - b.ordem);
 
-/** A função de quem entra sem escolher: a primeira da lista que não é de execução (como privado.funcao_padrao_na_tarefa). */
-export const funcaoPadrao = (funcoes: readonly FuncaoNaTarefa[]): FuncaoNaTarefa | null =>
-  funcoesNaOrdem(funcoes).find(f => !f.executa) ?? null;
+/** O participante sem função, como as escolhas e o histórico o mostram (#421). */
+export const SEM_FUNCAO = 'Sem função';
 
 /**
- * As funções gravadas com os participantes (como o gatilho preparar_pedido): uma para cada participante (sem ela, a padrão), e quem não
- * é participante sai. A função que não existe no escritório é recusada; a de quem já estava não é conferida de novo.
+ * As funções gravadas com os participantes (como o gatilho preparar_pedido): a escolhida de cada participante (sem ela, nenhuma: ninguém
+ * ganha função sozinho, #421), e quem não é participante sai. A função que não existe no escritório é recusada; a de quem já estava não é
+ * conferida de novo.
  */
 export function funcoesAoGravar(participantes: readonly string[], escolhidas: Readonly<Record<string, string>>, funcoes: readonly FuncaoNaTarefa[],
   antes: Readonly<Record<string, string>> = {}): Record<string, string> {
-  const padrao = funcaoPadrao(funcoes)?.id;
   const r: Record<string, string> = {};
   for (const p of participantes) {
     const f = escolhidas[p];
-    if (!f) { if (padrao) r[p] = padrao; continue; }
+    if (!f) continue;
     if (f !== antes[p] && !funcoes.some(x => x.id === f)) throw new Error(FUNCAO_DE_FORA);
     r[p] = f;
   }
@@ -90,7 +90,35 @@ export function errosDaFuncao(f: FormDaFuncao, funcoes: readonly FuncaoNaTarefa[
 
 /**
  * As funções a gravar quando alguém entra na tarefa pelo "+" com a função escolhida (#313): as de agora e a dele. O banco confere a
- * função e dá a padrão a quem ficou sem.
+ * função; quem ficou sem continua sem.
  */
 export const comAFuncaoDeQuemEntra = (atuais: Readonly<Record<string, string>> | undefined, perfil: string, funcao: string): Record<string, string> =>
   ({ ...atuais, [perfil]: funcao });
+
+/** As funções a gravar quando a de um participante é trocada no menu da bolinha: a nova, ou nenhuma (null: "Sem função", #421). */
+export const comAFuncaoTrocada = (atuais: Readonly<Record<string, string>> | undefined, perfil: string, funcao: string | null): Record<string, string> =>
+  Object.fromEntries([...Object.entries(atuais ?? {}).filter(([p]) => p !== perfil), ...(funcao ? [[perfil, funcao]] : [])]);
+
+/** O aviso depois da troca no menu da bolinha: com o nome da função nova, ou sem função (null, #421). */
+export const avisoDaFuncaoTrocada = (quem: string, funcao: string | null) =>
+  funcao === null ? `${quem} agora sem função.` : `${quem} agora com a função "${funcao}".`;
+
+// ---------- a "Acompanha" que vinha de fábrica (#421) ----------
+/** O nome da função que vinha pronta, além de "Executa", até a #421. */
+export const NOME_DA_ACOMPANHA_DE_FABRICA = 'Acompanha';
+/**
+ * A "Acompanha" de fábrica sai (como privado.tirar_acompanha_de_fabrica): só a que veio pronta (`deFabrica`; no banco, a sem quem a
+ * criou), ainda com o nome de fábrica e sem ser de execução. Renomeada ou marcada como de execução, o escritório a adotou, e ela fica.
+ */
+export const ehAcompanhaDeFabrica = (f: Pick<FuncaoNaTarefa, 'nome' | 'executa'>, deFabrica: boolean) =>
+  deFabrica && f.nome === NOME_DA_ACOMPANHA_DE_FABRICA && !f.executa;
+/** As funções da tarefa sem a função que saiu (`id`): quem estava com ela fica sem função; os outros ficam como estão. */
+export const semAFuncao = (funcoesDaTarefa: Readonly<Record<string, string>> | undefined, id: string): Record<string, string> =>
+  Object.fromEntries(Object.entries(funcoesDaTarefa ?? {}).filter(([, f]) => f !== id));
+
+/**
+ * Para o histórico (como privado.funcoes_trocadas_no_historico): quem continua na tarefa (`ficaram`) e trocou de função, também de e
+ * para nenhuma. Quem entrou ou saiu vem com os participantes.
+ */
+export const quemTrocouDeFuncao = (antes: Readonly<Record<string, string>>, depois: Readonly<Record<string, string>>, ficaram: readonly string[]) =>
+  ficaram.filter(p => (antes[p] ?? null) !== (depois[p] ?? null));

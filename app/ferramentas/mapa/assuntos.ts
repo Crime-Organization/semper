@@ -189,12 +189,12 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'tarefas',
     titulo: 'Tarefas',
-    resumo: 'As tarefas: o cadastro, o cartão, as funções dos participantes (executa, acompanha), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.',
+    resumo: 'As tarefas: o cadastro, o cartão, as funções dos participantes (só "Executa" de fábrica; o participante pode ficar sem função), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.',
     arquivos: [
       'Tarefas', 'NovaTarefa', 'CartaoTarefa', 'TarefasDaDemanda', 'AprovacaoDaTarefa', 'FuncoesDosParticipantes', 'copiarTarefa', 'prazoDaTarefa',
       'tarefa', 'aprovacaoDaTarefa', 'copiaDaTarefa', 'funcoesNaTarefa', 'dataDeInicio', 'ordemPorPrazo', 'filtroDoInicio', 'CartoesLigados',
       'tarefas', 'copiar-tarefa', 'tarefa-aprovacao', 'tarefa-em-varias-ligacoes', 'tarefa-pedido', 'prazo-da-tarefa', 'demanda-continua',
-      /^supabase\/(migrations|tests)\/(\d{14}_)?tarefa_/, 'colunas_de_espera_das_tarefas', 'data_de_inicio'
+      /^supabase\/(migrations|tests)\/(\d{14}_)?tarefa_/, 'colunas_de_espera_das_tarefas', 'data_de_inicio', 'funcoes_so_executa_de_fabrica'
     ],
     tabelas: ['tarefas', 'tarefa_pessoas', 'tarefa_historico', 'tarefa_demandas', 'tarefa_contratos', 'funcoes_na_tarefa'],
     dados: ['DadosTarefas', 'DadosFuncoesNaTarefa'],
@@ -202,7 +202,7 @@ export const ASSUNTOS: Assunto[] = [
     armadilhas: [
       'Concluir a tarefa que cumpre um prazo pergunta se o prazo foi cumprido (`regras/prazoDaTarefa.ts`, `paginas/situacaoDoItem.tsx`): teste pelos caminhos do ✓ do cartão e do círculo da miniatura.',
       'Tarefa sem demanda vai para a demanda contínua (veja [Demandas](#demandas)). O cronômetro e os registros de tempo estão em [Tempo nas tarefas](#tempo).',
-      'A função de cada participante aparece e se troca nas bolinhas do topo do cartão (`ui/TopoDoCartao.tsx`, de [Cartão](#cartao); as bolinhas são de [Equipe](#equipe): `ui/EquipeDoCartao.tsx`, `paginas/EquipeNoTopo.tsx`, `paginas/equipeNoCartao.ts`, `regras/equipeNoCartao.ts`) e no cadastro (`ui/EscolhaDaEquipe.tsx`, `ui/BuscaNaEquipe.tsx`). A lista de funções se edita nas Configurações (`FuncoesDosParticipantes`, em `paginas/Configuracoes.tsx`) e carrega em `ui/sessao.tsx` (`iniciarFuncoes`).',
+      'A função de cada participante aparece e se troca nas bolinhas do topo do cartão (`ui/TopoDoCartao.tsx`, de [Cartão](#cartao); as bolinhas são de [Equipe](#equipe): `ui/EquipeDoCartao.tsx`, `paginas/EquipeNoTopo.tsx`, `paginas/equipeNoCartao.ts`, `regras/equipeNoCartao.ts`) e no cadastro (`ui/EscolhaDaEquipe.tsx`, `ui/BuscaNaEquipe.tsx`). A lista de funções se edita nas Configurações (`FuncoesDosParticipantes`, em `paginas/Configuracoes.tsx`) e carrega em `ui/sessao.tsx` (`iniciarFuncoes`). Ninguém ganha função sozinho (#421): o banco (`preparar_pedido_da_tarefa`), `falso.ts` e `regras/funcoesNaTarefa.ts` (`funcoesAoGravar`) mudam juntos.',
       'O nome das bolinhas e os títulos das seções do cadastro e da edição da tarefa são lidos por testes de Equipe, Mensagens e Processos (já no comando abaixo).',
       'Estado novo da tarefa = coluna reconhecida pelo sistema: `regras/quadro.ts` (`COLUNA_DE_APROVACAO`, `explicacaoDaColuna`), `regras/colunasPadrao.ts`, `ui/quadro/Kanban.tsx` e `paginas/situacaoDoItem.tsx` (veja [Quadros](#quadros)); mexeu no Kanban, rode a bateria completa.',
       'A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).',

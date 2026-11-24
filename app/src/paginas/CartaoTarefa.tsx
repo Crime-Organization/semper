@@ -17,6 +17,7 @@ import {
   ligadosDaTarefa, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa, motivoDeSoLerATarefa
 } from '../regras/tarefa';
 import { useFuncoesNaTarefa } from '../ui/funcoesNaTarefa';
+import { avisoDaFuncaoTrocada, comAFuncaoTrocada } from '../regras/funcoesNaTarefa';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, TAMANHO_TAREFA } from '../dados/limites';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { contratosEmQueEsta } from '../regras/contrato';
@@ -178,11 +179,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
   });
 
-  /** Troca a função de um participante (#313), no menu da bolinha: o mesmo aviso do lápis, com Desfazer. */
-  async function trocarFuncao(perfil: string, funcao: string) {
+  /** Troca a função de um participante (#313), no menu da bolinha, ou a tira (null, #421): o mesmo aviso do lápis, com Desfazer. */
+  async function trocarFuncao(perfil: string, funcao: string | null) {
     const antes = t!.funcoes, id = t!.id;
-    await SD.tarefaAtualizar(id, { funcoes: { ...antes, [perfil]: funcao } });
-    feito(`${nomeDe(perfil)} agora com a função "${funcoes.find(f => f.id === funcao)?.nome ?? ''}".`, 'troca de função', async () => {
+    await SD.tarefaAtualizar(id, { funcoes: comAFuncaoTrocada(antes, perfil, funcao) });
+    feito(avisoDaFuncaoTrocada(nomeDe(perfil), funcao && (funcoes.find(f => f.id === funcao)?.nome ?? '')), 'troca de função', async () => {
       await SD.tarefaAtualizar(id, { funcoes: antes });
       return { tipo: 'tarefaAtualizada', id };
     });

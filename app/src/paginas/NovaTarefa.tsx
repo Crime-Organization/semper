@@ -78,7 +78,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // Quem cadastra já vem como responsável e como quem pediu a tarefa (o solicitante, #313).
   const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id, solicitanteId: ctx.perfil.id,
     grupoDaContinua: perguntaAContinua ? continuaInicial(opcoesDaContinuaDaPessoa) : null }));
-  // As funções dos participantes do escritório (#313): quem entra ganha a padrão, e a pessoa troca ao lado do nome.
+  // As funções dos participantes do escritório (#313): quem entra sem escolher fica sem função (#421), e a pessoa escolhe ao lado do nome.
   const funcoes = useFuncoesNaTarefa();
   const [alvo, setAlvo] = useState<Tarefa | null>(null);   // tarefa sendo atualizada
   const [pronto, setPronto] = useState(!idAtualizar);
@@ -246,7 +246,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const opcoesSolicitante = ctx.equipe.filter(m => m.ativo !== false || m.id === c.solicitanteId);
   // Na tarefa que já precisa de aprovação, só quem aprova (o solicitante ou um administrador) muda a caixa e o solicitante (#313).
   const aprovacaoTravada = !!alvo?.precisa_aprovacao && !aprovaATarefa(alvo, ctx.perfil);
-  // Os participantes de agora, com a função de cada um (quem entrou ganha a padrão; quem saiu sai das funções).
+  // Os participantes de agora, com a função de cada um (quem entra sem escolher fica sem função, #421; quem saiu sai das funções).
   const mudarParticipantes = (participantes: string[]) => mudar({ participantes, funcoes: funcoesAoGravar(participantes, c.funcoes, funcoes, c.funcoes) });
 
   // ---------- demandas e contratos (#283: mais de um de cada) ----------

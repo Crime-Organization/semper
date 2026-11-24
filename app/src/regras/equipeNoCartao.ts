@@ -72,7 +72,7 @@ export type MudancaNaEquipe = { gravar: EquipeAGravar } | { aviso: string; tipo:
  */
 export type TipoDeMudanca = 'por' | 'tirar' | 'responsavel' | 'tornarResponsavel';
 /** Uma mudança pedida na tela: o tipo, quem (o id do usuário) e o nome dele, para os avisos; `funcao`, na tarefa (#313), a função de
- * quem entra pelo "+" (sem ela, a padrão). */
+ * quem entra pelo "+" (sem ela, quem entra fica sem função, #421). */
 export interface PedidoNaEquipe { tipo: TipoDeMudanca; id: string; nome: string; funcao?: string }
 
 /** Cada mudança, sobre a equipe gravada agora (`atual`). Uma entrada por tipo: tipo novo = entrada nova. */

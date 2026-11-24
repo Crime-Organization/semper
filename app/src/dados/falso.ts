@@ -60,7 +60,7 @@ import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO } from '../regras/objetos';
 import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
-import { FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, temAFuncao } from '../regras/funcoesNaTarefa';
+import { ehAcompanhaDeFabrica, FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, quemTrocouDeFuncao, SEM_FUNCAO, semAFuncao, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
 import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, TIPO_QUE_FICA, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
 import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
@@ -646,8 +646,10 @@ if (!bd.colunas.some(c => c.modulo === 'compromissos')) {
 bd.historicoCompromissos ??= [];
 bd.compromissoLigacoes ??= [];
 bd.salas ??= [];
-// As funções de fábrica dos participantes da tarefa (#313), como a migração e o gatilho do escritório novo.
-bd.funcoesNaTarefa ??= [{ id: 'fn-executa', nome: 'Executa', executa: true, ordem: 1 }, { id: 'fn-acompanha', nome: 'Acompanha', executa: false, ordem: 2 }];
+// A função de fábrica dos participantes da tarefa (#313): só "Executa" (#421), como a migração e o gatilho do escritório novo.
+bd.funcoesNaTarefa ??= [{ id: 'fn-executa', nome: 'Executa', executa: true, ordem: 1 }];
+/** O id da "Acompanha" que vinha de fábrica antes da #421 (só para tirá-la das sessões abertas antes). */
+const ACOMPANHA_DE_FABRICA = 'fn-acompanha';
 bd.repeticoes ??= [];
 // Compromissos de exemplo: a audiência do processo de JOSÉ DA SILVA TESTE, amanhã, e a reunião de equipe de hoje, na Agenda geral.
 bd.compromissos ??= (() => {
@@ -726,8 +728,15 @@ if (!bd.tarefas) {
 bd.tarefas.forEach(t => { t.data_inicio ??= inicioDoCriadoEm(t.criado_em); });
 // Sessões abertas antes da diligência (#313): a tarefa é comum, sem motivo (como o padrão da migração).
 bd.tarefas.forEach(t => { t.diligencia ??= false; t.diligencia_motivo ??= null; });
-// Sessões abertas antes das funções e do solicitante (#313): sem solicitante; os participantes ficam com a função padrão (como a migração).
+// Sessões abertas antes das funções e do solicitante (#313): sem solicitante; os participantes ficam sem função (#421).
 bd.tarefas.forEach(t => { t.solicitante_id ??= null; t.funcoes = funcoesDaTarefaNoFalso(t); });
+// Sessões abertas antes da #421: a "Acompanha" de fábrica sai, e quem estava nela fica sem função (como a migração). Renomeada ou
+// marcada como de execução, o escritório a adotou, e ela fica.
+const acompanhaDeFabrica = bd.funcoesNaTarefa?.find(f => ehAcompanhaDeFabrica(f, f.id === ACOMPANHA_DE_FABRICA));
+if (acompanhaDeFabrica) {
+  bd.funcoesNaTarefa = bd.funcoesNaTarefa!.filter(f => f !== acompanhaDeFabrica);
+  bd.tarefas.forEach(t => { t.funcoes = semAFuncao(t.funcoes, acompanhaDeFabrica.id); });
+}
 // Sessões abertas antes da aprovação (#313): a tarefa não precisa de aprovação (como o padrão da migração).
 bd.tarefas.forEach(t => { t.precisa_aprovacao ??= false; });
 bd.tarefas.forEach(t => { t.concluida_em ??= bd.colunas.find(c => c.id === t.etapa_id)?.marco === 'concluido' ? t.atualizado_em : null; });
@@ -1662,7 +1671,7 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
   }
   // Como o gatilho aa_aprovacao (#313): só quem aprova tira a aprovação ou troca o solicitante da tarefa que precisa de aprovação.
   if (atual) conferirMudancaDaAprovacao(t, atual, membroLogado());
-  // Como o gatilho preparar_pedido (#313): o solicitante que entra é da equipe; cada participante tem uma função (sem ela, a padrão).
+  // Como o gatilho preparar_pedido (#313): o solicitante que entra é da equipe; o participante tem a função escolhida ou nenhuma (#421).
   if (t.solicitante_id && t.solicitante_id !== atual?.solicitante_id && !EQUIPE.some(m => m.id === t.solicitante_id)) {
     throw new Error('O solicitante precisa ser alguém da equipe do escritório.');
   }
@@ -1729,10 +1738,12 @@ function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
   Object.entries(dados).forEach(([campo, v]) => {
     const lista = pelaLista[campo];
     if (lista && lista in dados && mudou(lista, (dados as Record<string, unknown>)[lista])) return;
-    // As funções (#313): só a troca de função de quem continua na tarefa, pelos nomes (como privado.funcoes_no_historico).
+    // As funções (#313): só a troca de função de quem continua na tarefa, também de e para nenhuma (#421), pelos nomes (como
+    // privado.funcoes_trocadas_no_historico).
     if (campo === 'funcoes') {
       const antes = t.funcoes ?? {}, depois = (v ?? {}) as Record<string, string>;
-      const de = funcoesNoHistorico(antes, depois, antes), para = funcoesNoHistorico(antes, depois, depois);
+      const novos = (dados.participantes ?? t.participantes) as string[], ficaram = t.participantes.filter(p => novos.includes(p));
+      const de = funcoesNoHistorico(antes, depois, ficaram, antes), para = funcoesNoHistorico(antes, depois, ficaram, depois);
       if (para) alt.funcoes = { de, para };
       return;
     }
@@ -1752,10 +1763,10 @@ const vejoATarefaDoTempo = (tarefaId: string) => {
 const registroQueMexo = (id: number) => bd.tempos!.find(r => r.id === id && (r.perfil_id === eu || souAdmin()) && vejoATarefaDoTempo(r.tarefa_id));
 /** O nome de quem é da equipe, como o histórico o escreve. */
 const nomeDoMembro = (id: string | null) => EQUIPE.find(m => m.id === id)?.nome ?? null;
-/** As funções de quem continua na tarefa e trocou de função, como estão em `lado`: "Ana: Executa, Bruno: Acompanha" (null: ninguém trocou). */
-function funcoesNoHistorico(antes: Record<string, string>, depois: Record<string, string>, lado: Record<string, string>) {
-  const nomes = Object.entries(lado).filter(([p]) => p in antes && p in depois && antes[p] !== depois[p])
-    .map(([p, f]) => `${nomeDoMembro(p) ?? 'Usuário removido'}: ${bd.funcoesNaTarefa!.find(x => x.id === f)?.nome ?? 'função apagada'}`);
+/** As funções de quem continua na tarefa e trocou de função, como estão em `lado`: "Ana: Executa, Bruno: Sem função" (null: ninguém trocou). */
+function funcoesNoHistorico(antes: Record<string, string>, depois: Record<string, string>, ficaram: readonly string[], lado: Record<string, string>) {
+  const nomeDaFuncao = (f: string | undefined) => f ? bd.funcoesNaTarefa!.find(x => x.id === f)?.nome ?? 'função apagada' : SEM_FUNCAO;
+  const nomes = quemTrocouDeFuncao(antes, depois, ficaram).map(p => `${nomeDoMembro(p) ?? 'Usuário removido'}: ${nomeDaFuncao(lado[p])}`);
   return nomes.length ? nomes.sort((a, b) => a.localeCompare(b, 'pt-BR')).join(', ') : null;
 }
 /** Como o gatilho do banco: apagar, corrigir e devolver um registro de tempo entram no histórico da tarefa, sem a duração. */
@@ -1917,7 +1928,7 @@ function prepararSala(dados: Partial<DadosSala>, id?: string): Partial<DadosSala
 
 // ---------- funções dos participantes da tarefa (#313) ----------
 /**
- * A função de cada participante, como o banco a guarda: a escolhida e, sem ela, a padrão; quem não é participante não entra. Vale também
+ * A função de cada participante, como o banco a guarda: a escolhida ou nenhuma (#421); quem não é participante não entra. Vale também
  * para a tarefa gravada antes das funções ou por um caminho que não as escolhe (como o gatilho preparar_pedido, para qualquer gravação).
  */
 function funcoesDaTarefaNoFalso(t: Pick<TarefaGuardada, 'participantes'> & { funcoes?: Record<string, string> }) {

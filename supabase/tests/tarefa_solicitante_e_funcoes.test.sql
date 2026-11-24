@@ -39,22 +39,22 @@ $$;
 grant execute on function pg_temp.funcao_de(int) to authenticated;
 
 -- ---------- as funções de fábrica ----------
--- Dado um escritório novo, então ele nasce com "Executa" (de execução) e "Acompanha", nessa ordem
+-- Dado um escritório novo, então ele nasce só com "Executa" (de execução, #421)
 select is((select string_agg(nome || ':' || executa, ', ' order by ordem) from public.funcoes_na_tarefa where escritorio_id = 'e0000000-0000-0000-0000-000000000001'),
-  'Executa:true, Acompanha:false', 'O escritório novo nasce com Executa e Acompanha');
+  'Executa:true', 'O escritório novo nasce só com Executa');
 
 -- Quando a Bia (não é administradora) lê, então vê as funções do escritório dela, e só as dele; mas não cria, não muda e não apaga
 select pg_temp.entrar(2); set local role authenticated;
-select is((select count(*) from public.funcoes_na_tarefa), 2::bigint, 'A equipe lê as funções do próprio escritório');
+select is((select count(*) from public.funcoes_na_tarefa), 1::bigint, 'A equipe lê as funções do próprio escritório');
 select throws_ok($$ insert into public.funcoes_na_tarefa (nome, criado_por) values ('Revisa', auth.uid()) $$, '42501', null, 'Só administrador cria função');
 update public.funcoes_na_tarefa set nome = 'Faz' where nome = 'Executa';
-delete from public.funcoes_na_tarefa where nome = 'Acompanha';
-select is((select string_agg(nome, ', ' order by ordem) from public.funcoes_na_tarefa), 'Executa, Acompanha', 'Só administrador muda ou apaga função');
+delete from public.funcoes_na_tarefa where nome = 'Executa';
+select is((select string_agg(nome, ', ' order by ordem) from public.funcoes_na_tarefa), 'Executa', 'Só administrador muda ou apaga função');
 
 -- Quando a Ana (administradora) cria uma função, então ela vai para o fim da lista, com o nome limpo; o nome repetido é recusado
 select pg_temp.entrar(1);
 select lives_ok($$ insert into public.funcoes_na_tarefa (nome, criado_por) values ('  Revisa ', auth.uid()) $$, 'A administradora cria a função');
-select is((select nome || ':' || ordem from public.funcoes_na_tarefa where nome = 'Revisa'), 'Revisa:3', 'A função nova vem no fim, sem espaços');
+select is((select nome || ':' || ordem from public.funcoes_na_tarefa where nome = 'Revisa'), 'Revisa:2', 'A função nova vem no fim, sem espaços');
 select throws_ok($$ insert into public.funcoes_na_tarefa (nome, criado_por) values ('REVISA', auth.uid()) $$, '23505', null, 'Duas funções não têm o mesmo nome');
 
 -- Dado o Davi, de outro escritório, então ele não vê nem muda as funções deste
@@ -64,16 +64,17 @@ update public.funcoes_na_tarefa set nome = 'Tomada' where escritorio_id = 'e0000
 delete from public.funcoes_na_tarefa where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
 
 -- ---------- a função de cada participante ----------
--- Quando a Ana cria a tarefa com a Bia executando e o Caio sem função escolhida, então o Caio fica com a padrão (Acompanha)
+-- Quando a Ana cria a tarefa com a Bia executando e o Caio sem função escolhida, então o Caio fica sem função (#421), mesmo com o
+-- escritório tendo uma função que não é de execução (a Revisa)
 select pg_temp.entrar(1);
 insert into public.tarefas (id, titulo, responsavel_id, participantes, funcoes, criado_por) values
   ('70000000-0000-0000-0000-000000000001', 'Protocolar', auth.uid(), '{a0000000-0000-0000-0000-000000000002,a0000000-0000-0000-0000-000000000003}',
    jsonb_build_object('a0000000-0000-0000-0000-000000000002', pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Executa')), auth.uid());
 select is(pg_temp.funcao_de(2), 'Executa', 'A função escolhida fica gravada');
-select is(pg_temp.funcao_de(3), 'Acompanha', 'Quem entra sem função fica com a padrão');
+select is((select funcoes ? 'a0000000-0000-0000-0000-000000000003' from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), false,
+  'Quem entra sem função fica sem função');
 select is((select participantes_com_funcao from public.tarefas where id = '70000000-0000-0000-0000-000000000001'),
-  array['a0000000-0000-0000-0000-000000000002:' || pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Executa'),
-        'a0000000-0000-0000-0000-000000000003:' || pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Acompanha')],
+  array['a0000000-0000-0000-0000-000000000002:' || pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Executa')],
   'A lista dos filtros acompanha as funções');
 -- Quando alguém tenta gravar a lista dos filtros à mão, então o banco recusa
 select throws_ok($$ update public.tarefas set participantes_com_funcao = '{x:y}' where id = '70000000-0000-0000-0000-000000000001' $$, '42501', null,
@@ -83,28 +84,32 @@ select throws_ok($$ update public.tarefas set participantes_com_funcao = '{x:y}'
 select throws_ok($$ update public.tarefas set funcoes = funcoes || jsonb_build_object('a0000000-0000-0000-0000-000000000003', pg_temp.funcao('e0000000-0000-0000-0000-000000000002', 'Executa'))
   where id = '70000000-0000-0000-0000-000000000001' $$, 'P0001', 'Função não encontrada neste escritório.', 'A função de outro escritório é recusada');
 
--- Quando a função do Caio é trocada, então o histórico mostra a troca pelos nomes
+-- Quando o Caio, sem função, ganha uma, então o histórico mostra a troca pelos nomes
 update public.tarefas set funcoes = funcoes || jsonb_build_object('a0000000-0000-0000-0000-000000000003', pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Revisa'))
 where id = '70000000-0000-0000-0000-000000000001';
-select is(pg_temp.funcao_de(3), 'Revisa', 'A função é trocada depois');
+select is(pg_temp.funcao_de(3), 'Revisa', 'A função é escolhida depois');
 select is((select alteracoes -> 'funcoes' from public.tarefa_historico where tarefa_id = '70000000-0000-0000-0000-000000000001' order by em desc limit 1),
-  '{"de": "Caio: Acompanha", "para": "Caio: Revisa"}'::jsonb, 'O histórico mostra a troca de função pelos nomes');
+  '{"de": "Caio: Sem função", "para": "Caio: Revisa"}'::jsonb, 'O histórico mostra a troca de função pelos nomes');
 
--- Quando a versão anterior do site põe a Eva e tira o Caio (só a lista), então a Eva ganha a padrão e o Caio sai das funções
+-- Quando a versão anterior do site põe a Eva e tira o Caio (só a lista), então a Eva fica sem função e o Caio sai das funções
 update public.tarefas set participantes = '{a0000000-0000-0000-0000-000000000002,a0000000-0000-0000-0000-000000000005}' where id = '70000000-0000-0000-0000-000000000001';
-select is(pg_temp.funcao_de(5), 'Acompanha', 'Quem entra pela lista ganha a padrão');
+select is((select funcoes ? 'a0000000-0000-0000-0000-000000000005' from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), false,
+  'Quem entra pela lista fica sem função');
 select is((select funcoes ? 'a0000000-0000-0000-0000-000000000003' from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), false, 'Quem sai sai também das funções');
 
 -- Quando a Bia vira a responsável, então sai dos participantes e das funções
 update public.tarefas set responsavel_id = 'a0000000-0000-0000-0000-000000000002' where id = '70000000-0000-0000-0000-000000000001';
 select is((select funcoes ? 'a0000000-0000-0000-0000-000000000002' from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), false, 'O responsável não fica nas funções');
 
--- Quando a Ana tenta apagar a função em uso, então é recusado, dizendo onde; a que não está em uso sai
-select throws_ok($$ delete from public.funcoes_na_tarefa where nome = 'Acompanha' $$, 'P0001',
-  'A função "Acompanha" está em 1 tarefa. Troque a função dessas pessoas antes de apagá-la.', 'A função em uso não é apagada');
-select lives_ok($$ delete from public.funcoes_na_tarefa where nome = 'Revisa' $$, 'A função fora de uso é apagada');
+-- Quando a Ana tenta apagar a função em uso (a Eva com a Revisa), então é recusado, dizendo onde; a que não está em uso sai
+update public.tarefas set funcoes = funcoes || jsonb_build_object('a0000000-0000-0000-0000-000000000005', pg_temp.funcao('e0000000-0000-0000-0000-000000000001', 'Revisa'))
+where id = '70000000-0000-0000-0000-000000000001';
+select throws_ok($$ delete from public.funcoes_na_tarefa where nome = 'Revisa' $$, 'P0001',
+  'A função "Revisa" está em 1 tarefa. Troque a função dessas pessoas antes de apagá-la.', 'A função em uso não é apagada');
+insert into public.funcoes_na_tarefa (nome, criado_por) values ('Livre', auth.uid());
+select lives_ok($$ delete from public.funcoes_na_tarefa where nome = 'Livre' $$, 'A função fora de uso é apagada');
 -- E a função muda de nome e de marca de execução
-select lives_ok($$ update public.funcoes_na_tarefa set nome = 'Segue', executa = true where nome = 'Acompanha' $$, 'A administradora renomeia a função');
+select lives_ok($$ update public.funcoes_na_tarefa set nome = 'Segue', executa = true where nome = 'Revisa' $$, 'A administradora renomeia a função');
 select is(pg_temp.funcao_de(5), 'Segue', 'O participante acompanha o nome novo da função');
 
 -- ---------- o solicitante ----------

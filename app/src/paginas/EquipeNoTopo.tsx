@@ -6,10 +6,10 @@
 // Os grupos da equipe do item (#378) vêm em pílulas depois dos participantes; quem altera o cartão os põe pelo "+" e os tira pela
 // lista da pílula (useGruposNoTopo, que serve também ao contrato).
 // Na tarefa (#313), cada participante tem uma função (`funcoes`): ela vai no papel da bolinha, quem executa fica em destaque e quem
-// altera o cartão troca a função no menu da bolinha e escolhe a de quem entra pelo "+".
+// altera o cartão troca a função no menu da bolinha (ou a tira: "Sem função", #421) e escolhe a de quem entra pelo "+".
 import { useRef, useState } from 'react';
 import type { FuncaoNaTarefa, GrupoDaEquipe, ModuloDoPedido } from '../dados';
-import { funcaoDe, funcaoPadrao } from '../regras/funcoesNaTarefa';
+import { funcaoDe } from '../regras/funcoesNaTarefa';
 import {
   candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDoGrupoNoTopo, SAIRIA_SEM_O_GRUPO, saiComOGrupo,
   type TipoDeMudancaNosGrupos
@@ -43,7 +43,7 @@ interface Props {
   /** null: a pessoa só lê o cartão (ou ele está arquivado), e as bolinhas são só para ver. */
   mudar: MudancaNoTopo | null;
   /** As funções dos participantes (na tarefa, #313): as do escritório, a de cada participante e como gravar a troca. */
-  funcoes?: { opcoes: readonly FuncaoNaTarefa[]; de: Readonly<Record<string, string>>; trocar: (perfil: string, funcao: string) => Promise<void> };
+  funcoes?: { opcoes: readonly FuncaoNaTarefa[]; de: Readonly<Record<string, string>>; trocar: (perfil: string, funcao: string | null) => Promise<void> };
 }
 
 /**
@@ -165,7 +165,7 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar, funcoes }: Pro
     aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome }),
     aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome }),
     funcoes: funcoes && {
-      opcoes: funcoes.opcoes, padrao: funcaoPadrao(funcoes.opcoes)?.id, de: p => funcoes.de[p.id] ?? null,
+      opcoes: funcoes.opcoes, de: p => funcoes.de[p.id] ?? null,
       aoTrocar: (p, f) => umaDeCadaVez(async () => { await funcoes.trocar(p.id, f); mudar.depois(); }, mudar.depois)
     }
   }} />;

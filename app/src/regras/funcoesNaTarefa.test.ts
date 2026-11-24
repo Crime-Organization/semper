@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { FuncaoNaTarefa } from '../dados/tipos';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
 import {
-  comAFuncaoDeQuemEntra, errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso, funcaoPadrao, funcoesAoGravar, idsDoFiltroDeFuncao,
-  opcoesDoFiltroDeFuncao, participantesComFuncao, temAFuncao
+  avisoDaFuncaoTrocada, comAFuncaoDeQuemEntra, comAFuncaoTrocada, ehAcompanhaDeFabrica, errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso,
+  funcoesAoGravar, idsDoFiltroDeFuncao, opcoesDoFiltroDeFuncao, participantesComFuncao, quemTrocouDeFuncao, semAFuncao, temAFuncao
 } from './funcoesNaTarefa';
 
 const EXECUTA: FuncaoNaTarefa = { id: 'f-exe', nome: 'Executa', executa: true, ordem: 1 };
@@ -14,17 +14,29 @@ const LISTA = [REVISA, ACOMPANHA, EXECUTA];
 
 describe('Funções dos participantes da tarefa (#313)', () => {
   describe('Dada a lista do escritório', () => {
-    it('quando alguém entra sem escolher a função, então fica com a primeira da lista que não é de execução', () => {
+    it('quando a tarefa é gravada, então cada participante fica com a função escolhida, quem saiu sai e quem entrou sem função fica sem (#421)', () => {
+      // Quando: o escritório tem funções que não são de execução, e ainda assim nenhuma é posta sozinha
+      const funcoes = funcoesAoGravar(['ana', 'bia', 'caio'], { ana: EXECUTA.id, caio: '', davi: REVISA.id }, LISTA);
       // Então
-      expect(funcaoPadrao(LISTA)).toEqual(ACOMPANHA);
-      expect(funcaoPadrao([EXECUTA])).toBeNull();
+      expect(funcoes).toEqual({ ana: EXECUTA.id });
     });
 
-    it('quando a tarefa é gravada, então cada participante tem uma função, quem saiu sai e quem entrou sem função ganha a padrão', () => {
-      // Quando
-      const funcoes = funcoesAoGravar(['ana', 'bia'], { ana: EXECUTA.id, caio: REVISA.id }, LISTA);
+    it('quando a função é trocada no menu da bolinha, então fica a nova; "Sem função" tira a função, sem mexer nas outras', () => {
+      // Dado
+      const atuais = { ana: EXECUTA.id, bia: REVISA.id };
       // Então
-      expect(funcoes).toEqual({ ana: EXECUTA.id, bia: ACOMPANHA.id });
+      expect(comAFuncaoTrocada(atuais, 'bia', EXECUTA.id)).toEqual({ ana: EXECUTA.id, bia: EXECUTA.id });
+      expect(comAFuncaoTrocada(atuais, 'bia', null)).toEqual({ ana: EXECUTA.id });
+      expect(comAFuncaoTrocada(undefined, 'ana', null)).toEqual({});
+      expect(avisoDaFuncaoTrocada('Bia', 'Executa')).toBe('Bia agora com a função "Executa".');
+      expect(avisoDaFuncaoTrocada('Bia', null)).toBe('Bia agora sem função.');
+    });
+
+    it('quando o histórico olha as funções, então conta só quem continua na tarefa e trocou, também de e para nenhuma', () => {
+      // Dado: a Ana ganha função, a Bia perde a dela, o Caio fica igual e o Davi sai
+      const antes = { bia: REVISA.id, caio: EXECUTA.id, davi: EXECUTA.id }, depois = { ana: EXECUTA.id, caio: EXECUTA.id };
+      // Então
+      expect(quemTrocouDeFuncao(antes, depois, ['ana', 'bia', 'caio'])).toEqual(['ana', 'bia']);
     });
 
     it('quando a função não é do escritório, então é recusada; a de quem já estava não é conferida de novo', () => {
@@ -101,6 +113,24 @@ describe('Funções dos participantes da tarefa (#313)', () => {
       // Então
       expect(r).toEqual({ 'u-ana': 'f-aco', 'u-bruno': 'f-exe' });
       expect(comAFuncaoDeQuemEntra(undefined, 'u-bruno', 'f-exe')).toEqual({ 'u-bruno': 'f-exe' });
+    });
+  });
+
+  describe('A "Acompanha" que vinha de fábrica (#421)', () => {
+    it('dada a que veio pronta, com o nome de fábrica e sem ser de execução, então ela sai; renomeada, de execução ou criada pelo escritório, fica', () => {
+      // Então
+      expect(ehAcompanhaDeFabrica(ACOMPANHA, true)).toBe(true);
+      expect(ehAcompanhaDeFabrica({ ...ACOMPANHA, nome: REVISA.nome }, true)).toBe(false);
+      expect(ehAcompanhaDeFabrica({ ...ACOMPANHA, executa: true }, true)).toBe(false);
+      expect(ehAcompanhaDeFabrica(ACOMPANHA, false)).toBe(false);
+    });
+
+    it('quando ela sai, então quem estava com ela fica sem função e os outros ficam como estão', () => {
+      // Quando
+      const r = semAFuncao({ ana: EXECUTA.id, bia: ACOMPANHA.id }, ACOMPANHA.id);
+      // Então
+      expect(r).toEqual({ ana: EXECUTA.id });
+      expect(semAFuncao(undefined, ACOMPANHA.id)).toEqual({});
     });
   });
 });
