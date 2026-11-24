@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { SD, type ContratoDoProcesso } from '../dados';
 import { clientesPorExtenso } from '../regras/contrato';
-import { Aviso, Carregando, Nota } from '../ui/base';
+import { Aviso, Carregando, Nota, type PedidoDeTirar } from '../ui/base';
 import { ItensLigados } from '../ui/ItensLigados';
 import { plural } from './importarPessoas/textos';
 
-export function ContratosDoProcesso({ processoId, versao }: { processoId: string; versao: number }) {
+export function ContratosDoProcesso({ processoId, versao, tirar }: { processoId: string; versao: number; /** O "x" de cada contrato (#424); sem isto, nenhum. */ tirar?: (k: ContratoDoProcesso) => PedidoDeTirar | undefined }) {
   const [lista, setLista] = useState<{ visiveis: ContratoDoProcesso[]; ocultos: number } | string | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -20,6 +20,6 @@ export function ContratosDoProcesso({ processoId, versao }: { processoId: string
     {lista.ocultos > 0 && <Nota>Há {plural(lista.ocultos, 'contrato ligado', 'contratos ligados')} a este processo que você não tem acesso para abrir.</Nota>}
     <ItensLigados rotulo="Contratos ligados" vazio={lista.ocultos ? undefined : 'Nenhum contrato ligado a este processo.'}
       itens={lista.visiveis.map(k => ({ id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, detalhe: clientesPorExtenso(k.cliente_nome),
-        selo: k.arquivado_em ? 'Arquivado' : undefined }))} />
+        selo: k.arquivado_em ? 'Arquivado' : undefined, tirar: tirar?.(k) }))} />
   </>;
 }

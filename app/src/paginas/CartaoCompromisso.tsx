@@ -49,7 +49,7 @@ import { nomeDaSala, salaDoCompromisso } from '../regras/sala';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
 
 /** Na data de um compromisso que se repete: a mudança vale só para ela ou para ela e as seguintes ainda em aberto? null: desistiu. */
 const soEstaOuSeguintes = (titulo: string, texto: string) => janela<'esta' | 'seguintes'>({
@@ -99,7 +99,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
   const sala = salaDoCompromisso(salas, c), linhas = linhasDoCompromisso(c, sala ? nomeDaSala(sala) : '');
-  const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome, detalhe: 'Ligada', selo: p.arquivado_em ? 'Arquivada' : undefined });
+  const depoisDeMudar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
+  // O "x" de cada pessoa (#424): quem muda o compromisso, com ele ativo.
+  const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome, detalhe: 'Ligada', selo: p.arquivado_em ? 'Arquivada' : undefined,
+    tirar: somenteLer ? undefined : tirarPessoaDoItem('compromissos', c.id, p, c.pessoas.length, depoisDeMudar) });
 
   async function arquivar() {
     const estava = !!c!.arquivado_em;

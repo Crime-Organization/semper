@@ -46,7 +46,8 @@ import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
 import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
-import { ligarContratoNaTarefa, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
+import { ligarContratoNaTarefa, ligarEAvisar, ligarNoItem, tirarDaTarefa, tirarEAvisar } from './ligarNoCartao';
+import { TIRAR_DA_TAREFA } from '../regras/tirarDoCartao';
 
 /** O valor de "Assinado em", na faixa das datas, enquanto o contrato não tem a data da assinatura. */
 const NAO_ASSINADO = 'Ainda não';
@@ -327,7 +328,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas}
       ligar={podeLigar ? ligarDoModulo('tarefas') : undefined} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist} />
+      {/* O "x" de cada tarefa (#424): ela sai só deste contrato (os outros contratos e as demandas dela ficam). */}
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist}
+        tirar={podeLigar ? t => ({ oQue: `a tarefa ${t.codigo}`, explicacao: TIRAR_DA_TAREFA.contratos.explicacao,
+          aoTirar: () => tirarEAvisar(() => tirarDaTarefa('contratos', t.id, k.id), `Tarefa tirada do contrato: ${t.codigo}.`, TIRAR_DA_TAREFA.contratos.acao, depoisDeLigar) }) : undefined} />
       {podeLigar && <AcoesDosLigados>
         {/* A tarefa pode estar em vários contratos (#283): a de outro contrato também entra neste, e continua no outro. */}
         <LigarDoModulo modulo="tarefas" motivo={t => t.contrato_id === k.id ? 'já ligada a este contrato' : ''}

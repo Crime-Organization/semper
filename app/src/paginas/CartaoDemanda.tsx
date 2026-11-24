@@ -16,7 +16,7 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { acaoDeConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
@@ -52,8 +52,9 @@ import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
 import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
-import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
-import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { desligarNoItem, ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda, tirarEAvisar } from './ligarNoCartao';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
+import { EXPLICACAO_DE_TIRAR_O_CONTRATO_DA_DEMANDA, podeTirarOContratoDaDemanda } from '../regras/tirarDoCartao';
 
 interface Props {
   id: string;
@@ -117,11 +118,17 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   // O contrato, ligado (o que existe) ou criado já ligado (#376): um só, e só enquanto a demanda não tem.
   const ligaContrato = ligaNaDemanda && !d.contrato_id && !!ctx.escritorio?.modulos?.contratos, novoContrato = '/contratos/novo/?demanda=' + d.id;
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
-    detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
+    detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined, tirar: ligaNaDemanda ? tirarPessoaDoItem('demandas', d.id, p, d.clientes.length, depoisDeLigar) : undefined });
+  // O "x" do contrato (#424): só na demanda que não nasceu de um objeto dele (essa troca de contrato pelo lápis).
+  const tirarContrato = ligaNaDemanda && d.contrato_id && podeTirarOContratoDaDemanda(d) ? contratoQueSai(d.contrato_id, d.contrato?.codigo ?? d.contrato_codigo ?? '') : undefined;
+  function contratoQueSai(contratoId: string, codigo: string): PedidoDeTirar {
+    return { oQue: `o contrato ${codigo}`, explicacao: EXPLICACAO_DE_TIRAR_O_CONTRATO_DA_DEMANDA,
+      aoTirar: () => tirarEAvisar(() => desligarNoItem('contrato da demanda', d!.id, contratoId), `Contrato tirado da demanda: ${codigo}.`, 'retirada do contrato', depoisDeLigar) };
+  }
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
   const contrato: ItemLigado | null = d.contrato
-    ? { id: 'contrato', para: '/contratos/?id=' + d.contrato.id, codigo: d.contrato.codigo, titulo: d.contrato.servico, detalhe: 'Contrato' }
-    : d.contrato_codigo ? { id: 'contrato', para: veTudo && d.contrato_id ? '/contratos/?id=' + d.contrato_id : undefined, codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' } : null;
+    ? { id: 'contrato', para: '/contratos/?id=' + d.contrato.id, codigo: d.contrato.codigo, titulo: d.contrato.servico, detalhe: 'Contrato', tirar: tirarContrato }
+    : d.contrato_codigo ? { id: 'contrato', para: veTudo && d.contrato_id ? '/contratos/?id=' + d.contrato_id : undefined, codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato', tirar: tirarContrato } : null;
 
   async function arquivar() {
     const estava = !!d!.arquivado_em;

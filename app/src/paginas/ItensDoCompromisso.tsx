@@ -8,15 +8,12 @@ import { enderecoDoItem, ITEM_DA_ANOTACAO } from '../regras/anotacao';
 import { itensPorModulo, motivoSemMaisItens, MODULOS_DO_COMPROMISSO } from '../regras/compromisso';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
-import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
 import { Recolhivel, type LigarNaSecao, type VariosNaSecao } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { numero } from '../ui/util';
 
-/** O tamanho do x de desligar, como o da anotação. */
-const ICONE_DO_DESLIGAR = 14;
 const ITEM_JA_LIGADO = 'Este item já estava ligado a este compromisso.';
 /** O nome da corrente do título quando ela abre o menu dos módulos (ou está desligada, com o compromisso cheio). */
 const LIGAR_A_UM_ITEM = 'Ligar a um item existente';
@@ -77,9 +74,7 @@ export function ItensDoCompromisso({ id, somenteLer, versao, aoMudar }: Props) {
         {itensPorModulo(lidos.visiveis).map(g => <ItensLigados key={g.modulo} rotulo={ITEM_DA_ANOTACAO[g.modulo].plural} itens={g.itens.map(i => ({
           id: `${i.modulo}-${i.id}`, para: enderecoDoItem(i), codigo: `${ITEM_DA_ANOTACAO[i.modulo].rotulo} · ${i.codigo}`, titulo: i.nome,
           selo: i.arquivado_em ? 'Arquivado' : undefined,
-          acao: somenteLer ? undefined : <button type="button" className="icone-btn" title="Desligar" aria-label={`Desligar ${i.nome}`} onClick={() => desligar(i)}>
-            <Icone nome="fechar" tam={ICONE_DO_DESLIGAR} />
-          </button>
+          tirar: somenteLer ? undefined : { oQue: i.nome, aoTirar: () => desligar(i) }
         }))} />)}
         {!somenteLer && (cheio ? <Nota>{cheio}</Nota> : <div className="ligados-acoes">
           {modulos.includes('tarefas') && <LigarDoModulo modulo="tarefas" filtro={{ fora: ligados('tarefas') }} aoEscolher={t => ligar('tarefas', { id: t.id, nome: t.titulo })} />}

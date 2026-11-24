@@ -42,7 +42,6 @@ import { Aviso, Carregando, EditorDeTexto, estiloBotao, FaixaDasDatas, Nota, Sel
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { buscarEtiquetas } from '../ui/etiquetasDoEscritorio';
-import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem, rotuloDeLigarItem } from '../ui/LigarItem';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
@@ -87,8 +86,6 @@ export const ITEM_JA_LIGADO = 'Este item já estava ligado a esta anotação.';
 const TIPO_MARKDOWN = 'text/markdown;charset=utf-8';
 /** Para onde vai quem se tira da anotação: a página Documentos, sem a anotação (ela pode deixar de vê-la). */
 const DOCUMENTOS = '/documentos/';
-/** O tamanho do X que desliga um item da anotação. */
-const ICONE_DO_DESLIGAR = 14;
 /**
  * Quantas vezes a gravação do texto tenta de novo quando a anotação mudou só em outro campo (o título, a pasta, a equipe)
  * entre a leitura e a gravação: a cada vez, ela lê a anotação de novo e confere o texto.
@@ -617,9 +614,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
             <ItensLigados rotulo="Itens ligados" vazio={itens.ocultos ? undefined : 'Esta anotação não está ligada a nenhum item.'} itens={itens.visiveis.map(i => ({
               id: `${i.modulo}-${i.id}`, para: enderecoDoItem(i), codigo: `${ITEM_DA_ANOTACAO[i.modulo].rotulo} · ${i.codigo}`, titulo: i.nome,
               selo: i.arquivado_em ? 'Arquivado' : undefined,
-              acao: podeLigar ? <button type="button" className="icone-btn" title="Desligar" aria-label={`Desligar ${i.nome}`} onClick={() => desligar(i)}>
-                <Icone nome="fechar" tam={ICONE_DO_DESLIGAR} />
-              </button> : undefined
+              tirar: podeLigar ? { oQue: i.nome, aoTirar: () => desligar(i) } : undefined
             }))} />
             {podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && <div className="ligados-acoes">
               <LigarItem modulos={modulos} ligados={itens.visiveis} aoEscolher={ligar} />

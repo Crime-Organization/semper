@@ -478,14 +478,15 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'ligacoes',
     titulo: 'Ligações entre itens',
-    resumo: 'Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.',
+    resumo: 'Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.',
     arquivos: ['CartoesLigados', 'PessoasNosItens', 'ligarNoCartao', 'ItensLigados', 'LigadosNoCadastro', 'LigarDoModulo', 'LigarExistente', 'LigarItem', 'LigarProcesso',
       'ligacoesDoItem', 'ligarExistente', 'nascerLigado', 'origemDoCadastro', 'ligar-existente', 'nascer-ligado-demanda-contrato', 'criar-processo-e-tarefa-ligados',
-      'ligar_processo_existente', 'novo-padrao-das-secoes', 'tarefa-em-varias-ligacoes'],
+      'ligar_processo_existente', 'novo-padrao-das-secoes', 'tarefa-em-varias-ligacoes', 'tirarDoCartao', 'tirar-do-cartao'],
     dados: ['DadosParaLigar'],
     armadilhas: [
       'A tela lê a lista gravada no item logo antes de gravar (para não apagar a ligação de outra pessoa): siga o mesmo jeito ao ligar um módulo novo.',
-      'Ligar ou desligar uma tarefa de demanda mexe na demanda contínua (desfazer devolve a tarefa a ela): veja [Demandas](#demandas).'
+      'Ligar ou desligar uma tarefa de demanda mexe na demanda contínua (desfazer devolve a tarefa a ela): veja [Demandas](#demandas).',
+      'Tudo o que se liga ou se põe num cartão sai pelo "x" (#424): a peça `BotaoTirar` de `ui/base` (ou o campo `tirar` de `ItemLigado`), que sempre pergunta antes. Ligação nova numa seção ganha o "x" junto; quem pode ficar sem o item está em `regras/tirarDoCartao.ts`, e as gravações, em `paginas/ligarNoCartao.ts`.'
     ]
   },
   {

@@ -14,7 +14,7 @@ import { Link } from 'react-router';
 import { SD, type AnotacaoLigada, type AnotacaoLigadaComTexto, type AnotacaoParaLigar, type ModuloDaAnotacao } from '../dados';
 import { enderecoDaAnotacaoNova, inicioDaAnotacao, ITEM_DA_ANOTACAO, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER } from '../regras/anotacao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo } from '../ui/base';
+import { Aviso, BotaoTirar, Carregando, Nota, Selo, type PedidoDeTirar } from '../ui/base';
 import { ComoComentario } from '../ui/ComoComentario';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados } from '../ui/ItensLigados';
@@ -34,6 +34,8 @@ const LIGAR_ANOTACAO = 'Ligar anotação existente';
  * (`<módulo>.cartao.anotacoes`): na coluna, a seção começa recolhida para todos, e a escolha vale daqui em diante.
  */
 export const preferenciaDasAnotacoes = (modulo: ModuloDaAnotacao) => `${modulo}.coluna.anotacoes`;
+/** O que a janela do "x" da anotação explica (#424). */
+export const EXPLICACAO_DE_TIRAR_A_ANOTACAO = 'A anotação continua em Documentos: só deixa de estar ligada a este item. Dá para desfazer logo depois, no aviso do pé da tela.';
 /** O tamanho do ícone de documento antes do título, no balão. */
 const ICONE_DO_TITULO = 14;
 
@@ -82,12 +84,20 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
     } catch (e) { falha(e); }
   }
 
+  // O "x" de cada anotação (#424): ela continua em Documentos, só deixa de estar ligada a este item.
+  const tirar = (a: AnotacaoLigadaComTexto): PedidoDeTirar => ({ oQue: `a anotação ${a.titulo}`, explicacao: EXPLICACAO_DE_TIRAR_A_ANOTACAO,
+    aoTirar: async () => {
+      await SD.anotacaoDesligar(a.id, modulo, id);
+      feito(`Anotação tirada: ${a.titulo}.`, 'retirada da anotação', async () => { await SD.anotacaoLigar(a.id, modulo, id); });
+      await carregar();
+    } });
+
   return <Recolhivel titulo="Anotações" icone="documentos" preferencia={preferenciaDasAnotacoes(modulo)} contador={Array.isArray(lista) ? lista.length : undefined}
     ligar={corrente} novo={novo} atalho="anotacao">
     {lista === null ? <Carregando />
       : typeof lista === 'string' ? <Aviso tipo="erro">{lista}</Aviso>
       : !lista.length ? <Nota>{VAZIO[modulo]}</Nota>
-      : <ListaDasAnotacoes modulo={modulo} id={id} versao={versao} />}
+      : <ListaDasAnotacoes modulo={modulo} id={id} versao={versao} tirar={somenteLer ? undefined : tirar} />}
     {!somenteLer && <AcoesDosLigados>
       <LigarExistente<AnotacaoParaLigar> rotulo={LIGAR_ANOTACAO} buscar={termo => SD.anotacoesParaLigar(modulo, id, termo)}
         mostrar={a => ({ id: a.id, titulo: a.titulo, detalhe: `${a.codigo} · Atualizada ${relativo(a.atualizado_em)}`, motivo: motivoDeNaoLigarAAnotacao(a) })}
@@ -102,7 +112,7 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
  * A lista com o começo do texto de cada anotação, que só existe com a seção aberta: lê as anotações com o texto ao aparecer e a
  * cada versão nova da leitura do número. Uma resposta atrasada, de uma versão anterior, não passa por cima da nova.
  */
-function ListaDasAnotacoes({ modulo, id, versao }: { modulo: ModuloDaAnotacao; id: string; versao: number }) {
+function ListaDasAnotacoes({ modulo, id, versao, tirar }: { modulo: ModuloDaAnotacao; id: string; versao: number; tirar?: (a: AnotacaoLigadaComTexto) => PedidoDeTirar }) {
   const [lista, setLista] = useState<AnotacaoLigadaComTexto[] | string | null>(null);
   useEffect(() => {
     let valendo = true;
@@ -112,7 +122,7 @@ function ListaDasAnotacoes({ modulo, id, versao }: { modulo: ModuloDaAnotacao; i
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
   if (!lista.length) return <Nota>{VAZIO[modulo]}</Nota>;
-  return <ol className="anotacoes-na-coluna" aria-label="Anotações ligadas">{lista.map(a => <AnotacaoNaColuna key={a.id} a={a} />)}</ol>;
+  return <ol className="anotacoes-na-coluna" aria-label="Anotações ligadas">{lista.map(a => <AnotacaoNaColuna key={a.id} a={a} tirar={tirar?.(a)} />)}</ol>;
 }
 
 /**
@@ -120,10 +130,10 @@ function ListaDasAnotacoes({ modulo, id, versao }: { modulo: ModuloDaAnotacao; i
  * "Arquivada"; no balão, o título e o começo do texto. Para o leitor de tela, o link se chama pelo título ("Abrir a anotação …"), e
  * quem escreveu, quando e o começo do texto vão na descrição dele.
  */
-function AnotacaoNaColuna({ a }: { a: AnotacaoLigadaComTexto }) {
+function AnotacaoNaColuna({ a, tirar }: { a: AnotacaoLigadaComTexto; tirar?: PedidoDeTirar }) {
   const inicio = inicioDaAnotacao(a.texto);
   const idDaCabeca = useId(), idDoInicio = useId();
-  return <li>
+  return <li className="anotacao-ligada">
     <Link className="anotacao-na-coluna" to={ENDERECO_DA_ANOTACAO + a.id} aria-label={`Abrir a anotação ${a.titulo}`}
       aria-describedby={inicio ? `${idDaCabeca} ${idDoInicio}` : idDaCabeca}>
       <ComoComentario autorId={a.criado_por} quando={a.atualizado_em} antesDoQuando="Atualizada" bolinhaSemDica idDaCabeca={idDaCabeca}
@@ -134,5 +144,6 @@ function AnotacaoNaColuna({ a }: { a: AnotacaoLigadaComTexto }) {
         </span>
       </ComoComentario>
     </Link>
+    {tirar && <BotaoTirar {...tirar} />}
   </li>;
 }

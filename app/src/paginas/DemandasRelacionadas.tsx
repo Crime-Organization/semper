@@ -8,14 +8,11 @@ import { DETALHE_SEM_ACESSO, foraDaBuscaDeRelacionadas, refazALigacao, RELACIONA
 import { colunaComMarco, situacaoDoItem } from '../regras/quadro';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Carregando } from '../ui/base';
-import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { hojeISO } from '../ui/util';
 import { ligarEAvisar, relacionarDemandas } from './ligarNoCartao';
 
-/** O tamanho do X que desfaz a ligação (o mesmo dos processos e dos itens ligados). */
-const ICONE_DO_DESFAZER = 14;
 /** O que a seção explica enquanto a busca está aberta: quem passa a ver o quê. */
 export const AVISO_AO_RELACIONAR = 'A ligação aparece nas duas demandas. Quem está só numa delas vê o número da outra, sem o conteúdo.';
 
@@ -54,10 +51,7 @@ export function DemandasRelacionadas({ demandaId, relacionadas, colunas, somente
       ? { para: '/demandas/?id=' + r.id, titulo: r.demanda.titulo, selo: r.demanda.arquivado_em ? 'Arquivada' : undefined,
         detalhe: [situacao(r.demanda.etapa_id), prazo(r.demanda)].filter(Boolean).join(' · ') }
       : { titulo: RELACIONADA_SEM_ACESSO, detalhe: DETALHE_SEM_ACESSO }),
-    acao: somenteLer ? undefined
-      : <button type="button" className="icone-btn" title="Desfazer a ligação" aria-label={`Desfazer a ligação com a demanda ${r.codigo}`} onClick={() => desfazer(r)}>
-        <Icone nome="fechar" tam={ICONE_DO_DESFAZER} />
-      </button>
+    tirar: somenteLer ? undefined : { oQue: `a ligação com a demanda ${r.codigo}`, explicacao: 'As duas demandas continuam no SEMPER.', aoTirar: () => desfazer(r) }
   });
 
   return <>

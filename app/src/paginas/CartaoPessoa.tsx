@@ -44,7 +44,8 @@ import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { ORIGEM_DA_PESSOA } from '../regras/origemDaPessoa';
 import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VINCULAR_PESSOA, VinculosPessoa } from './VinculosPessoa';
-import { LigarAPessoa, ligarAPessoa } from './PessoasNosItens';
+import { LigarAPessoa, ligarAPessoa, tirarAPessoaDoItem } from './PessoasNosItens';
+import { nomeDoCompromisso } from '../regras/compromisso';
 import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 
@@ -267,22 +268,25 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas} ligar={ligarAPessoa('demandas', podeLigar)} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }}>
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." versao={versaoHist} />
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." versao={versaoHist}
+        tirar={podeLigar ? d => tirarAPessoaDoItem('demandas', p, d, `da demanda ${d.codigo}`, depoisDeLigar) : undefined} />
       {podeLigar && <LigarAPessoa modulo="demandas" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}
       ligar={ligarAPessoa('processos', podeLigar)} novo={novoProcessoDaPessoa(id, 'Novo processo com esta pessoa como cliente')}>
-      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
+      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} pessoa={p} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos} ligar={ligarAPessoa('compromissos', podeLigar)} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }}>
-      <CompromissosLigados key={versaoHist} carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa." />
+      <CompromissosLigados key={versaoHist} carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa."
+        tirar={podeLigar ? c => tirarAPessoaDoItem('compromissos', p, c, `do compromisso ${nomeDoCompromisso(c)}`, depoisDeLigar) : undefined} />
       {podeLigar && <LigarAPessoa modulo="compromissos" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} ligar={ligarAPessoa('tarefas', podeLigar)} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." versao={versaoHist} />
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." versao={versaoHist}
+        tirar={podeLigar ? t => tirarAPessoaDoItem('tarefas', p, t, `da tarefa ${t.codigo}`, depoisDeLigar) : undefined} />
       {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} />}
     </Recolhivel>}
 

@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Etiqueta } from '../dados';
 import { BotaoDasEtiquetas, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
+import { CONFIRMAR_O_TIRAR } from './base';
+import { Janelas } from './janela';
 
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin }) }));
@@ -147,16 +149,22 @@ describe('As peças das etiquetas do topo: o botão que abre a escolha e os selo
     expect(botao).not.toHaveAttribute('title');
   });
 
-  it('dadas duas etiquetas, quando os selos aparecem, então ficam numa linha com o nome dado, e o x tira a etiqueta', async () => {
+  // A regra mudou (#424, decisão do dono): o x pergunta antes de tirar, e só o sim tira.
+  it('dadas duas etiquetas, quando os selos aparecem, então ficam numa linha com o nome dado, e o x tira a etiqueta depois do sim', async () => {
     // Dado
     const aoTirar = vi.fn();
-    render(<SelosDasEtiquetas ids={[MINHA.id, DA_ANA.id]} rotulo="Etiquetas" aoTirar={aoTirar} />);
+    render(<><SelosDasEtiquetas ids={[MINHA.id, DA_ANA.id]} rotulo="Etiquetas" aoTirar={aoTirar} /><Janelas /></>);
     // Então
     const linha = within(screen.getByRole('group', { name: 'Etiquetas' }));
     expect(linha.getByText('Minha')).toBeTruthy();
     expect(linha.getByText('Da Ana')).toBeTruthy();
     // Quando
     await userEvent.click(linha.getByRole('button', { name: 'Tirar a etiqueta Minha' }));
+    // Então: pergunta antes
+    expect(aoTirar).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Tirar a etiqueta Minha?' })).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     expect(aoTirar).toHaveBeenCalledWith(MINHA);
   });

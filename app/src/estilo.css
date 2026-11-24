@@ -1074,6 +1074,10 @@ span.circulo-de-concluir { cursor: default }
 /* A anotação ligada, na coluna do cartão de um item (paginas/AnotacoesDoCartao.tsx, #360): como um comentário, mas o balão, de papel
    creme com borda fina, tem o título e o começo do texto, e o item todo é o link que abre a anotação. */
 .anotacao-na-coluna { color: inherit; text-decoration: none; border-radius: 10px }
+/* A anotação ligada com o "x" de tirar ao lado (#424): o link ocupa a linha, e o "x" fica à direita. */
+.anotacao-ligada { display: flex; align-items: flex-start; gap: 8px }
+.anotacao-ligada > .anotacao-na-coluna { flex: 1; min-width: 0 }
+.anotacao-ligada > .botao-tirar { width: 30px; height: 30px; flex-shrink: 0 }
 .anotacao-na-coluna-balao { display: flex; flex-direction: column; gap: 4px; background: var(--fundo-da-anotacao); border: 1px solid var(--borda-da-anotacao); white-space: normal }
 /* Só onde há mouse: no toque, a borda verde ficaria presa depois do toque. */
 @media (hover: hover) { .anotacao-na-coluna:hover .anotacao-na-coluna-balao { border-color: var(--accent) } }
@@ -1466,6 +1470,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .item-ligado small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere }
 .item-ligado-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .itens-ligados .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
+/* O "x" de tirar do cartão (#424, ui/base/BotaoTirar.tsx): guarda o lugar e aparece ao passar o mouse na linha ou com o foco nela;
+   em tela de toque, fica sempre à vista. */
+.botao-tirar { opacity: 0; transition: opacity var(--transicao-do-circulo) }
+li:hover > .botao-tirar, li:focus-within > .botao-tirar, .botao-tirar:focus-visible { opacity: 1 }
+.botao-tirar:hover { color: var(--erro) }
+@media (hover: none) { .botao-tirar { opacity: 1 } }
 /* O quadrinho com um botão de texto ao lado (ex.: "Criar esta demanda agora", no objeto do contrato ainda sem demanda, #349): o
    botão fica ao lado enquanto o quadrinho tem ao menos --item-ligado-com-acao; na janela estreita, desce para a linha de baixo. */
 :root { --item-ligado-com-acao: 16rem }

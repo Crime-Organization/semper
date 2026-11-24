@@ -4,7 +4,7 @@
 // título. A seção "Etiquetas" do meio do cartão saiu. Nada do topo fica por baixo dos botões da janela, em nenhum formato.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirUsuario, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
+import { abrirUsuario, acoesNoMenuDoCartao, entrarComo, menuDoCartao, tirarDoCartao } from './ajudantes';
 
 type Caixa = { x: number; y: number; width: number; height: number };
 /** Se duas caixas se cruzam (encostar não conta). */
@@ -125,7 +125,7 @@ test.describe('O topo dos cartões, como o da anotação', () => {
       expect(selos.y + selos.height).toBeLessThanOrEqual(tituloDepois.y);
       // Quando: tira pelo x do selo (ele aparece com o mouse em cima)
       await cartao.getByRole('group', { name: 'Etiquetas' }).getByText('Prioridade', { exact: true }).hover();
-      await cartao.getByRole('button', { name: 'Tirar a etiqueta Prioridade' }).click();
+      await tirarDoCartao(page, cartao.getByRole('button', { name: 'Tirar a etiqueta Prioridade' }));
       // Então: sem etiquetas, a linha some
       await expect(cartao.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
     });

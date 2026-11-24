@@ -3,7 +3,7 @@
 // anterioridade" (7B42C0DE, sem o Bruno) são do contrato de JOSÉ DA SILVA TESTE; "Notificar o devedor" (A90E5B13) é avulsa, do Bruno
 // (estagiário). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, entrarComo } from './ajudantes';
+import { abrirSecao, entrarComo, tirarDoCartao } from './ajudantes';
 
 const SECAO = 'Demandas relacionadas';
 
@@ -43,7 +43,7 @@ test.describe('Demandas relacionadas', () => {
     // Então: a ligação aparece no outro sentido
     await expect(lista(cartao).getByRole('link', { name: /Registro de marca/ })).toContainText('D3A1F09C');
     // Quando: desfaz por este cartão
-    await cartao.getByRole('button', { name: 'Desfazer a ligação com a demanda D3A1F09C' }).click();
+    await tirarDoCartao(page, cartao.getByRole('button', { name: 'Tirar a ligação com a demanda D3A1F09C' }));
     // Então: some daqui e da primeira
     await expect(cartao.getByText('Nenhuma demanda relacionada a esta.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: `${SECAO} 0` })).toBeVisible();

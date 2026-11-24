@@ -10,7 +10,9 @@ import { AcoesDosLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo, type AchadoDe, type FiltroDe } from '../ui/LigarDoModulo';
 import type { LigarNaSecao } from '../ui/Recolhivel';
 import { cadastroDePessoaDe, ORIGEM_DA_PESSOA } from '../regras/origemDaPessoa';
-import { ligarEAvisar, porAPessoa } from './ligarNoCartao';
+import { ligarEAvisar, porAPessoa, tirarAPessoa, tirarEAvisar } from './ligarNoCartao';
+import { EXPLICACAO_DE_TIRAR_A_PESSOA, PESSOA_TIRADA, podeTirarAPessoa, saiPeloCartaoDaPessoa } from '../regras/tirarDoCartao';
+import type { PedidoDeTirar } from '../ui/base';
 
 /** Do achado de cada módulo: a lista de pessoas que ele já tem e o nome dele, para o aviso. */
 const DO_ACHADO: { [M in ItemComPessoas]: { pessoas: (x: AchadoDe<M>) => string[]; nome: (x: AchadoDe<M>) => string } } = {
@@ -74,4 +76,25 @@ export function LigarPessoaNoItem({ modulo, itemId, ligadas, depois, aviso }: No
 export function novaPessoaNoItem(modulo: ItemComPessoas, itemId: string, ligadas: readonly unknown[], pode: boolean): NovoLigado | undefined {
   if (!pode || listaDoItemCheia(modulo, ligadas)) return undefined;
   return { para: cadastroDePessoaDe(modulo, itemId), rotulo: ORIGEM_DA_PESSOA[modulo].novoNoTitulo };
+}
+
+/**
+ * O "x" de cada pessoa das seções Clientes e Pessoas do cartão (#424): tira a pessoa da lista do item, depois da pergunta, com o
+ * Desfazer. Nenhum quando a lista ficaria abaixo do mínimo (o processo precisa de um cliente). Quem não pode mudar o cartão não vê
+ * o "x" (o cartão diz isso, em CriarNoCartao).
+ */
+export function tirarPessoaDoItem(modulo: ItemComPessoas, itemId: string, pessoa: { id: string; nome: string }, quantas: number, depois: () => void): PedidoDeTirar | undefined {
+  if (!podeTirarAPessoa(modulo, quantas)) return undefined;
+  return { oQue: pessoa.nome, explicacao: EXPLICACAO_DE_TIRAR_A_PESSOA,
+    aoTirar: () => tirarEAvisar(() => tirarAPessoa(modulo, itemId, pessoa.id), PESSOA_TIRADA[modulo](pessoa.nome), 'retirada da pessoa', depois) };
+}
+
+/**
+ * No cartão da pessoa (#424): o "x" que a tira de um item em que ela é cliente (ou pessoa ligada). Quem só está no item pela equipe
+ * sai pelo topo do cartão do item, e aqui não há "x".
+ */
+export function tirarAPessoaDoItem(modulo: ItemComPessoas, pessoa: { id: string; nome: string }, item: { id: string; papeis: readonly string[] }, deOnde: string, depois: () => void): PedidoDeTirar | undefined {
+  if (!saiPeloCartaoDaPessoa(modulo, item.papeis)) return undefined;
+  return { oQue: `${pessoa.nome} ${deOnde}`, explicacao: EXPLICACAO_DE_TIRAR_A_PESSOA,
+    aoTirar: () => tirarEAvisar(() => tirarAPessoa(modulo, item.id, pessoa.id), PESSOA_TIRADA[modulo](pessoa.nome), 'retirada da pessoa', depois) };
 }

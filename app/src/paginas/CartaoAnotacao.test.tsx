@@ -19,6 +19,7 @@ import { lojaDeEtiquetas } from '../ui/Etiquetas';
 import { lojaDePastas } from '../ui/pastasDoEscritorio';
 import { ESPERA_PARA_SALVAR } from '../ui/tempos';
 import { Janelas } from '../ui/janela';
+import { CONFIRMAR_O_TIRAR } from '../ui/base';
 import { BotoesNoPainel, ColunaDoCartao } from '../ui/PainelCartao';
 import { iniciarPreferencias } from '../ui/preferencias';
 import { CartaoAnotacao, ITEM_JA_LIGADO } from './CartaoAnotacao';
@@ -826,6 +827,8 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     expect(selos.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Urgente' }));
+    // A regra mudou (#424, decisão do dono): o x pergunta antes de tirar.
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     expect(within(screen.getByRole('group', { name: 'Etiquetas' })).queryByText('Urgente')).not.toBeInTheDocument();
     expect(anotacaoCriar).not.toHaveBeenCalled();

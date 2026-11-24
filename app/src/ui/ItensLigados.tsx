@@ -3,7 +3,7 @@
 // toda ligação entre partes do sistema aparece assim, em todos os módulos.
 import { createContext, useContext, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { Nota, Selo } from './base';
+import { BotaoTirar, Nota, Selo, TirarNoCartao, type PedidoDeTirar } from './base';
 
 export interface ItemLigado {
   id: string;
@@ -18,7 +18,9 @@ export interface ItemLigado {
   detalhe?: string;
   /** Selo de arquivo (ex.: "Arquivado", "Arquivada"). */
   selo?: string;
-  /** Botão ao lado do quadrinho (ex.: retirar o vínculo). */
+  /** O "x" que tira o item deste cartão (#424), sempre com a pergunta antes. Sem ele, o item não sai por aqui. */
+  tirar?: PedidoDeTirar;
+  /** Outro botão ao lado do quadrinho (ex.: "Criar esta demanda agora", no objeto do contrato que ainda não tem demanda). */
   acao?: ReactNode;
 }
 
@@ -41,11 +43,11 @@ const PodeCriar = createContext(true);
 
 /**
  * Em volta do corpo do cartão (#376): com `pode={false}` (o cartão arquivado, ou quem só lê), nenhum atalho para criar ou ligar um
- * item aparece nas seções de dentro: nem o "+" nem a corrente do título (`<Recolhivel>`). Uma regra só, para nenhuma seção esquecer
- * o caso.
+ * item aparece nas seções de dentro: nem o "+" nem a corrente do título (`<Recolhivel>`), nem o "x" de tirar (#424). Uma regra só,
+ * para nenhuma seção esquecer o caso.
  */
 export function CriarNoCartao({ pode, children }: { pode: boolean; children: ReactNode }) {
-  return <PodeCriar.Provider value={pode}>{children}</PodeCriar.Provider>;
+  return <PodeCriar.Provider value={pode}><TirarNoCartao pode={pode}>{children}</TirarNoCartao></PodeCriar.Provider>;
 }
 
 /** O atalho, se o cartão deixa criar (veja CriarNoCartao); senão, nada. */
@@ -59,7 +61,7 @@ export function useNovoNoCartao<T>(novo: T | undefined): T | undefined {
  */
 export function ItensLigados({ itens, vazio, rotulo }: { itens: ItemLigado[]; vazio?: string; /** Nome da lista para o leitor de tela. */ rotulo?: string }) {
   if (!itens.length) return vazio ? <Nota>{vazio}</Nota> : null;
-  return <ul className="itens-ligados" aria-label={rotulo}>{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}</li>)}</ul>;
+  return <ul className="itens-ligados" aria-label={rotulo}>{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}{i.tirar && <BotaoTirar {...i.tirar} />}</li>)}</ul>;
 }
 
 /**

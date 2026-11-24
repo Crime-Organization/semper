@@ -2,6 +2,7 @@
 // Importar pessoas de um CSV (Pessoas > ⋯ > Importar pessoas). No banco fictício, quem está logado é o Mauro
 // (master). O arquivo é montado aqui, só com nomes fictícios; a MARIA APARECIDA EXEMPLO é da semente (sem e-mail).
 import { expect, test, type Page } from '@playwright/test';
+import { tirarDoCartao } from './ajudantes';
 
 /** O CSV como o Excel salva (separado por ";", com \r\n): o cabeçalho e as linhas. */
 function arquivoCSV(...linhas: string[][]) {
@@ -93,7 +94,7 @@ test.describe('Importar pessoas', () => {
     await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toBeVisible();
     // Quando
     await cartao.getByText('Incompleta', { exact: true }).hover();
-    await cartao.getByRole('button', { name: 'Tirar a etiqueta Incompleta' }).click();
+    await tirarDoCartao(page, cartao.getByRole('button', { name: 'Tirar a etiqueta Incompleta' }));
     // Então: tirar a etiqueta marca como conferido; "Importada" continua
     await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toHaveCount(0);
     await expect(cartao.getByText('Importada', { exact: true })).toBeVisible();

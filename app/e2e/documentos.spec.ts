@@ -9,7 +9,7 @@
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, acaoDaBolinha, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acaoDaBolinha, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo, tirarDoCartao } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
 
@@ -234,7 +234,7 @@ test.describe('Anotações no cartão de um item', () => {
     // Quando: desliga a pessoa
     await abrirAnotacao(page, 'Reunião com o cliente');
     await abrirSecao(coluna(page), 'Ligada a');
-    await coluna(page).getByRole('button', { name: 'Desligar JOSÉ DA SILVA TESTE' }).click();
+    await tirarDoCartao(page, coluna(page).getByRole('button', { name: 'Tirar JOSÉ DA SILVA TESTE' }));
     // Então
     await expect(coluna(page).getByRole('list', { name: 'Itens ligados' }).getByRole('link')).toHaveCount(1);
     await fecharAnotacao(page);

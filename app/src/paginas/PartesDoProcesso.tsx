@@ -81,8 +81,7 @@ export function PartesDoProcesso({ processoId, partes: lidas, papeis = PAPEIS_FO
       itens={partes.map(x => ({
         id: x.id, para: '/pessoas/?id=' + x.pessoa.id, codigo: x.pessoa.codigo, titulo: x.pessoa.nome, detalhe: PAPEIS_DA_PARTE[x.papel],
         selo: x.pessoa.arquivado_em ? 'Arquivada' : undefined,
-        acao: podeMudar ? <button type="button" className="icone-btn" title="Tirar do processo" aria-label={`Tirar ${x.pessoa.nome} (${PAPEIS_DA_PARTE[x.papel]}) do processo`}
-          onClick={() => void retirar(x)}><Icone nome="fechar" tam={14} /></button> : undefined
+        tirar: podeMudar ? { oQue: `${x.pessoa.nome} (${PAPEIS_DA_PARTE[x.papel]}) do processo`, aoTirar: () => retirar(x) } : undefined
       }))} />
     {podeMudar && (aberto
       ? <form className="form-vinculo campos" noValidate aria-label={LIGAR_PARTE} onSubmit={incluir}>

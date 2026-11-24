@@ -126,9 +126,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar 
       const { rotulo, outra: o } = lerVinculo(v, p.id);
       return { id: v.id, aoAbrir: () => aoAbrirPessoa(o.id), codigo: rotulo, titulo: o.nome, detalhe: v.descricao ?? undefined,
         selo: o.arquivado_em ? 'Arquivada' : undefined,
-        acao: <button type="button" className="icone-btn" title="Retirar o vínculo" aria-label={`Retirar o vínculo com ${o.nome}`} onClick={() => retirar(v)}>
-          <Icone nome="fechar" tam={14} />
-        </button> };
+        tirar: { oQue: `o vínculo com ${o.nome}`, explicacao: 'As duas pessoas continuam no cadastro. Dá para desfazer logo depois, no aviso do pé da tela.', aoTirar: () => retirar(v) } };
     })} /> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
 
     {formulario

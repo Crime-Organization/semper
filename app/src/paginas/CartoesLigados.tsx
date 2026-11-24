@@ -1,12 +1,12 @@
 // As demandas ou as tarefas ligadas a outro cartão (da pessoa, do contrato ou da demanda), cada uma num quadrinho que
 // abre o cartão dela, com o papel da pessoa nela, a situação e o prazo. O "+" para uma nova já ligada a este cartão fica no
-// título da seção (#427).
+// título da seção (#427); o "x" de cada um, que o tira deste cartão, vem de quem usa a lista (#424).
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type DemandaLigada, type TarefaLigada } from '../dados';
 import { PAPEIS_NA_DEMANDA, rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA } from '../regras/demanda';
 import { colunaComMarco, situacaoDoItem } from '../regras/quadro';
 import { PAPEIS_NA_TAREFA, SEM_SITUACAO_TAREFA } from '../regras/tarefa';
-import { Aviso, Carregando } from '../ui/base';
+import { Aviso, Carregando, type PedidoDeTirar } from '../ui/base';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { hojeISO } from '../ui/util';
 
@@ -27,9 +27,11 @@ interface Props {
   antes?: ItemLigado[];
   /** Nome da lista para o leitor de tela. */
   rotulo?: string;
+  /** O "x" de cada um (#424), quando ele pode sair deste cartão; sem isto, nenhum. */
+  tirar?: (x: Ligado) => PedidoDeTirar | undefined;
 }
 
-export function CartoesLigados({ modulo, carregar, vazio, versao = 0, antes = [], rotulo }: Props) {
+export function CartoesLigados({ modulo, carregar, vazio, versao = 0, antes = [], rotulo, tirar }: Props) {
   const [lista, setLista] = useState<Ligado[] | string | null>(null);
   // A situação de cada um é o nome da coluna dele no quadro do módulo.
   const [colunas, setColunas] = useState<Coluna[]>([]);
@@ -52,7 +54,7 @@ export function CartoesLigados({ modulo, carregar, vazio, versao = 0, antes = []
   return <>
     <ItensLigados rotulo={rotulo} vazio={vazio} itens={[...antes, ...lista.map(x => ({
       id: x.id, para: endereco + x.id, codigo: x.codigo, titulo: x.titulo, selo: x.arquivado_em ? 'Arquivada' : undefined,
-      detalhe: [x.papeis.map(p => papeis[p]).join(', '), situacao(x.etapa_id)].filter(Boolean).join(' · ') + prazo(x)
+      detalhe: [x.papeis.map(p => papeis[p]).join(', '), situacao(x.etapa_id)].filter(Boolean).join(' · ') + prazo(x), tirar: tirar?.(x)
     }))]} />
   </>;
 }

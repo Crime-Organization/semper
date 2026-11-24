@@ -3,7 +3,7 @@
 // o processo judicial 0001234-97.2026.8.13.0024, de JOSÉ DA SILVA TESTE, e a pessoa LUCIANA ROCHA AMOSTRA. Quem está logado é o
 // Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, tirarDoCartao } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
 const NUMERO_DO_RECURSO = '0005678-13.2026.8.13.0433';
@@ -68,7 +68,7 @@ test.describe('Pessoas com papel no processo (#316)', () => {
     await pessoas.getByRole('button', { name: 'Ligar ao processo' }).click();
     await expect(pessoas.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
     // Quando
-    await pessoas.getByRole('button', { name: 'Tirar LUCIANA ROCHA AMOSTRA (Perito) do processo' }).click();
+    await tirarDoCartao(page, pessoas.getByRole('button', { name: 'Tirar LUCIANA ROCHA AMOSTRA (Perito) do processo' }));
     // Então
     await expect(pessoas.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveCount(0);
     await expect(pessoas).toContainText('Nenhuma pessoa com papel neste processo');

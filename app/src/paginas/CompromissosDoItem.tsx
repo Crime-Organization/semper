@@ -11,17 +11,20 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
 import { CompromissosLigados } from './CompromissosLigados';
-import { ligarCompromissoNoItem, ligarEAvisar } from './ligarNoCartao';
+import { desligarCompromissoDoItem, ligarCompromissoNoItem, ligarEAvisar, tirarEAvisar } from './ligarNoCartao';
 
 /** O cadastro de compromisso já ligado ao item: /agenda/novo/?demanda=… (o nome do parâmetro é o de cada módulo). */
 export const novoCompromissoDoItem = (modulo: ModuloDoCompromisso, id: string) =>
   `/agenda/novo/?${new URLSearchParams({ [PARAMETRO_DA_ORIGEM_DO_COMPROMISSO[modulo]]: id })}`;
 
 /** Os textos de cada cartão. */
-const TEXTOS: Record<ModuloDoCompromisso, { vazio: string; novo: string; ja: string }> = {
-  tarefas: { vazio: 'Nenhum compromisso ligado a esta tarefa.', novo: 'Novo compromisso desta tarefa', ja: 'Este compromisso já estava ligado a esta tarefa.' },
-  demandas: { vazio: 'Nenhum compromisso ligado a esta demanda.', novo: 'Novo compromisso desta demanda', ja: 'Este compromisso já estava ligado a esta demanda.' },
-  contratos: { vazio: 'Nenhum compromisso ligado a este contrato.', novo: 'Novo compromisso deste contrato', ja: 'Este compromisso já estava ligado a este contrato.' }
+const TEXTOS: Record<ModuloDoCompromisso, { vazio: string; novo: string; ja: string; tirar: string }> = {
+  tarefas: { vazio: 'Nenhum compromisso ligado a esta tarefa.', novo: 'Novo compromisso desta tarefa', ja: 'Este compromisso já estava ligado a esta tarefa.',
+    tirar: 'O compromisso continua na agenda: só deixa de estar ligado a esta tarefa. Dá para desfazer logo depois, no aviso do pé da tela.' },
+  demandas: { vazio: 'Nenhum compromisso ligado a esta demanda.', novo: 'Novo compromisso desta demanda', ja: 'Este compromisso já estava ligado a esta demanda.',
+    tirar: 'O compromisso continua na agenda: só deixa de estar ligado a esta demanda. Dá para desfazer logo depois, no aviso do pé da tela.' },
+  contratos: { vazio: 'Nenhum compromisso ligado a este contrato.', novo: 'Novo compromisso deste contrato', ja: 'Este compromisso já estava ligado a este contrato.',
+    tirar: 'O compromisso continua na agenda: só deixa de estar ligado a este contrato. Dá para desfazer logo depois, no aviso do pé da tela.' }
 };
 
 interface Props {
@@ -45,7 +48,9 @@ export function CompromissosDoItem({ modulo, id, podeLigar, versao = 0 }: Props)
   return <Recolhivel titulo="Compromissos" icone="calendario" preferencia={`${modulo}.cartao.compromissos`} contador={quantos}
     ligar={podeLigar ? ligarDoModulo('compromissos') : undefined} novo={podeLigar ? { para, rotulo: textos.novo } : undefined}>
     {/* Lê a lista uma vez: muda a chave quando algo foi ligado ou o cartão relido. */}
-    <CompromissosLigados key={chave} carregar={() => SD.compromissosDoItem(modulo, id)} vazio={textos.vazio} />
+    <CompromissosLigados key={chave} carregar={() => SD.compromissosDoItem(modulo, id)} vazio={textos.vazio}
+      tirar={podeLigar ? x => ({ oQue: `o compromisso ${nomeDoCompromisso(x)}`, explicacao: textos.tirar,
+        aoTirar: () => tirarEAvisar(() => desligarCompromissoDoItem(modulo, id, x.id), `Compromisso tirado: ${nomeDoCompromisso(x)}.`, 'retirada do compromisso', () => setMudou(n => n + 1)) }) : undefined} />
     {podeLigar && <AcoesDosLigados>
       <LigarDoModulo modulo="compromissos" filtro={async () => ({ fora: (await SD.compromissosDoItem(modulo, id)).map(c => c.id) })}
         aoEscolher={c => ligarEAvisar(() => ligarCompromissoNoItem(modulo, id, c.id),

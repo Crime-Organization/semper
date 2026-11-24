@@ -18,6 +18,7 @@ export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';
+export { BotaoTirar, CONFIRMAR_O_TIRAR, EXPLICACAO_DO_TIRAR, perguntarETirar, rotuloDoTirar, TirarNoCartao, type FormaDoTirar, type PedidoDeTirar } from './BotaoTirar';
 
 /**
  * A dica que aparece junto de um botão pequeno, só de ícone ou de iniciais (as bolinhas da equipe), ao passar o mouse e no foco

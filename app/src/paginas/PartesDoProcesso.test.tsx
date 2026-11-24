@@ -5,6 +5,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONFIRMAR_O_TIRAR } from '../ui/base';
+import { Janelas } from '../ui/janela';
 import { SD, type ParteDoProcesso, type PessoaResumida, type ProcessoRelacionado } from '../dados';
 import { CriarNoCartao } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -30,12 +32,16 @@ describe('Pessoas com papel no cartão do processo', () => {
     expect(link).toHaveTextContent('Testemunha');
   });
 
-  it('dado quem altera o processo, quando tira a pessoa, então ela sai do papel e o cartão lê de novo', async () => {
+  // A regra mudou (#424, decisão do dono): o x pergunta antes de tirar.
+  it('dado quem altera o processo, quando tira a pessoa e confirma, então ela sai do papel e o cartão lê de novo', async () => {
     // Dado
     const retirar = vi.spyOn(SD, 'processoParteRetirar').mockResolvedValue();
     const aoMudar = mostrarPartes([PARTE]);
+    render(<Janelas />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Tirar TESTEMUNHA TESTE (Testemunha) do processo' }));
+    expect(retirar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: CONFIRMAR_O_TIRAR }));
     // Então
     expect(retirar).toHaveBeenCalledWith('x1');
     expect(aoMudar).toHaveBeenCalled();

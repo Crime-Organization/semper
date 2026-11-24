@@ -2,6 +2,7 @@
 // Etiquetas coloridas. Na semente do banco fictício não há etiquetas, e JOSÉ DA SILVA TESTE está na coluna "Lead" de
 // Pessoas. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
+import { perguntaDoTirar, tirarDoCartao } from './ajudantes';
 
 /** Abre o quadro de Pessoas e o cartão de JOSÉ DA SILVA TESTE. */
 async function abrirCartaoDoJose(page: Page) {
@@ -185,13 +186,13 @@ test.describe('Etiquetas', () => {
     await expect(selo).toBeVisible();
     // Quando
     await selo.hover();
-    await jose.getByRole('button', { name: 'Tirar a etiqueta Urgência do cliente' }).click();
+    await tirarDoCartao(page, jose.getByRole('button', { name: 'Tirar a etiqueta Urgência do cliente' }));
     // Então
     await expect(selo).toHaveCount(0);
     await expect(page).toHaveURL(/\/pessoas\/$/);
   });
 
-  test('quando a pessoa tira a etiqueta pelo teclado, então ela sai, e o cartão não abre', async ({ page }) => {
+  test('quando a pessoa tira a etiqueta pelo teclado e confirma, então ela sai, e o cartão não abre', async ({ page }) => {
     // Dado
     await abrirCartaoDoJose(page);
     await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
@@ -200,6 +201,9 @@ test.describe('Etiquetas', () => {
     const jose = page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
     // Quando
     await jose.getByRole('button', { name: 'Tirar a etiqueta Urgência do cliente' }).focus();
+    await page.keyboard.press('Enter');
+    // A regra mudou (#424, decisão do dono): o x pergunta antes, e o Enter no "Tirar" da pergunta confirma.
+    await perguntaDoTirar(page).getByRole('button', { name: 'Tirar', exact: true }).focus();
     await page.keyboard.press('Enter');
     // Então
     await expect(jose.getByText('Urgência do cliente')).toHaveCount(0);

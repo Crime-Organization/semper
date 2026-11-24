@@ -4,7 +4,7 @@
 // procuração" é uma tarefa avulsa; "Registro de marca" é um contrato; "Reunião de equipe" é a reunião de hoje às 09:00. Quem está
 // logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, tirarDoCartao } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 const HOJE = '04/11/2026';
@@ -123,7 +123,7 @@ test.describe('Ligar o compromisso a itens que já existem (#306)', () => {
     await expect((await secao(cartao, 'Compromissos')).getByRole('link', { name: /Reunião de equipe/ })).toBeVisible();
     // Quando: no compromisso, desliga a tarefa
     cartao = await abrirCartao(page, 'compromissos', reuniao, 'Ligado a');
-    await (await secao(cartao, 'Ligado a')).getByRole('button', { name: 'Desligar Renovar a procuração' }).click();
+    await tirarDoCartao(page, (await secao(cartao, 'Ligado a')).getByRole('button', { name: 'Tirar Renovar a procuração' }));
     // Então
     await expect(page.getByText('Desligado de tarefa: Renovar a procuração.')).toBeVisible();
     cartao = await abrirCartao(page, 'tarefas', tarefa, 'Compromissos');

@@ -4,7 +4,7 @@
 // processo; "Reunião de equipe" é um compromisso sem processo, e a audiência de JOSÉ DA SILVA TESTE é do processo judicial.
 // O contrato MA96-0001-2026 é de JOSÉ DA SILVA TESTE. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao, tirarDoCartao } from './ajudantes';
 
 const MARCA = 'Registro da marca Exemplo';
 const JUDICIAL = /0001234-97\.2026\.8\.13\.0024/;
@@ -42,12 +42,12 @@ test.describe('Demanda e processo', () => {
     await expect(titulo(cartao, 'Processos')).toHaveText(/1$/);
     await expect(page.getByRole('status').filter({ hasText: 'Processo ligado.' })).toBeVisible();
     // Quando: desliga
-    await cartao.getByRole('button', { name: `Desligar o processo ${MARCA}` }).click();
+    await tirarDoCartao(page, cartao.getByRole('button', { name: `Tirar o processo ${MARCA}` }));
     // Então
     await expect(cartao.getByText('Nenhum processo ligado a esta demanda.')).toBeVisible();
     await expect(titulo(cartao, 'Processos')).toHaveText(/0$/);
     // Quando: desfaz o desligamento (o último aviso, o mais novo)
-    await expect(page.getByRole('status')).toContainText(`Processo desligado: ${MARCA}.`);
+    await expect(page.getByRole('status')).toContainText(`Processo tirado: ${MARCA}.`);
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
     // Então: a ligação volta, e o processo mostra a demanda
     await expect(ligados(cartao).getByRole('link', { name: new RegExp(MARCA) })).toBeVisible();
@@ -90,7 +90,7 @@ test.describe('Demanda e processo', () => {
     // Então
     await expect(cartao.getByText('Arquivada', { exact: true }).first()).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Ligar processo' })).toHaveCount(0);
-    await expect(cartao.getByRole('button', { name: /Desligar o processo/ })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: /Tirar o processo/ })).toHaveCount(0);
   });
 });
 
@@ -106,7 +106,7 @@ test.describe('Tarefa e processo', () => {
     await expect(titulo(cartao, 'Processo')).toHaveText(/1$/);
     await expect(cartao.getByRole('button', { name: 'Ligar processo' })).toHaveCount(0);
     // Quando
-    await cartao.getByRole('button', { name: /Desligar o processo/ }).click();
+    await tirarDoCartao(page, cartao.getByRole('button', { name: /Tirar o processo/ }));
     // Então
     await expect(cartao.getByText('Esta tarefa não está ligada a um processo.')).toBeVisible();
     await expect(titulo(cartao, 'Processo')).toHaveText(/0$/);
@@ -145,7 +145,7 @@ test.describe('Contrato e processo', () => {
     await processo.getByRole('list', { name: 'Contratos ligados' }).getByRole('link', { name: /MA96-0001/ }).click();
     const contrato = page.getByRole('dialog');
     await abrirSecao(contrato, 'Processos');
-    await contrato.getByRole('button', { name: /Desligar o processo/ }).click();
+    await tirarDoCartao(page, contrato.getByRole('button', { name: /Tirar o processo/ }));
     // Então
     await expect(contrato.getByText('Nenhum processo ligado a este contrato.')).toBeVisible();
   });
@@ -177,7 +177,7 @@ test.describe('Compromisso e processo', () => {
     await expect(ligados(cartao).getByRole('link', { name: new RegExp(MARCA) })).toBeVisible();
     await expect(titulo(cartao, 'Processo')).toHaveText(/1$/);
     // Quando
-    await cartao.getByRole('button', { name: /Desligar o processo/ }).click();
+    await tirarDoCartao(page, cartao.getByRole('button', { name: /Tirar o processo/ }));
     // Então
     await expect(cartao.getByText('Este compromisso não está ligado a um processo.')).toBeVisible();
   });
@@ -192,7 +192,7 @@ test.describe('Compromisso e processo', () => {
     await abrirSecao(cartao, 'Processo');
     // Então
     await expect(ligados(cartao).getByRole('link', { name: JUDICIAL })).toBeVisible();
-    await expect(cartao.getByRole('button', { name: /Desligar o processo/ })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: /Tirar o processo/ })).toHaveCount(0);
     await expect(cartao.getByText('Audiência precisa de um processo. Para trocar, use o lápis do cartão.')).toBeVisible();
   });
 });
