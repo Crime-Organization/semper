@@ -436,11 +436,12 @@ export const ASSUNTOS: Assunto[] = [
     id: 'registro',
     titulo: 'Registro de ações e LGPD',
     resumo: 'O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.',
-    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes'],
+    arquivos: ['Equipe', arquivo('app/e2e/equipe'), 'lgpd_exclusao', 'exportacoes', 'esquecimentoNaCopia', 'esquecer_pessoa_nos_recebimentos_excluidos'],
     tabelas: ['auditoria'],
     armadilhas: [
       'O gatilho `privado.auditar` (em `20261024000001_base.sql`) já grava uma linha por linha criada, mudada ou apagada: tabela nova ganha o gatilho na migração dela. Numa ação em cascata, o resumo vai nessa mesma linha (não grave outra).',
-      'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).'
+      'O texto de cada ação na tela: as tabelas `TABELAS` e `DETALHES` de `paginas/Equipe.tsx` (ex.: `detalheDaExclusaoDoContrato`, de `regras/exclusaoDoContrato.ts`).',
+      'Excluir pessoa também tira o nome dela da cópia escondida dos recebimentos excluídos (`financeiro_excluidos`, #412): o gatilho `esquecer_nos_excluidos` e, no fictício, `regras/esquecimentoNaCopia.ts`. Texto novo com nome nessa cópia: confira se o padrão do nome (`nomeNoFinanceiro`) ainda o acha, nos dois.'
     ]
   },
   {
