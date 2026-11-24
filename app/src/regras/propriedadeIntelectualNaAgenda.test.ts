@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, AREA_DA_PI, AVISO_DO_ACOMPANHAMENTO, camposDoAcompanhamento, camposParaAcompanhar,
-  compromissoDoAcompanhamento, descreverAcompanhamento, descreverPrazoExtra, ehAcompanhamento, prazoExtraDaProtecao, prazosDaProtecao,
+  avisoDoFimDaSerie, compromissoDoAcompanhamento, datasDaConta, datasQueRestamNaSerie, descreverAcompanhamento, descreverPrazoExtra, ehAcompanhamento,
+  prazoExtraDaProtecao, prazosDaProtecao,
   TIPOS_DE_PROTECAO, type DatasDaProtecao
 } from './propriedadeIntelectual';
 import { compromissoVazio, repeticaoDoCompromisso, validarCompromisso } from './compromisso';
@@ -207,4 +208,35 @@ describe('Dias entre duas datas', () => {
       // Então
       expect(diasEntre(de, ate)).toBe(dias);
     });
+});
+
+describe('A série da agenda depois de atualizar as datas (#418)', () => {
+  it('dado o depósito que recua e deixa uma anuidade para trás, quando as datas seguintes são atualizadas, então o cartão avisa que a série ficou com uma data a mais', () => {
+    // Dado: a série criada com o depósito de 10/03/2020 (13 anuidades, da 8ª à 20ª, de 10/06/2027 em diante)
+    const antes = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2020-03-10' }), HOJE)!;
+    const serie = { frequencia: 'ano' as const, intervalo: 1, inicio: antes.data, ate: null, vezes: antes.regra!.vezes };
+    // Quando: o depósito passa para 10/07/2019 (a 8ª anuidade acabou em 10/10/2026: restam 12, da 9ª em diante)
+    const depois = acompanhamentoDaProtecao(processo({ protecao: 'patente_invencao', deposito: '2019-07-10' }), HOJE)!;
+    const restam = datasQueRestamNaSerie(serie, antes.data);
+    // Então
+    expect([restam, datasDaConta(depois), depois.data]).toEqual([13, 12, '2027-10-10']);
+    expect(avisoDoFimDaSerie(restam, datasDaConta(depois))).toBe('Atenção: a série da agenda tem agora 13 datas, e a conta dá 12 datas. Confira o fim da série no cartão do compromisso.');
+    // E quando os números batem, nada a avisar
+    expect(avisoDoFimDaSerie(13, 13)).toBeNull();
+    expect(avisoDoFimDaSerie(null, null)).toBeNull();
+  });
+
+  it('dadas as séries com número de vezes, com data final e sem fim, quando se conta o que resta de uma data em diante, então a conta segue a regra', () => {
+    // Dado
+    const base = { frequencia: 'ano' as const, intervalo: 1, inicio: '2027-06-10' };
+    // Então: da 3ª data (10/06/2029) em diante, numa série de 13 vezes, restam 11
+    expect(datasQueRestamNaSerie({ ...base, ate: null, vezes: 13 }, '2029-06-10')).toBe(11);
+    // até 10/06/2031: 2029, 2030 e 2031
+    expect(datasQueRestamNaSerie({ ...base, ate: '2031-06-10', vezes: null }, '2029-06-10')).toBe(3);
+    expect(datasQueRestamNaSerie({ ...base, ate: null, vezes: null }, '2029-06-10')).toBeNull();
+    // A marca, sem fim, e o compromisso de um prazo só
+    expect(datasDaConta({ regra: { frequencia: 'ano', intervalo: 10, ate: null, vezes: null } })).toBeNull();
+    expect(datasDaConta({ regra: null })).toBe(1);
+    expect(avisoDoFimDaSerie(2, null)).toBe('Atenção: a série da agenda tem agora 2 datas, e a conta dá datas sem fim. Confira o fim da série no cartão do compromisso.');
+  });
 });

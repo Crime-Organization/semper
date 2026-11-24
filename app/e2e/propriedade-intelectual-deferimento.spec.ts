@@ -133,6 +133,26 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await expect(cartao.getByText(`Estes prazos já estão na agenda: ${titulo}, na seção "Compromissos".`)).toBeVisible();
   });
 
+  test('dadas as anuidades na agenda, quando o depósito recua e uma anuidade fica para trás, então ao atualizar o cartão avisa que a série ficou com uma data a mais', async ({ page }) => {
+    // Dado: 13 anuidades na agenda, da 8ª à 20ª, a partir de 10/06/2027
+    let cartao = await cadastrar(page, 'Patente de invenção', { 'Data do depósito': '10032020' });
+    const doProcesso = page.url(), titulo = `Anuidade da patente ${NUMERO}`;
+    await abrirSecao(cartao, 'Validade e anuidades');
+    await cartao.getByRole('link', { name: 'Acompanhar na agenda' }).click();
+    await expect(page.getByRole('textbox', { name: 'Data*', exact: true })).toHaveValue('10/06/2027');
+    await salvarCompromisso(page);
+    await page.goto(doProcesso);
+    cartao = page.getByRole('dialog');
+    // Quando: o depósito passa para 10/07/2019 (a 8ª anuidade acabou em 10/10/2026: a conta dá 12, da 9ª em diante)
+    await mudarData(page, cartao, 'Patente de invenção', 'Data do depósito', '10072019');
+    await abrirSecao(cartao, 'Validade e anuidades');
+    await expect(cartao.getByText(`As datas do processo mudaram: "${titulo}" está na agenda em 10/06/2027, e a conta de agora dá 10/10/2027.`)).toBeVisible();
+    await cartao.getByRole('button', { name: 'Atualizar as datas na agenda' }).click();
+    // Então
+    await expect(page.getByText('Na agenda, esta data e as seguintes passaram a contar de 10/10/2027. Atenção: a série da agenda tem agora 13 datas, '
+      + 'e a conta dá 12 datas. Confira o fim da série no cartão do compromisso.')).toBeVisible();
+  });
+
   test('dado o processo de marca sem órgão, quando a pessoa abre o novo prazo, então a conta usa o calendário do INPI, sem dizer que o processo não tem órgão', async ({ page }) => {
     // Dado: o INPI está em Feriados e prazos (na semente), e o processo não tem órgão
     const cartao = await cadastrar(page, 'Marca', { 'Data do depósito': '10032025' });

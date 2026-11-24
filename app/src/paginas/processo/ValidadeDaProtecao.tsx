@@ -11,7 +11,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { SD, type Coluna, type CompromissoLigado, type Historico } from '../../dados';
 import {
   compromissoAConcluir, compromissoDoAcompanhamento, compromissoParaOFimDoExtra, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar,
-  descreverFimDoExtra, descreverPrazoAposODeferimento,
+  avisoDoFimDaSerie, datasDaConta, datasQueRestamNaSerie, descreverFimDoExtra, descreverPrazoAposODeferimento,
   descreverPrazoExtra, extraNaTabela, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
   type AcompanhamentoDaProtecao, type DataParaAtualizar, type PrazoExtraDaProtecao, type PrazosDaProtecao
 } from '../../regras/propriedadeIntelectual';
@@ -128,6 +128,7 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
       jaEsta={c => `O prazo após o deferimento já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverPrazoAposODeferimento(deferimento.prazo)} atalho="Pôr o prazo na agenda" />}
     {serie && <PrazoNaAgenda ligados={ligados} historico={historico} concluida={lido.concluida} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
+      conta={datasDaConta(serie.acompanhamento)}
       jaEsta={c => `Estes prazos já estão na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverAcompanhamento(serie.acompanhamento, comDemanda)} atalho="Acompanhar na agenda" />}
   </>;
@@ -147,12 +148,14 @@ interface PropsDoPrazoNaAgenda {
   descricao: string;
   atalho: string;
   mudou: () => void;
+  /** Na série dos prazos: quantas datas a conta dá (null: sem fim), para avisar se a série da agenda termina em outro lugar. */
+  conta?: number | null;
 }
 /**
  * Um prazo na agenda: o atalho para criar o compromisso ou, se ele já existe, qual é e, se for o caso, a oferta de levá-lo para a data da
  * conta: quando as datas do processo mudaram ("Atualizar as datas") ou quando o prazo após o deferimento entrou no prazo extra.
  */
-function PrazoNaAgenda({ ligados, historico, concluida, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
+function PrazoNaAgenda({ ligados, historico, concluida, hoje, prazo, para, jaEsta, descricao, atalho, mudou, conta }: PropsDoPrazoNaAgenda) {
   const ja = compromissoDoAcompanhamento(ligados, prazo);
   if (!ja) return <>
     <Nota>{descricao}</Nota>
@@ -166,7 +169,7 @@ function PrazoNaAgenda({ ligados, historico, concluida, hoje, prazo, para, jaEst
     {oferta && <>
       <Nota>{oferta.texto}</Nota>
       <AcoesDosLigados>
-        <Botao forma="mini" ocupadoTexto="Atualizando…" onClick={() => atualizarNaAgenda(oferta.x, mudou)}>{oferta.botao}</Botao>
+        <Botao forma="mini" ocupadoTexto="Atualizando…" onClick={() => atualizarNaAgenda(oferta.x, mudou, conta)}>{oferta.botao}</Botao>
       </AcoesDosLigados>
     </>}
   </>;
@@ -174,15 +177,18 @@ function PrazoNaAgenda({ ligados, historico, concluida, hoje, prazo, para, jaEst
 
 /**
  * Leva o compromisso para a data da conta: no que se repete, esta data e as seguintes em aberto (a série recomeça dali, como o "esta e as
- * seguintes" do cartão do compromisso); no que não se repete, só ele.
+ * seguintes" do cartão do compromisso); no que não se repete, só ele. `conta`: na série dos prazos, quantas datas a conta dá (null: sem
+ * fim); a série nova guarda o que faltava da antiga, e se os números não batem (o depósito mudou quantos prazos faltam), o aviso diz.
  */
-async function atualizarNaAgenda(x: DataParaAtualizar, mudou: () => void) {
+async function atualizarNaAgenda(x: DataParaAtualizar, mudou: () => void, conta?: number | null) {
   try {
     const c = await SD.compromissoObter(x.id);
     if (!c) throw new Error('O compromisso não foi encontrado: atualize a página e confira.');
     if (c.repeticao_id) {
+      const restam = c.repeticao ? datasQueRestamNaSerie(c.repeticao, c.repeticao_data ?? c.data) : null;
       await SD.compromissoMudarSeguintes(c.id, { data: x.para, hora: c.hora, hora_fim: c.hora_fim });
-      avisar(`Na agenda, esta data e as seguintes passaram a contar de ${fmtData(x.para)}.`);
+      const fim = conta === undefined ? null : avisoDoFimDaSerie(restam, conta);
+      avisar(`Na agenda, esta data e as seguintes passaram a contar de ${fmtData(x.para)}.${fim ? ` ${fim}` : ''}`, fim ? 'info' : 'ok');
     } else {
       await SD.compromissoAtualizar(c.id, { data: x.para });
       avisar(`A data passou para ${fmtData(x.para)} na agenda.`);

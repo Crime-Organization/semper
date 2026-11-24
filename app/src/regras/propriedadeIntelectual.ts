@@ -37,7 +37,7 @@
 import type { ApresentacaoMarca, CompromissoLigado, DiaLancado, Historico, NaturezaMarca, Orgao, PapelDaParte, Processo, RegraDeRepeticao, TipoProcesso, TipoProtecao } from '../dados/tipos';
 import { CLASSE_NICE_MAIOR, DEMANDA_DO_COMPROMISSO, TAMANHO_COMPROMISSO, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
 import type { CamposCompromisso } from './compromisso';
-import { descreverRepeticao, somarMeses } from './repeticao';
+import { dataDaVez, descreverRepeticao, somarMeses, vezDaData, type SerieDeRepeticao } from './repeticao';
 import { contarPrazo, diasEntre, somarDias, type Contagem, type DiaSemExpediente } from './prazos';
 import { anosDoPrazo, diasDoOrgao } from './calendario';
 import { fmtData, lerData } from './pessoa';
@@ -591,7 +591,28 @@ export function compromissoParaOFimDoExtra<T extends Pick<CompromissoLigado, 'id
 export const descreverFimDoExtra = (x: DataParaAtualizar) =>
   `O prazo após o deferimento está no prazo extra, até ${fmtData(x.para)}: "${x.titulo}" ficou na agenda em ${fmtData(x.de)}, no fim dos `
   + `${PRAZOS_DO_INPI.deferimentoDiasUteis} dias úteis.`;
-/** O que o cartão diz da data a atualizar: "As datas do processo mudaram:"…" está na agenda em 10/06/2027, e a conta de agora dá 10/09/2027." */
+/**
+ * Quantas datas a série da agenda ainda tem da data dada em diante (a dela e as seguintes), contando pela regra da série: o número de vezes
+ * ou a data final; null: a série não tem fim. Atualizar as datas seguintes (`compromissoMudarSeguintes`) guarda esse número na série nova.
+ */
+export function datasQueRestamNaSerie(serie: SerieDeRepeticao, data: string): number | null {
+  const vez = vezDaData(serie, data);
+  if (serie.vezes !== null) return Math.max(0, serie.vezes - vez);
+  if (serie.ate === null) return null;
+  let n = vez;
+  while (dataDaVez(serie, n) <= serie.ate) n++;
+  return n - vez;
+}
+/** Quantas datas a conta dá para o compromisso dos prazos: as vezes da regra, uma (sem regra: só resta um prazo), ou null (sem fim, a marca). */
+export const datasDaConta = (a: Pick<AcompanhamentoDaProtecao, 'regra'>) => a.regra ? a.regra.vezes : 1;
+const quantasDatas = (n: number | null) => n === null ? 'datas sem fim' : `${n} ${n === 1 ? 'data' : 'datas'}`;
+/**
+ * Depois de atualizar as datas seguintes, o aviso de quando a série da agenda não termina onde a conta termina (ex.: o depósito recuou e uma
+ * anuidade ficou para trás, mas a série guardou o número de vezes de antes, #418). null: os números batem.
+ */
+export const avisoDoFimDaSerie = (restam: number | null, conta: number | null) => restam === conta ? null
+  : `Atenção: a série da agenda tem agora ${quantasDatas(restam)}, e a conta dá ${quantasDatas(conta)}. Confira o fim da série no cartão do compromisso.`;
+/** O que o cartão diz da data a atualizar: "As datas do processo mudaram: "…" está na agenda em 10/06/2027, e a conta de agora dá 10/09/2027." */
 export const descreverDataParaAtualizar = (x: DataParaAtualizar) =>
   `As datas do processo mudaram: "${x.titulo}" está na agenda em ${fmtData(x.de)}, e a conta de agora dá ${fmtData(x.para)}.`;
 /**
