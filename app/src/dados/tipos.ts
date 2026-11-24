@@ -2089,6 +2089,15 @@ export interface Lancamento {
 }
 export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
 export interface AliquotaDoDas { mes: string; aliquota: number }
+/**
+ * Um recebimento (também o estornado) ou uma parcela importada como paga que saiu com o contrato excluído, lido da cópia escondida
+ * (financeiro_excluidos, #284). Só os administradores do escritório leem, e ninguém muda nem apaga (#413). Valor em centavos.
+ * conta_nome: o nome da conta na hora da exclusão (a parcela importada como paga não passou por conta nenhuma).
+ */
+export interface RecebimentoExcluido {
+  id: number; contrato_codigo: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number | null; data: string | null; valor: number;
+  conta_nome: string | null; estornado: boolean; excluido_por: string | null; excluido_em: string;
+}
 /** Uma parcela do contrato, em centavos. Quem vê: um administrador ou o responsável pelo contrato. */
 export interface Parcela {
   id: string; contrato_id: string; numero: number; vencimento: string; valor: number;
@@ -2226,6 +2235,8 @@ export interface DadosFinanceiro {
   financeiroDasSalvar(mes: string, aliquota: number): Promise<void>;
   /** As mudanças no saldo inicial, no início das contas, no DAS e nos sócios, das mais novas às mais antigas. */
   financeiroAjustes(): Promise<Historico[]>;
+  /** Os recebimentos que saíram com os contratos excluídos, dos excluídos por último aos mais antigos. Quem não é administrador recebe a lista vazia. */
+  financeiroExcluidos(): Promise<RecebimentoExcluido[]>;
 }
 
 /** As parcelas, os recebimentos e os repasses (supabase/migrations/20261102192042_financeiro_parcelas.sql). */

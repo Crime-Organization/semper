@@ -54,7 +54,7 @@ export const COMUM: Assunto = {
     'Paginacao', 'PainelCartao', 'Recolhivel', 'SubmenuLateral', 'abrirItem', 'arrastar', 'avisos', 'barraDeRolagem',
     'janela', 'loja', 'ordem', 'preferencias', 'rolagem', 'sessao', 'tema', 'tempos', 'useCartaoNaUrl', 'useParametroLido', 'useQuantos',
     'useSelecao', 'util',
-    'texto', 'csv', 'formatacao', 'tituloDaAba', 'enderecosAntigos', 'qualBanco', 'campoData', 'escalaDosGraficos', 'filtroDoPainel',
+    'texto', 'csv', 'formatacao', 'fuso', 'tituloDaAba', 'enderecosAntigos', 'qualBanco', 'campoData', 'escalaDosGraficos', 'filtroDoPainel',
     'ajudantes', 'sair-do-cadastro', 'nova-aba', 'menu-lateral',
     'banco-local', pasta('app/ferramentas/mapa'),
     'avisoNoServidor', 'envioDeEmail', 'modeloDeEmail', 'servidor',
@@ -73,6 +73,7 @@ export const COMUM: Assunto = {
     'Campo novo num tipo de lista (`TarefaLista`, `CompromissoLista`…, em `dados/tipos.ts`) quebra os testes que montam a lista à mão (ex.: `paginas/Inicio.test.tsx`): procure o tipo nos *.test.tsx.',
     'Lista do escritório lida em todas as telas (etiquetas, funções da tarefa): carrega em `ui/sessao.tsx` (`iniciarEtiquetas`, `iniciarFuncoes`).',
     'Contas de datas aaaa-mm-dd (`somarDias`, `diasEntre`, `DIAS_NA_SEMANA`) ficam em `regras/prazos.ts`, que não depende de nenhum módulo: use dali, não recrie.',
+    'O fuso do escritório (`FUSO_DO_ESCRITORIO`, `diaNoEscritorio`) fica em `regras/fuso.ts`, que não depende de nenhum módulo: importe dali, e não de `regras/compromisso.ts`.',
     'Endereço que sai ou muda: veja [Rotas e endereços](#rotas) (quem escreve o endereço, como `regras/painelInicial.ts` e `e2e/ajudantes.ts`, e os testes que vão direto a ele) e ponha o antigo em `regras/enderecosAntigos.ts`. Cadastro novo em janela: a tabela `CADASTROS` de `App.tsx`.',
     'Mudança que o usuário percebe: uma novidade em `app/novidades/proxima/<tarefa>-<palavras>.json` no mesmo commit.',
     'Datas no horário de Brasília: os testes fixam o fuso (`vite.config.ts`, `playwright.config.ts`); não use `new Date()` solto nas regras.'
@@ -334,7 +335,7 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
     tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
     dados: ['DadosFinanceiro'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],

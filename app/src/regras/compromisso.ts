@@ -10,9 +10,10 @@ import { fmtData, lerData } from './pessoa';
 import { estaPeloGrupo } from './gruposDaEquipe';
 import { CONFERENCIAS_DA_REPETICAO, descreverRepeticao, regraDosCampos, REPETICAO_VAZIA, type CamposRepeticao } from './repeticao';
 import { descreverDemandaDoCompromisso } from './demandaDoCompromisso';
+import { FUSO_DO_ESCRITORIO } from './fuso';
 
-/** O fuso da agenda: a data e a hora dos compromissos são as do relógio de Brasília. */
-export const FUSO_DA_AGENDA = 'America/Sao_Paulo';
+/** O fuso da agenda: a data e a hora dos compromissos são as do relógio do escritório (regras/fuso.ts). */
+export const FUSO_DA_AGENDA = FUSO_DO_ESCRITORIO;
 
 /** Rótulo dos compromissos fora das colunas do quadro. */
 export const SEM_SITUACAO_COMPROMISSO = 'Sem situação';
