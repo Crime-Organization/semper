@@ -60,7 +60,7 @@ import { normal } from '../regras/texto';
 import { conflitoNaSala, horarioNaSala, SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, erroDoNomeDoObjeto, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO } from '../regras/objetos';
 import type { ObjetoDoEscritorio, TrocaDeObjetos } from './tipos';
-import { FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, quemTrocouDeFuncao, SEM_FUNCAO, temAFuncao } from '../regras/funcoesNaTarefa';
+import { ehAcompanhaDeFabrica, FUNCAO_REPETIDA, funcaoEmUso, funcoesAoGravar, funcoesNaOrdem, nomeRepetido, quemTrocouDeFuncao, SEM_FUNCAO, semAFuncao, temAFuncao } from '../regras/funcoesNaTarefa';
 import type { DadosFuncaoNaTarefa, FuncaoNaTarefa } from './tipos';
 import { colunaEquivalente, colunasDaInvestigacaoNoQuadro, ehTipoQueSaiu, numeroQueNaoRepete, QUADRO_ADMINISTRATIVO, TIPO_QUE_FICA, tipoQueFica } from '../regras/investigacaoNoAdministrativo';
 import { COLUNA_DE_APROVACAO_DAS_TAREFAS, colunaDeAprovacaoNoQuadro, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_POR_TAREFA, planoDasColunasNovas, type ColunasNovas } from '../regras/colunasPadrao';
@@ -730,10 +730,12 @@ bd.tarefas.forEach(t => { t.data_inicio ??= inicioDoCriadoEm(t.criado_em); });
 bd.tarefas.forEach(t => { t.diligencia ??= false; t.diligencia_motivo ??= null; });
 // Sessões abertas antes das funções e do solicitante (#313): sem solicitante; os participantes ficam sem função (#421).
 bd.tarefas.forEach(t => { t.solicitante_id ??= null; t.funcoes = funcoesDaTarefaNoFalso(t); });
-// Sessões abertas antes da #421: a "Acompanha" de fábrica sai, e quem estava nela fica sem função (como a migração).
-if (bd.funcoesNaTarefa?.some(f => f.id === ACOMPANHA_DE_FABRICA)) {
-  bd.funcoesNaTarefa = bd.funcoesNaTarefa.filter(f => f.id !== ACOMPANHA_DE_FABRICA);
-  bd.tarefas.forEach(t => { t.funcoes = Object.fromEntries(Object.entries(t.funcoes ?? {}).filter(([, f]) => f !== ACOMPANHA_DE_FABRICA)); });
+// Sessões abertas antes da #421: a "Acompanha" de fábrica sai, e quem estava nela fica sem função (como a migração). Renomeada ou
+// marcada como de execução, o escritório a adotou, e ela fica.
+const acompanhaDeFabrica = bd.funcoesNaTarefa?.find(f => ehAcompanhaDeFabrica(f, f.id === ACOMPANHA_DE_FABRICA));
+if (acompanhaDeFabrica) {
+  bd.funcoesNaTarefa = bd.funcoesNaTarefa!.filter(f => f !== acompanhaDeFabrica);
+  bd.tarefas.forEach(t => { t.funcoes = semAFuncao(t.funcoes, acompanhaDeFabrica.id); });
 }
 // Sessões abertas antes da aprovação (#313): a tarefa não precisa de aprovação (como o padrão da migração).
 bd.tarefas.forEach(t => { t.precisa_aprovacao ??= false; });

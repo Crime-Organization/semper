@@ -103,6 +103,19 @@ export const comAFuncaoTrocada = (atuais: Readonly<Record<string, string>> | und
 export const avisoDaFuncaoTrocada = (quem: string, funcao: string | null) =>
   funcao === null ? `${quem} agora sem função.` : `${quem} agora com a função "${funcao}".`;
 
+// ---------- a "Acompanha" que vinha de fábrica (#421) ----------
+/** O nome da função que vinha pronta, além de "Executa", até a #421. */
+export const NOME_DA_ACOMPANHA_DE_FABRICA = 'Acompanha';
+/**
+ * A "Acompanha" de fábrica sai (como privado.tirar_acompanha_de_fabrica): só a que veio pronta (`deFabrica`; no banco, a sem quem a
+ * criou), ainda com o nome de fábrica e sem ser de execução. Renomeada ou marcada como de execução, o escritório a adotou, e ela fica.
+ */
+export const ehAcompanhaDeFabrica = (f: Pick<FuncaoNaTarefa, 'nome' | 'executa'>, deFabrica: boolean) =>
+  deFabrica && f.nome === NOME_DA_ACOMPANHA_DE_FABRICA && !f.executa;
+/** As funções da tarefa sem a função que saiu (`id`): quem estava com ela fica sem função; os outros ficam como estão. */
+export const semAFuncao = (funcoesDaTarefa: Readonly<Record<string, string>> | undefined, id: string): Record<string, string> =>
+  Object.fromEntries(Object.entries(funcoesDaTarefa ?? {}).filter(([, f]) => f !== id));
+
 /**
  * Para o histórico (como privado.funcoes_trocadas_no_historico): quem continua na tarefa (`ficaram`) e trocou de função, também de e
  * para nenhuma. Quem entrou ou saiu vem com os participantes.

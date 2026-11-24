@@ -10435,3 +10435,46 @@ describe('Aprovação interna da tarefa (banco fictício, #313)', () => {
     expect(ficou).toBe(await coluna(c => c.marco === 'concluido'));
   });
 });
+
+// A sessão aberta antes da #421 só existe no banco fictício; no banco de verdade, a conversão é provada em
+// supabase/tests/funcoes_so_executa_de_fabrica.test.sql.
+describe('Funções dos participantes: a sessão aberta antes da #421 (banco fictício)', () => {
+  /** O id que a "Acompanha" de fábrica tinha no banco fictício antes da #421. */
+  const ACOMPANHA_DE_FABRICA = 'fn-acompanha';
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+  interface BancoGuardado { funcoesNaTarefa: { id: string; nome: string; executa: boolean; ordem: number }[]; tarefas: { id: string; funcoes: Record<string, string> }[] }
+
+  /** Uma sessão aberta antes da #421: a "Acompanha" de fábrica na lista (com o nome e a marca dados) e o Bruno com ela numa tarefa. */
+  async function sessaoAntiga(acompanha: { nome: string; executa: boolean }) {
+    sessionStorage.clear();
+    const SD = await reabrir();
+    const { id } = await SD.tarefaCriar({ titulo: 'Protocolar', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as BancoGuardado;
+    bd.funcoesNaTarefa.push({ id: ACOMPANHA_DE_FABRICA, ...acompanha, ordem: 2 });
+    bd.tarefas.find(t => t.id === id)!.funcoes = { 'u-bruno': ACOMPANHA_DE_FABRICA };
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    return id;
+  }
+
+  it('dada a "Acompanha" de fábrica como veio, quando a sessão é reaberta, então ela sai e o Bruno fica na tarefa sem função', async () => {
+    // Dado
+    const id = await sessaoAntiga({ nome: 'Acompanha', executa: false });
+    // Quando
+    const SD = await reabrir();
+    // Então
+    expect((await SD.funcoesNaTarefaListar()).map(f => f.nome)).toEqual(['Executa']);
+    expect(await SD.tarefaObter(id)).toMatchObject({ participantes: ['u-bruno'], funcoes: {} });
+  });
+
+  it('dada a "Acompanha" de fábrica renomeada ou marcada como de execução, quando a sessão é reaberta, então ela fica, com o Bruno (como o banco)', async () => {
+    for (const adotada of [{ nome: 'Revisa', executa: false }, { nome: 'Acompanha', executa: true }]) {
+      // Dado
+      const id = await sessaoAntiga(adotada);
+      // Quando
+      const SD = await reabrir();
+      // Então
+      expect((await SD.funcoesNaTarefaListar()).map(f => f.nome)).toEqual(['Executa', adotada.nome]);
+      expect((await SD.tarefaObter(id))?.funcoes).toEqual({ 'u-bruno': ACOMPANHA_DE_FABRICA });
+    }
+  });
+});

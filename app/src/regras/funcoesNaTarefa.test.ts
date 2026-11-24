@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { FuncaoNaTarefa } from '../dados/tipos';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
 import {
-  avisoDaFuncaoTrocada, comAFuncaoDeQuemEntra, comAFuncaoTrocada, errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso,
-  funcoesAoGravar, idsDoFiltroDeFuncao, opcoesDoFiltroDeFuncao, participantesComFuncao, quemTrocouDeFuncao, temAFuncao
+  avisoDaFuncaoTrocada, comAFuncaoDeQuemEntra, comAFuncaoTrocada, ehAcompanhaDeFabrica, errosDaFuncao, FILTRO_DELEGADAS, FUNCAO_DE_FORA, FUNCAO_REPETIDA, funcaoDe, funcaoEmUso,
+  funcoesAoGravar, idsDoFiltroDeFuncao, opcoesDoFiltroDeFuncao, participantesComFuncao, quemTrocouDeFuncao, semAFuncao, temAFuncao
 } from './funcoesNaTarefa';
 
 const EXECUTA: FuncaoNaTarefa = { id: 'f-exe', nome: 'Executa', executa: true, ordem: 1 };
@@ -113,6 +113,24 @@ describe('Funções dos participantes da tarefa (#313)', () => {
       // Então
       expect(r).toEqual({ 'u-ana': 'f-aco', 'u-bruno': 'f-exe' });
       expect(comAFuncaoDeQuemEntra(undefined, 'u-bruno', 'f-exe')).toEqual({ 'u-bruno': 'f-exe' });
+    });
+  });
+
+  describe('A "Acompanha" que vinha de fábrica (#421)', () => {
+    it('dada a que veio pronta, com o nome de fábrica e sem ser de execução, então ela sai; renomeada, de execução ou criada pelo escritório, fica', () => {
+      // Então
+      expect(ehAcompanhaDeFabrica(ACOMPANHA, true)).toBe(true);
+      expect(ehAcompanhaDeFabrica({ ...ACOMPANHA, nome: REVISA.nome }, true)).toBe(false);
+      expect(ehAcompanhaDeFabrica({ ...ACOMPANHA, executa: true }, true)).toBe(false);
+      expect(ehAcompanhaDeFabrica(ACOMPANHA, false)).toBe(false);
+    });
+
+    it('quando ela sai, então quem estava com ela fica sem função e os outros ficam como estão', () => {
+      // Quando
+      const r = semAFuncao({ ana: EXECUTA.id, bia: ACOMPANHA.id }, ACOMPANHA.id);
+      // Então
+      expect(r).toEqual({ ana: EXECUTA.id });
+      expect(semAFuncao(undefined, ACOMPANHA.id)).toEqual({});
     });
   });
 });
