@@ -88,6 +88,9 @@ export const AJUDA: Record<ModuloComAjuda, readonly string[]> = {
 // Os textos seguem as mesmas regras dos de cima (iguais para todos os escritórios, curtos, em português simples); como o título
 // dessas telas muda (o "Olá" do Início, o nome da pessoa no perfil), cada uma diz também o título da janela.
 // Tela nova fora das páginas de módulo = uma entrada nova na tabela.
+// Ficaram de fora, por ora, os cadastros (Nova pessoa, Novo contrato… e Importar pessoas, a tabela CADASTROS de App.tsx): eles
+// abrem numa janela por cima da página, onde a tecla "?" não vale (os atalhos esperam a janela fechar), e cada etapa já traz a
+// explicação dela. Se o dono quiser o "?" também neles, é uma tarefa própria.
 
 /** As telas que não são de módulo e têm ajuda. As quatro abas do Financeiro têm uma ajuda cada. */
 export type TelaComAjuda =
