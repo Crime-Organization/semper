@@ -1,5 +1,5 @@
 {
   "titulo": "A cópia da tarefa leva a diligência, quem pediu e as funções",
-  "texto": "Ao copiar uma tarefa para outra demanda, a cópia agora leva também a diligência (com o motivo), quem pediu a tarefa e a função de cada participante, como \"Executa\" ou \"Acompanha\".",
+  "texto": "Ao copiar uma tarefa para outra demanda, a cópia agora leva também a diligência (com o motivo), quem pediu a tarefa e a função de cada participante, como \"Executa\".",
   "ondeAchar": "No cartão da tarefa, menu ⋯ > Copiar para outra demanda."
 }

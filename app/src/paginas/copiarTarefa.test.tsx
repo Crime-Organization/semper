@@ -37,11 +37,12 @@ describe('A cópia da tarefa em outra demanda (#312)', () => {
   });
 
   it('dada uma tarefa com diligência, solicitante e funções, quando é copiada, então a cópia tem a mesma diligência (com o motivo), o mesmo solicitante e as mesmas funções (#414)', async () => {
-    // Dado: a Ana executa e o Bruno acompanha; quem pediu foi o Bruno
+    // Dado: a Ana executa e o Bruno tem uma função criada pelo escritório (de fábrica só vem a Executa, #421); quem pediu foi o Bruno
+    const revisa = await SD.funcaoNaTarefaCriar({ nome: 'Revisa', executa: false });
     const { id: original } = await SD.tarefaCriar({
       titulo: 'Protocolar a petição', responsavel_id: 'u-master', participantes: ['u-ana', 'u-bruno'], pessoas: [],
       diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'u-bruno',
-      funcoes: { 'u-ana': 'fn-executa', 'u-bruno': 'fn-acompanha' }
+      funcoes: { 'u-ana': 'fn-executa', 'u-bruno': revisa.id }
     });
     const [demanda] = await SD.demandasParaLigar({});
     // Quando
@@ -49,7 +50,7 @@ describe('A cópia da tarefa em outra demanda (#312)', () => {
     // Então
     expect(await SD.tarefaObter(copia.id)).toMatchObject({
       diligencia: true, diligencia_motivo: 'Levar a petição ao cartório', solicitante_id: 'u-bruno',
-      participantes: ['u-ana', 'u-bruno'], funcoes: { 'u-ana': 'fn-executa', 'u-bruno': 'fn-acompanha' }
+      participantes: ['u-ana', 'u-bruno'], funcoes: { 'u-ana': 'fn-executa', 'u-bruno': revisa.id }
     });
   });
 
