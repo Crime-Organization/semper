@@ -193,6 +193,18 @@ export function diasDoMes(mes: string) {
 }
 export const mesValido = (mes: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(mes);
 
+// ---------- o lançamento aberto no Financeiro ----------
+/**
+ * Os parâmetros do endereço com que o "Mudar em Entradas/Saídas" da página das contas abre a aba no mês do lançamento, com ele à
+ * vista (#419). A aba lê uma vez e tira do endereço.
+ */
+export const PARAMETROS_DO_LANCAMENTO = { mes: 'mes', lancamento: 'lancamento' } as const;
+/** O fim do endereço da aba que mostra o lançamento: "?mes=2026-03&lancamento=…". */
+export const buscaDoLancamento = (l: Pick<Lancamento, 'id' | 'data'>) =>
+  '?' + new URLSearchParams({ [PARAMETROS_DO_LANCAMENTO.mes]: mesDe(l.data), [PARAMETROS_DO_LANCAMENTO.lancamento]: l.id });
+/** O mês pedido no endereço, quando é um mês de verdade; senão, null (a aba abre no mês de hoje). */
+export const mesPedido = (valor: string | null) => valor !== null && mesValido(valor) ? valor : null;
+
 export interface LinhaDoCaixa { lancamento: Lancamento; saldo: number; fimDoDia: boolean }
 /** O que os ajustes de saldo somaram no mês, para cada lado. */
 export interface AjustesDoMes { aMais: number; aMenos: number }

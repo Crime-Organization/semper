@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento, type Socio } from '../dados';
 import {
-  ajusteNovo, CAMPOS_DO_LANCAMENTO, CATEGORIAS_DO_AJUSTE_NOVO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, ondeMuda, textoDosAjustes,
+  ajusteNovo, buscaDoLancamento, CAMPOS_DO_LANCAMENTO, CATEGORIAS_DO_AJUSTE_NOVO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, ondeMuda, textoDosAjustes,
   transferenciaNova, valorNoAjuste, valorNoHistorico, type OndeMuda
 } from '../regras/caixa';
 import { AJUDA } from '../regras/ajuda';
@@ -110,9 +110,10 @@ export default function Financeiro() {
       <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o lançamento ${l.descricao}`} onClick={() => setAberto({ o: 'mudar', lancamento: l })}><Icone nome="editar" tam={13} /> Mudar</button>
       {botaoExcluir(l)}
     </span>,
+    // Abre a aba no mês do lançamento, com ele à vista (#419).
     no_financeiro: l => {
       const aba = ABAS_DO_FINANCEIRO[l.tipo === 'entrada' ? 'entradas' : 'saidas'];
-      return <BotaoLink forma="link" to={aba.para} aria-label={`Mudar o lançamento ${l.descricao} em ${aba.rotulo}, no Financeiro`}>Mudar em {aba.rotulo}</BotaoLink>;
+      return <BotaoLink forma="link" to={aba.para + buscaDoLancamento(l)} aria-label={`Mudar o lançamento ${l.descricao} em ${aba.rotulo}, no Financeiro`}>Mudar em {aba.rotulo}</BotaoLink>;
     }
   };
   const dataNova = mesDe(hoje) === mes ? hoje : diasDoMes(mes).de;

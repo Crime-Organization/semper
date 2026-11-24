@@ -4,6 +4,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { SD, type ValorAPassar } from '../../dados';
 import { fmtCentavos } from '../../regras/caixa';
 import { erroDaDataDoPagamento } from '../../regras/meusValores';
+import { nestePeriodo } from '../../regras/numerosDoFinanceiro';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
 import { Campo, CampoData, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
@@ -42,7 +43,8 @@ function FormMarcar({ valor, hoje, aoTerminar, aoCancelar }: { valor: ValorAPass
   </form>;
 }
 
-export function ValoresAPassar({ lista, hoje, aoMudar }: { lista: ValorAPassar[]; hoje: string; aoMudar: () => void }) {
+/** O que falta passar no período escolhido no alto do Financeiro: um mês ("aaaa-mm") ou o ano todo ("aaaa"). */
+export function ValoresAPassar({ lista, periodo, hoje, aoMudar }: { lista: ValorAPassar[]; periodo: string; hoje: string; aoMudar: () => void }) {
   const [marcando, setMarcando] = useState<ValorAPassar | null>(null);
   const terminou = () => { setMarcando(null); aoMudar(); };
   async function desfazer(v: ValorAPassar) {
@@ -53,7 +55,7 @@ export function ValoresAPassar({ lista, hoje, aoMudar }: { lista: ValorAPassar[]
       terminou();
     } catch (e) { falha(e); }
   }
-  if (!lista.length) return <Vazio>Nada a passar neste mês.</Vazio>;
+  if (!lista.length) return <Vazio>Nada a passar {nestePeriodo(periodo)}.</Vazio>;
   return <div className="financeiro-form">
     {marcando && <FormMarcar key={marcando.recebimento_id + marcando.pessoa_id} valor={marcando} hoje={hoje} aoTerminar={terminou} aoCancelar={() => setMarcando(null)} />}
     <div className="tabela"><table aria-label="Valores a passar">

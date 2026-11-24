@@ -6,7 +6,7 @@ import type { Lancamento, ParcelaDoEscritorio, RecebimentoDoPeriodo } from '../d
 import { mesDoCaixa } from './caixa';
 import { indicadoresRealizados, mesesDoCaixa, mesesRealizados } from './graficosFinanceiros';
 import {
-  aReceberNoPeriodo, aReceberPorSemana, caixaPorMes, comparar, corteDoSaldo, diasDoPeriodo, emAtraso, mesesDoGrafico, MESES_DO_GRAFICO, nomeDoPeriodo, numerosDoCaixa,
+  aReceberNoPeriodo, aReceberPorSemana, caixaPorMes, comparar, corteDoSaldo, diasDoPeriodo, emAtraso, mesesDoGrafico, MESES_DO_GRAFICO, nestePeriodo, nomeDoPeriodo, numerosDoCaixa,
   periodoAnterior, receitaPorMes, saldoAntesDe, SEMANAS_A_RECEBER
 } from './numerosDoFinanceiro';
 import { carteiraDeContratos, filtrarCarteira, filtrarExtrato, FILTRO_VAZIO, totaisDaCarteira, totaisDoExtrato } from './painelFinanceiro';
@@ -43,6 +43,12 @@ describe('O período e o de antes', () => {
     expect(nomeDoPeriodo('2026')).toBe('2026');
     expect(diasDoPeriodo('2026-02')).toEqual({ de: '2026-02-01', ate: '2026-02-28' });
     expect(diasDoPeriodo('2026')).toEqual({ de: '2026-01-01', ate: '2026-12-31' });
+  });
+
+  it('dado um mês ou o ano todo, quando um aviso fala do período, então diz "neste mês" ou "neste ano"', () => {
+    // Então
+    expect(nestePeriodo('2026-11')).toBe('neste mês');
+    expect(nestePeriodo('2026')).toBe('neste ano');
   });
 
   it('dado um mês ou o ano todo, quando monta os meses do gráfico, então são doze, terminando no mês escolhido (ou em dezembro)', () => {

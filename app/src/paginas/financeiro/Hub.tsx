@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { dicaComAtalho, ATALHOS } from '../../regras/atalhos';
-import { diasDoMes, fmtCentavos } from '../../regras/caixa';
+import { diasDoMes, fmtCentavos, mesPedido, PARAMETROS_DO_LANCAMENTO } from '../../regras/caixa';
 import {
   FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   totaisDaCarteira, totalRecebido, type SituacaoNaCarteira
@@ -22,6 +22,7 @@ import { Icone } from '../../ui/Icone';
 import { CabecaDoPainel } from '../../ui/painel/Painel';
 import { PainelCartao } from '../../ui/PainelCartao';
 import { useCtx } from '../../ui/sessao';
+import { useParametroLido } from '../../ui/useParametroLido';
 import { hojeISO, useTitulo } from '../../ui/util';
 import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
 import { ValoresAPassar } from './APassar';
@@ -90,8 +91,11 @@ export default function Hub() {
   const aba = abaDoCaminho(local.pathname);
   const admin = ctx.ehAdmin;
   const hoje = hojeISO();
-  const [ano, setAno] = useState(Number(hoje.slice(0, 4)));
-  const [mes, setMes] = useState<string | null>(hoje.slice(0, 7));
+  // O "Mudar em Entradas/Saídas" da página das contas pede o mês do lançamento e qual linha mostrar (#419); sem pedido, o mês de hoje.
+  const mesDoEndereco = mesPedido(useParametroLido(PARAMETROS_DO_LANCAMENTO.mes));
+  const lancamentoPedido = useParametroLido(PARAMETROS_DO_LANCAMENTO.lancamento);
+  const [ano, setAno] = useState(Number((mesDoEndereco ?? hoje).slice(0, 4)));
+  const [mes, setMes] = useState<string | null>(mesDoEndereco ?? hoje.slice(0, 7));
   // De quem são os números e as listas: o escritório todo (vazio) ou um advogado. Só o administrador escolhe.
   const [advogado, setAdvogado] = useState('');
   const [lido, setLido] = useState<Lido | null>(null);
@@ -175,8 +179,8 @@ export default function Hub() {
   else {
     const { parcelas, caixa } = atual;
     const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
-      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
-      saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
+      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} destaque={lancamentoPedido} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
+      saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} destaque={lancamentoPedido} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
       direitos: () => <Direitos parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} aoAbrir={id => setAberto({ o: 'contrato', contratoId: id })} />,
       obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
     };
@@ -219,11 +223,20 @@ export default function Hub() {
 
 const TITULOS: Record<NonNullable<Aberto>['o'], string> = { entrada: 'Nova entrada', avulsa: 'Entrada sem contrato', saida: 'Nova saída', mudar: 'Lançamento', parcela: 'Parcela recebida', contrato: 'Contrato' };
 
-/** O extrato do caixa de um tipo no período. Clicar numa linha abre o lançamento. */
-function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: 'entrada' | 'saida'; periodo: string; aoMudar: (l: Lancamento) => void }) {
+/**
+ * O extrato do caixa de um tipo no período. Clicar numa linha abre o lançamento. O lançamento em destaque (o que a página das contas
+ * pediu, #419) fica marcado, e o foco vai para ele, que rola até ficar à vista.
+ */
+function ListaDoCaixa({ caixa, tipo, periodo, destaque, aoMudar }: { caixa: Caixa; tipo: 'entrada' | 'saida'; periodo: string; destaque?: string | null; aoMudar: (l: Lancamento) => void }) {
   const [busca, setBusca] = useState('');
   const [quantas, setQuantas] = useState(LINHAS_POR_VEZ);
   const lista = filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo, tipo, busca }).filter(contaNoResultado);
+  // O destaque aparece mesmo se estiver depois das primeiras linhas.
+  const posicao = destaque ? lista.findIndex(l => l.id === destaque) : -1;
+  const mostradas = Math.max(quantas, posicao + 1);
+  const emDestaque = useRef<HTMLButtonElement>(null);
+  const achou = posicao >= 0;
+  useEffect(() => { if (achou) emDestaque.current?.focus(); }, [achou]);
   const nomeDaConta = new Map(caixa.contas.map(c => [c.id, c.nome]));
   const rotulo = tipo === 'entrada' ? 'Entradas' : 'Saídas';
   return <section className="painel-secao" aria-label={rotulo}>
@@ -235,11 +248,12 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
     {lista.length ? <>
       <div className="tabela"><table className="extrato" aria-label={rotulo}>
         <thead><tr><th scope="col">Data</th><th scope="col">{tipo === 'entrada' ? 'Cliente ou origem' : 'Para quem'}</th><th scope="col">Categoria</th>{caixa.contas.length > 1 && <th scope="col">Conta</th>}<th scope="col" className="financeiro-num">Valor</th></tr></thead>
-        <tbody>{lista.slice(0, quantas).map(l => {
+        <tbody>{lista.slice(0, mostradas).map(l => {
           const linha = linhaDoCaixa(l);
-          return <tr key={l.id} className="clicavel" onClick={() => aoMudar(l)}>
+          const marcada = l.id === destaque;
+          return <tr key={l.id} className={marcada ? 'clicavel marcada' : 'clicavel'} aria-current={marcada || undefined} onClick={() => aoMudar(l)}>
           <td>{fmtData(l.data)}</td>
-          <td><button type="button" className="financeiro-abrir" aria-label={`Abrir o lançamento: ${l.descricao}`} onClick={e => { e.stopPropagation(); aoMudar(l); }}>{linha.quem}</button>
+          <td><button type="button" ref={marcada ? emDestaque : undefined} className="financeiro-abrir" aria-label={`Abrir o lançamento: ${l.descricao}`} onClick={e => { e.stopPropagation(); aoMudar(l); }}>{linha.quem}</button>
             {linha.oQue && <span className="sub">{linha.oQue}</span>}</td>
           <td><span className="sub">{linha.categoria}</span></td>
           {caixa.contas.length > 1 && <td>{nomeDaConta.get(l.conta_id)}</td>}
@@ -249,14 +263,14 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
         <tfoot><tr><th scope="row" colSpan={caixa.contas.length > 1 ? 4 : 3}>Total</th>
           <td className="financeiro-num"><b>{fmtCentavos(lista.reduce((s, l) => s + l.valor, 0))}</b></td></tr></tfoot>
       </table></div>
-      {lista.length > quantas && <button type="button" className={estiloBotao()} onClick={() => setQuantas(q => q + LINHAS_POR_VEZ)}>Mostrar mais</button>}
+      {lista.length > mostradas && <button type="button" className={estiloBotao()} onClick={() => setQuantas(mostradas + LINHAS_POR_VEZ)}>Mostrar mais</button>}
     </> : <Vazio>Nenhuma {tipo === 'entrada' ? 'entrada' : 'saída'} neste período.</Vazio>}
   </section>;
 }
 
 /** Entradas: o caixa inteiro para o administrador; as parcelas recebidas de um usuário (ou as suas, para quem não é administrador). */
-function Entradas({ caixa, parcelas, periodo, usuario, aoMudar, aoAbrirParcela }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; aoMudar: (l: Lancamento) => void; aoAbrirParcela: (p: ParcelaDoEscritorio) => void }) {
-  if (caixa && !usuario) return <><ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
+function Entradas({ caixa, parcelas, periodo, usuario, destaque, aoMudar, aoAbrirParcela }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; destaque?: string | null; aoMudar: (l: Lancamento) => void; aoAbrirParcela: (p: ParcelaDoEscritorio) => void }) {
+  if (caixa && !usuario) return <><ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} destaque={destaque} aoMudar={aoMudar} /></>;
   const lista = entradasDoMes(parcelas, periodo, usuario);
   const maior = maiorParcelaPorContrato(parcelas);
   return <>
@@ -330,11 +344,11 @@ function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; con
   return <section className="painel-secao" aria-label="Obrigações">
     <section aria-label="Repasses">
       <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
-      <Repasses lista={atual.repasses} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
+      <Repasses lista={atual.repasses} periodo={periodo} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
     </section>
     <section aria-label="A passar a participantes e indicadores">
       <TituloSecao>A passar a participantes e indicadores</TituloSecao>
-      <ValoresAPassar lista={atual.aPassar} hoje={hoje} aoMudar={aoMudar} />
+      <ValoresAPassar lista={atual.aPassar} periodo={periodo} hoje={hoje} aoMudar={aoMudar} />
     </section>
   </section>;
 }
