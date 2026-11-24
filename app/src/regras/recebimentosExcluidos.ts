@@ -2,7 +2,7 @@
 // mostra (#413): o contrato, a parcela, a data, o valor, a conta e quem excluiu. Só leitura: ninguém muda nem apaga estas linhas.
 import type { RecebimentoExcluido } from '../dados/tipos';
 import { fmtCentavos } from './caixa';
-import { FUSO_DA_AGENDA } from './compromisso';
+import { diaNoEscritorio } from './fuso';
 import { fmtData } from './pessoa';
 
 /** O que se diz de cada tipo de linha: o recebimento passou por uma conta; a parcela importada como paga, não. */
@@ -33,8 +33,7 @@ export function linhaDoExcluido(r: RecebimentoExcluido, equipe: readonly { id: s
     valor: fmtCentavos(r.valor),
     conta: tipo.conta(r),
     quem: equipe.find(m => m.id === r.excluido_por)?.nome || QUEM_SAIU,
-    // O dia da exclusão no fuso do escritório, como o arquivamento no histórico do compromisso.
-    excluidoEm: new Date(r.excluido_em).toLocaleDateString('pt-BR', { timeZone: FUSO_DA_AGENDA }),
+    excluidoEm: diaNoEscritorio(r.excluido_em),
     selos: [tipo.selo, r.estornado ? 'Estornado' : null].filter((s): s is string => !!s)
   };
 }
