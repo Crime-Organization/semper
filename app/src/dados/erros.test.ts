@@ -122,4 +122,15 @@ describe('Erros do banco em português', () => {
     // Então
     expect(erro.message).toBe('Não foi possível concluir agora. Tente de novo.');
   });
+
+  it.each([
+    ['processos_deferimento_depois_do_deposito', 'A publicação do deferimento não pode ser antes do depósito.'],
+    ['processos_concessao_depois_do_deferimento', 'A concessão não pode ser antes da publicação do deferimento.'],
+    ['processos_concessao_depois_do_deposito', 'A concessão não pode ser antes do depósito.']
+  ])('dada a regra da ordem das datas de PI %s (#418), quando o banco recusa, então a mensagem é "%s"', (regra, esperada) => {
+    // Quando
+    const erro = traduzir({ code: '23514', message: `new row for relation "processos" violates check constraint "${regra}"` });
+    // Então
+    expect(erro.message).toBe(esperada);
+  });
 });

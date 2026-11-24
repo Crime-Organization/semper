@@ -330,6 +330,15 @@ export const fmtClassesNice = (classes: readonly number[] | null | undefined) =>
 // ---------- cadastro ----------
 /** A recusa da concessão antes do depósito (a mesma no cadastro, no banco e no fictício). */
 export const CONCESSAO_ANTES_DO_DEPOSITO = 'A concessão não pode ser antes do depósito.';
+/** A ordem da publicação do deferimento da marca (#418), as mesmas no cadastro, no banco (20261124145547_ordem_do_deferimento_da_pi.sql) e no fictício. */
+export const DEFERIMENTO_ANTES_DO_DEPOSITO = 'A publicação do deferimento não pode ser antes do depósito.';
+export const CONCESSAO_ANTES_DO_DEFERIMENTO = 'A concessão não pode ser antes da publicação do deferimento.';
+/** As datas da proteção que vêm umas depois das outras: a de cada par não pode ser antes da primeira, com a frase da recusa. */
+export const ORDEM_DAS_DATAS: readonly { antes: 'deposito' | 'deferimento'; depois: 'deferimento' | 'concessao'; recusa: string }[] = [
+  { antes: 'deposito', depois: 'concessao', recusa: CONCESSAO_ANTES_DO_DEPOSITO },
+  { antes: 'deposito', depois: 'deferimento', recusa: DEFERIMENTO_ANTES_DO_DEPOSITO },
+  { antes: 'deferimento', depois: 'concessao', recusa: CONCESSAO_ANTES_DO_DEFERIMENTO }
+];
 type ComArea = CamposProtecao & { area: string; tipo: TipoProcesso };
 /** O campo conta só no processo de PI, com um tipo que o tenha (os outros estão fora da tela e não são gravados). */
 export const campoDaProtecaoNaTela = (c: ComArea, campo: CampoDaProtecao) =>
@@ -337,18 +346,18 @@ export const campoDaProtecaoNaTela = (c: ComArea, campo: CampoDaProtecao) =>
 
 const lerSemErro = (ler: () => unknown) => { try { ler(); return null; } catch (e) { return (e as Error).message; } };
 const DATAS: CampoDaProtecao[] = ['deposito', 'deferimento', 'concessao', 'publicacao', 'criacao'];
+/** As conferências da ordem das datas (ORDEM_DAS_DATAS) do campo que vem depois: só quando a data de antes também está na tela. */
+const naOrdem = (campo: 'deferimento' | 'concessao') => ORDEM_DAS_DATAS.filter(o => o.depois === campo).map(o => (c: ComArea) => {
+  try {
+    const antes = lerData(c[o.antes]), depois = lerData(c[o.depois]);
+    return campoDaProtecaoNaTela(c, o.antes) && antes && depois && depois < antes ? o.recusa : null;
+  } catch { return null; }
+});
 /** A conferência de cada campo (a primeira mensagem que aparecer). Só vale para o campo que está na tela. */
 const CONFERENCIAS_DA_PROTECAO: Partial<Record<CampoDaProtecao, ((c: ComArea) => string | null)[]>> = {
   ...Object.fromEntries(DATAS.map(campo => [campo, [(c: ComArea) => lerSemErro(() => lerData(c[campo]))]])),
-  concessao: [
-    c => lerSemErro(() => lerData(c.concessao)),
-    c => {
-      try {
-        const dep = lerData(c.deposito), con = lerData(c.concessao);
-        return campoDaProtecaoNaTela(c, 'deposito') && dep && con && con < dep ? CONCESSAO_ANTES_DO_DEPOSITO : null;
-      } catch { return null; }
-    }
-  ],
+  deferimento: [c => lerSemErro(() => lerData(c.deferimento)), ...naOrdem('deferimento')],
+  concessao: [c => lerSemErro(() => lerData(c.concessao)), ...naOrdem('concessao')],
   classesNice: [c => lerSemErro(() => lerClassesNice(c.classesNice))],
   especificacao: [c => c.especificacao.trim().length > TAMANHO_PROTECAO.especificacao ? `A especificação pode ter até ${TAMANHO_PROTECAO.especificacao} caracteres.` : null],
   linguagem: [c => c.linguagem.trim().length > TAMANHO_PROTECAO.linguagem ? `A linguagem pode ter até ${TAMANHO_PROTECAO.linguagem} caracteres.` : null],

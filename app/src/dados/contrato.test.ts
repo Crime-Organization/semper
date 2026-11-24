@@ -2550,6 +2550,22 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(await SD.processoObter(judicial.id)).toMatchObject({ deferimento: null });
       });
+
+      it('quando o deferimento vem antes do depósito, ou a concessão antes do deferimento, então é recusado, como no banco (#418)', async () => {
+        // Dado
+        const { id } = await novoProcesso({ protecao: 'marca', deposito: '2025-03-10' });
+        // Quando
+        const antesDoDeposito = SD.processoAtualizar(id, { deferimento: '2025-03-09' });
+        // Então
+        await expect(antesDoDeposito).rejects.toThrow('A publicação do deferimento não pode ser antes do depósito.');
+        // Quando: o deferimento em ordem, e depois a concessão antes dele
+        await SD.processoAtualizar(id, { deferimento: '2026-10-06' });
+        const antesDoDeferimento = SD.processoAtualizar(id, { concessao: '2026-10-05' });
+        // Então
+        await expect(antesDoDeferimento).rejects.toThrow('A concessão não pode ser antes da publicação do deferimento.');
+        await expect(SD.processoAtualizar(id, { concessao: '2026-10-06' })).resolves.not.toThrow();
+        expect(await SD.processoObter(id)).toMatchObject({ deposito: '2025-03-10', deferimento: '2026-10-06', concessao: '2026-10-06' });
+      });
     });
 
     describe('Processos: pessoas com papel, recursos e incidentais (#316)', () => {

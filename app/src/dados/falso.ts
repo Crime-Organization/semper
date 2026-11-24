@@ -53,7 +53,7 @@ import {
   SO_JUDICIAL_NO_ADMINISTRATIVO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
-import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { APRESENTACOES_DA_MARCA, NATUREZAS_DA_MARCA, ORDEM_DAS_DATAS, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
 import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -2818,8 +2818,10 @@ function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
     && ateTamanho(d.especificacao, TAMANHO_PROTECAO.especificacao) && ateTamanho(d.linguagem, TAMANHO_PROTECAO.linguagem)
     && (d.variacoes === undefined || d.variacoes === null || (Number.isInteger(d.variacoes) && d.variacoes >= 1 && d.variacoes <= VARIACOES_DO_DESENHO));
   if (!valido) throw new Error(FORMATO_INVALIDO);
-  const deposito = d.deposito !== undefined ? d.deposito : atual?.deposito, concessao = d.concessao !== undefined ? d.concessao : atual?.concessao;
-  if (deposito && concessao && concessao < deposito) throw new Error(CONCESSAO_ANTES_DO_DEPOSITO);
+  // A ordem das datas: a concessão depois do depósito (#317) e a publicação do deferimento entre os dois (#418), como as regras do banco.
+  const valor = (campo: (typeof ORDEM_DAS_DATAS)[number]['antes' | 'depois']) => d[campo] !== undefined ? d[campo] : atual?.[campo];
+  const fora = ORDEM_DAS_DATAS.find(o => { const antes = valor(o.antes), depois = valor(o.depois); return !!antes && !!depois && depois < antes; });
+  if (fora) throw new Error(fora.recusa);
 }
 /** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
 const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
