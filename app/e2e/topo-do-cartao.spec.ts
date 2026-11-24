@@ -156,15 +156,18 @@ test.describe('O topo não fica por baixo dos botões da janela', () => {
     { formato: 'na janela estreita', tela: { width: 900, height: 900 }, centro: true },
     { formato: 'no celular', tela: { width: 390, height: 844 }, centro: false }
   ];
+  // Um teste por cartão em cada formato (#420): os seis cartões num teste só levavam uns 16 segundos com a máquina livre, e com a
+  // bateria toda rodando passavam dos 30 do limite de cada teste. Separados, cada um confere o mesmo, no mesmo formato.
   for (const { formato, tela, centro } of FORMATOS) {
-    test(`dados os seis cartões ${formato}, quando abrem com uma etiqueta e depois em edição, então nada do topo cruza os botões`, async ({ page }) => {
-      await page.setViewportSize(tela);
-      for (const { cartao: nome, endereco, linha, tipo } of CARTOES) {
+    for (const { cartao: nome, endereco, linha, tipo } of CARTOES) {
+      test(`dado o cartão de ${nome} ${formato}, quando abre com uma etiqueta e depois em edição, então nada do topo cruza os botões`, async ({ page }) => {
+        await page.setViewportSize(tela);
         // Dado
         const cartao = await abrirCartao(page, endereco, linha);
         if (centro && await cartao.getByRole('button', { name: 'Abrir no centro da tela' }).isVisible()) await cartao.getByRole('button', { name: 'Abrir no centro da tela' }).click();
-        // Cada etiqueta tem um nome só: a segunda com o mesmo nome seria recusada.
         await criarEtiqueta(page, cartao, `Revisar ${nome}`);
+        // A janela acabou de entrar (ou de ir para o centro) e o selo da etiqueta acabou de aparecer: mede-se com tudo parado.
+        await esperarAsAnimacoes(cartao);
         // Então
         await nadaPorBaixoDosBotoes(cartao, tipo);
         // Quando: em edição, o "Modo de edição" fica no lugar dos botões do cartão
@@ -181,8 +184,8 @@ test.describe('O topo não fica por baixo dos botões da janela', () => {
         await cartao.getByRole('button', { name: 'Cancelar' }).click();
         await cartao.getByRole('button', { name: 'Fechar' }).click();
         await expect(cartao).toHaveCount(0);
-      }
-    });
+      });
+    }
   }
 
   test('dado o pior caso (10 participantes, 4 grupos de nome longo e 6 etiquetas), quando a tarefa abre ao lado e no celular, então nada cruza os botões e o título continua na tela', async ({ page }) => {
