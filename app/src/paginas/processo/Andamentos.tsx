@@ -11,7 +11,7 @@ import {
   andamentoNovo, aTratar, avisoDoLancamento, dadosDoAndamento, errosDoAndamento, ESCOLHAS_DO_TIPO, escolhaDoTipo, escolhasDoFormulario, formDoAndamento, mudancaDoAndamento,
   nomeDoAndamento, prazoNovo, quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO, tipoDaEscolha, type EscolhaDoTipo, type FormDoAndamento
 } from '../../regras/andamentos';
-import { contagemDoProcesso } from '../../regras/propriedadeIntelectual';
+import { contagemDoProcesso, siglaDoCalendario } from '../../regras/propriedadeIntelectual';
 import { falha, feito } from '../../ui/avisos';
 import { BotaoDeIcone, Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
@@ -185,7 +185,7 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
             {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id &&
               <Botao icone="voltar" rotulo="Voltar a tratar" dica={DICA.voltarATratar} onClick={() => marcarTratada(a, false)} />}
           </div>
-          {aberto?.o === 'prazo' && aberto.id === a.id && <FormDoPrazo inicial={prazoNovo(hoje, contagemDoProcesso(p, orgao), a)} orgao={orgao} siglaDoProcesso={p.orgao}
+          {aberto?.o === 'prazo' && aberto.id === a.id && <FormDoPrazo inicial={prazoNovo(hoje, contagemDoProcesso(p, orgao), a)} orgao={orgao} siglaDoProcesso={siglaDoCalendario(p)}
             aoSalvar={lancarPrazo} aoCancelar={() => setAberto(null)} />}
         </li>;
       })}

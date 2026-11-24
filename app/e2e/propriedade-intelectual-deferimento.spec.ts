@@ -126,4 +126,17 @@ test.describe('Prazo após o deferimento e compromissos que acompanham as datas 
     await expect(cartao.getByRole('button', { name: 'Atualizar as datas na agenda' })).toHaveCount(0);
     await expect(cartao.getByText(`Estes prazos já estão na agenda: ${titulo}, na seção "Compromissos".`)).toBeVisible();
   });
+
+  test('dado o processo de marca sem órgão, quando a pessoa abre o novo prazo, então a conta usa o calendário do INPI, sem dizer que o processo não tem órgão', async ({ page }) => {
+    // Dado: o INPI está em Feriados e prazos (na semente), e o processo não tem órgão
+    const cartao = await cadastrar(page, 'Marca', { 'Data do depósito': '10032025' });
+    // Quando
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo', exact: true }).first().click();
+    // Então: dias úteis, no calendário do INPI
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await expect(form.getByRole('radio', { name: 'Dias úteis' })).toBeChecked();
+    await expect(form.getByText(/Este processo não tem órgão/)).toHaveCount(0);
+    await expect(form.getByText(/não está cadastrado em Feriados e prazos/)).toHaveCount(0);
+  });
 });
