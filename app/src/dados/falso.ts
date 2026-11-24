@@ -4033,7 +4033,10 @@ export const SD: Dados = {
       id: novoId(), codigo: codigo() };
     // Como o gatilho aa_aprovacao (#313): também quem cria já concluída, sem aprovar.
     t.etapa_id = etapaComAprovacao(t, t.etapa_id, colunasDeTarefas(), membroLogado());
-    bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null); avisarSolicitanteNoFalso(t, null); avisarAprovacaoNoFalso(t, null);
+    bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null);
+    // Como o gatilho aviso_do_solicitante: a tarefa nova sem solicitante não começa sequência nenhuma.
+    if (t.solicitante_id) avisarSolicitanteNoFalso(t, null);
+    avisarAprovacaoNoFalso(t, null);
     auditar('tarefas', 'inclusao', t); gravar();
     return espera({ id: t.id, codigo: t.codigo });
   },

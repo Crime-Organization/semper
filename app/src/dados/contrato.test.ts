@@ -10635,4 +10635,12 @@ describe('Avisos da tarefa ao solicitante e a quem executa (banco fictício, #41
     expect(await SD.mensagensNaoLidas()).toBe(0);
     expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/lida']);
   });
+
+  it('dada uma tarefa nova sem solicitante, quando o Mauro a cria, então nenhuma sequência de trocas de solicitante é guardada', async () => {
+    // Quando
+    const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
+    // Então
+    const guardado = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { mudancasDoSolicitante: { tarefa_id: string }[] };
+    expect(guardado.mudancasDoSolicitante.filter(s => s.tarefa_id === id)).toEqual([]);
+  });
 });

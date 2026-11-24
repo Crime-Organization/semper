@@ -121,6 +121,10 @@ begin
   if tg_op = 'UPDATE' and new.solicitante_id is not distinct from old.solicitante_id then
     return null;
   end if;
+  -- A tarefa nova sem solicitante não começa sequência nenhuma (nada a avisar nem a guardar).
+  if tg_op = 'INSERT' and new.solicitante_id is null then
+    return null;
+  end if;
   delete from privado.mudancas_do_solicitante m where m.em <= now() - interval '1 minute';
   select * into s from privado.mudancas_do_solicitante m where m.tarefa_id = new.id;
   v_antes := case when s.tarefa_id is not null then s.solicitante_antes when tg_op = 'UPDATE' then old.solicitante_id end;

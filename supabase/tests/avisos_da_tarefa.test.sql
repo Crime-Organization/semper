@@ -52,6 +52,11 @@ create function pg_temp.passar_o_tempo() returns void language sql security defi
   update public.mensagens_da_tarefa set criado_em = criado_em - interval '2 minutes';
 $$;
 grant execute on function pg_temp.passar_o_tempo() to authenticated;
+-- As sequências de trocas de solicitante guardadas para uma tarefa.
+create function pg_temp.sequencias(p_tarefa text) returns bigint language sql security definer as $$
+  select count(*) from privado.mudancas_do_solicitante where tarefa_id = p_tarefa::uuid
+$$;
+grant execute on function pg_temp.sequencias(text) to authenticated;
 
 -- ---------- 1. o solicitante ----------
 -- Dada a Ana logada, quando ela cria uma tarefa para a Bia, com o Caio como solicitante, então o Caio recebe o aviso e a Ana, nada
@@ -90,6 +95,11 @@ update public.tarefas set solicitante_id = pg_temp.perfil(1) where id = '7000000
 select pg_temp.passar_o_tempo();
 update public.tarefas set solicitante_id = pg_temp.perfil(3) where id = '70000000-0000-0000-0000-000000000002';
 select is(pg_temp.avisos(3, '70000000-0000-0000-0000-000000000002'), 'solicitante/Ana/nova', 'Ser posto de novo renova o aviso');
+
+-- Quando a Ana cria uma tarefa sem solicitante, então nada é guardado sobre trocas de solicitante (não há o que avisar)
+insert into public.tarefas (id, titulo, responsavel_id, criado_por, etapa_id) values
+  ('70000000-0000-0000-0000-000000000005', 'Conferir as custas', pg_temp.perfil(2), auth.uid(), pg_temp.coluna('Fazendo'));
+select is(pg_temp.sequencias('70000000-0000-0000-0000-000000000005'), 0::bigint, 'A tarefa nova sem solicitante não guarda sequência de trocas');
 
 -- Quem está desativado não recebe
 reset role;
