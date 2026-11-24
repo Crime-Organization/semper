@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type ObjetoDoEscritorio } from '../dados';
 import { Avisos } from '../ui/avisos';
 import { iniciarPreferencias } from '../ui/preferencias';
+import { SEM_OBJETO_DA_DEMANDA } from '../regras/objetos';
 import { SepararObjeto } from './SepararObjeto';
 
 const JUNTOS: ObjetoDoEscritorio = { id: 'o1', descricao: 'Marca e patente', contratos_ativos: 2, contratos_arquivados: 0, demandas: 2 };
@@ -64,16 +65,61 @@ describe('Separar um objeto de contrato', () => {
   });
 
   it('dado um objeto sem demandas, quando o administrador separa em três nomes, então não pergunta nada sobre demandas', async () => {
-    // Dado
-    const separar = vi.spyOn(SD, 'objetoSeparar').mockResolvedValue(TROCA), pedirDemandas = vi.spyOn(SD, 'demandasDoObjeto');
+    // Dado: o banco confirma que o objeto não tem demandas
+    const separar = vi.spyOn(SD, 'objetoSeparar').mockResolvedValue(TROCA);
+    vi.spyOn(SD, 'demandasDoObjeto').mockResolvedValue([]);
     render(<SepararObjeto objeto={{ ...JUNTOS, demandas: 0 }} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    await screen.findByText(/Muda em 2 contratos e 0 demandas/);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Mais um nome' }));
     await escreverNomes('Parecer', 'Consulta', 'Recurso');
     await clicarSeparar();
     // Então
-    expect(pedirDemandas).not.toHaveBeenCalled();
     expect(screen.queryByRole('group', { name: 'A qual objeto novo cada demanda fica ligada?' })).toBeNull();
     expect(separar).toHaveBeenCalledWith('o1', ['Parecer', 'Consulta', 'Recurso'], []);
+  });
+
+  it('dado a lista dizendo que o objeto não tem demandas, quando a separação abre e o banco tem uma (criada depois), então a tela pergunta dela', async () => {
+    // Dado: a contagem da lista é de antes da demanda nova
+    vi.spyOn(SD, 'demandasDoObjeto').mockResolvedValue([DEMANDAS[0]]);
+    // Quando
+    render(<SepararObjeto objeto={{ ...JUNTOS, demandas: 0 }} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    // Então
+    expect(await screen.findByLabelText(/Marca e patente \(demanda D1/)).toBeInTheDocument();
+    expect(screen.getByText(/Muda em 2 contratos e 1 demanda:/)).toBeInTheDocument();
+  });
+
+  it('dado uma demanda criada depois que a separação abriu, quando o banco recusa por falta da escolha dela, então a tela busca de novo e pergunta dela', async () => {
+    // Dado: ao abrir, o objeto tinha só a demanda D1; depois alguém criou a D2
+    vi.spyOn(SD, 'demandasDoObjeto').mockResolvedValueOnce([DEMANDAS[0]]).mockResolvedValue(DEMANDAS);
+    const separar = vi.spyOn(SD, 'objetoSeparar').mockRejectedValueOnce(new Error(SEM_OBJETO_DA_DEMANDA)).mockResolvedValue(TROCA);
+    render(<Avisos><SepararObjeto objeto={JUNTOS} aoTerminar={vi.fn()} aoCancelar={vi.fn()} /></Avisos>);
+    await escreverNomes('Registro de marca', 'Patente');
+    await userEvent.selectOptions(await screen.findByLabelText(/Marca e patente \(demanda D1/), 'Registro de marca');
+    // Quando
+    await clicarSeparar();
+    // Então: a demanda nova aparece, com o que falta
+    const nova = await screen.findByLabelText(/Registro do logotipo \(demanda D2/);
+    expect(nova).toHaveAccessibleDescription(SEM_OBJETO_DA_DEMANDA);
+    // Quando: o administrador escolhe e separa de novo
+    await userEvent.selectOptions(nova, 'Patente');
+    await clicarSeparar();
+    // Então
+    expect(separar).toHaveBeenLastCalledWith('o1', ['Registro de marca', 'Patente'],
+      [{ demanda: 'd1', objeto: 'Registro de marca' }, { demanda: 'd2', objeto: 'Patente' }]);
+  });
+
+  it('quando a busca das demandas falha, então a tela mostra o erro no lugar de "Carregando" e não separa', async () => {
+    // Dado
+    vi.spyOn(SD, 'demandasDoObjeto').mockRejectedValue(new Error('Sem conexão com o servidor.'));
+    const separar = vi.spyOn(SD, 'objetoSeparar');
+    // Quando
+    render(<SepararObjeto objeto={JUNTOS} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    // Então
+    expect(await screen.findByText(/Sem conexão com o servidor\./)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    await escreverNomes('Registro de marca', 'Patente');
+    await clicarSeparar();
+    expect(separar).not.toHaveBeenCalled();
   });
 });
