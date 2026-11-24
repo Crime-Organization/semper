@@ -2,13 +2,16 @@
 // do escritório vai para a aba do navegador. Sem logomarca, fica a letra, como antes.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. No banco fictício, o escritório se chama "Escritório Exemplo
 // (teste)" e começa sem logomarca.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
 
 /** Uma logomarca de exemplo (um retângulo verde com uma barra branca), desenhada na hora: nada de marca de verdade. */
 const LOGOMARCA = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80"><rect width="200" height="80" fill="#377D22"/>'
   + '<rect x="20" y="30" width="160" height="20" fill="#FFFFFF"/></svg>');
-const MARCA_NA_LATERAL = 'Escritório Exemplo (teste): início';
+// A linha do escritório no alto do menu lateral (o grupo com o nome dele). Desde a #435 ela não é mais um link: o Início é a casinha
+// na ponta dela, só com o ícone.
+const MARCA_NA_LATERAL = 'Escritório Exemplo (teste)';
+const marcaNaLateral = (page: Page) => page.getByRole('complementary', { name: 'Menu' }).getByRole('group', { name: MARCA_NA_LATERAL });
 
 test.describe('Marca do escritório nas telas', () => {
   test('dado um escritório, quando o usuário entra numa página, então a aba do navegador mostra a página, o nome do escritório e o SEMPER', async ({ page }) => {
@@ -22,7 +25,7 @@ test.describe('Marca do escritório nas telas', () => {
     // Quando
     await page.goto('/inicio/');
     // Então
-    const marca = page.getByRole('link', { name: MARCA_NA_LATERAL });
+    const marca = marcaNaLateral(page);
     await expect(marca).toHaveText(/^EEscritório Exemplo \(teste\)SEMPER$/);
     await expect(marca.getByRole('img')).toHaveCount(0);
   });
@@ -38,7 +41,7 @@ test.describe('Marca do escritório nas telas', () => {
     await page.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByText('Dados do escritório salvos.')).toBeVisible();
-    const marca = page.getByRole('link', { name: MARCA_NA_LATERAL });
+    const marca = marcaNaLateral(page);
     await expect(marca.getByRole('img', { name: 'Logomarca de Escritório Exemplo (teste)' })).toBeVisible();
     await expect(marca).toHaveText(/^Escritório Exemplo \(teste\)SEMPER$/);
   });

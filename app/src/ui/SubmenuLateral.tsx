@@ -6,6 +6,9 @@ import { useLocation, useNavigate } from 'react-router';
 import { Icone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
+/** Tamanho da seta de abrir e recolher, menor que o ícone do item, para não competir com ele. */
+const ICONE_DA_SETA = 14;
+
 interface Props {
   /** Nome curto e fixo, para guardar a escolha da pessoa (ex.: "agenda"). */
   id: string;
@@ -15,13 +18,10 @@ interface Props {
   caminhos: string[];
   /** A tela do próprio item (ex.: o painel de Processos): clicar nele leva a ela, e só recolhe quando já está nela. */
   para?: string;
-  /** O "+" da linha (ex.: o de cadastrar compromisso, #404): ao lado do botão, na coluna dos "+" dos outros módulos, e à vista com
-   *  o submenu aberto ou fechado. */
-  mais?: ReactNode;
   children: ReactNode;
 }
 
-export function SubmenuLateral({ id, icone, rotulo, caminhos, para, mais, children }: Props) {
+export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: Props) {
   const chave = `menu.${id}.aberto`;
   const painel = useId();
   const { pathname } = useLocation();
@@ -41,11 +41,13 @@ export function SubmenuLateral({ id, icone, rotulo, caminhos, para, mais, childr
     salvarPreferencia(chave, !aberto);
   }
 
-  const botao = <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
-    <Icone nome={icone} /><span>{rotulo}</span><Icone nome={aberto ? 'acima' : 'abaixo'} tam={14} />
-  </button>;
+  // A seta de abrir (#435) fica na coluna dos "+" dos módulos, com o meio no eixo deles (como o número de Mensagens). Por isso a
+  // linha do submenu não tem "+": o cadastro, quando há (o "Novo compromisso" da Agenda), é uma opção do submenu.
   return <div className="nav-grupo">
-    {mais ? <div className="nav-linha">{botao}{mais}</div> : botao}
+    <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
+      <Icone nome={icone} /><span>{rotulo}</span>
+      <span className="nav-coluna-do-mais nav-seta"><Icone nome={aberto ? 'acima' : 'abaixo'} tam={ICONE_DA_SETA} /></span>
+    </button>
     <div id={painel} className="nav-sub" hidden={!aberto}>{children}</div>
   </div>;
 }
