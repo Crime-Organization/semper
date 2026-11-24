@@ -102,7 +102,9 @@ test.describe('Recursos e incidentais (#316)', () => {
     // E o recurso mostra o processo de origem, com o próprio número
     await recurso.click();
     cartao = page.getByRole('dialog');
-    await expect(cartao.getByText(NUMERO_DO_RECURSO, { exact: true })).toBeVisible();
+    // (o número fica em "Dados do processo", não no topo do cartão: #430)
+    const dados = await secao(cartao, 'Dados do processo');
+    await expect(dados.getByRole('definition').filter({ hasText: NUMERO_DO_RECURSO })).toBeVisible();
     ligados = await secao(cartao, 'Recursos e incidentais');
     await expect(ligados.getByRole('link', { name: /Processo de origem/ })).toContainText('0001234-97.2026.8.13.0024');
   });

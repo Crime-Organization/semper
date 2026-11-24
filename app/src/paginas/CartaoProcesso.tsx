@@ -1,13 +1,13 @@
 // Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo (TopoDoCartao,
 // #382, como o da anotação), o tipo e o código, com a equipe em bolinhas (responsável e colaboradores), a etiqueta, o lápis e o ⋯
-// à direita; a linha da Situação (#397); os selos das etiquetas; o nome e, no lugar da descrição, o número (CabecaDoCartao, #397;
-// as datas ficam nas seções). "Entrar como colaborador" e "Assumir como responsável" ficam
+// à direita; a linha da Situação (#397); os selos das etiquetas e o nome (CabecaDoCartao, #397; as datas ficam nas seções e o
+// número, só em "Dados do processo", #430). "Entrar como colaborador" e "Assumir como responsável" ficam
 // logo abaixo, junto da nota de quem só lê (no ⋯, ninguém os acharia), e o aviso diz que a equipe está no topo. Depois, cada tópico
 // numa seção que recolhe (prazos, dados, clientes, demandas, contratos, tarefas, compromissos). Na coluna da direita (no centro) ou
 // no pé do cartão (ao lado), desde a #362: comentários, andamentos (a linha do tempo), anotações e histórico de alterações.
 // Desde a #346, quem altera o processo muda o nome do cartão no próprio lugar, como na anotação (o lápis não o repete). Sem
 // nome, o título mostra os clientes (ou o número); o campo abre em branco, e apagar o nome volta a mostrá-los. O número
-// abaixo do título não vira campo: muda pelo lápis, com a conferência do CNJ.
+// (em "Dados do processo") não vira campo: muda pelo lápis, com a conferência do CNJ.
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type ComoEntrarNoProcesso, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
 import { TAMANHO_PROCESSO } from '../dados/limites';
@@ -187,7 +187,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
-    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas) e o título. Sem descrição: o número ficava ali e se
+        repetia em "Dados do processo" (e no título, se o processo não tem nome nem clientes); desde a #430, fica só nos dados. */}
     <CabecaDoCartao
       topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */
@@ -210,10 +211,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         </SituacaoDoCartao>} />}
       titulo={<TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
         maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
-        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />}
-      /* Sem a faixa das datas: só com a criação, ela some (o rodapé já a mostra; a distribuição fica nos dados do processo). No
-         lugar da descrição, o número (#397). */
-      descricao={<p className="demanda-descricao">{p.numero}</p>} />
+        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />} />
+    {/* Sem a faixa das datas: só com a criação, ela some (o rodapé já a mostra; a distribuição fica nos dados do processo). */}
 
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 

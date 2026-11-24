@@ -100,10 +100,11 @@ test.describe('Cadastro de processo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA', level: 2 })).toBeVisible();
-    await expect(cartao).toContainText(NUMERO_NOVO);
     // No quadro de processos toda coluna fica num grupo, e o menu mostra o grupo na frente (#302).
     await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('INÍCIO: DISTRIBUÍDO');
+    // E o número está em "Dados do processo" (não no topo do cartão: #430)
     await abrirSecao(cartao, 'Dados do processo');
+    await expect(cartao.getByRole('definition').filter({ hasText: NUMERO_NOVO })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'Montes Claros' })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'R$' })).toContainText('1.500,50');
     await expect(cartao.getByRole('definition').filter({ hasText: 'Réu' })).toBeVisible();
@@ -1277,5 +1278,46 @@ test.describe('Nome do cartão no próprio lugar (#346)', () => {
     // Então
     await expect(cartao.getByRole('textbox', { name: 'Nome do cartão' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'JOSÉ DA SILVA TESTE', exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('O número só em "Dados do processo" (#430)', () => {
+  const NUMERO = '0001234-97.2026.8.13.0024';
+  /** Abre o processo judicial da semente pela tabela, achando a linha pelo número. */
+  async function abrirJudicial(page: Page, titulo: string) {
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: NUMERO }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: titulo, level: 2 })).toBeVisible();
+    return cartao;
+  }
+  const numeroVisivel = (cartao: Locator) => cartao.getByText(NUMERO, { exact: true }).filter({ visible: true });
+
+  test('dado o cartão de um processo, quando a pessoa o abre, então o número não aparece no topo e continua em "Dados do processo"', async ({ page }) => {
+    // Dado / Quando
+    const cartao = await abrirJudicial(page, 'JOSÉ DA SILVA TESTE');
+    // Então: com as seções recolhidas, o número não aparece no cartão
+    await expect(numeroVisivel(cartao)).toHaveCount(0);
+    // E, ao abrir "Dados do processo", ele está lá, uma vez só
+    await abrirSecao(cartao, 'Dados do processo');
+    await expect(cartao.getByRole('definition').filter({ hasText: NUMERO })).toBeVisible();
+    await expect(numeroVisivel(cartao)).toHaveCount(1);
+  });
+
+  test('dado um processo sem nome e sem clientes, quando a pessoa o abre, então o número é o nome do cartão e não se repete no topo', async ({ page }) => {
+    // Dado: o processo judicial da semente sem os clientes (como alguns que vieram do histórico)
+    await page.goto('/processos/judicial/');
+    await page.evaluate(numero => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { processos: { numero: string; clientes: string[] }[] };
+      bd.processos.filter(p => p.numero === numero).forEach(p => { p.clientes = []; });
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    }, NUMERO);
+    // O banco fictício lê a aba ao abrir a página: recarrega para valer a mudança.
+    await page.reload();
+    // Quando
+    const cartao = await abrirJudicial(page, NUMERO);
+    // Então: o número aparece só no título
+    await expect(numeroVisivel(cartao)).toHaveCount(1);
   });
 });

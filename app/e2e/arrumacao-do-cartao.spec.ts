@@ -1,7 +1,8 @@
 // A nova arrumação do cartão (#397, com a #394 e a #396; pedido do dono de 20/11), a mesma em tarefa, demanda, processo judicial e
 // administrativo, compromisso, contrato e pessoa. Na coluna da esquerda, de cima para baixo: a linha de cima (o tipo, o código, a
 // equipe, a etiqueta, o lápis e o ⋯), a linha da Situação (com o ✓ redondo só na tarefa e na demanda), as etiquetas, o título, os
-// dados (as datas e o tempo), a descrição (no processo, o número), o "Expandir tudo" da esquerda e as seções. Na coluna da direita,
+// dados (as datas e o tempo), a descrição (o processo não tem: o número fica só nos dados, #430), o "Expandir tudo" da esquerda e
+// as seções. Na coluna da direita,
 // no centro largo, uma linha só com três botões redondos no alto: o "Expandir tudo" dela, o abrir ao lado e o X. Ao lado e no
 // celular, o X e o abrir ao lado continuam no alto do cartão, e o "Expandir tudo" das seções de baixo fica acima de Comentários.
 // Cada "Expandir tudo" diz no nome de onde são as seções que abre: "da coluna da esquerda" e "da coluna da direita" no centro largo,
@@ -30,10 +31,8 @@ const descricaoDoCartao = (c: Locator) => c.getByRole('button', { name: /^Sem de
 const CARTOES: Cartao[] = [
   { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', datas: true, tempo: true, concluir: true, descricao: descricaoDoCartao, primeiraSecao: /^Checklists/ },
   { cartao: 'demanda', endereco: '/demandas/', linha: 'Registro de marca', datas: true, tempo: true, concluir: true, descricao: descricaoDoCartao, primeiraSecao: /^Checklists/ },
-  { cartao: 'processo judicial', endereco: '/processos/judicial/', linha: 'JOSÉ DA SILVA TESTE', datas: false, tempo: false, concluir: false,
-    descricao: c => c.getByText('0001234-97.2026.8.13.0024', { exact: true }), primeiraSecao: /^Prazos/ },
-  { cartao: 'processo administrativo', endereco: '/processos/administrativo/', linha: 'Registro da marca Exemplo', datas: false, tempo: false, concluir: false,
-    descricao: c => c.getByText('912345678', { exact: true }), primeiraSecao: /^Prazos/ },
+  { cartao: 'processo judicial', endereco: '/processos/judicial/', linha: 'JOSÉ DA SILVA TESTE', datas: false, tempo: false, concluir: false, primeiraSecao: /^Prazos/ },
+  { cartao: 'processo administrativo', endereco: '/processos/administrativo/', linha: 'Registro da marca Exemplo', datas: false, tempo: false, concluir: false, primeiraSecao: /^Prazos/ },
   { cartao: 'compromisso', endereco: '/agenda/', linha: 'Reunião de equipe', datas: true, tempo: false, concluir: false, primeiraSecao: /^Dados do compromisso/ },
   { cartao: 'contrato', endereco: '/contratos/', linha: 'MARIA APARECIDA EXEMPLO', datas: true, tempo: false, concluir: false, primeiraSecao: /^Checklists/ },
   { cartao: 'pessoa', endereco: '/pessoas/', linha: 'MARIA APARECIDA EXEMPLO', datas: false, tempo: false, concluir: false, primeiraSecao: /^Qualificação/ }
