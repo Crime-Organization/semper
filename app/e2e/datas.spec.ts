@@ -474,8 +474,15 @@ async function dadosDaFaixa(faixa: Locator, dados: string[]) {
   return medidas;
 }
 /** As datas da tarefa, na ordem da faixa. */
+type Caixa = { x: number; y: number; width: number; height: number };
+/** Os botões do tempo um em cima do outro (#434): Iniciar/Retomar/Pausar em cima, "Ajustar meu tempo" embaixo, na mesma coluna e da mesma largura. */
+function conferirOsBotoesEmpilhados(botao: Caixa, ajustar: Caixa) {
+  expect(ajustar.y).toBeGreaterThanOrEqual(botao.y + botao.height);
+  expect(ajustar.x).toBeCloseTo(botao.x, 0);
+  expect(ajustar.width).toBeCloseTo(botao.width, 0);
+}
 const DATAS_DA_TAREFA = ['Criada em', 'Datas'];
-/** O que fica lado a lado na faixa do tempo da tarefa (#383): o relógio, a situação, o botão e "Ajustar meu tempo". */
+/** As partes da faixa do tempo da tarefa (#383): o relógio e a situação, lado a lado, e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
 const partesDoTempo = (tempo: Locator) => [tempo.getByRole('timer'), tempo.getByText('pausado', { exact: true }),
   tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ }), tempo.getByRole('button', { name: 'Ajustar meu tempo' })];
 
@@ -483,7 +490,7 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
   test.use({ viewport: { width: 1440, height: 900 } });
 
   for (const formato of ['ao lado', 'no centro']) {
-    test(`quando a pessoa abre o cartão da tarefa ${formato}, então as datas ficam lado a lado, os nomes numa linha e os valores alinhados na de baixo, e o tempo fica numa faixa própria, logo abaixo, com tudo lado a lado`, async ({ page }) => {
+    test(`quando a pessoa abre o cartão da tarefa ${formato}, então as datas ficam lado a lado, os nomes numa linha e os valores alinhados na de baixo, e o tempo fica numa faixa própria, logo abaixo, com o relógio à esquerda e os botões à direita, um em cima do outro`, async ({ page }) => {
       // Quando
       const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
       if (formato === 'no centro') {
@@ -501,17 +508,20 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
         expect(medidas[i].valor.y).toBeCloseTo(medidas[0].valor.y, 0);
       }
       for (const m of medidas) expect(m.valor.linhas).toBe(1);
-      // E o tempo, embaixo das datas, sem nada dele na faixa das datas: o relógio, a situação, o botão e o ajuste na mesma linha
+      // E o tempo, embaixo das datas, sem nada dele na faixa das datas. Antes (#383), o relógio, a situação, o botão e o ajuste
+      // ficavam todos na mesma linha; desde a #434 (pedido do dono), os dois botões ficam um em cima do outro, à direita da situação,
+      // com o relógio na altura da pilha
       await expect(datas.getByRole('timer')).toHaveCount(0);
       const faixaDasDatas = (await datas.boundingBox())!;
-      const partes = [];
-      for (const parte of partesDoTempo(tempo)) partes.push((await parte.boundingBox())!);
-      expect(partes[0].y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
-      for (let i = 1; i < partes.length; i++) {
-        expect(partes[i].y).toBeLessThan(partes[0].y + partes[0].height);
-        expect(partes[0].y).toBeLessThan(partes[i].y + partes[i].height);
-        expect(partes[i].x).toBeGreaterThanOrEqual(partes[i - 1].x + partes[i - 1].width);
-      }
+      const [relogio, situacao, botao, ajustar] = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
+      expect(relogio.y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
+      expect(situacao.y).toBeLessThan(relogio.y + relogio.height);
+      expect(relogio.y).toBeLessThan(situacao.y + situacao.height);
+      expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
+      expect(botao.x).toBeGreaterThanOrEqual(situacao.x + situacao.width);
+      conferirOsBotoesEmpilhados(botao, ajustar);
+      expect(relogio.y).toBeLessThan(ajustar.y + ajustar.height);
+      expect(botao.y).toBeLessThan(relogio.y + relogio.height);
       // E o tempo total da tarefa é o último dado da faixa das datas (#397); o resumo de quem registrou tempo fica na faixa do tempo
       await expect(datas.getByRole('group', { name: 'Tempo total' })).toHaveText(/2 h$/);
       await expect(tempo.getByRole('list', { name: 'Parte de cada um' })).toBeVisible();
@@ -522,7 +532,7 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
 test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele', async ({ page }) => {
+  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, com os botões um em cima do outro', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
@@ -546,8 +556,11 @@ test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', ()
       expect(caixa.x).toBeGreaterThanOrEqual(faixa.x);
       expect(caixa.x + caixa.width).toBeLessThanOrEqual(faixa.x + faixa.width);
     }
-    const [relogio, situacao] = partesDoTempo(tempo);
+    const [relogio, situacao, botao, ajustar] = partesDoTempo(tempo);
     expect((await situacao.boundingBox())!.y).toBeLessThan((await relogio.boundingBox())!.y + (await relogio.boundingBox())!.height);
+    // E os botões continuam um em cima do outro (#434), da mesma largura, embaixo do relógio
+    conferirOsBotoesEmpilhados((await botao.boundingBox())!, (await ajustar.boundingBox())!);
+    expect((await botao.boundingBox())!.y).toBeGreaterThanOrEqual((await relogio.boundingBox())!.y + (await relogio.boundingBox())!.height);
   });
 
   test('dada uma demanda sem prazo, quando a pessoa abre o cartão, então "Sem prazo" fica numa linha só, alinhado com as outras datas', async ({ page }) => {

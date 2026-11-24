@@ -2,7 +2,7 @@
 // Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo, a lista dos registros para mudar e apagar (#400) e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
 // Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
-// situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" lado a lado, num dado largo, e o resumo de quem registrou
+// situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), num dado largo, e o resumo de quem registrou
 // tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
 // Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda) entra na faixa das datas, como o último dado, à
 // direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
@@ -129,8 +129,9 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     } catch (e) { falha(e); }
   }
 
-  // A faixa do tempo (#383, arrumada na #400): numa linha, o relógio com a situação à esquerda e os dois botões à direita, da mesma
-  // altura; no celular, os botões descem juntos e dividem a largura. Embaixo, a parte de cada um e a lista dos registros.
+  // A faixa do tempo (#383, arrumada na #400 e na #434): o relógio com a situação à esquerda e os dois botões à direita, um em cima
+  // do outro, da mesma largura; no celular, os botões descem para baixo do relógio, ainda empilhados, na largura toda. Embaixo, a
+  // parte de cada um e a lista dos registros.
   return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={<div className="tempo-resumo">
     {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
     <RegistrosDoTempo t={t} tempo={tempo} relogio={relogio} carregar={carregar} />
