@@ -78,6 +78,13 @@ describe('Tempo por extenso e ajuste à mão', () => {
     expect(fmtDuracao(s)).toBe(texto);
   });
 
+  // #436: o resumo dizia "0 min" enquanto o relógio, ao lado, mostrava 0:00:04
+  it.each([[4, '4 s'], [59, '59 s'], [59.6, '1 min'], [60, '1 min'], [0.4, '0 min']])(
+    'dado menos de um minuto, quando são %d segundos, então mostra %s, sem contradizer o relógio', (s, texto) => {
+      // Então
+      expect(fmtDuracao(s)).toBe(texto);
+    });
+
   it('quando o relógio do cartão mostra o tempo, então é horas:minutos:segundos', () => {
     // Então
     expect(fmtRelogio(4 * 60 + 9)).toBe('0:04:09');

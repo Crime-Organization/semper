@@ -2,8 +2,8 @@
 // Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo, a lista dos registros para mudar e apagar (#400) e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
 // Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
-// situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), num dado largo, e o resumo de quem registrou
-// tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
+// situação (pausado ou contando) embaixo dele, e Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), ao lado, num bloco
+// compacto (#436), num dado largo, e o resumo de quem registrou tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
 // Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda) entra na faixa das datas, como o último dado, à
 // direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
 // lê o tempo e desenha as duas faixas: o cronômetro liga uma vez só (duas vezes, gravaria o tempo em dobro), e o total acompanha o
@@ -143,9 +143,11 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     } catch (e) { falha(e); }
   }
 
-  // A faixa do tempo (#383, arrumada na #400 e na #434): o relógio com a situação à esquerda e os botões à direita, um em cima
-  // do outro, da mesma largura, também no celular (só numa faixa estreita demais eles descem para baixo do relógio). Na tarefa
-  // concluída, a pílula diz "encerrado" e só "Ajustar meu tempo" fica. Embaixo, a parte de cada um e a lista dos registros.
+  // A faixa do tempo (#383, arrumada na #400, na #434 e na #436): um bloco compacto, encostado à esquerda, numa grade de duas
+  // linhas: o relógio ao lado de Iniciar/Pausar e, embaixo, a situação ao lado de "Ajustar meu tempo" (os botões um em cima do
+  // outro, da mesma largura), igual no computador e no celular (só numa faixa estreita demais os botões descem para baixo do
+  // relógio). Na tarefa concluída, a pílula diz "encerrado" e só "Ajustar meu tempo" fica. Embaixo, a parte de cada um e a lista
+  // dos registros.
   const situacao = SITUACAO[situacaoDoRelogio(!!t.concluida_em, relogio.contando)];
   return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={<div className="tempo-resumo">
     {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
@@ -177,8 +179,8 @@ const PAUSE_ANTES = 'Pause o cronômetro antes de mudar ou apagar o registro que
 const TALVEZ_CONTANDO = 'Este período começou há menos de um dia e pode ainda estar contando em outra aba ou aparelho de quem o registrou. Se estiver, o tempo contado depois desta mudança vai para um registro novo.';
 /** O que o aviso diz depois de apagar: o de sempre, ou com a lembrança de que o período apagado podia estar contando. */
 const APAGADO = { sempre: 'Registro de tempo apagado.', talvez: 'Registro de tempo apagado. Se ainda estava contando, o tempo seguinte vai para um registro novo.' };
-/** O tamanho da bolinha de quem registrou, na lista do administrador: a mesma da parte de cada um. */
-const TAMANHO_DO_AVATAR_NO_REGISTRO = 22;
+/** O tamanho da bolinha de quem registrou tempo, na parte de cada um e na lista dos registros do administrador. */
+const TAMANHO_DO_AVATAR_NO_TEMPO = 22;
 
 /**
  * A lista dos registros de tempo (#400), fechada de início: cada um com o dia, a duração, se veio do cronômetro ou de um ajuste e o
@@ -258,7 +260,7 @@ function LinhaDoRegistro({ r, comNome, posso, contando, aoMudar, aoApagar, aoPed
     </span>
     <span className="tempo-registro-sobre">
       <span className="tempo-registro-tipo">
-        {comNome && <span className="tempo-registro-quem"><Avatar p={membro} tam={TAMANHO_DO_AVATAR_NO_REGISTRO} />{membro.nome}</span>}
+        {comNome && <span className="tempo-registro-quem"><Avatar p={membro} tam={TAMANHO_DO_AVATAR_NO_TEMPO} />{membro.nome}</span>}
         <span>{NOME_DO_TIPO[tipoDoRegistro(r)]}</span>
         {contando && <Selo tipo="ok">em andamento</Selo>}
       </span>
@@ -352,10 +354,9 @@ function TempoDaEquipe({ t, tempo }: { t: Tarefa; tempo: TempoDaTarefa }) {
     </p>}
     <ul className="tempo-equipe-lista" aria-label="Parte de cada um">
       {tempo.equipe.map(p => <li key={p.perfil_id ?? 'removido'}>
-        <Avatar p={membro(p.perfil_id)} tam={22} />
-        <span>{membro(p.perfil_id).nome}</span>
-        <b>{p.percentual.toLocaleString('pt-BR')}%</b>
-        {ctx.ehAdmin && <span className="nota">{fmtDuracao(porPessoa.get(p.perfil_id) ?? 0)}</span>}
+        <span className="tempo-equipe-quem"><Avatar p={membro(p.perfil_id)} tam={TAMANHO_DO_AVATAR_NO_TEMPO} />{membro(p.perfil_id).nome}</span>
+        <b className="num">{p.percentual.toLocaleString('pt-BR')}%</b>
+        {ctx.ehAdmin && <span className="nota num">{fmtDuracao(porPessoa.get(p.perfil_id) ?? 0)}</span>}
       </li>)}
     </ul>
   </div>;

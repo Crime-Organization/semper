@@ -482,7 +482,9 @@ function conferirOsBotoesEmpilhados(botao: Caixa, ajustar: Caixa) {
   expect(ajustar.width).toBeCloseTo(botao.width, 0);
 }
 const DATAS_DA_TAREFA = ['Criada em', 'Datas'];
-/** As partes da faixa do tempo da tarefa (#383): o relógio e a situação, lado a lado, e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
+/** O vão entre a coluna do relógio e a dos botões (#436): o {spacing.lg} de --vao-entre-relogio-e-botoes; nada de vão maior no meio. */
+const VAO_DO_RELOGIO_AOS_BOTOES = 24;
+/** As partes da faixa do tempo da tarefa (#383): o relógio com a situação embaixo (#436), e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
 const partesDoTempo = (tempo: Locator) => [tempo.getByRole('timer'), tempo.getByText('pausado', { exact: true }),
   tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ }), tempo.getByRole('button', { name: 'Ajustar meu tempo' })];
 
@@ -509,19 +511,22 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
       }
       for (const m of medidas) expect(m.valor.linhas).toBe(1);
       // E o tempo, embaixo das datas, sem nada dele na faixa das datas. Antes (#383), o relógio, a situação, o botão e o ajuste
-      // ficavam todos na mesma linha; desde a #434 (pedido do dono), os dois botões ficam um em cima do outro, à direita da situação,
-      // com o relógio na altura da pilha
+      // ficavam todos na mesma linha; na #434 (pedido do dono), os dois botões ficaram um em cima do outro, à direita da situação.
+      // A regra mudou na #436 (o dono achou o conjunto desajeitado, com um vão grande entre o relógio e os botões encostados na
+      // outra ponta): agora é um bloco compacto, igual ao do celular, com a situação embaixo do relógio e os botões logo ao lado
+      // dos dois, sem o vão no meio; o relógio fica na altura de Iniciar/Pausar e a situação, na de "Ajustar meu tempo"
       await expect(datas.getByRole('timer')).toHaveCount(0);
       const faixaDasDatas = (await datas.boundingBox())!;
       const [relogio, situacao, botao, ajustar] = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
       expect(relogio.y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
-      expect(situacao.y).toBeLessThan(relogio.y + relogio.height);
-      expect(relogio.y).toBeLessThan(situacao.y + situacao.height);
-      expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
-      expect(botao.x).toBeGreaterThanOrEqual(situacao.x + situacao.width);
+      expect(situacao.y).toBeGreaterThanOrEqual(relogio.y + relogio.height);
+      expect(situacao.x).toBeCloseTo(relogio.x, 0);
       conferirOsBotoesEmpilhados(botao, ajustar);
-      expect(relogio.y).toBeLessThan(ajustar.y + ajustar.height);
-      expect(botao.y).toBeLessThan(relogio.y + relogio.height);
+      const fimDaLeitura = Math.max(relogio.x + relogio.width, situacao.x + situacao.width);
+      expect(botao.x).toBeGreaterThanOrEqual(fimDaLeitura);
+      expect(botao.x - fimDaLeitura).toBeLessThanOrEqual(VAO_DO_RELOGIO_AOS_BOTOES + 1);
+      expect(Math.abs((relogio.y + relogio.height / 2) - (botao.y + botao.height / 2))).toBeLessThanOrEqual(1);
+      expect(Math.abs((situacao.y + situacao.height / 2) - (ajustar.y + ajustar.height / 2))).toBeLessThanOrEqual(1);
       // E o tempo total da tarefa é o último dado da faixa das datas (#397); o resumo de quem registrou tempo fica na faixa do tempo
       await expect(datas.getByRole('group', { name: 'Tempo total' })).toHaveText(/2 h$/);
       await expect(tempo.getByRole('list', { name: 'Parte de cada um' })).toBeVisible();

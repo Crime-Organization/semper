@@ -51,9 +51,13 @@ export const segundosDoPeriodo = (c: Cronometro, agora: number) =>
 // ---------- mostrar e ajustar ----------
 const MINUTO_EM_SEGUNDOS = 60, HORA_EM_SEGUNDOS = 60 * MINUTO_EM_SEGUNDOS;
 
-/** Duração por extenso, curta: "0 min", "45 min", "1 h 05 min", "12 h". Negativo vira zero (um total nunca é negativo). */
+/**
+ * Duração por extenso, curta: "0 min", "4 s", "45 min", "1 h 05 min", "12 h". Negativo vira zero (um total nunca é negativo).
+ * Menos de um minuto aparece em segundos (#436): "0 min" ao lado do relógio que dizia 0:00:04 contradizia o relógio.
+ */
 export function fmtDuracao(segundos: number) {
   const s = Math.max(0, Math.round(segundos));
+  if (s > 0 && s < MINUTO_EM_SEGUNDOS) return `${s} s`;
   const h = Math.floor(s / HORA_EM_SEGUNDOS), m = Math.floor((s % HORA_EM_SEGUNDOS) / MINUTO_EM_SEGUNDOS);
   if (!h) return `${m} min`;
   return m ? `${h} h ${String(m).padStart(2, '0')} min` : `${h} h`;

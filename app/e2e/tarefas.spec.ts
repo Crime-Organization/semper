@@ -590,6 +590,26 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(cartao.getByRole('button', { name: /Retomar/ })).toBeVisible();
   });
 
+  test('dado o relógio com poucos segundos, quando a pessoa pausa, então o tempo total e a parte de cada um mostram os segundos, sem "0 min" (#436)', async ({ page }) => {
+    // Dado: "Renovar a procuração" não tem tempo registrado
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const relogio = cartao.getByRole('timer');
+    await apertarT(page, cartao);
+    await page.clock.runFor(4_000);
+    // Quando
+    await page.keyboard.press('t');
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    // Então: o que o relógio diz (0:00:0X) é o que o total e a parte de cada um dizem ("X s")
+    const segundos = Number((await relogio.textContent())!.split(':')[2]);
+    expect(segundos).toBeGreaterThan(0);
+    const total = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
+    await expect(total).toHaveText(new RegExp(`${segundos} s$`));
+    const parte = cartao.getByRole('list', { name: 'Parte de cada um' });
+    await expect(parte).toContainText(`${segundos} s`);
+    await expect(cartao.getByText('0 min')).toHaveCount(0);
+  });
+
   test('quando a pessoa digita um T num comentário, então é só a letra, e o cronômetro não começa', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
