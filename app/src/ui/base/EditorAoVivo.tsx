@@ -6,6 +6,12 @@
 import { lazy, Suspense, useRef, type RefObject } from 'react';
 import { TextoFormatado } from './TextoFormatado';
 
+/**
+ * Onde o cursor começa quando o editor aparece (#433): no fim do texto, ou no ponto em que a pessoa clicou no texto lido, em pixels a
+ * partir do canto de cima à esquerda do texto (o editor da descrição tem a letra e o passo do texto lido: o ponto cai na mesma palavra).
+ */
+export type ComecoDoCursor = 'fim' | { x: number; y: number };
+
 export interface PropsEditorAoVivo {
   /** O id da caixa (para o foco e para a barra dizer que a controla). */
   id?: string;
@@ -22,6 +28,8 @@ export interface PropsEditorAoVivo {
    * a linha do cursor não ficar escondida embaixo dele.
    */
   folgaEmbaixo?: () => number;
+  /** Com isto, o editor pega o foco assim que aparece, com o cursor nesse lugar (a descrição que abre no lugar do texto lido). */
+  comecarEm?: ComecoDoCursor;
 }
 
 /** O que o miolo (o CodeMirror) recebe além disso: se a pessoa pediu o foco enquanto ele chegava. */

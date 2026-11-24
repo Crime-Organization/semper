@@ -1,19 +1,25 @@
-// Texto formatado que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no texto e ele vira
-// a caixa de escrever (com a barra de formatação) ali mesmo, com Salvar e Cancelar logo abaixo. Ctrl+Enter salva. O clique num
-// link ou numa caixinha de tarefa faz o que sempre fez (abre o link, marca a caixinha) e não abre a edição, nem o clique que
-// termina escolhendo um trecho para copiar. Pelo teclado (#385), o próprio texto recebe o foco com o Tab e Enter abre a edição;
-// ao cancelar ou salvar, o foco volta a ele. Não há mais o botão "Mudar o texto" embaixo. O texto não vira um botão: ele tem links
-// e caixinhas dentro, que continuam com o Tab e o Enter (ou o Espaço) deles. Quem só lê vê o texto formatado, e nada vira campo
-// nem recebe o foco. Peça comum: desde a #346, também nas descrições dos cartões de tarefa e de demanda.
+// Texto formatado que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no texto e escreve ali
+// mesmo. Desde a #433, a edição é a do texto das anotações em Documentos: o editor ao vivo (EditorAoVivo), sem caixa nem borda, com
+// a formatação à vista enquanto se escreve e a mesma barra de formatação no alto; o cursor começa onde a pessoa clicou. Salvar e
+// Cancelar logo abaixo; Ctrl+Enter (ou Ctrl+S, como na anotação) salva; Esc cancela e, com algo mudado, pergunta antes de descartar.
+// O clique num link ou numa caixinha de tarefa faz o que sempre fez (abre o link, marca a caixinha) e não abre a edição, nem o
+// clique que termina escolhendo um trecho para copiar. Pelo teclado (#385), o próprio texto recebe o foco com o Tab e Enter abre a
+// edição, com o cursor no fim; ao cancelar ou salvar, o foco volta a ele. O texto não vira um botão: ele tem links e caixinhas
+// dentro, que continuam com o Tab e o Enter (ou o Espaço) deles. Quem só lê vê o texto formatado, e nada vira campo nem recebe o
+// foco. Peça comum: desde a #346, nas descrições dos cartões de tarefa e de demanda.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { avisar, falha } from '../avisos';
+import { confirmar } from '../janela';
 import { estiloBotao } from './botao';
-import { CaixaFormatada, TextoFormatado } from './TextoFormatado';
+import { EditorAoVivo, prepararEditorAoVivo, type ComecoDoCursor } from './EditorAoVivo';
+import { TextoFormatado } from './TextoFormatado';
 
 /** O que, dentro do texto, tem clique próprio: o clique nele não abre a edição. */
 const COM_CLIQUE_PROPRIO = 'a, button, input, label, summary';
 /** O que o leitor de tela diz depois do nome do texto, para quem usa o teclado saber como mudá-lo. */
 const COMO_MUDAR_PELO_TECLADO = 'Tecle Enter para mudar.';
+/** As teclas que, com o Ctrl (ou o Cmd), salvam: o Enter de sempre e o S da anotação. */
+const SALVA_COM_CTRL = new Set(['enter', 's']);
 
 interface Props {
   /** O texto gravado. */
@@ -39,18 +45,18 @@ interface Props {
   convite?: string;
   /** A classe do texto formatado (ex.: a medida de leitura da anotação). */
   className?: string;
-  /** A classe da caixa de escrever (ex.: a altura da caixa da anotação). */
-  classeDaCaixa?: string;
   /** O que a pessoa está escrevendo, a cada tecla (null: fora da edição), para o cartão avisar ao sair sem salvar. */
   aoMudarRascunho?: (rascunho: string | null) => void;
 }
 
 export function TextoEditavel({
   texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', className,
-  classeDaCaixa, aoMudarRascunho
+  aoMudarRascunho
 }: Props) {
   const id = useId();
   const [rascunho, setRascunho] = useState<string | null>(null);
+  /** Onde o cursor começa ao abrir: no ponto clicado do texto, ou no fim (pelo teclado e no texto vazio). */
+  const [comeco, setComeco] = useState<ComecoDoCursor>('fim');
   const [ocupado, setOcupado] = useState(false);
   // Onde a edição abriu (o texto ou o convite do texto vazio): o foco volta para lá ao fechar.
   const area = useRef<HTMLDivElement>(null);
@@ -59,17 +65,12 @@ export function TextoEditavel({
   avisarRascunho.current = aoMudarRascunho;
   // Ao sair da tela no meio da edição, o cartão deixa de esperar este rascunho.
   useEffect(() => () => avisarRascunho.current?.(null), []);
-  // Ao abrir a edição, o cursor vai para o fim do texto, como quem continua a escrever.
   const editando = rascunho !== null;
-  useEffect(() => {
-    const caixa = document.getElementById(id) as HTMLTextAreaElement | null;
-    if (!editando || !caixa) return;
-    caixa.focus();
-    caixa.setSelectionRange(caixa.value.length, caixa.value.length);
-  }, [editando, id]);
+  const podeMudar = !!aoSalvar;
+  // Quem pode mudar já começa a baixar o editor: ao clicar no texto, ele aparece na hora, sem o texto piscar.
+  useEffect(() => { if (podeMudar) void prepararEditorAoVivo(); }, [podeMudar]);
   // Se a edição deixa de ser permitida no meio (a anotação foi arquivada, a pessoa perdeu a permissão), o rascunho fecha: não
   // fica nada por salvar que ela não vê, nem a caixa volta aberta com ele depois.
-  const podeMudar = !!aoSalvar;
   useEffect(() => {
     if (podeMudar || !editando) return;
     setRascunho(null);
@@ -82,22 +83,30 @@ export function TextoEditavel({
     setRascunho(novo);
     avisarRascunho.current?.(novo);
   }
+  function abrir(onde: ComecoDoCursor) {
+    setComeco(onde);
+    mudar(texto);
+  }
   function fechar() {
     mudar(null);
     // O foco volta para onde a edição abriu: o teclado não se perde.
     setTimeout(() => (area.current ?? botaoDoConvite.current)?.focus({ preventScroll: true }), 0);
   }
-  /** Abre a edição pelo clique no texto, a não ser que o clique seja num link, numa caixinha ou ao escolher um trecho. */
+  /**
+   * Abre a edição pelo clique no texto, com o cursor no ponto clicado (medido do canto do texto), a não ser que o clique seja num
+   * link, numa caixinha ou ao escolher um trecho.
+   */
   function clicar(e: MouseEvent<HTMLDivElement>) {
     if ((e.target as Element).closest(COM_CLIQUE_PROPRIO)) return;
     if (window.getSelection()?.toString()) return;
-    mudar(texto);
+    const canto = (e.currentTarget.firstElementChild ?? e.currentTarget).getBoundingClientRect();
+    abrir({ x: e.clientX - canto.left, y: e.clientY - canto.top });
   }
   /** Pelo teclado, Enter no próprio texto abre a edição; Enter num link ou numa caixinha de dentro faz o que sempre fez. */
   function teclarNoTexto(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key !== 'Enter' || e.target !== e.currentTarget) return;
     e.preventDefault();
-    mudar(texto);
+    abrir('fim');
   }
   async function salvar() {
     if (rascunho === null || ocupado) return;
@@ -113,20 +122,28 @@ export function TextoEditavel({
       setOcupado(false);
     }
   }
+  /** Cancela: sem mudança, fecha; com mudança, pergunta antes, para nada se perder por engano. */
+  async function cancelar() {
+    if (rascunho !== texto && !await confirmar('Descartar as mudanças?', 'O que você escreveu não será salvo.', 'Descartar', true)) return;
+    fechar();
+  }
   function teclar(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void salvar(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && SALVA_COM_CTRL.has(e.key.toLowerCase())) {
+      // O Ctrl+S salva o texto, e o navegador não abre a janela de salvar a página.
+      e.preventDefault();
+      void salvar();
+      return;
+    }
     if (e.key !== 'Escape') return;
-    // Esc nunca fecha o cartão em volta com o texto aberto. Sem mudança, fecha a edição; com mudança, nada se perde por engano:
-    // a pessoa escolhe entre Salvar e Cancelar.
+    // Esc nunca fecha o cartão em volta com o texto aberto: ele cancela a edição (perguntando, se há o que perder).
     e.preventDefault();
     e.stopPropagation();
-    if (rascunho === texto) fechar();
+    void cancelar();
   }
 
   if (editando) return <div className="texto-editavel-edicao" onKeyDown={teclar}>
-    <CaixaFormatada id={id} aria-label={rotulo} className={['texto-editavel-caixa', classeDaCaixa].filter(Boolean).join(' ')} maxLength={maximo} placeholder={placeholder} valor={rascunho} aoMudar={mudar} />
+    <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={rascunho} aoMudar={mudar} comecarEm={comeco} />
     <div className="texto-editavel-acoes">
-      <span className="texto-editavel-atalho" aria-hidden="true">Ctrl+Enter salva</span>
       <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={fechar}>Cancelar</button>
       <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={() => void salvar()}>
         {ocupado ? 'Salvando…' : 'Salvar'}
@@ -135,7 +152,7 @@ export function TextoEditavel({
   </div>;
 
   // Sem texto, o convite já é o botão que abre a edição.
-  if (!texto.trim()) return <button ref={botaoDoConvite} type="button" className="texto-editavel-vazio" onClick={() => mudar(texto)}>{convite}</button>;
+  if (!texto.trim()) return <button ref={botaoDoConvite} type="button" className="texto-editavel-vazio" onClick={() => abrir('fim')}>{convite}</button>;
   // O texto é um grupo com nome (o rótulo, ex.: "Descrição") que recebe o foco, e o leitor de tela diz como mudá-lo. Não é um
   // botão: os links e as caixinhas de dentro sumiriam para o leitor de tela e deixariam de ser alcançados pelo Tab.
   return <div className="texto-editavel">

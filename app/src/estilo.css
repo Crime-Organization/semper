@@ -422,15 +422,17 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    cobre o espaço entre o alto de quem rola e a barra (--editor-barra-acima: a distância dela e, se quem rola tem recuo no alto, o
    recuo), mas só sobre o texto: a caixa corta (clip, que não rola nem solta a barra) o que passa do alto dela, e o título e o que
    vem antes da caixa continuam à vista. */
-.editor-de-texto { --editor-barra-topo: 0px; --editor-barra-acima: var(--editor-barra-topo); --editor-vao: 10px; display: flex; flex-direction: column; gap: 6px }
-.editor-de-texto .caixa-formatada { gap: var(--editor-vao); overflow-y: clip }
-.editor-de-texto .caixa-formatada-barra { position: sticky; top: var(--editor-barra-topo); z-index: 1; padding: 4px 0; background: var(--superficie) }
-.editor-de-texto .caixa-formatada-barra::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-barra-acima); background: var(--superficie) }
-.editor-de-texto .caixa-formatada-barra::after { content: ''; position: absolute; inset: 100% 0 auto; height: var(--editor-vao); background: linear-gradient(var(--superficie), transparent); pointer-events: none }
-.editor-de-texto .caixa-formatada-barra > * { opacity: .55; transition: opacity .15s ease-out }
-.editor-de-texto:is(:focus-within, :hover) .caixa-formatada-barra > * { opacity: 1 }
-.editor-de-texto .caixa-formatada-botao { --fundo-do-botao: transparent; --borda-do-botao: transparent; border-color: transparent; background: none }
-.editor-de-texto .caixa-formatada-botao:hover { --fundo-do-botao: var(--soft); --borda-do-botao: var(--line); background: var(--soft); border-color: var(--line) }
+/* A descrição aberta no próprio cartão (<TextoEditavel>, #433) é escrita do mesmo jeito: a mesma barra, discreta e presa no alto. */
+:is(.editor-de-texto, .texto-editavel-edicao) { --editor-barra-topo: 0px; --editor-barra-acima: var(--editor-barra-topo); --editor-vao: 10px }
+.editor-de-texto { display: flex; flex-direction: column; gap: 6px }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada { gap: var(--editor-vao); overflow-y: clip }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra { position: sticky; top: var(--editor-barra-topo); z-index: 1; padding: 4px 0; background: var(--superficie) }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-barra-acima); background: var(--superficie) }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra::after { content: ''; position: absolute; inset: 100% 0 auto; height: var(--editor-vao); background: linear-gradient(var(--superficie), transparent); pointer-events: none }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra > * { opacity: .55; transition: opacity .15s ease-out }
+:is(.editor-de-texto, .texto-editavel-edicao):is(:focus-within, :hover) .caixa-formatada-barra > * { opacity: 1 }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-botao { --fundo-do-botao: transparent; --borda-do-botao: transparent; border-color: transparent; background: none }
+:is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-botao:hover { --fundo-do-botao: var(--soft); --borda-do-botao: var(--line); background: var(--soft); border-color: var(--line) }
 /* A barra na caixa estreita (#374): no celular, os nove botões não cabiam numa linha com o vão de sempre, e o Link ficava sozinho
    na segunda. Com o alvo do dedo inteiro (o --alvo-de-toque nas duas medidas), nove botões também não cabem numa linha. Até 420px
    de caixa (a mesma medida dos indicadores e do grupo de datas; a condição do @container não aceita variável), a barra vira uma
@@ -449,7 +451,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   /* O contorno do foco do teclado fica em volta da bolinha, como no computador, e não do alvo inteiro */
   .caixa-formatada-barra > .caixa-formatada-botao:focus-visible { outline: 0 }
   .caixa-formatada-barra > .caixa-formatada-botao:focus-visible::before { outline: 2px solid var(--accent); outline-offset: 2px }
-  .editor-de-texto .caixa-formatada-barra { padding-block: 0 }
+  :is(.editor-de-texto, .texto-editavel-edicao) .caixa-formatada-barra { padding-block: 0 }
 }
 .editor-de-texto-situacao { margin: 0; min-height: 18px; font-size: var(--texto-miudo); color: var(--muted); text-align: right }
 .editor-de-texto-situacao:is(.naoSalvo, .conflito) { color: var(--erro); font-weight: 700 }
@@ -507,13 +509,22 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-editavel-area:focus-visible, .dados-editaveis:focus-visible { outline-offset: 0 }
 .texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
 .texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
-.texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
-.texto-editavel-caixa { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); resize: vertical }
-.texto-editavel-caixa:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
-.texto-editavel-caixa::placeholder { color: var(--muted); opacity: 1 }
-/* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
-.texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
-.texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
+/* O texto aberto (#433) é o editor das anotações, sem caixa nem borda: só o cursor mostra onde se escreve. A letra, o passo e a cor
+   são os do texto lido (.texto-formatado), e o texto começa onde começava o lido: ao clicar, ele não muda de tamanho nem de lugar
+   na linha, e o cursor cai na palavra clicada. A caixa tem a altura do texto, sem a folha alta da anotação. */
+.texto-editavel-edicao { display: flex; flex-direction: column; gap: 6px }
+.texto-editavel-edicao .editor-ao-vivo .cm-editor, .texto-editavel-edicao .editor-ao-vivo-chegando { font-size: var(--texto-corrido); line-height: 1.5; color: var(--text) }
+.texto-editavel-edicao .editor-ao-vivo .cm-editor .cm-content, .texto-editavel-edicao .editor-ao-vivo-chegando { min-height: 0 }
+.texto-editavel-edicao .ao-vivo-linha-titulo-1 { font-size: var(--texto-titulo-1) }
+.texto-editavel-edicao .ao-vivo-linha-titulo-2 { font-size: var(--texto-titulo-2) }
+.texto-editavel-edicao .ao-vivo-linha-titulo-3 { font-size: var(--texto-titulo-3) }
+/* Salvar e Cancelar, pequenos, à direita, presos ao pé do cartão enquanto o texto longo rola: sem fio, o texto que passa por baixo
+   some aos poucos logo acima deles, como no pé da anotação. */
+.texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 0; background: var(--superficie) }
+.texto-editavel-acoes::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-vao); background: linear-gradient(transparent, var(--superficie)); pointer-events: none }
+/* No cartão, a barra presa fica logo abaixo dos botões redondos da janela (ou no alto do corpo, com a coluna ao lado), como na anotação. */
+.cartao-painel:not(:has(.cartao-coluna)) .texto-editavel-edicao { --editor-barra-topo: var(--abaixo-dos-botoes-da-janela) }
+.cartao-painel:has(.cartao-coluna) .texto-editavel-edicao { --editor-barra-acima: var(--cartao-topo) }
 /* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar. Aberta (#432), ela
    tem a mesma cara da leitura: a mesma tabela de rótulo e valor (.dados), no mesmo fundo, nas mesmas colunas e na mesma altura de
    linha; cada valor vira um campo discreto, branco, cujo texto começa onde começa o valor lido. Todas as linhas têm o mesmo passo:

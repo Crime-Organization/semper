@@ -13,7 +13,7 @@ export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } f
 export { TextoEditavel } from './TextoEditavel';
 export { DadosEditaveis, FormularioDosDados, LinhaDosDados, useNaLinhaDosDados } from './DadosEditaveis';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
-export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
+export { EditorAoVivo, prepararEditorAoVivo, type ComecoDoCursor, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CalendarioDoMes, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
