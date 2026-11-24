@@ -9,7 +9,7 @@
 // No compromisso que se repete (#307), mudar a data e o horário ou arquivar pergunta se vale só para esta data ou para esta e as
 // seguintes ainda em aberto (arquivar as seguintes faz a repetição parar). Os outros campos mudam só nesta data.
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { SD, type Compromisso, type PessoaResumida } from '../dados';
+import { SD, type Compromisso, type FrequenciaRepeticao, type PessoaResumida } from '../dados';
 import { TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
   CAMPOS_COMPROMISSO, compromissoVazio, continuaPeloProcesso, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, SEM_SITUACAO_COMPROMISSO,
@@ -21,7 +21,7 @@ import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { janela } from '../ui/janela';
-import { avisoDasSeguintes, type MudancaDasSeguintes } from '../regras/repeticao';
+import { avisoDaRepeticao, avisoDasSeguintes, REPETIDO_NO_CARTAO, type MudancaDasSeguintes } from '../regras/repeticao';
 import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
@@ -158,6 +158,15 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     if (escolha === 'seguintes') return mudarAsSeguintes('mudados', () => SD.compromissoMudarSeguintes(c.id, q));
     if (escolha) return salvarSoEsta(q);
   };
+  /**
+   * Faz o compromisso se repetir pela janela das datas (#431), como no cadastro: a cada 1 da frequência escolhida, sem data para
+   * terminar. Se não der, o erro aparece e a janela fica aberta (o erro passa para ela).
+   */
+  const repetir = async (frequencia: FrequenciaRepeticao) => {
+    const criada = await SD.compromissoRepetir(c.id, { frequencia, intervalo: 1, ate: null, vezes: null });
+    avisar(avisoDaRepeticao(c.codigo, criada, REPETIDO_NO_CARTAO));
+    aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+  };
   const salvarSoEsta = (q: QuandoGravado) => gravarNoLugar<QuandoGravado>({
     novo: q, antes: quandoComoEsta(c), gravar: x => SD.compromissoAtualizar(c.id, x),
     aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
@@ -201,7 +210,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       /* A data e o horário (#361), que quem muda o compromisso muda na janela das datas (#422), como o lápis grava; e a criação, fixa. */
       dados={<FaixaDasDatas criacao={{ rotulo: 'Criado em', em: c.criado_em }} criacaoNoFim>
         <DadoDoGrupo rotulo="Data e horário">
-          <QuandoDoCompromisso c={c} aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
+          <QuandoDoCompromisso c={c} aoSalvar={somenteLer || editando ? undefined : salvarQuando} aoRepetir={somenteLer || editando ? undefined : repetir} />
         </DadoDoGrupo>
       </FaixaDasDatas>} />
 

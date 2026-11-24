@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { REPETICAO } from '../dados/limites';
 import {
-  avisoDaRepeticao, avisoDasSeguintes,
+  avisoDaRepeticao, avisoDasSeguintes, REPETIDO_NO_CARTAO,
   CONFERENCIAS_DA_REPETICAO, dataDaVez, descreverRepeticao, REPETICAO_VAZIA, regraDosCampos, regraNoLimite, somarMeses, vezDaData, vezesParaGerar, vezNaLista,
   type CamposRepeticao, type SerieDeRepeticao, type VezNaLista
 } from './repeticao';
@@ -143,6 +143,11 @@ describe('O aviso depois de cadastrar', () => {
     expect(avisoDaRepeticao('K1A2', { ids: ['a'], semSala: [] })).toBe('Compromisso K1A2 cadastrado, com mais 1 data na agenda.');
     expect(avisoDaRepeticao('K1A2', { ids: ['a', 'b', 'c'], semSala: ['2026-12-08'] }))
       .toBe('Compromisso K1A2 cadastrado, com mais 3 datas na agenda. Em 1 data (08/12/2026), a sala estava ocupada, e o compromisso ficou sem sala.');
+  });
+
+  it('dado o compromisso que passa a se repetir no cartão (#431), então o aviso diz isso, e não que ele foi cadastrado', () => {
+    // Dado / Quando / Então
+    expect(avisoDaRepeticao('K1A2', { ids: ['a', 'b'], semSala: [] }, REPETIDO_NO_CARTAO)).toBe('Compromisso K1A2 passa a se repetir, com mais 2 datas na agenda.');
   });
 });
 

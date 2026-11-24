@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  DATAS_VAZIAS, FIM_DO_DIA, dataAtivaAoAbrir, dataMarcada, datasMudaram, datasQueValem, escolherDia, escreverData, horariosDaLista, marcarData, podeRemover, removerDatas, resumoDasDatas,
+  DATAS_VAZIAS, FIM_DO_DIA, dataAtivaAoAbrir, dataAtivaAoDesmarcar, dataMarcada, datasMudaram, datasQueValem, escolherDia, escreverData, horariosDaLista, marcarData, podeRemover, removerDatas, resumoDasDatas,
   textoDaData, type CamposDasDatas, type PartesDasDatas
 } from './janelaDasDatas';
 
@@ -104,5 +104,27 @@ describe('A lista de horários da janela das datas (#431)', () => {
     // Então
     expect(lista.slice(lista.indexOf('20:30'), lista.indexOf('20:30') + 3)).toEqual(['20:30', '20:38', '20:45']);
     expect(horariosDaLista('14:00')).toEqual(horariosDaLista());
+  });
+});
+
+describe('A data ativa e a repetição na janela das datas (#431)', () => {
+  it('dada uma tarefa sem prazo, quando a janela abre, então o calendário preenche o início; com prazo, a entrega; numa data só, ela, mesmo vazia (#431)', () => {
+    // Quando / Então
+    expect(dataAtivaAoAbrir(DA_TAREFA, { ...COM_PRAZO, temEntrega: false, entrega: '' })).toBe('inicio');
+    expect(dataAtivaAoAbrir(DA_TAREFA, COM_PRAZO)).toBe('entrega');
+    expect(dataAtivaAoAbrir({ entrega: { opcional: true } }, DATAS_VAZIAS)).toBe('entrega');
+  });
+
+  it('dada a entrega ativa, quando a pessoa a desmarca, então o calendário passa ao início; a outra data, ou uma janela sem o início, não mudam nada (#431)', () => {
+    // Quando / Então
+    expect(dataAtivaAoDesmarcar(DA_TAREFA, 'entrega', 'entrega')).toBe('inicio');
+    expect(dataAtivaAoDesmarcar(DA_TAREFA, 'inicio', 'entrega')).toBe('inicio');
+    expect(dataAtivaAoDesmarcar({ entrega: { opcional: true } }, 'entrega', 'entrega')).toBe('entrega');
+  });
+
+  it('dada a repetição escolhida, quando a janela confere o que vale, então ela vai junto, mesmo sem a entrega (#431)', () => {
+    // Quando / Então
+    expect(datasQueValem({ ...COM_PRAZO, repetir: 'mes' }, DA_TAREFA).repetir).toBe('mes');
+    expect(datasMudaram({ ...COM_PRAZO, repetir: 'mes' }, COM_PRAZO, DA_TAREFA)).toBe(true);
   });
 });

@@ -42,10 +42,12 @@ test.describe('Objetos sem demanda no cartão do contrato (#349)', () => {
     let cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');
     await cartao.getByRole('button', { name: /^Data da assinatura: / }).click();
     const formulario = page.getByRole('dialog', { name: 'Mudar a data da assinatura' });
-    await formulario.getByRole('checkbox', { name: 'Assinado em' }).check();
+    // Desde a #431, a janela de uma data só não tem a caixa de marcar: escrever a data basta
     await formulario.getByRole('textbox', { name: 'Data da assinatura' }).fill('10/03/2026');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Contrato atualizado.' })).toBeVisible();
+    // A janela fecha quando a gravação termina (o X dela também se chama "Fechar")
+    await expect(formulario).toHaveCount(0);
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     // Quando
     cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');

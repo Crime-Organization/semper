@@ -107,8 +107,10 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     expect(datas()).toHaveTextContent('Início 18/11/2026 · Sem prazo');
     await userEvent.click(datas());
     expect(entrega()).not.toBeChecked();
-    expect(entrega()).toHaveFocus();
+    // A regra mudou na #431: sem prazo, a data ativa é o início (o calendário escreve nele), e o foco vai para ele
+    expect(inicio()).toHaveFocus();
     expect(prazo()).toBeDisabled();
+    expect(prazo()).toHaveValue('');
     expect(dentro().queryByRole('button', { name: 'Remover' })).not.toBeInTheDocument();
     // Quando
     await userEvent.click(entrega());
@@ -229,6 +231,32 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     expect(dentro().getByRole('combobox', { name: 'Hora do prazo' })).toBeDisabled();
     const botoes = dentro().getAllByRole('button', { name: /^(Salvar|Remover)$/ }).map(b => b.textContent);
     expect(botoes).toEqual(['Salvar', 'Remover']);
+  });
+
+  it('dado um prazo, quando a pessoa desmarca a entrega, então o campo dela fica vazio, a hora e o lembrete voltam ao começo, e o calendário passa a escrever no início (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao aoSalvar={aoSalvar} />);
+    await userEvent.click(datas());
+    // Quando
+    await userEvent.click(entrega());
+    // Então: nada do prazo antigo à vista, e o início não tem caixa de marcar (é obrigatório)
+    expect(prazo()).toHaveValue('');
+    expect(dentro().getByRole('combobox', { name: 'Hora do prazo' })).toHaveValue('');
+    expect(dentro().getByRole('combobox', { name: 'Lembrete' })).toHaveValue('');
+    expect(dentro().getAllByRole('checkbox')).toHaveLength(1);
+    // Quando: escolhe um dia
+    await userEvent.click(dia(/^sexta-feira, 20 de novembro de 2026/));
+    // Então: o dia vai para o início, e a entrega continua desmarcada
+    expect(inicio()).toHaveValue('20/11/2026');
+    expect(entrega()).not.toBeChecked();
+    // Quando: marca de novo
+    await userEvent.click(entrega());
+    // Então: o prazo de antes volta, e ele passa a ser o que o calendário preenche
+    expect(prazo()).toHaveValue('30/11/2026');
+    await userEvent.click(dia(/^quarta-feira, 25 de novembro de 2026/));
+    expect(prazo()).toHaveValue('25/11/2026');
+    expect(inicio()).toHaveValue('20/11/2026');
   });
 
   it('dado quem só lê o cartão, quando olha as datas, então vê o resumo como texto, sem botão nem janela', () => {

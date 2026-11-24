@@ -1,5 +1,5 @@
 {
   "titulo": "A janela das datas ficou menor e mais limpa",
-  "texto": "A janela das datas cabe na tela sem rolar. Cada data tem o nome em cima e, na mesma linha, a caixa de marcar e o campo; a hora se escolhe numa lista de horários. Salvar e Remover ocupam a largura toda, e o X fecha sem salvar.",
+  "texto": "A janela das datas cabe na tela sem rolar e abre logo abaixo das datas, sem cobri-las. A data que o calendário preenche fica com a borda verde. A hora se escolhe numa lista de horários, e no compromisso dá para escolher ali se ele se repete toda semana, todo mês ou todo ano. Salvar e Remover ocupam a largura toda, e o X fecha sem salvar.",
   "ondeAchar": "No cartão da tarefa, da demanda, do compromisso e do contrato, clicando nas datas, logo abaixo do título."
 }

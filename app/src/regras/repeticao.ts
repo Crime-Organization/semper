@@ -126,9 +126,15 @@ export const regraDosCampos = (c: CamposRepeticao): RegraDeRepeticao | null => !
 };
 
 const quantas = (n: number, uma: string, varias: string) => `${n} ${n === 1 ? uma : varias}`;
-/** O aviso depois de cadastrar o compromisso que se repete: quantas datas a mais e, se houver, em quantas a sala estava ocupada. */
-export function avisoDaRepeticao(codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>) {
-  const mais = `Compromisso ${codigo} cadastrado, com mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.`;
+/** O começo do aviso da repetição: no cadastro e no cartão (#431: o compromisso que passa a se repetir na janela das datas). */
+const CADASTRADO_COM_REPETICAO = 'cadastrado, com';
+export const REPETIDO_NO_CARTAO = 'passa a se repetir, com';
+/**
+ * O aviso depois de cadastrar o compromisso que se repete (ou de fazê-lo se repetir no cartão: `feito` = REPETIDO_NO_CARTAO):
+ * quantas datas a mais e, se houver, em quantas a sala estava ocupada.
+ */
+export function avisoDaRepeticao(codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>, feito = CADASTRADO_COM_REPETICAO) {
+  const mais = `Compromisso ${codigo} ${feito} mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.`;
   return criada.semSala.length
     ? `${mais} Em ${quantas(criada.semSala.length, 'data', 'datas')} (${criada.semSala.map(fmtData).join(', ')}), a sala estava ocupada, e o compromisso ficou sem sala.`
     : mais;
