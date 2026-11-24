@@ -516,13 +516,17 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
 /* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar. Aberta (#432), ela
    tem a mesma cara da leitura: a mesma tabela de rótulo e valor (.dados), no mesmo fundo, nas mesmas colunas e na mesma altura de
-   linha; cada valor vira um campo discreto, branco, cujo texto começa onde começa o valor lido. Salvar e Cancelar, pequenos, no pé
-   da seção, presos ao pé do cartão enquanto a tabela rola. */
+   linha; cada valor vira um campo discreto, branco, cujo texto começa onde começa o valor lido. Todas as linhas têm o mesmo passo:
+   o rótulo fica no meio da altura do campo, e a linha da caixa de marcar tem a altura das outras. Salvar e Cancelar, pequenos, no
+   pé da seção, logo depois da última linha (sem ficar presos à tela, para não cortar as linhas de baixo).
+   Ao abrir e ao rolar até um campo, ele para abaixo dos botões redondos que flutuam no alto do cartão (--abaixo-dos-botoes-flutuantes). */
 .dados-editaveis { display: block; cursor: pointer }
-.dados-editaveis-edicao { margin: 0 -10px; padding: 2px 10px; border-radius: 8px; background: var(--soft); font-size: var(--texto-tabela) }
-.linha-dos-dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; align-items: baseline; padding: var(--folga-na-linha) 0 }
-.linha-dos-dados-rotulo { padding-right: var(--vao-depois-do-rotulo-dos-dados); color: var(--muted); overflow-wrap: anywhere }
-.linha-dos-dados-valor { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-left: calc(-1 * var(--recuo-na-linha)) }
+.dados-editaveis-edicao { --abaixo-dos-botoes-flutuantes: calc(var(--botoes-da-janela-acima, 0px) + var(--botao-redondo) + var(--botao-redondo-vao));
+  margin: 0 -10px; padding: 2px 10px; border-radius: 8px; background: var(--soft); font-size: var(--texto-tabela); scroll-margin-top: var(--abaixo-dos-botoes-flutuantes) }
+.dados-editaveis-edicao :is(.linha-dos-dados, input, select, textarea) { scroll-margin-top: var(--abaixo-dos-botoes-flutuantes) }
+.linha-dos-dados { display: grid; grid-template-columns: var(--coluna-do-rotulo-dos-dados) 1fr; align-items: start; padding: var(--folga-na-linha) 0 }
+.linha-dos-dados-rotulo { display: flex; align-items: center; min-height: var(--campo-na-linha); padding-right: var(--vao-depois-do-rotulo-dos-dados); color: var(--muted); overflow-wrap: anywhere }
+.linha-dos-dados-valor { display: flex; flex-direction: column; gap: 2px; min-width: 0; min-height: var(--campo-na-linha); margin-left: calc(-1 * var(--recuo-na-linha)) }
 .linha-dos-dados-valor :is(input[type="text"], select, textarea) { width: 100%; height: var(--campo-na-linha); padding: 0 calc(var(--recuo-na-linha) - 1px); border: 1px solid var(--line); border-radius: 6px; background: var(--superficie); font: inherit; color: var(--ink); transition: border-color .15s ease-out }
 .linha-dos-dados-valor textarea { display: block; height: auto; min-height: var(--campo-na-linha); padding-block: var(--folga-na-linha); line-height: 1.5; resize: none; field-sizing: content }
 .linha-dos-dados-valor :is(input[type="text"], select, textarea):hover { border-color: var(--line2) }
@@ -537,11 +541,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .linha-dos-dados-valor .campo-data > input[type="text"] { padding-right: var(--campo-na-linha) }
 .linha-dos-dados-valor .campo-data-botao { right: var(--folga-na-linha); width: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)); height: calc(var(--campo-na-linha) - 2 * var(--folga-na-linha)) }
 /* As caixas de marcar: a caixinha do navegador, na cor do sistema, e o texto do tamanho do lido, sem a moldura das perguntas. */
-.linha-dos-dados .escolhas { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-left: var(--recuo-na-linha) }
+.linha-dos-dados .escolhas { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; min-height: var(--campo-na-linha); padding-left: var(--recuo-na-linha) }
 .linha-dos-dados .escolhas label, .linha-dos-dados .escolhas label:has(input:checked) { min-height: var(--campo-na-linha); gap: 8px; padding: 0; border: 0; border-radius: 4px; background: none; box-shadow: none; font-size: inherit; font-weight: 400; color: var(--ink) }
 .linha-dos-dados .escolhas label::before { display: none }
 .linha-dos-dados .escolhas input { position: static; flex-shrink: 0; width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: 0; opacity: 1; pointer-events: auto; accent-color: var(--accent); cursor: pointer }
-.dados-editaveis-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 8px; background: var(--soft) }
+.dados-editaveis-acoes { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 8px }
 /* No aparelho de toque, o texto do campo fica no tamanho que não faz o celular aproximar a tela ao tocar nele. */
 @media (pointer: coarse) {
   .linha-dos-dados-valor :is(input[type="text"], select, textarea) { font-size: var(--texto-do-campo-no-toque) }
@@ -1508,6 +1512,21 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
 .dados dt { color: var(--muted); padding-right: var(--vao-depois-do-rotulo-dos-dados); overflow-wrap: anywhere }
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
+/* A tabela de dados no espaço estreito (o cartão no celular, #432): na coluna de 38%, os rótulos longos ("Gratuidade de justiça",
+   "Apresentação da marca") quebravam em duas linhas, e a tabela ficava em degraus; numa coluna mais larga, o número do processo
+   não cabia no valor. Abaixo de 480px (a condição do @container não aceita variável), o rótulo sobe para cima do valor, em letra
+   miúda, na leitura e na edição do mesmo jeito: todas as linhas têm o mesmo passo, e o campo ganha a largura toda. Na edição, o
+   rótulo fica onde estava na leitura, e o campo, embaixo dele, tem a mesma folga dos dois lados do fundo. Na leitura, o vão em cima do
+   rótulo e embaixo do valor é o --vao-da-linha-empilhada; na edição, a folga e o campo somam o mesmo passo. */
+:root { --vao-da-linha-empilhada: 8px; --vao-entre-rotulo-e-valor: 2px }
+@container (max-width: 480px) {
+  .dados { grid-template-columns: 1fr }
+  .dados dt { padding: var(--vao-da-linha-empilhada) 0 0; border-bottom: 0; font-size: var(--texto-miudo) }
+  .dados dd { padding: var(--vao-entre-rotulo-e-valor) 0 var(--vao-da-linha-empilhada) }
+  .linha-dos-dados { grid-template-columns: 1fr; row-gap: var(--vao-entre-rotulo-e-valor) }
+  .linha-dos-dados-rotulo { min-height: 0; padding-right: 0; font-size: var(--texto-miudo) }
+  .linha-dos-dados-valor { margin-left: 0 }
+}
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
 /* Embaixo da lista, a busca de ligar que a corrente do título abre (#427), na linha toda; fechada, a linha some. */

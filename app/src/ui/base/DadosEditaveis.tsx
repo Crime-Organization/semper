@@ -120,8 +120,15 @@ export function FormularioDosDados({ rotulo, estado, ocupado, aoSalvar, aoCancel
   avisarSujo.current = aoMudarSujo;
   useEffect(() => { avisarSujo.current?.(mudou); }, [mudou]);
   useEffect(() => () => avisarSujo.current?.(false), []);
-  // Ao abrir, o cursor vai para o primeiro campo.
-  useEffect(() => { form.current?.querySelector<HTMLElement>(CAMPOS_DO_ENTER)?.focus({ preventScroll: true }); }, []);
+  // Ao abrir, a seção aparece o mais inteira que der, e o cursor vai para o primeiro campo, com a linha dele (o rótulo, que no celular
+  // fica em cima, e o campo) à vista, abaixo dos botões redondos que flutuam no alto do cartão (o CSS dá a folga deles no
+  // scroll-margin-top), para nenhum botão cobrir o campo nem o erro dele (#432).
+  useEffect(() => {
+    const primeiro = form.current?.querySelector<HTMLElement>(CAMPOS_DO_ENTER);
+    form.current?.scrollIntoView?.({ block: 'nearest' });
+    (primeiro?.closest('.linha-dos-dados') ?? primeiro)?.scrollIntoView?.({ block: 'nearest' });
+    primeiro?.focus({ preventScroll: true });
+  }, []);
 
   async function desistir() {
     if (mudou && !await confirmar('Descartar as mudanças?', 'O que você mudou nestes dados não será salvo.', 'Descartar', true)) return;
