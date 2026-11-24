@@ -207,9 +207,10 @@ export const ASSUNTOS: Assunto[] = [
       'O nome das bolinhas e os títulos das seções do cadastro e da edição da tarefa são lidos por testes de Equipe, Mensagens e Processos (já no comando abaixo).',
       'Estado novo da tarefa = coluna reconhecida pelo sistema: `regras/quadro.ts` (`COLUNA_DE_APROVACAO`, `explicacaoDaColuna`), `regras/colunasPadrao.ts`, `ui/quadro/Kanban.tsx` e `paginas/situacaoDoItem.tsx` (veja [Quadros](#quadros)); mexeu no Kanban, rode a bateria completa.',
       'A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).',
-      'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.'
+      'A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.',
+      'Os avisos ao solicitante e a quem executa (#415) são de [Mensagens e avisos](#mensagens): trocar o solicitante, a chegada à coluna de aprovação e a devolução (`public.tarefa_devolver`) avisam pelo banco (`20261124033230_avisos_da_tarefa.sql`) e por `falso.ts` (`regras/avisosDaTarefa.ts`); mude os três juntos.'
     ],
-    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro'), 'grupo_com_demanda_continua', 'grupos-da-equipe']
+    testes: ['equipe-no-cartao', 'aviso-ao-ser-incluido', 'avisos-da-tarefa', 'avisosDaTarefa', 'avisos_da_tarefa', 'ligar-processo', 'Inicio', 'colunas-padrao', 'colunasPadrao', arquivo('app/src/regras/quadro'), 'grupo_com_demanda_continua', 'grupos-da-equipe']
   },
   {
     id: 'tempo',
@@ -448,10 +449,10 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'mensagens',
     titulo: 'Mensagens e avisos',
-    resumo: 'A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.',
+    resumo: 'A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.',
     arquivos: ['Mensagens', 'mensagens', 'inclusao', 'pedidoDeParticipacao', 'aviso-ao-ser-incluido', 'pedir-para-participar',
-      'aviso_ao_ser_incluido', 'pedidos_de_participacao'],
-    tabelas: ['mensagens', 'mensagens_de_compromisso', 'mensagens_de_grupo', 'mensagens_de_inclusao', 'mensagens_de_participacao', 'pedidos_de_participacao'],
+      'aviso_ao_ser_incluido', 'pedidos_de_participacao', 'avisosDaTarefa', 'avisos-da-tarefa', 'avisos_da_tarefa'],
+    tabelas: ['mensagens', 'mensagens_da_tarefa', 'privado.mudancas_do_solicitante', 'mensagens_de_compromisso', 'mensagens_de_grupo', 'mensagens_de_inclusao', 'mensagens_de_participacao', 'pedidos_de_participacao'],
     dados: ['DadosMensagens', 'DadosPedidos'],
     rotas: ['mensagens'],
     armadilhas: [

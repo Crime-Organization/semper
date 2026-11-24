@@ -10574,3 +10574,129 @@ describe('Funções dos participantes: a sessão aberta antes da #421 (banco fic
     }
   });
 });
+
+describe('Avisos da tarefa ao solicitante e a quem executa (banco fictício, #415)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void };
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO.entrarComo(id);
+  const coluna = async (qual: (c: Awaited<ReturnType<Dados['colunasListar']>>[number]) => boolean) => (await SD.colunasListar('tarefas')).find(qual)!.id;
+  /** Os avisos da tarefa de uma conta ("aviso/quem fez/lido"), voltando depois para o Mauro. */
+  const avisosDe = async (quem: string) => {
+    entrarComo(quem);
+    const lista = (await SD.mensagensListar()).filter(m => m.tipo === 'tarefa').map(m => `${m.avisoDaTarefa!.aviso}/${m.avisoDaTarefa!.feito_por}/${m.lido_em ? 'lida' : 'nova'}`);
+    entrarComo('u-master');
+    return lista.sort();
+  };
+  /** O tempo passa (mais que o do desfazer): a próxima troca começa outra sequência. */
+  const passarOTempo = () => { const t = Date.now(); vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(t + 2 * MINUTO); };
+  /** O Mauro (administrador) pede ao Bruno uma tarefa com aprovação, em "Fazendo", com a Ana como solicitante. */
+  const pedidaPelaAna = async () => {
+    const { id } = await SD.tarefaCriar({ titulo: 'Minutar a petição', responsavel_id: 'u-bruno', solicitante_id: 'u-ana', precisa_aprovacao: true,
+      participantes: [], pessoas: [], etapa_id: await coluna(c => c.nome === 'Fazendo') });
+    return id;
+  };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-master');
+  });
+  afterEach(() => { vi.useRealTimers(); entrarComo('u-master'); });
+
+  it('dada uma tarefa nova, quando o Mauro põe a Ana como solicitante, então ela recebe "incluiu você", com a tarefa; e o Mauro, nada', async () => {
+    // Quando
+    const id = await pedidaPelaAna();
+    // Então
+    entrarComo('u-ana');
+    const [aviso] = (await SD.mensagensListar()).filter(m => m.tipo === 'tarefa');
+    entrarComo('u-master');
+    expect(aviso.avisoDaTarefa).toEqual({ aviso: 'solicitante', feito_por: 'u-master', tarefa: { id, codigo: expect.any(String), titulo: 'Minutar a petição' }, comentario: null });
+    expect(await avisosDe('u-master')).toEqual([]);
+  });
+
+  it('dada a Ana posta como solicitante, quando o Mauro desfaz logo, então o aviso que ela não leu some; passado o tempo, pôr de novo avisa', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-ana' });
+    // Quando
+    await SD.tarefaAtualizar(id, { solicitante_id: null });
+    // Então
+    expect(await avisosDe('u-ana')).toEqual([]);
+    // Quando
+    passarOTempo();
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-ana' });
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada a tarefa que precisa de aprovação, quando o Bruno a conclui, então a Ana é avisada; e o Desfazer dele apaga o aviso não lido', async () => {
+    // Dado
+    const id = await pedidaPelaAna();
+    entrarComo('u-bruno');
+    // Quando
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['aprovacao/u-bruno/nova', 'solicitante/u-master/nova']);
+    // Quando: o Bruno desfaz
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.nome === 'Fazendo'), 1);
+    // Então
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada a tarefa na aprovação, com o Mauro participante que executa, quando a Ana a devolve, então o Bruno e o Mauro são avisados, com o comentário', async () => {
+    // Dado
+    const executa = (await SD.funcoesNaTarefaListar()).find(f => f.executa)!;
+    const id = await pedidaPelaAna();
+    await SD.tarefaAtualizar(id, { participantes: ['u-master'], funcoes: { 'u-master': executa.id } });
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    // Quando
+    entrarComo('u-ana');
+    await SD.tarefaDevolver(id, 'Falta o pedido de tutela.');
+    // Então
+    entrarComo('u-bruno');
+    const devolvida = (await SD.mensagensListar()).find(m => m.avisoDaTarefa?.aviso === 'devolvida')!;
+    entrarComo('u-master');
+    expect(devolvida.avisoDaTarefa?.comentario?.texto).toBe('Tarefa devolvida: Falta o pedido de tutela.');
+    expect(devolvida.avisoDaTarefa?.feito_por).toBe('u-ana');
+    expect(await avisosDe('u-master')).toEqual(['devolvida/u-ana/nova']);
+    expect(await avisosDe('u-ana')).toEqual(['aprovacao/u-bruno/nova', 'solicitante/u-master/nova']);
+  });
+
+  it('dados os avisos da Ana, quando ela marca todos como lidos, então o número cai e eles continuam na caixa', async () => {
+    // Dado
+    await pedidaPelaAna();
+    entrarComo('u-ana');
+    const antes = await SD.mensagensNaoLidas();
+    // Quando
+    await SD.mensagensMarcarTodasLidas();
+    // Então
+    expect(antes).toBeGreaterThan(0);
+    expect(await SD.mensagensNaoLidas()).toBe(0);
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/lida']);
+  });
+
+  it('dada a tarefa esperando a aprovação da Ana, quando ela passa o pedido ao Mauro, então ele recebe o aviso de aprovação e ela perde o que não leu', async () => {
+    // Dado
+    const id = await pedidaPelaAna();
+    entrarComo('u-bruno');
+    await SD.tarefaMover(id, await coluna(c => c.marco === 'concluido'), 1);
+    passarOTempo();   // a troca não é o desfazer de quem pôs a Ana
+    // Quando
+    entrarComo('u-ana');
+    await SD.tarefaAtualizar(id, { solicitante_id: 'u-master' });
+    // Então
+    expect(await avisosDe('u-master')).toEqual(['aprovacao/u-ana/nova', 'solicitante/u-ana/nova']);
+    expect(await avisosDe('u-ana')).toEqual(['solicitante/u-master/nova']);
+  });
+
+  it('dada uma tarefa nova sem solicitante, quando o Mauro a cria, então nenhuma sequência de trocas de solicitante é guardada', async () => {
+    // Quando
+    const { id } = await SD.tarefaCriar({ titulo: 'Tirar cópias', responsavel_id: 'u-bruno' });
+    // Então
+    const guardado = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { mudancasDoSolicitante: { tarefa_id: string }[] };
+    expect(guardado.mudancasDoSolicitante.filter(s => s.tarefa_id === id)).toEqual([]);
+  });
+});

@@ -19,40 +19,40 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Objetos de contrato](#objetos), linhas 162–181: Os objetos (o que o contrato cobre), a lista do escritório nas Configurações (corrigir, juntar parecidos) e a demanda que nasce de cada objeto.
 - [Demandas](#demandas), linhas 182–211: As demandas (o trabalho de um caso, com prazo e fases): o cadastro, o cartão, demandas relacionadas e a demanda contínua, que junta as tarefas avulsas.
 - [Checklists e modelos](#listas), linhas 212–233: Os checklists (no código e no banco, "listas") da demanda, da tarefa e do contrato, com grupos numerados, e os modelos de checklist do escritório.
-- [Tarefas](#tarefas), linhas 234–266: As tarefas: o cadastro, o cartão, as funções dos participantes (só "Executa" de fábrica; o participante pode ficar sem função), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.
-- [Tempo nas tarefas](#tempo), linhas 267–288: O cronômetro das tarefas, os registros de tempo (corrigir e apagar) e a página "Meu tempo trabalhado".
-- [Processos](#processos), linhas 289–321: Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.
-- [Propriedade intelectual](#propriedade-intelectual), linhas 322–340: O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
-- [Agenda e compromissos](#agenda), linhas 341–368: Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.
-- [Calendário e prazos](#calendario), linhas 369–388: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
-- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 389–406: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
-- [Documentos e anotações](#documentos), linhas 407–434: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
-- [Financeiro](#financeiro), linhas 435–460: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
-- [Parcelas e recebimentos](#parcelas), linhas 461–483: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
-- [Lucro dos sócios](#lucros), linhas 484–499: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
-- [Meus valores](#meus-valores), linhas 500–512: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
-- [Conferência dos lançamentos](#conferencia), linhas 513–527: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
-- [Equipe, grupos e permissões](#equipe), linhas 528–558: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
-- [Perfil profissional e foto](#perfil), linhas 559–578: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
-- [Configurações e escritório](#configuracoes), linhas 579–595: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
-- [Registro de ações e LGPD](#registro), linhas 596–614: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
-- [Mensagens e avisos](#mensagens), linhas 615–639: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
-- [Comentários e menções](#comentarios), linhas 640–657: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
-- [Etiquetas](#etiquetas), linhas 658–674: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
-- [Ligações entre itens](#ligacoes), linhas 675–696: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
-- [Quadros (kanban) e situação](#quadros), linhas 697–723: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 724–746: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 747–759: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 760–774: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 775–795: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 796–809: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 810–829: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 830–848: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 849–862: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 863–876: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 877–888: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 889–993: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 994–997: nada.
+- [Tarefas](#tarefas), linhas 234–267: As tarefas: o cadastro, o cartão, as funções dos participantes (só "Executa" de fábrica; o participante pode ficar sem função), a aprovação interna, a diligência, copiar para outra demanda e o prazo do processo que a tarefa cumpre.
+- [Tempo nas tarefas](#tempo), linhas 268–289: O cronômetro das tarefas, os registros de tempo (corrigir e apagar) e a página "Meu tempo trabalhado".
+- [Processos](#processos), linhas 290–322: Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.
+- [Propriedade intelectual](#propriedade-intelectual), linhas 323–341: O processo (em geral administrativo, no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
+- [Agenda e compromissos](#agenda), linhas 342–369: Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.
+- [Calendário e prazos](#calendario), linhas 370–389: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
+- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 390–407: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
+- [Documentos e anotações](#documentos), linhas 408–435: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
+- [Financeiro](#financeiro), linhas 436–461: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
+- [Parcelas e recebimentos](#parcelas), linhas 462–484: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
+- [Lucro dos sócios](#lucros), linhas 485–500: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
+- [Meus valores](#meus-valores), linhas 501–513: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
+- [Conferência dos lançamentos](#conferencia), linhas 514–528: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
+- [Equipe, grupos e permissões](#equipe), linhas 529–559: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
+- [Perfil profissional e foto](#perfil), linhas 560–579: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
+- [Configurações e escritório](#configuracoes), linhas 580–596: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
+- [Registro de ações e LGPD](#registro), linhas 597–615: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
+- [Mensagens e avisos](#mensagens), linhas 616–641: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
+- [Comentários e menções](#comentarios), linhas 642–659: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
+- [Etiquetas](#etiquetas), linhas 660–676: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
+- [Ligações entre itens](#ligacoes), linhas 677–698: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
+- [Quadros (kanban) e situação](#quadros), linhas 699–725: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
+- [Cartão dos itens](#cartao), linhas 726–748: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 749–761: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 762–776: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 777–797: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 798–811: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 812–831: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google e contatos](#google), linhas 832–850: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+- [Novidades e versão](#novidades), linhas 851–864: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 865–878: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 879–890: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 891–995: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 996–999: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -252,9 +252,9 @@ As tarefas: o cadastro, o cartão, as funções dos participantes (só "Executa"
 - **Telas:** (app/src/paginas/) AprovacaoDaTarefa.tsx, CartaoTarefa.tsx, CartoesLigados.tsx, FuncoesDosParticipantes.tsx, NovaTarefa.tsx, Tarefas.tsx, TarefasDaDemanda.tsx, copiarTarefa.tsx, prazoDaTarefa.ts
 - **Rotas:** `/tarefas/`, `/tarefas/nova/`
 - **Peças de ui:** (app/src/ui/) filtroDoInicio.ts, funcoesNaTarefa.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/colunas_de_espera_das_tarefas.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/funcoes_so_executa_de_fabrica.test.sql supabase/tests/grupo_com_demanda_continua.test.sql supabase/tests/tarefa_aprovacao.test.sql supabase/tests/tarefa_diligencia.test.sql supabase/tests/tarefa_em_varias_demandas_e_contratos.test.sql supabase/tests/tarefa_solicitante_e_funcoes.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/AprovacaoDaTarefa.test.tsx src/paginas/Inicio.test.tsx src/paginas/NovaTarefa.test.tsx src/paginas/TarefasDaDemanda.test.tsx src/paginas/copiarTarefa.test.tsx src/paginas/prazoDaTarefa.test.ts src/regras/aprovacaoDaTarefa.test.ts src/regras/colunasPadrao.test.ts src/regras/copiaDaTarefa.test.ts src/regras/dataDeInicio.test.ts src/regras/funcoesNaTarefa.test.ts src/regras/ordemPorPrazo.test.ts src/regras/prazoDaTarefa.test.ts src/regras/quadro.test.ts src/regras/tarefa.test.ts src/ui/filtroDoInicio.test.ts src/ui/funcoesNaTarefa.test.ts`
-- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/colunas-padrao.spec.ts e2e/copiar-tarefa.spec.ts e2e/demanda-continua.spec.ts e2e/equipe-no-cartao.spec.ts e2e/grupos-da-equipe.spec.ts e2e/ligar-processo.spec.ts e2e/prazo-da-tarefa.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/avisos_da_tarefa.test.sql supabase/tests/colunas_de_espera_das_tarefas.test.sql supabase/tests/data_de_inicio.test.sql supabase/tests/funcoes_so_executa_de_fabrica.test.sql supabase/tests/grupo_com_demanda_continua.test.sql supabase/tests/tarefa_aprovacao.test.sql supabase/tests/tarefa_diligencia.test.sql supabase/tests/tarefa_em_varias_demandas_e_contratos.test.sql supabase/tests/tarefa_solicitante_e_funcoes.test.sql`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/AprovacaoDaTarefa.test.tsx src/paginas/Inicio.test.tsx src/paginas/NovaTarefa.test.tsx src/paginas/TarefasDaDemanda.test.tsx src/paginas/copiarTarefa.test.tsx src/paginas/prazoDaTarefa.test.ts src/regras/aprovacaoDaTarefa.test.ts src/regras/avisosDaTarefa.test.ts src/regras/colunasPadrao.test.ts src/regras/copiaDaTarefa.test.ts src/regras/dataDeInicio.test.ts src/regras/funcoesNaTarefa.test.ts src/regras/ordemPorPrazo.test.ts src/regras/prazoDaTarefa.test.ts src/regras/quadro.test.ts src/regras/tarefa.test.ts src/ui/filtroDoInicio.test.ts src/ui/funcoesNaTarefa.test.ts`
+- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/avisos-da-tarefa.spec.ts e2e/colunas-padrao.spec.ts e2e/copiar-tarefa.spec.ts e2e/demanda-continua.spec.ts e2e/equipe-no-cartao.spec.ts e2e/grupos-da-equipe.spec.ts e2e/ligar-processo.spec.ts e2e/prazo-da-tarefa.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 - **Armadilhas:**
   - Concluir a tarefa que cumpre um prazo pergunta se o prazo foi cumprido (`regras/prazoDaTarefa.ts`, `paginas/situacaoDoItem.tsx`): teste pelos caminhos do ✓ do cartão e do círculo da miniatura.
   - Tarefa sem demanda vai para a demanda contínua (veja [Demandas](#demandas)). O cronômetro e os registros de tempo estão em [Tempo nas tarefas](#tempo).
@@ -263,6 +263,7 @@ As tarefas: o cadastro, o cartão, as funções dos participantes (só "Executa"
   - Estado novo da tarefa = coluna reconhecida pelo sistema: `regras/quadro.ts` (`COLUNA_DE_APROVACAO`, `explicacaoDaColuna`), `regras/colunasPadrao.ts`, `ui/quadro/Kanban.tsx` e `paginas/situacaoDoItem.tsx` (veja [Quadros](#quadros)); mexeu no Kanban, rode a bateria completa.
   - A aprovação está no banco, em `falso.ts` e em `dados/contrato.test.ts`: mude os três juntos. Regra que vale para quem executa ou para quem pede: teste também o administrador (que pela RLS altera tudo) e quem só altera a tarefa (veja [Equipe](#equipe)).
   - A devolução grava um comentário: a seção de comentários (`ui/Comentarios.tsx`, de [Comentários e menções](#comentarios)) relê a lista pela `versao`.
+  - Os avisos ao solicitante e a quem executa (#415) são de [Mensagens e avisos](#mensagens): trocar o solicitante, a chegada à coluna de aprovação e a devolução (`public.tarefa_devolver`) avisam pelo banco (`20261124033230_avisos_da_tarefa.sql`) e por `falso.ts` (`regras/avisosDaTarefa.ts`); mude os três juntos.
 
 <a id="tempo"></a>
 ## Tempo nas tarefas
@@ -615,23 +616,24 @@ O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela E
 <a id="mensagens"></a>
 ## Mensagens e avisos
 
-A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
+A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
 
-- **Tabelas:** `mensagens` (mensagens), `mensagens_de_compromisso` (demandas_dos_compromissos), `mensagens_de_grupo` (grupos_da_equipe), `mensagens_de_inclusao` (aviso_ao_ser_incluido), `mensagens_de_participacao` (pedidos_de_participacao), `pedidos_de_participacao` (pedidos_de_participacao); entre parênteses, a migração que a cria
-- **Migrações:** (supabase/migrations/) 20261108165559_mensagens, 20261109085738_avisos_de_prazo, 20261110022014_lembretes_dos_prazos, 20261118220000_pedidos_de_participacao, 20261119193326_aviso_ao_ser_incluido, 20261119233811_grupos_da_equipe, 20261123000750_demandas_dos_compromissos
+- **Tabelas:** `mensagens` (mensagens), `mensagens_da_tarefa` (avisos_da_tarefa), `privado.mudancas_do_solicitante` (avisos_da_tarefa), `mensagens_de_compromisso` (demandas_dos_compromissos), `mensagens_de_grupo` (grupos_da_equipe), `mensagens_de_inclusao` (aviso_ao_ser_incluido), `mensagens_de_participacao` (pedidos_de_participacao), `pedidos_de_participacao` (pedidos_de_participacao); entre parênteses, a migração que a cria
+- **Migrações:** (supabase/migrations/) 20261108165559_mensagens, 20261109085738_avisos_de_prazo, 20261110022014_lembretes_dos_prazos, 20261118220000_pedidos_de_participacao, 20261119193326_aviso_ao_ser_incluido, 20261119233811_grupos_da_equipe, 20261123000750_demandas_dos_compromissos, 20261124033230_avisos_da_tarefa
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
   - `DadosMensagens`: mensagensListar, mensagensNaoLidas, mensagemMarcarLida, mensagensMarcarTodasLidas
   - `DadosPedidos`: itensParaPedir, participacaoPedir, participacaoCancelar, participacaoResponder
 - **Regras:** (app/src/regras/)
+  - `avisosDaTarefa.ts`: Os avisos da tarefa na caixa de Mensagens (#415, vem da #313): quem é posto como solicitante recebe "incluiu você"; o solicitante é avisado quando a tarefa que…
   - `inclusao.ts`: Aviso na caixa de Mensagens para quem entra num item (#377): as palavras de cada módulo, os rótulos da linha e o papel de cada pessoa entre duas versões da…
   - `mensagens.ts`: Caixa de mensagens (#112): para onde cada mensagem leva e como ela aparece.
   - `pedidoDeParticipacao.ts`: Pedir para participar de um item de que ainda não faço parte (#363): as palavras de cada módulo, para onde cada mensagem leva, o que a linha da busca geral…
 - **Telas:** (app/src/paginas/) Mensagens.css, Mensagens.tsx
 - **Rotas:** `/mensagens/`
 - **Peças de ui:** (app/src/ui/) mensagens.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/aviso_ao_ser_incluido.test.sql supabase/tests/mensagens.test.sql supabase/tests/pedidos_de_participacao.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/Mensagens.test.tsx src/regras/inclusao.test.ts src/regras/mensagens.test.ts src/regras/pedidoDeParticipacao.test.ts`
-- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/mensagens.spec.ts e2e/pedir-para-participar.spec.ts`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/aviso_ao_ser_incluido.test.sql supabase/tests/avisos_da_tarefa.test.sql supabase/tests/mensagens.test.sql supabase/tests/pedidos_de_participacao.test.sql`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/Mensagens.test.tsx src/regras/avisosDaTarefa.test.ts src/regras/inclusao.test.ts src/regras/mensagens.test.ts src/regras/pedidoDeParticipacao.test.ts`
+- **Testes de tela:** na pasta app, `npx playwright test e2e/aviso-ao-ser-incluido.spec.ts e2e/avisos-da-tarefa.spec.ts e2e/mensagens.spec.ts e2e/pedir-para-participar.spec.ts`
 - **Armadilhas:**
   - Quem recebe cada aviso é decidido no banco (gatilhos); as palavras de cada módulo ficam em `regras/inclusao.ts` e `regras/pedidoDeParticipacao.ts`.
   - Tipo de aviso novo = tabela `mensagens_de_<x>` (migração), entrada em `regras/mensagens.ts` e um `ItemDe<x>` em `paginas/Mensagens.tsx` (como `ItemDaDemandaDoCompromisso`, da Agenda).
@@ -946,7 +948,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
 - `/inicio/` (Inicio): [Painel inicial](#painel-inicial)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/Conferencia.test.tsx, src/paginas/Conferencia.tsx, src/paginas/Configuracoes.test.tsx, src/paginas/Configuracoes.tsx, src/paginas/Entrada.tsx, src/paginas/Equipe.tsx, src/paginas/Financeiro.test.tsx, src/paginas/Financeiro.tsx, src/paginas/Home.tsx, src/paginas/Lucros.tsx, src/paginas/MeusValores.test.tsx, src/paginas/MeusValores.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/MaisDoMenu.test.tsx, src/ui/MenuFinanceiro.test.tsx, src/ui/SubmenuLateral.test.tsx
-  - 43 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
+  - 44 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
 - `/lucros/` (Lucros): [Lucro dos sócios](#lucros)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
 - `/mensagens/` (Mensagens): [Mensagens e avisos](#mensagens)
@@ -982,14 +984,14 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - escrevem o endereço: (app/) src/paginas/CartaoContrato.tsx, src/paginas/CartaoTarefa.tsx, src/paginas/NovoProcesso.test.tsx, src/paginas/PainelProcessos.tsx, src/paginas/PartesDoProcesso.test.tsx, src/paginas/Processos.tsx, src/paginas/ProcessosDaDemanda.tsx, src/paginas/ProcessosDaPessoa.tsx, src/paginas/ProcessosDoCartao.test.tsx, src/paginas/concluirDemanda.ts, src/regras/origemDoCadastro.test.ts, src/regras/processo.ts, src/regras/processoPartesERecursos.test.ts
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/novo-padrao-das-secoes.spec.ts e2e/processo-partes-e-recursos.spec.ts e2e/processos.spec.ts e2e/propriedade-intelectual-na-agenda.spec.ts e2e/propriedade-intelectual.spec.ts e2e/sair-do-cadastro.spec.ts`
 - `/tarefas/` (Tarefas): [Tarefas](#tarefas)
-  - escrevem o endereço: (app/) src/paginas/CartaoTarefa.tsx, src/paginas/CartoesLigados.tsx, src/paginas/Inicio.test.tsx, src/paginas/ItensDoCompromisso.test.tsx, src/paginas/Mensagens.test.tsx, src/paginas/MeuTempo.tsx, src/paginas/ModelosDeLista.tsx, src/paginas/NovaDemandaPelaOrigem.test.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/NovaTarefa.tsx, src/paginas/TarefasDaDemanda.test.tsx, src/paginas/TarefasDaDemanda.tsx, src/paginas/inicio/GraficosDoInicio.tsx, src/paginas/nascerNaAnotacao.test.tsx, src/paginas/processo/Andamentos.tsx, src/paginas/processo/Prazos.tsx, src/regras/agenda.ts, src/regras/anotacao.ts, src/regras/buscaGeral.test.ts, src/regras/buscaGeral.ts, src/regras/gruposDaEquipe.test.ts, src/regras/gruposDaEquipe.ts, src/regras/inclusao.test.ts, src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/nascerLigado.test.ts, src/regras/origemDaPessoa.test.ts, src/regras/origemDoCadastro.test.ts, src/regras/painelInicial.test.ts, src/regras/painelInicial.ts, src/regras/pedidoDeParticipacao.test.ts, src/regras/pedidoDeParticipacao.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/MaisDoMenu.test.tsx, src/ui/Pastas.test.tsx, src/ui/TextoComMencoes.test.tsx, src/ui/painel/Painel.test.tsx, src/ui/useCartaoNaUrl.test.tsx, src/ui/useParametroLido.test.tsx
+  - escrevem o endereço: (app/) src/paginas/CartaoTarefa.tsx, src/paginas/CartoesLigados.tsx, src/paginas/Inicio.test.tsx, src/paginas/ItensDoCompromisso.test.tsx, src/paginas/Mensagens.test.tsx, src/paginas/MeuTempo.tsx, src/paginas/ModelosDeLista.tsx, src/paginas/NovaDemandaPelaOrigem.test.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/NovaTarefa.tsx, src/paginas/TarefasDaDemanda.test.tsx, src/paginas/TarefasDaDemanda.tsx, src/paginas/inicio/GraficosDoInicio.tsx, src/paginas/nascerNaAnotacao.test.tsx, src/paginas/processo/Andamentos.tsx, src/paginas/processo/Prazos.tsx, src/regras/agenda.ts, src/regras/anotacao.ts, src/regras/avisosDaTarefa.test.ts, src/regras/avisosDaTarefa.ts, src/regras/buscaGeral.test.ts, src/regras/buscaGeral.ts, src/regras/gruposDaEquipe.test.ts, src/regras/gruposDaEquipe.ts, src/regras/inclusao.test.ts, src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/nascerLigado.test.ts, src/regras/origemDaPessoa.test.ts, src/regras/origemDoCadastro.test.ts, src/regras/painelInicial.test.ts, src/regras/painelInicial.ts, src/regras/pedidoDeParticipacao.test.ts, src/regras/pedidoDeParticipacao.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/MaisDoMenu.test.tsx, src/ui/Pastas.test.tsx, src/ui/TextoComMencoes.test.tsx, src/ui/painel/Painel.test.tsx, src/ui/useCartaoNaUrl.test.tsx, src/ui/useParametroLido.test.tsx
   - 36 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
 - `/tarefas/meu-tempo/` (MeuTempo): [Tempo nas tarefas](#tempo)
   - escrevem o endereço: (app/) src/paginas/Tarefas.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meu-tempo.spec.ts`
 - `/tarefas/nova/` (FormularioTarefa): [Tarefas](#tarefas)
   - escrevem o endereço: (app/) src/paginas/CartaoContrato.tsx, src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/Inicio.tsx, src/paginas/NovaTarefa.test.tsx, src/paginas/Tarefas.tsx, src/regras/novoNaAnotacao.test.ts, src/regras/novoNaAnotacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/LigarDoModulo.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/copiar-tarefa.spec.ts e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/avisos-da-tarefa.spec.ts e2e/copiar-tarefa.spec.ts e2e/datas.spec.ts e2e/demanda-continua.spec.ts e2e/grupos-da-equipe.spec.ts e2e/lembretes.spec.ts e2e/sair-do-cadastro.spec.ts e2e/tarefa-aprovacao.spec.ts e2e/tarefa-em-varias-ligacoes.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 
 <a id="sem-assunto"></a>
 ## Sem assunto

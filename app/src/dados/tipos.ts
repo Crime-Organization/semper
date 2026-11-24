@@ -1493,7 +1493,7 @@ export interface ComentarioDaMensagem {
  * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
  * de quem entrou num item (#377).
  */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso';
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo' | 'demandaDoCompromisso' | 'tarefa';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1533,6 +1533,24 @@ export interface Mensagem {
   grupo?: GrupoDaMensagem | null;
   /** No aviso da demanda que nasceu de um compromisso que se repete (#307). Ausente nas outras. */
   demandaDoCompromisso?: DemandaDoCompromissoDaMensagem | null;
+  /** No aviso da tarefa ao solicitante e a quem executa (#415). Ausente nas outras. */
+  avisoDaTarefa?: AvisoDaTarefaDaMensagem | null;
+}
+/**
+ * Qual aviso da tarefa (#415; mensagens_da_tarefa.aviso no banco): a pessoa foi posta como solicitante; a tarefa que ela pediu chegou
+ * à coluna de aprovação; a tarefa que ela executa foi devolvida, com um comentário.
+ */
+export type AvisoDaTarefa = 'solicitante' | 'aprovacao' | 'devolvida';
+/**
+ * O aviso da tarefa (#415, tabela mensagens_da_tarefa). `tarefa`: null quando a pessoa não a vê mais (a caixa só diz isso).
+ * `comentario`: na devolvida, o comentário da devolução (null se foi apagado ou nas outras).
+ */
+export interface AvisoDaTarefaDaMensagem {
+  aviso: AvisoDaTarefa;
+  /** Quem pôs, quem enviou para a aprovação, quem devolveu; null se não existe mais. */
+  feito_por: string | null;
+  tarefa: { id: string; codigo: string; titulo: string } | null;
+  comentario: { id: string; texto: string } | null;
 }
 /** Qual aviso da demanda que nasce do compromisso (#307; mensagens_de_compromisso.aviso no banco): nasceu, a data mudou, foi cancelado. */
 export type AvisoDaDemandaDoCompromisso = 'demanda_nova' | 'data_mudou' | 'cancelado';

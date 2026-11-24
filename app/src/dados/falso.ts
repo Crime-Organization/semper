@@ -41,7 +41,8 @@ import { hojeNaAgenda } from '../regras/agenda';
 import { dataDaVez, DEMANDA_NA_SERIE_DE_OUTROS, regraNoLimite, SEGUINTES_DE_OUTROS, vezDaData, vezesParaGerar, vezNaLista } from '../regras/repeticao';
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
-import type { AvisoDaDemandaDoCompromisso, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
+import type { AvisoDaDemandaDoCompromisso, AvisoDaTarefa, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
+import { aprovacaoMudouDeDono, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, quemExecuta, saiuDaAprovacao, type SequenciaDoSolicitante } from '../regras/avisosDaTarefa';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
@@ -171,6 +172,10 @@ interface Banco {
   mensagensDeGrupo?: { id: string; perfil_id: string; grupo_id: string; incluido_por: string | null; criado_em: string; lido_em: string | null }[];
   /** Os avisos das demandas que nascem dos compromissos que se repetem (#307), como a tabela mensagens_de_compromisso. */
   mensagensDeCompromisso?: MensagemDeCompromissoGuardada[];
+  /** Os avisos da tarefa ao solicitante e a quem executa (#415), como a tabela mensagens_da_tarefa. */
+  mensagensDaTarefa?: MensagemDaTarefaGuardada[];
+  /** As sequências de trocas de solicitante de cada tarefa (#415), como a tabela privado.mudancas_do_solicitante. */
+  mudancasDoSolicitante?: (SequenciaDoSolicitante & { tarefa_id: string })[];
   /** As sequências de mudanças no papel de cada pessoa em cada item (#377), como a tabela privado.mudancas_na_equipe. */
   mudancasNaEquipe?: (SequenciaDeMudancas & { perfil_id: string; item_id: string })[];
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
@@ -321,6 +326,8 @@ type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes
 type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[]; demanda_gerada_em?: string | null };
 /** O aviso da demanda que nasceu de um compromisso (#307), como fica guardado: quem recebe e os ids (o título vem da demanda, na hora). */
 type MensagemDeCompromissoGuardada = Omit<DemandaDoCompromissoDaMensagem, 'demanda'> & { id: string; perfil_id: string; demanda_id: string; criado_em: string; lido_em: string | null };
+/** O aviso da tarefa (#415), como fica guardado: quem recebe e os ids (o título vem da tarefa e o texto do comentário, na hora). */
+type MensagemDaTarefaGuardada = { id: string; perfil_id: string; tarefa_id: string; aviso: AvisoDaTarefa; feito_por: string | null; comentario_id: string | null; criado_em: string; lido_em: string | null };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
 type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type ParcelaGuardada = Parcela & { excluido_em: string | null };
@@ -776,6 +783,9 @@ bd.mensagensDeInclusao ??= [];
 bd.gruposDaEquipe ??= [];
 bd.mensagensDeGrupo ??= [];
 bd.mensagensDeCompromisso ??= [];
+// Avisos da tarefa (#415): começam vazios.
+bd.mensagensDaTarefa ??= [];
+bd.mudancasDoSolicitante ??= [];
 bd.mudancasNaEquipe ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
@@ -1598,8 +1608,9 @@ function filtrarTarefas(f: FiltroTarefas = {}) {
  *  conclusão; sair dela, apaga. */
 function gravarColunaDaTarefa(t: TarefaGuardada, etapa: string | null, ordem: number | null) {
   historicoTarefa(t, { etapa_id: etapa });
-  const concluida = bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
+  const concluida = bd.colunas.find(c => c.id === etapa)?.marco === 'concluido', de = t.etapa_id;
   Object.assign(t, { etapa_id: etapa, etapa_ordem: ordem, atualizado_em: agora(), atualizado_por: eu, concluida_em: concluida ? t.concluida_em ?? agora() : null });
+  avisarAprovacaoNoFalso(t, de);   // #415
 }
 /** Como privado.tarefa_que_aprovo (#313): a tarefa que espera a aprovação de quem está logado, ou a recusa do banco. */
 function tarefaQueAprovo(id: string): TarefaGuardada {
@@ -2116,6 +2127,55 @@ function mensagemDeCompromissoLida({ id, perfil_id: _perfil, demanda_id, criado_
   const d = bd.demandas!.find(x => x.id === demanda_id);
   return { id, tipo: 'demandaDoCompromisso', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
     demandaDoCompromisso: { ...aviso, demanda: d && vejoNoModulo('demandas', d.id) ? { id: d.id, codigo: d.codigo, titulo: d.titulo } : null } };
+}
+
+// ---------- os avisos da tarefa (como supabase/migrations/20261124033230_avisos_da_tarefa.sql, #415) ----------
+/**
+ * Como privado.avisar_da_tarefa: só quem está ativo e não é quem fez. Os avisos de solicitante e de aprovação são um por pessoa e
+ * tarefa (o novo renova o antigo); cada devolução é um aviso.
+ */
+function avisarDaTarefaNoFalso(tarefaId: string, perfil: string | null, aviso: AvisoDaTarefa, comentarioId: string | null = null) {
+  if (!perfil || perfil === eu || !recebeAviso(perfil)) return;
+  const ja = aviso !== 'devolvida' && bd.mensagensDaTarefa!.find(m => m.perfil_id === perfil && m.tarefa_id === tarefaId && m.aviso === aviso);
+  if (ja) Object.assign(ja, { criado_em: agora(), lido_em: null, feito_por: eu });
+  else bd.mensagensDaTarefa!.push({ id: novoId(), perfil_id: perfil, tarefa_id: tarefaId, aviso, feito_por: eu, comentario_id: comentarioId, criado_em: agora(), lido_em: null });
+}
+/**
+ * Como o gatilho aviso_do_solicitante: a troca de solicitante (de `antes`; null na tarefa nova) avisa quem ficou, se ele não era o de
+ * antes da sequência (avisoDoSolicitante); os avisos da sequência que não valem mais e que ninguém leu saem. Só as funções em que a
+ * pessoa grava a tarefa chamam (como o "when current_user = 'authenticated'" do banco).
+ */
+function avisarSolicitanteNoFalso(t: TarefaGuardada, antes: string | null) {
+  const agoraMs = Date.now();
+  bd.mudancasDoSolicitante = bd.mudancasDoSolicitante!.filter(s => agoraMs - s.em < AVISO_DESFEITO);
+  const { sequencia, vale } = avisoDoSolicitante(bd.mudancasDoSolicitante.find(s => s.tarefa_id === t.id), antes, t.solicitante_id, agoraMs);
+  bd.mudancasDoSolicitante = [...bd.mudancasDoSolicitante.filter(s => s.tarefa_id !== t.id), { tarefa_id: t.id, ...sequencia }];
+  const daSequencia = (m: MensagemDaTarefaGuardada) => m.tarefa_id === t.id && m.aviso === 'solicitante' && Date.parse(m.criado_em) >= sequencia.desde;
+  bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(m => !(daSequencia(m) && !m.lido_em && m.perfil_id !== vale));
+  if (vale && !bd.mensagensDaTarefa.some(m => daSequencia(m) && m.perfil_id === vale)) avisarDaTarefaNoFalso(t.id, vale, 'solicitante');
+}
+/**
+ * Como o gatilho aviso_da_aprovacao: a tarefa que chega à coluna de aprovação (de `de`; null na tarefa nova) avisa o solicitante; quem
+ * a enviou e a retira logo para outra coluna que não a das concluídas (o Desfazer) apaga o aviso que ele não leu. O solicitante que
+ * muda (de `solicitanteAntes`) com a tarefa esperando na aprovação passa o aviso ao novo; o antigo perde o que não leu.
+ */
+function avisarAprovacaoNoFalso(t: TarefaGuardada, de: string | null, solicitanteAntes: string | null = t.solicitante_id) {
+  const colunas = colunasDeTarefas();
+  if (aprovacaoMudouDeDono(t, solicitanteAntes, colunas)) {
+    bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(m => !(m.tarefa_id === t.id && m.aviso === 'aprovacao' && m.perfil_id === solicitanteAntes && !m.lido_em));
+    avisarDaTarefaNoFalso(t.id, t.solicitante_id, 'aprovacao');
+  } else if (chegouAAprovacao(t, de, t.etapa_id, colunas)) avisarDaTarefaNoFalso(t.id, t.solicitante_id, 'aprovacao');
+  else if (saiuDaAprovacao(de, t.etapa_id, colunas)) {
+    bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(m => !(m.tarefa_id === t.id && m.aviso === 'aprovacao' && avisoDesfeito(m, eu, Date.now())));
+  }
+}
+/** Como a regra de leitura de mensagens_da_tarefa: cada um lê as suas; a tarefa excluída leva as dela (a chave estrangeira). */
+const minhasMensagensDaTarefa = () => bd.mensagensDaTarefa!.filter(m => m.perfil_id === eu && bd.tarefas!.some(t => t.id === m.tarefa_id));
+function mensagemDaTarefaLida({ id, tarefa_id, aviso, feito_por, comentario_id, criado_em, lido_em }: MensagemDaTarefaGuardada): Mensagem {
+  const t = bd.tarefas!.find(x => x.id === tarefa_id), vejo = !!t && vejoNoModulo('tarefas', t.id);
+  const c = vejo && comentario_id ? bd.comentarios!.find(x => x.id === comentario_id) : undefined;
+  return { id, tipo: 'tarefa', criado_em, lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+    avisoDaTarefa: { aviso, feito_por, tarefa: vejo ? { id: t.id, codigo: t.codigo, titulo: t.titulo } : null, comentario: c ? { id: c.id, texto: c.texto } : null } };
 }
 
 // Como as rotinas diárias estender-repeticoes e gerar-demandas-dos-compromissos: ao abrir o banco fictício, as séries ganham as datas que
@@ -3987,14 +4047,21 @@ export const SD: Dados = {
       id: novoId(), codigo: codigo() };
     // Como o gatilho aa_aprovacao (#313): também quem cria já concluída, sem aprovar.
     t.etapa_id = etapaComAprovacao(t, t.etapa_id, colunasDeTarefas(), membroLogado());
-    bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null); auditar('tarefas', 'inclusao', t); gravar();
+    bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null);
+    // Como o gatilho aviso_do_solicitante: a tarefa nova sem solicitante não começa sequência nenhuma.
+    if (t.solicitante_id) avisarSolicitanteNoFalso(t, null);
+    avisarAprovacaoNoFalso(t, null);
+    auditar('tarefas', 'inclusao', t); gravar();
     return espera({ id: t.id, codigo: t.codigo });
   },
   async tarefaAtualizar(id, dados) {
     const t = acharTarefa(id), novos = prepararTarefa(dados, t), antes = equipeDoItemNoFalso('tarefas', id);
+    const { solicitante_id: solicitanteAntes, etapa_id: etapaAntes } = t;
     historicoTarefa(t, novos);
     Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
     avisarInclusao('tarefas', id, antes);
+    if (t.solicitante_id !== solicitanteAntes) avisarSolicitanteNoFalso(t, solicitanteAntes);
+    avisarAprovacaoNoFalso(t, etapaAntes, solicitanteAntes);
     auditar('tarefas', 'alteracao', t); gravar();
     return espera({ id, codigo: t.codigo });
   },
@@ -4039,7 +4106,10 @@ export const SD: Dados = {
     if (!volta) return erro('O quadro de tarefas não tem a coluna para onde a tarefa volta.');
     const c = { id: novoId(), modulo: 'tarefas' as const, cartao_id: id, autor_id: eu, ...prepararComentario('tarefas', texto, id), criado_em: agora(), editado_em: null };
     bd.comentarios!.push(c); mensagensDoComentario(c);
-    gravarColunaDaTarefa(t, volta.id, Date.now() / SEGUNDO); gravar();
+    gravarColunaDaTarefa(t, volta.id, Date.now() / SEGUNDO);
+    // #415: quem executa é avisado, com o comentário.
+    quemExecuta({ ...t, funcoes: funcoesDaTarefaNoFalso(t) }, bd.funcoesNaTarefa!).forEach(p => avisarDaTarefaNoFalso(id, p, 'devolvida', c.id));
+    gravar();
     return espera(volta.id);
   },
   tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
@@ -5694,19 +5764,20 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
   mensagensListar: () => espera(juntarAsCaixas([
+    minhasMensagensDaTarefa().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDaTarefaLida),
     minhasMensagensDeCompromisso().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeCompromissoLida),
     minhasMensagensDeGrupo().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeGrupoLida),
     minhasMensagensDeInclusao().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeInclusaoLida),
     minhasMensagensDePedido().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map(mensagemDePedidoLida),
     minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)
   ], MENSAGENS_DA_CAIXA)),
-  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].filter(m => !m.lido_em).length),
+  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso(), ...minhasMensagensDaTarefa()].filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
-    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()].find(x => x.id === id && !x.lido_em);
+    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso(), ...minhasMensagensDaTarefa()].find(x => x.id === id && !x.lido_em);
     if (m) { m.lido_em = agora(); gravar(); }
   },
   async mensagensMarcarTodasLidas() {
-    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso()]) m.lido_em ??= agora();
+    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo(), ...minhasMensagensDeCompromisso(), ...minhasMensagensDaTarefa()]) m.lido_em ??= agora();
     gravar();
   },
 
@@ -5802,6 +5873,7 @@ export const SD: Dados = {
     bd.gruposDaEquipe!.forEach(g => { g.integrantes = g.integrantes.filter(p => p !== id); });
     bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.perfil_id !== id);
     bd.mensagensDeCompromisso = bd.mensagensDeCompromisso!.filter(x => x.perfil_id !== id);
+    bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
     gravar();
   },
