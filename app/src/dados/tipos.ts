@@ -733,6 +733,14 @@ export interface DadosContratos {
   objetosJuntar(ids: string[], fica: string): Promise<TrocaDeObjetos>;
   /** Tira da lista o objeto que nenhum contrato usa (só administradores). O que está em uso é recusado, com quantos contratos o usam. */
   objetoApagar(id: string): Promise<void>;
+  /** As demandas ligadas ao objeto (#410), para perguntar a qual objeto novo cada uma fica ligada ao separar. Só administradores. */
+  demandasDoObjeto(id: string): Promise<DemandaDoObjeto[]>;
+  /**
+   * Separa um objeto em dois ou mais (#410; só administradores): os nomes novos entram no lugar dele na lista e em cada contrato que
+   * o usava (arquivados também); cada demanda dele passa ao objeto novo escolhido em `demandas` (recusa se faltar alguma) e o título
+   * igual ao nome antigo acompanha. Não cria nem apaga demanda. Não tem desfazer.
+   */
+  objetoSeparar(id: string, nomes: string[], demandas: LigacaoDaDemanda[]): Promise<TrocaDeObjetos>;
   /** Contratos em que a pessoa é cliente, participante ou indicadora; com perfilId (a pessoa é da equipe), também os em que é a responsável. */
   contratosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ContratoDaPessoa[]>;
 }
@@ -754,6 +762,18 @@ export interface TrocaDeObjetos {
   /** Os modelos de lista que ficaram com um nome que saiu (já havia um com o nome novo, ou cada objeto juntado tinha o seu). */
   modelos_sem_objeto: number;
   contratos_com_duas_demandas: number;
+}
+/** Uma demanda ligada a um objeto, ao separá-lo (#410; supabase/migrations/20261124034839_separar_objeto.sql). */
+export interface DemandaDoObjeto {
+  id: string;
+  codigo: string;
+  titulo: string;
+  contrato_codigo: string | null;
+}
+/** A qual objeto novo a demanda fica ligada, ao separar (o nome, como escrito). */
+export interface LigacaoDaDemanda {
+  demanda: string;
+  objeto: string;
 }
 
 /** Demandas. Na ordem "nome", a lista vai pelo título. */

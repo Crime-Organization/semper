@@ -1,0 +1,79 @@
+// @vitest-environment jsdom
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
+// Separar um objeto de contrato em dois ou mais, na lista das Configurações (#410).
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SD, type ObjetoDoEscritorio } from '../dados';
+import { Avisos } from '../ui/avisos';
+import { iniciarPreferencias } from '../ui/preferencias';
+import { SepararObjeto } from './SepararObjeto';
+
+const JUNTOS: ObjetoDoEscritorio = { id: 'o1', descricao: 'Marca e patente', contratos_ativos: 2, contratos_arquivados: 0, demandas: 2 };
+const DEMANDAS = [
+  { id: 'd1', codigo: 'D1', titulo: 'Marca e patente', contrato_codigo: 'AN26-0001-2026' },
+  { id: 'd2', codigo: 'D2', titulo: 'Registro do logotipo', contrato_codigo: 'AN26-0002-2026' }
+];
+const TROCA = { contratos: 2, demandas: 2, modelos: 0, modelos_sem_objeto: 0, contratos_com_duas_demandas: 0 };
+
+async function escreverNomes(...nomes: string[]) {
+  for (const [i, nome] of nomes.entries()) await userEvent.type(screen.getByRole('textbox', { name: new RegExp(`^Nome novo ${i + 1}\\*?$`) }), nome);
+}
+async function clicarSeparar() {
+  await userEvent.click(screen.getByRole('button', { name: /Separar/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirmar: separar Marca e patente' }));
+}
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  iniciarPreferencias({});
+  vi.spyOn(SD, 'demandasDoObjeto').mockResolvedValue(DEMANDAS);
+});
+
+describe('Separar um objeto de contrato', () => {
+  it('dado um objeto com demandas, quando o administrador escreve dois nomes e escolhe o objeto de cada demanda, então separa e avisa', async () => {
+    // Dado
+    const separar = vi.spyOn(SD, 'objetoSeparar').mockResolvedValue(TROCA);
+    const aoTerminar = vi.fn();
+    render(<Avisos><SepararObjeto objeto={JUNTOS} aoTerminar={aoTerminar} aoCancelar={vi.fn()} /></Avisos>);
+    expect(screen.getByText(/Muda em 2 contratos e 2 demandas/)).toBeInTheDocument();
+    // Quando
+    await escreverNomes(' Registro de marca ', 'Patente');
+    await userEvent.selectOptions(await screen.findByLabelText(/Marca e patente \(demanda D1, contrato AN26-0001-2026\)/), 'Registro de marca');
+    await userEvent.selectOptions(screen.getByLabelText(/Registro do logotipo \(demanda D2/), 'Patente');
+    await clicarSeparar();
+    // Então
+    expect(separar).toHaveBeenCalledWith('o1', ['Registro de marca', 'Patente'],
+      [{ demanda: 'd1', objeto: 'Registro de marca' }, { demanda: 'd2', objeto: 'Patente' }]);
+    expect(await screen.findByText('Objeto separado em "Registro de marca" e "Patente". Mudou em 2 contratos e 2 demandas.')).toBeInTheDocument();
+    expect(aoTerminar).toHaveBeenCalled();
+  });
+
+  it('quando falta um nome ou a escolha de uma demanda, então a tela diz o que falta e nada é separado', async () => {
+    // Dado
+    const separar = vi.spyOn(SD, 'objetoSeparar');
+    render(<SepararObjeto objeto={JUNTOS} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    await screen.findByLabelText(/Registro do logotipo/);
+    // Quando: um nome só
+    await escreverNomes('Registro de marca');
+    await clicarSeparar();
+    // Então
+    expect(screen.getByText('Escreva ao menos dois nomes para separar.')).toBeInTheDocument();
+    expect(screen.getAllByText('Escolha o objeto novo de cada demanda.')).toHaveLength(2);
+    expect(separar).not.toHaveBeenCalled();
+  });
+
+  it('dado um objeto sem demandas, quando o administrador separa em três nomes, então não pergunta nada sobre demandas', async () => {
+    // Dado
+    const separar = vi.spyOn(SD, 'objetoSeparar').mockResolvedValue(TROCA), pedirDemandas = vi.spyOn(SD, 'demandasDoObjeto');
+    render(<SepararObjeto objeto={{ ...JUNTOS, demandas: 0 }} aoTerminar={vi.fn()} aoCancelar={vi.fn()} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mais um nome' }));
+    await escreverNomes('Parecer', 'Consulta', 'Recurso');
+    await clicarSeparar();
+    // Então
+    expect(pedirDemandas).not.toHaveBeenCalled();
+    expect(screen.queryByRole('group', { name: 'A qual objeto novo cada demanda fica ligada?' })).toBeNull();
+    expect(separar).toHaveBeenCalledWith('o1', ['Parecer', 'Consulta', 'Recurso'], []);
+  });
+});

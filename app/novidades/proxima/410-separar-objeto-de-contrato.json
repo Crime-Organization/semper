@@ -1,0 +1,5 @@
+{
+  "titulo": "Separar um objeto de contrato em dois ou mais",
+  "texto": "Na lista de objetos de contrato, o administrador pode separar um objeto que juntava dois serviços num nome só: cada contrato que o usava passa a ter os objetos novos. Se o objeto tem demandas, a tela pergunta a qual objeto novo cada uma fica ligada, e a demanda continua a mesma, com as tarefas e o histórico.",
+  "ondeAchar": "Configurações, seção Objetos de contrato, botão Separar na linha do objeto."
+}

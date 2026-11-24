@@ -18,7 +18,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
 import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS } from '../regras/repeticao';
 import { SALA_REPETIDA } from '../regras/sala';
-import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO } from '../regras/objetos';
+import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO, SEM_OBJETO_DA_DEMANDA, SEPARAR_POUCOS, SEPARAR_REPETIDOS } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
 import { NAO_ESPERA_APROVACAO, SEM_COMENTARIO_DA_DEVOLUCAO, SO_QUEM_PEDIU_APROVA, SO_QUEM_PEDIU_MUDA_A_APROVACAO } from '../regras/aprovacaoDaTarefa';
 import { CONTINUA_GERAL, CONTINUA_NAO_CONCLUI, CONTINUA_SEM_EQUIPE, tituloDaContinua } from '../regras/demandaContinua';
@@ -403,6 +403,49 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(nomes).toContain(fica);
           expect(nomes).toContain(sai2);
           expect(nomes).not.toContain(sai1);
+        });
+
+        it('dado um objeto com dois serviços num nome só, quando o administrador o separa, então cada contrato tem os novos no lugar dele, cada demanda vai ao objeto escolhido e nenhuma nasce (#410)', async () => {
+          // Dado: um contrato assinado com o objeto e o "A definir" (a demanda nasce ao pôr o objeto), e outro com o objeto e a "Patente"
+          const juntos = 'Marca e patente ' + marca(), registro = 'Registro ' + marca(), patente = 'Patente ' + marca();
+          const k1 = await novoContrato({ objetos: ['A definir'] });
+          await SD.contratoMover(k1.id, (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!.id, 1);
+          await SD.contratoAtualizar(k1.id, { objetos: [juntos, 'A definir'] });
+          const [d1] = await SD.demandasDoContrato(k1.id);
+          const k2 = await novoContrato({ objetos: [juntos, patente] });
+          const d2 = await SD.contratoCriarDemanda(k2.id, juntos);
+          await SD.contratoCriarDemanda(k2.id, patente);
+          await SD.modeloCriar(juntos, arvoreDosItens(['Primeiro passo']));
+          const o = (await naLista(juntos))!;
+          // Quando: a tela pede as demandas do objeto
+          const demandas = await SD.demandasDoObjeto(o.id);
+          // Então
+          expect(demandas.map(d => d.id).sort()).toEqual([d1.id, d2.id].sort());
+          expect(demandas.find(d => d.id === d2.id)).toMatchObject({ titulo: juntos, contrato_codigo: (await SD.contratoObter(k2.id))!.codigo });
+          // Quando: falta escolher o objeto de uma demanda, ou há um nome só
+          await expect(SD.objetoSeparar(o.id, [registro, patente], [{ demanda: d1.id, objeto: registro }])).rejects.toThrow(SEM_OBJETO_DA_DEMANDA);
+          await expect(SD.objetoSeparar(o.id, [registro, '  '], [])).rejects.toThrow(SEPARAR_POUCOS);
+          await expect(SD.objetoSeparar(o.id, [registro, registro.toLowerCase()], [])).rejects.toThrow(SEPARAR_REPETIDOS);
+          // Então nada mudou
+          expect((await SD.contratoObter(k1.id))!.objetos).toEqual([juntos, 'A definir']);
+          // Quando: os dois nomes ("patente" em minúsculas fica com a grafia da lista), D1 em Registro e D2 em Patente
+          const troca = await SD.objetoSeparar(o.id, [registro, ` ${patente.toLowerCase()} `, ''],
+            [{ demanda: d1.id, objeto: registro }, { demanda: d2.id, objeto: patente.toLowerCase() }]);
+          // Então
+          expect(troca).toEqual({ contratos: 2, demandas: 2, modelos: 0, modelos_sem_objeto: 1, contratos_com_duas_demandas: 1 });
+          expect((await SD.contratoObter(k1.id))!.objetos).toEqual([registro, patente, 'A definir']);
+          expect((await SD.contratoObter(k2.id))!.objetos).toEqual([registro, patente]);
+          expect((await SD.demandasDoContrato(k1.id)).map(d => [d.id, d.titulo, d.objeto])).toEqual([[d1.id, registro, registro]]);
+          expect((await SD.demandasDoContrato(k2.id)).map(d => d.objeto)).toEqual([patente, patente]);
+          expect(await naLista(juntos)).toBeUndefined();
+          expect(await naLista(registro)).toMatchObject({ contratos_ativos: 2, demandas: 1 });
+          expect((await SD.objetosDoEscritorio()).filter(x => normal(x.descricao) === normal(patente))).toHaveLength(1);
+          expect((await SD.contratoHistorico(k1.id))[0].alteracoes.servico).toEqual({ de: `${juntos}; A definir`, para: `${registro}; ${patente}; A definir` });
+          // E quem não é administrador não separa
+          const oRegistro = (await naLista(registro))!;
+          entrarComo('u-bruno');
+          await expect(SD.objetoSeparar(oRegistro.id, ['Um', 'Outro'], [])).rejects.toThrow('Você não tem permissão para fazer isso.');
+          await expect(SD.demandasDoObjeto(o.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
         });
 
         it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {

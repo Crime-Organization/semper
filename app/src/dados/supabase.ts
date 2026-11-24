@@ -18,7 +18,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
 import type { DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -1157,6 +1157,8 @@ export const SD: Dados = {
   objetoRenomear: (id, nome) => rpc('objeto_renomear', { p_id: id, p_nome: nome }) as Promise<TrocaDeObjetos>,
   objetosJuntar: (ids, fica) => rpc('objetos_juntar', { p_ids: ids, p_fica: fica }) as Promise<TrocaDeObjetos>,
   async objetoApagar(id) { await rpc('objeto_apagar', { p_id: id }); },
+  demandasDoObjeto: id => rpc('demandas_do_objeto', { p_id: id }) as Promise<DemandaDoObjeto[]>,
+  objetoSeparar: (id, nomes, demandas) => rpc('objeto_separar', { p_id: id, p_nomes: nomes, p_demandas: demandas }) as Promise<TrocaDeObjetos>,
 
   // ---------- demandas ----------
   async demandasListar(f = {}) {

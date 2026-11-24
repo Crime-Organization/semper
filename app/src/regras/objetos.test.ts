@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { ObjetoDoEscritorio } from '../dados/tipos';
 import { TAMANHO_CONTRATO } from '../dados/limites';
 import {
-  alcanceDaJuncao, avisoDaTroca, avisoDoObjetoEmUso, chaveParecida, contratosDoObjeto, erroDoNomeDoObjeto, OBJETO_LONGO, OBJETO_REPETIDO, OBJETO_RESERVADO,
-  OBJETO_SEM_NOME, objetosNaBusca, parecidos, quemFica, semUso, textoDosContratos, trocaPedeConferencia
+  alcanceDaJuncao, alcanceDaSeparacao, avisoDaTroca, avisoDoObjetoEmUso, chaveParecida, contratosDoObjeto, erroDoNomeDoObjeto, OBJETO_LONGO, OBJETO_REPETIDO, OBJETO_RESERVADO,
+  OBJETO_SEM_NOME, erroDosNomesDaSeparacao, ligacoesDasDemandas, nomesDaSeparacao, nomesPorExtenso, objetosNaBusca, objetosSeparados, parecidos, quemFica, semUso, SEPARAR_POUCOS, SEPARAR_REPETIDOS, textoDosContratos, trocaPedeConferencia
 } from './objetos';
 
 const objeto = (id: string, descricao: string, campos: Partial<ObjetoDoEscritorio> = {}): ObjetoDoEscritorio =>
@@ -112,5 +112,49 @@ describe('O aviso depois da troca', () => {
     expect(trocaPedeConferencia(sem)).toBe(false);
     expect(trocaPedeConferencia({ ...sem, modelos_sem_objeto: 1 })).toBe(true);
     expect(trocaPedeConferencia({ ...sem, contratos_com_duas_demandas: 1 })).toBe(true);
+  });
+});
+
+describe('Separar um objeto em dois ou mais (#410)', () => {
+  it('quando os campos têm espaços nas pontas e vazios, então os nomes novos saem limpos, na ordem', () => {
+    // Dado / Quando / Então
+    expect(nomesDaSeparacao(['  Registro de marca ', '', 'Patente', '   '])).toEqual(['Registro de marca', 'Patente']);
+  });
+
+  it.each([
+    ['um nome só', ['Registro de marca', '  '], SEPARAR_POUCOS],
+    ['um nome longo', ['Patente', 'x'.repeat(TAMANHO_CONTRATO.objeto + 1)], OBJETO_LONGO],
+    ['o "A definir"', ['Patente', ' a definir '], OBJETO_RESERVADO],
+    ['nomes repetidos, com outras maiúsculas e acentos', ['Oposição', 'OPOSICAO'], SEPARAR_REPETIDOS],
+    ['dois nomes diferentes', ['Registro de marca', 'Patente', ''], null]
+  ])('quando os nomes novos são %s, então o erro é o certo', (_caso, campos, esperado) => {
+    // Dado / Quando / Então
+    expect(erroDosNomesDaSeparacao(campos)).toBe(esperado);
+  });
+
+  it('dadas as demandas do objeto, quando cada uma tem um nome escolhido, então sai a ligação; se falta escolher ou o nome ficou vazio, não', () => {
+    // Dado
+    const demandas = [{ id: 'd1' }, { id: 'd2' }];
+    const campos = [' Registro de marca ', 'Patente', ''];
+    // Quando / Então
+    expect(ligacoesDasDemandas(demandas, { d1: 0, d2: 1 }, campos))
+      .toEqual([{ demanda: 'd1', objeto: 'Registro de marca' }, { demanda: 'd2', objeto: 'Patente' }]);
+    expect(ligacoesDasDemandas(demandas, { d1: 0 }, campos)).toBeNull();
+    expect(ligacoesDasDemandas(demandas, { d1: 0, d2: 2 }, campos)).toBeNull();
+    expect(ligacoesDasDemandas([], {}, campos)).toEqual([]);
+  });
+
+  it('dado um contrato com o objeto, quando ele é separado, então os novos entram no lugar dele, sem repetir o que o contrato já tinha', () => {
+    // Dado / Quando / Então
+    expect(objetosSeparados(['Parecer', 'Marca e patente', 'Patente', 'A definir'], 'marca e PATENTE', ['Registro de marca', 'Patente']))
+      .toEqual(['Parecer', 'Registro de marca', 'Patente', 'A definir']);
+  });
+
+  it('quando o administrador vai separar, então vê o alcance antes; e o aviso diz os nomes novos por extenso', () => {
+    // Dado / Quando / Então
+    expect(alcanceDaSeparacao(LISTA[0])).toBe('Muda em 4 contratos e 4 demandas: cada contrato passa a ter os objetos novos no lugar deste. Não dá para desfazer.');
+    expect(nomesPorExtenso(['A', 'B', 'C'])).toBe('"A", "B" e "C"');
+    expect(avisoDaTroca('separar', nomesPorExtenso(['Registro de marca', 'Patente']), { contratos: 1, demandas: 1, modelos: 0, modelos_sem_objeto: 1, contratos_com_duas_demandas: 0 }))
+      .toBe('Objeto separado em "Registro de marca" e "Patente". Mudou em 1 contrato e 1 demanda. 1 modelo de checklist ficou com o nome antigo: confira em Modelos de checklist.');
   });
 });
