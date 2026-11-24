@@ -1043,6 +1043,11 @@ test.describe('Processo a partir da demanda', () => {
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
+    // O cartão da demanda fica aberto atrás do cadastro: ver a "Situação da demanda" não prova que a gravação acabou (#420). Com a
+    // máquina carregada, o teste seguia (e recarregava a página) antes de o processo e a ligação chegarem ao banco. Por isso espera
+    // o cadastro fechar e o endereço voltar à demanda, o que só acontece depois de gravar e ligar.
+    await expect(cadastro).toHaveCount(0);
+    await expect(page).toHaveURL(/\/demandas\/\?id=/);
     await expect(page.getByRole('dialog').getByLabel('Situação da demanda')).toBeVisible();
   }
   /** No cartão da demanda, de volta do cadastro, abre o processo novo pela seção Processos. */
