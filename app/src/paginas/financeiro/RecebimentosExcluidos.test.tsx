@@ -50,7 +50,10 @@ describe('Recebimentos excluídos', () => {
     // Quando
     render(<RecebimentosExcluidos />);
     // Então
-    expect(await screen.findByText('2')).toBeTruthy();
+    // (o jsdom junta o título e o número sem espaço no nome do botão; o navegador põe o espaço, e o teste de tela acha "… 2")
+    const botao = await titulo();
+    expect(await within(botao).findByText('2')).toBeInTheDocument();
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('dada a seção aberta, quando a pessoa olha as linhas, então não há botão para mudar nem para excluir', async () => {
