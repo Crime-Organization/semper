@@ -187,7 +187,7 @@ test.describe('Sair de cada cadastro', () => {
       await page.goto(caminho);
       await preencher(page);
       // Quando
-      await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Início', exact: true }).click();
+      await page.getByRole('complementary', { name: 'Menu' }).getByRole('link', { name: 'Início', exact: true }).click();
       // Então
       await expect(pergunta(page)).toBeVisible();
     });

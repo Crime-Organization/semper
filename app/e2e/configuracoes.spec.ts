@@ -14,7 +14,7 @@ test.describe('Configurações do escritório', () => {
     await page.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByText('Dados do escritório salvos.')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Advocacia Montes Claros: início' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Menu' }).getByRole('group', { name: 'Advocacia Montes Claros' })).toBeVisible();
   });
 
   test('quando o administrador desfaz a mudança, então o nome antigo volta', async ({ page }) => {
@@ -26,7 +26,7 @@ test.describe('Configurações do escritório', () => {
     // Quando
     await page.getByRole('button', { name: 'Desfazer' }).click();
     // Então
-    await expect(page.getByRole('link', { name: 'Escritório Exemplo (teste): início' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Menu' }).getByRole('group', { name: 'Escritório Exemplo (teste)' })).toBeVisible();
   });
 });
 

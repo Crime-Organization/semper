@@ -79,7 +79,7 @@ test.describe('Lista de pessoas', () => {
     await page.goto('/pessoas/');
     // Quando
     await page.getByRole('button', { name: 'Tabela' }).click();
-    await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Início', exact: true }).click();
+    await page.getByRole('complementary', { name: 'Menu' }).getByRole('link', { name: 'Início', exact: true }).click();
     await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Pessoas', exact: true }).click();
     // Então
     await expect(page.getByRole('button', { name: 'Tabela' })).toHaveAttribute('aria-pressed', 'true');

@@ -6,6 +6,9 @@ import { useLocation, useNavigate } from 'react-router';
 import { Icone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
+/** Tamanho da seta de abrir e recolher, menor que o ícone do item, para não competir com ele. */
+const ICONE_DA_SETA = 14;
+
 interface Props {
   /** Nome curto e fixo, para guardar a escolha da pessoa (ex.: "agenda"). */
   id: string;
@@ -41,8 +44,12 @@ export function SubmenuLateral({ id, icone, rotulo, caminhos, para, mais, childr
     salvarPreferencia(chave, !aberto);
   }
 
+  // A seta de abrir (#435): sem "+" na linha, fica na coluna dos "+" dos módulos, com o meio no eixo deles (como o número de
+  // Mensagens); com o "+", fica logo antes dele, porque a coluna é do "+".
+  const seta = <Icone nome={aberto ? 'acima' : 'abaixo'} tam={ICONE_DA_SETA} />;
   const botao = <button type="button" aria-expanded={aberto} aria-controls={painel} onClick={alternar}>
-    <Icone nome={icone} /><span>{rotulo}</span><Icone nome={aberto ? 'acima' : 'abaixo'} tam={14} />
+    <Icone nome={icone} /><span>{rotulo}</span>
+    <span className={'nav-seta' + (mais ? '' : ' nav-coluna-do-mais')}>{seta}</span>
   </button>;
   return <div className="nav-grupo">
     {mais ? <div className="nav-linha">{botao}{mais}</div> : botao}

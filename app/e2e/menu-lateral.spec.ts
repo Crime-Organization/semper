@@ -143,3 +143,66 @@ test.describe('O número de mensagens não lidas no menu lateral', () => {
     });
   }
 });
+
+// #435: o Início sai da lista e vira a casinha ao lado do nome do escritório; a lista segue a ordem nova; a seta de Processos fica
+// na coluna dos "+".
+const lateral = (page: Page) => page.getByRole('complementary', { name: 'Menu' });
+const casinha = (page: Page) => lateral(page).getByRole('group', { name: 'Escritório Exemplo (teste)' }).getByRole('link', { name: 'Início', exact: true });
+/** A ordem dos itens da lista do menu, pedida pelo dono (#435). */
+const ORDEM_DO_MENU = ['Mensagens', 'Pessoas', 'Tarefas', 'Agenda e calendário', 'Documentos', 'Contratos', 'Demandas', 'Processos',
+  'Financeiro', 'Equipe e acessos', 'Configurações'];
+/** Os nomes dos itens da lista, na ordem da tela: os links e os botões de submenu (fechados), sem os "+" de cadastrar. */
+const itensDoMenu = async (page: Page) => (await menu(page).getByRole('link').or(menu(page).getByRole('button'))
+  .evaluateAll(els => els.map(el => el.getAttribute('aria-label') || el.textContent?.trim() || '')))
+  .filter(nome => !nome.startsWith('Cadastrar'));
+/** A seta de abrir e recolher de um submenu (para baixo, fechado; para cima, aberto). */
+const setaDe = (botao: Locator) => botao.locator('[data-icone="abaixo"], [data-icone="acima"]');
+/** No celular, abre a gaveta do menu e espera ela parar, encostada na esquerda. */
+async function abrirGaveta(page: Page) {
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await expect.poll(() => lateral(page).evaluate(el => el.getBoundingClientRect().left)).toBe(0);
+}
+
+test.describe('A ordem do menu e a casinha do Início (#435)', () => {
+  test('dado o administrador num escritório com todos os módulos, quando vê o menu, então os itens seguem a ordem nova, sem o Início', async ({ page }) => {
+    // Quando
+    await page.goto('/pessoas/');
+    // Então
+    await expect(menu(page).getByRole('link', { name: 'Início', exact: true })).toHaveCount(0);
+    await expect.poll(() => itensDoMenu(page)).toEqual(ORDEM_DO_MENU);
+  });
+
+  test('dada a casinha ao lado do nome do escritório, quando a pessoa clica nela, então vai ao Início, e a casinha fica marcada', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await expect(casinha(page)).not.toHaveAttribute('aria-current', 'page');
+    await expect(casinha(page)).toHaveText('');
+    // Quando
+    await casinha(page).click();
+    // Então
+    await expect(page).toHaveURL(/\/inicio\/$/);
+    await expect(casinha(page)).toHaveAttribute('aria-current', 'page');
+  });
+
+  for (const tela of [{ nome: 'no computador', tamanho: COMPUTADOR }, { nome: 'no celular', tamanho: CELULAR }] as const) {
+    test(`dado o menu ${tela.nome}, quando a pessoa o vê, então a casinha e a seta de Processos ficam no meio da coluna dos "+"`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize(tela.tamanho);
+      const processos = menu(page).getByRole('button', { name: 'Processos' });
+      // Quando
+      await page.goto('/tarefas/');
+      if (tela.tamanho === CELULAR) await abrirGaveta(page);
+      // Então
+      const eixo = await meioNaHorizontal(menu(page).getByRole('link', { name: 'Cadastrar pessoa' }));
+      expect(Math.abs(await meioNaHorizontal(casinha(page)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+      await expect(processos).toHaveAttribute('aria-expanded', 'false');
+      expect(Math.abs(await meioNaHorizontal(setaDe(processos)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+      // Quando o submenu está aberto (a seta vira para cima)
+      await page.goto('/processos/judicial/');
+      if (tela.tamanho === CELULAR) await abrirGaveta(page);
+      // Então a seta continua no eixo
+      await expect(processos).toHaveAttribute('aria-expanded', 'true');
+      expect(Math.abs(await meioNaHorizontal(setaDe(processos)) - eixo)).toBeLessThanOrEqual(FOLGA_DO_EIXO);
+    });
+  }
+});
