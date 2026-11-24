@@ -1,12 +1,14 @@
 // Ligar um processo que já existe a um cartão (demanda, tarefa, contrato, compromisso), no modelo da busca da equipe
 // (EscolhaDaEquipe): o botão "+ Ligar processo" abre uma busca por cima do que vem abaixo, e a lista mostra só os processos
-// ativos que a pessoa pode ligar e que ainda não estão no cartão. Sem nada digitado, aparecem os mais recentes (#294).
+// ativos que a pessoa pode ligar e que ainda não estão no cartão. Sem nada digitado, aparecem os mais recentes (#294). Numa seção
+// com a corrente no título (#427, o mesmo rótulo), o botão não aparece: a corrente abre a busca.
 import { useEffect, useRef, useState } from 'react';
 import { SD, type ProcessoParaLigar } from '../dados';
 import { detalheDoProcesso, nomeDoProcesso, processosParaOferecer } from '../regras/processo';
 import { falha } from './avisos';
 import { estiloBotao } from './base';
 import { Icone } from './Icone';
+import { usePedidoDeLigar } from './Recolhivel';
 import { useAtrasado } from './util';
 
 interface Props {
@@ -17,7 +19,10 @@ interface Props {
   rotulo?: string;
 }
 
-export function LigarProcesso({ ligados, aoEscolher, rotulo = 'Ligar processo' }: Props) {
+/** O nome do botão (e da corrente do título da seção que o usa, #427). */
+export const LIGAR_PROCESSO = 'Ligar processo';
+
+export function LigarProcesso({ ligados, aoEscolher, rotulo = LIGAR_PROCESSO }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [termo, setTermo] = useState('');
   const buscado = useAtrasado(termo);
@@ -25,6 +30,10 @@ export function LigarProcesso({ ligados, aoEscolher, rotulo = 'Ligar processo' }
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
+  /** A corrente do título que abriu a busca (#427): ao fechar, o foco volta a ela. */
+  const corrente = useRef<HTMLElement | null>(null);
+  // Com a corrente no título da seção (o mesmo rótulo), o botão de baixo não aparece.
+  const peloTitulo = usePedidoDeLigar(rotulo, alvo => { corrente.current = alvo; setBuscando(true); });
 
   const oferecidos = achados && processosParaOferecer(achados, ligados);
 
@@ -47,13 +56,14 @@ export function LigarProcesso({ ligados, aoEscolher, rotulo = 'Ligar processo' }
     setBuscando(false);
     setTermo('');
     setAchados(null);
-    setTimeout(() => botao.current?.focus(), 0);
+    setTimeout(() => (botao.current ?? corrente.current)?.focus(), 0);
   }
   function escolher(p: ProcessoParaLigar) {
     fechar();
     void aoEscolher(p);
   }
 
+  if (!buscando && peloTitulo) return null;
   if (!buscando) return <div>
     <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}>
       <Icone nome="mais" tam={13} /> {rotulo}

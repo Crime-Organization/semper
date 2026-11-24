@@ -30,7 +30,7 @@ import {
   type EscolhidoNaAnotacaoNova, type EscritoNaAnotacaoNova, type RascunhosDaAnotacao
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
-import { modulosDoNovo } from '../regras/novoNaAnotacao';
+import { modulosDoNovo, NOVO_ESPERA_A_ANOTACAO } from '../regras/novoNaAnotacao';
 import { nomeDaEtiqueta } from '../regras/etiquetas';
 import { caminhoDaPasta } from '../regras/pastas';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
@@ -44,7 +44,7 @@ import { useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { buscarEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
-import { LigarItem } from '../ui/LigarItem';
+import { LigarItem, rotuloDeLigarItem } from '../ui/LigarItem';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { CaminhoDaPasta, escolherPastaDaAnotacao, levarAnotacaoParaPasta } from '../ui/Pastas';
 import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
@@ -505,6 +505,9 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
   }
   const lidos = itens && typeof itens !== 'string' ? itens : null;
   const totalLigados = lidos ? lidos.visiveis.length + lidos.ocultos : undefined;
+  // Se ainda cabe outro item em "Ligada a" (na anotação nova, os escolhidos antes de ela ir ao banco): só então o título da seção
+  // tem a corrente e o "+" (#427). Na anotação nova, o "+" fica desligado, com o motivo, até ela ser gravada.
+  const cabeNaAnotacao = emBranco ? rascunho.itens.length < ITENS_DA_ANOTACAO : podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO;
   // O título e o texto se mudam no próprio lugar só por quem altera, e só com a anotação ativa (a arquivada fica como está).
   const mudaNoLugar = podeAlterar && !a.arquivado_em;
   const acoesDoMenu: AcaoDoTopo[] = [
@@ -603,7 +606,8 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
         </Recolhivel>
         : <SecaoComentarios modulo="anotacoes" cartaoId={a.id} motivoSemMencao={motivoSemMencaoNaAnotacao(a, chavesDaMencao)} />}
       <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={emBranco ? rascunho.itens.length : totalLigados} abertaAoIniciar={emBranco || !!criada}
-        novo={!emBranco && podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && modulosDoNovo(modulos).length ? { rotulo: NOME_DO_MENU_NOVO_NA_ANOTACAO, menu: true } : undefined}
+        ligar={cabeNaAnotacao ? { rotulo: rotuloDeLigarItem(emBranco ? rascunho.itens.length : 1) } : undefined}
+        novo={cabeNaAnotacao && modulosDoNovo(modulos).length ? { rotulo: NOME_DO_MENU_NOVO_NA_ANOTACAO, menu: true, indisponivel: emBranco ? NOVO_ESPERA_A_ANOTACAO : undefined } : undefined}
         atalho={emBranco ? undefined : 'ligacao'}>
         {emBranco ? <LigadosDoRascunho rascunho={rascunho} />
           : itens === null ? <Carregando />

@@ -150,8 +150,8 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
     return () => { vivo = false; };
   }, [contas]);
   const comLancamentos = lista?.de === contas ? lista.ids : null;
-  // O "+" do título da seção abre o mesmo formulário do botão de baixo (que some com um formulário aberto).
-  usePedidoDeNovo(() => { if (!edicao) abrir(); });
+  // O "+" do título da seção abre o formulário; com ele no título (#427), o botão de baixo não aparece.
+  const { peloTitulo } = usePedidoDeNovo(() => { if (!edicao) abrir(); });
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
     setConferido(true);
@@ -208,7 +208,7 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
       </div>
       <label className="financeiro-marcar"><input type="checkbox" checked={f.temDas} onChange={e => mudar({ temDas: e.target.checked })} /> Esta conta recolhe DAS (é a conta da empresa)</label>
       <Acoes rotulo={edicao.id ? 'Salvar conta' : 'Criar conta'} ocupado={ocupado} aoCancelar={() => setEdicao(null)} />
-    </form> : <div><button type="button" className={estiloBotao()} onClick={() => abrir()}><Icone nome="mais" tam={15} /> {ROTULO_DA_NOVA_CONTA}</button></div>}
+    </form> : !peloTitulo && <div><button type="button" className={estiloBotao()} onClick={() => abrir()}><Icone nome="mais" tam={15} /> {ROTULO_DA_NOVA_CONTA}</button></div>}
   </div>;
 }
 

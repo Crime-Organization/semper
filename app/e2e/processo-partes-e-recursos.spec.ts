@@ -38,7 +38,7 @@ test.describe('Pessoas com papel no processo (#316)', () => {
     const pessoas = await secao(cartao, 'Pessoas do processo');
     await expect(pessoas).toContainText('Nenhuma pessoa com papel neste processo');
     // Quando
-    await pessoas.getByRole('button', { name: 'Ligar pessoa com papel', exact: true }).click();
+    await pessoas.getByRole('button', { name: 'Ligar pessoa com papel a este processo' }).click();
     await pessoas.getByLabel('Papel no processo').selectOption({ label: 'Testemunha' });
     await pessoas.getByRole('textbox', { name: 'Pessoa', exact: true }).fill('luciana');
     await pessoas.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
@@ -61,7 +61,7 @@ test.describe('Pessoas com papel no processo (#316)', () => {
     const processo = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     const cartao = await abrirCartao(page, '/processos/judicial/?id=' + processo, 'JOSÉ DA SILVA TESTE');
     const pessoas = await secao(cartao, 'Pessoas do processo');
-    await pessoas.getByRole('button', { name: 'Ligar pessoa com papel', exact: true }).click();
+    await pessoas.getByRole('button', { name: 'Ligar pessoa com papel a este processo' }).click();
     await pessoas.getByLabel('Papel no processo').selectOption({ label: 'Perito' });
     await pessoas.getByRole('textbox', { name: 'Pessoa', exact: true }).fill('luciana');
     await pessoas.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
@@ -83,7 +83,9 @@ test.describe('Recursos e incidentais (#316)', () => {
     let ligados = await secao(cartao, 'Recursos e incidentais');
     await expect(ligados).toContainText('Nenhum recurso ou incidental ligado a este processo.');
     // Quando
-    await ligados.getByRole('link', { name: 'Novo recurso', exact: true }).click();
+    // O "+" do título (#427) abre um menu pequeno: recurso ou incidental
+    await cartao.getByRole('button', { name: 'Novo recurso ou incidental deste processo' }).click();
+    await page.getByRole('menu', { name: 'Novo recurso ou incidental deste processo' }).getByRole('menuitem', { name: 'Novo recurso', exact: true }).click();
     // Então o cadastro já vem como recurso, com os clientes do processo de origem
     await expect(page.getByText(/Este processo nasce do processo/)).toBeVisible();
     await expect(page.getByRole('group', { name: 'Este processo é' }).getByRole('radio', { name: 'Recurso' })).toBeChecked();
@@ -107,13 +109,11 @@ test.describe('Recursos e incidentais (#316)', () => {
     await expect(ligados.getByRole('link', { name: /Processo de origem/ })).toContainText('0001234-97.2026.8.13.0024');
   });
 
-  test('dado o cadastro aberto pelo "+" da seção, quando tenta seguir sem dizer se é recurso ou incidental, então o cadastro pede', async ({ page }) => {
+  test('dado o cadastro de um derivado aberto sem o tipo (um endereço guardado de antes da #427, quando o "+" levava direto a ele), quando tenta seguir sem dizer se é recurso ou incidental, então o cadastro pede', async ({ page }) => {
     // Dado
     const processo = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
-    const cartao = await abrirCartao(page, '/processos/judicial/?id=' + processo, 'JOSÉ DA SILVA TESTE');
-    await abrirSecao(cartao, 'Recursos e incidentais');
     // Quando
-    await cartao.getByRole('link', { name: 'Novo recurso ou incidental deste processo' }).click();
+    await page.goto('/processos/novo/?processo=' + processo);
     await expect(page.getByText(/Este processo nasce do processo/)).toBeVisible();
     await page.getByLabel('Número do processo').fill(NUMERO_DO_RECURSO);
     await page.getByRole('button', { name: 'Próxima' }).click();

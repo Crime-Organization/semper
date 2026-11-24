@@ -12,7 +12,8 @@ import {
 } from '../../regras/propriedadeIntelectual';
 import { nomeDoCompromisso } from '../../regras/compromisso';
 import { fmtData } from '../../regras/pessoa';
-import { Nota, Selo } from '../../ui/base';
+import { BotaoLink, Nota, Selo } from '../../ui/base';
+import { Icone } from '../../ui/Icone';
 import { AcoesDosLigados } from '../../ui/ItensLigados';
 
 /** O aviso de que as datas são da lei e precisam ser conferidas. */
@@ -70,13 +71,20 @@ function AcompanharOsPrazos({ processoId, comDemanda, serie, extra }: Acompanhar
       ? <Nota>O prazo extra já está na agenda: {nomeDoCompromisso(jaExtra)}, na seção "Compromissos".</Nota>
       : <>
         <Nota>{descreverPrazoExtra(extra.prazo)}</Nota>
-        <AcoesDosLigados novo={{ para: extra.para, rotulo: 'Pôr o prazo extra na agenda' }} />
+        <AtalhoParaAAgenda para={extra.para}>Pôr o prazo extra na agenda</AtalhoParaAAgenda>
       </>)}
     {serie && (ja
       ? <Nota>Estes prazos já estão na agenda: {nomeDoCompromisso(ja)}, na seção "Compromissos".</Nota>
       : <>
         <Nota>{descreverAcompanhamento(serie.acompanhamento, comDemanda)}</Nota>
-        <AcoesDosLigados novo={{ para: serie.para, rotulo: 'Acompanhar na agenda' }} />
+        <AtalhoParaAAgenda para={serie.para}>Acompanhar na agenda</AtalhoParaAAgenda>
       </>)}
   </>;
+}
+
+/** O tamanho do "+" no atalho (o dos botões pequenos embaixo das listas das seções). */
+const ICONE_DO_ATALHO = 13;
+/** O atalho que abre o cadastro do compromisso já preenchido com os prazos: uma ação própria deste prazo, e não o "+" da seção. */
+function AtalhoParaAAgenda({ para, children }: { para: string; children: string }) {
+  return <AcoesDosLigados><BotaoLink forma="mini" to={para}><Icone nome="mais" tam={ICONE_DO_ATALHO} /> {children}</BotaoLink></AcoesDosLigados>;
 }

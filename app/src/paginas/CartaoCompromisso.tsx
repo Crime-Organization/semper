@@ -35,6 +35,7 @@ import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
+import { LIGAR_PROCESSO } from '../ui/LigarProcesso';
 import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
@@ -48,7 +49,7 @@ import { nomeDaSala, salaDoCompromisso } from '../regras/sala';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 /** Na data de um compromisso que se repete: a mudança vale só para ela ou para ela e as seguintes ainda em aberto? null: desistiu. */
 const soEstaOuSeguintes = (titulo: string, texto: string) => janela<'esta' | 'seguintes'>({
@@ -216,7 +217,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {c.resultado ? <p className="demanda-descricao">{c.resultado}</p> : <Nota>Ainda sem resultado. Depois do compromisso, registre aqui pelo lápis do cartão.</Nota>}
     </Recolhivel>}
 
-    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={c.processo_id ? 1 : 0}>
+    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={c.processo_id ? 1 : 0}
+      ligar={!somenteLer && ctx.escritorio?.modulos?.processos && !c.processo_id ? { rotulo: LIGAR_PROCESSO } : undefined}>
       <ProcessosDoCartao carregar={processoDoCompromisso} versao={versaoHist} somenteLer={somenteLer || !ctx.escritorio?.modulos?.processos} maximo={1}
         vazio="Este compromisso não está ligado a um processo."
         semDesligar={doProcesso ? `${TIPOS_COMPROMISSO[c.tipo].nome} precisa de um processo. Para trocar, use o lápis do cartão.` : undefined}
@@ -224,10 +226,11 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
     </Recolhivel>
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer).titulo} atalho="ligacao">
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length}
+      ligar={ligarPessoaNoItem('compromissos', c.pessoas, !somenteLer)} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer)} atalho="ligacao">
       {c.pessoas.length ? <ItensLigados itens={c.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a este compromisso.</Nota>}
       {/* Ligar uma pessoa que já está no cadastro (#341) ou cadastrar uma nova já nele (#376): quem muda o compromisso, com ele ativo. */}
-      {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer).embaixo}
+      {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas}
         depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 

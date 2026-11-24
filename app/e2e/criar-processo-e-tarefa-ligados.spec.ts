@@ -49,7 +49,7 @@ test.describe('Criar, no cartão, o item novo já ligado (#376)', () => {
     const antes = await contador(cartao, 'Processos');
     await expect(processos.getByRole('link', { name: 'Novo processo deste contrato' })).toBeVisible();
     // Quando
-    await processos.getByRole('link', { name: 'Novo processo', exact: true }).click();
+    await processos.getByRole('link', { name: 'Novo processo deste contrato' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     // Então: o cadastro diz de onde o processo nasce e traz o cliente do contrato
     await expect(cadastro.getByText(/Este processo nasce do contrato/)).toBeVisible();
@@ -78,7 +78,7 @@ test.describe('Criar, no cartão, o item novo já ligado (#376)', () => {
     const processo = await secao(cartao, 'Processo');
     await expect(processo.getByText('Esta tarefa não está ligada a um processo.')).toBeVisible();
     // Quando
-    await processo.getByRole('link', { name: 'Novo processo', exact: true }).click();
+    await processo.getByRole('link', { name: 'Novo processo desta tarefa' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await expect(cadastro.getByText(/Este processo nasce da tarefa/)).toBeVisible();
     await cadastro.getByLabel('Número do processo').fill(NUMERO_NOVO);
@@ -110,7 +110,8 @@ test.describe('Criar, no cartão, o item novo já ligado (#376)', () => {
     let cartao = await abrirCartao(page, 'processos', id, 'JOSÉ DA SILVA TESTE');
     const tarefas = await secao(cartao, 'Tarefas');
     const antes = await contador(cartao, 'Tarefas');
-    await expect(tarefas.getByRole('link', { name: 'Nova tarefa', exact: true })).toBeVisible();
+    // Desde a #427, o "+" fica só no título: embaixo da lista não há o botão "Nova tarefa".
+    await expect(tarefas.getByRole('link', { name: 'Nova tarefa', exact: true })).toHaveCount(0);
     // Quando
     await tarefas.getByRole('link', { name: 'Nova tarefa deste processo' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });

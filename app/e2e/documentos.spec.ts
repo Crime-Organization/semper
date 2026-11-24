@@ -265,7 +265,9 @@ test.describe('Ligar uma anotação que já existe, no cartão de um item (#341)
     const codigo = await codigoDaAnotacao(page);
     let cartao = await abrirPessoa(page, 'JOSÉ DA SILVA TESTE');
     await abrirSecao(cartao, 'Anotações');
-    await expect(cartao.getByRole('link', { name: 'Nova anotação', exact: true })).toBeVisible();
+    // Desde a #427, o "+" e a corrente ficam só no título: embaixo da lista não há o "Nova anotação".
+    await expect(cartao.getByRole('link', { name: 'Nova anotação ligada a este item' })).toBeVisible();
+    await expect(cartao.getByRole('link', { name: 'Nova anotação', exact: true })).toHaveCount(0);
     // Quando
     await ligarExistente(cartao, codigo, 'Parecer da prescrição');
     // Então

@@ -717,14 +717,14 @@ test.describe('Checklists da tarefa', () => {
     const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Checklists');
     // Então
     await expect(cartao.getByText('Nenhum checklist ainda. Use checklists para os documentos e os passos da tarefa.')).toBeVisible();
-    await expect(cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Adicionar checklist', exact: true })).toBeVisible();
   });
 
   test('quando a pessoa escolhe um modelo em "Adicionar checklist" e marca um item, então o checklist fica na tarefa, com o progresso, ao reabrir', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
+    await cartao.getByRole('button', { name: 'Adicionar checklist', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
     const lista = cartao.getByRole('region', { name: 'Checklist Documentos de pessoa física' });
     await expect(lista.getByRole('checkbox')).toHaveCount(2);

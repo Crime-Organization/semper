@@ -1,12 +1,12 @@
 // A seção "Compromissos" do cartão de uma tarefa, de uma demanda ou de um contrato (#306): os compromissos ligados a ele que a pessoa
-// vê, com o número ao lado do título mesmo com a seção fechada, o "+ Novo compromisso", que já nasce ligado a este cartão, e o
+// vê, com o número ao lado do título mesmo com a seção fechada e, no título (#427), o "+" do compromisso novo, que já nasce ligado a este cartão, e a corrente
 // "Ligar compromisso existente". Como no cartão do processo, a lista vem de CompromissosLigados.
 import { useState } from 'react';
 import { SD, type ModuloDoCompromisso } from '../dados';
 import { nomeDoCompromisso } from '../regras/compromisso';
 import { PARAMETRO_DA_ORIGEM_DO_COMPROMISSO } from '../regras/nascerLigado';
 import { AcoesDosLigados } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
@@ -43,10 +43,10 @@ export function CompromissosDoItem({ modulo, id, podeLigar, versao = 0 }: Props)
   if (!ligado) return null;
   const textos = TEXTOS[modulo], para = novoCompromissoDoItem(modulo, id);
   return <Recolhivel titulo="Compromissos" icone="calendario" preferencia={`${modulo}.cartao.compromissos`} contador={quantos}
-    novo={podeLigar ? { para, rotulo: textos.novo } : undefined}>
+    ligar={podeLigar ? ligarDoModulo('compromissos') : undefined} novo={podeLigar ? { para, rotulo: textos.novo } : undefined}>
     {/* Lê a lista uma vez: muda a chave quando algo foi ligado ou o cartão relido. */}
     <CompromissosLigados key={chave} carregar={() => SD.compromissosDoItem(modulo, id)} vazio={textos.vazio} />
-    {podeLigar && <AcoesDosLigados novo={{ para, rotulo: 'Novo compromisso' }}>
+    {podeLigar && <AcoesDosLigados>
       <LigarDoModulo modulo="compromissos" filtro={async () => ({ fora: (await SD.compromissosDoItem(modulo, id)).map(c => c.id) })}
         aoEscolher={c => ligarEAvisar(() => ligarCompromissoNoItem(modulo, id, c.id),
           { feito: `Compromisso ligado: ${nomeDoCompromisso(c)}.`, oQue: 'ligação do compromisso', ja: textos.ja }, () => setMudou(n => n + 1))} />

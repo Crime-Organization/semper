@@ -1,6 +1,7 @@
 // A seção "Ligado a" do cartão do compromisso (#306): as tarefas, as demandas e os contratos ligados a ele, cada um num quadrinho que
 // abre o cartão do item, com o número ao lado do título mesmo com a seção fechada. Quem muda o compromisso liga um item que já existe
-// (a busca de cada módulo) e desliga, com Desfazer. O item que a pessoa não vê só conta. O processo e as pessoas têm seções próprias.
+// (a corrente do título, #427, abre a busca de cada módulo; com mais de um módulo, um menu pequeno pergunta qual) e desliga, com
+// Desfazer. O item que a pessoa não vê só conta. O processo e as pessoas têm seções próprias.
 import { useEffect, useState } from 'react';
 import { SD, type ItemDoCompromisso, type ModuloDoCompromisso } from '../dados';
 import { enderecoDoItem, ITEM_DA_ANOTACAO } from '../regras/anotacao';
@@ -9,14 +10,16 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
-import { LigarDoModulo } from '../ui/LigarDoModulo';
-import { Recolhivel } from '../ui/Recolhivel';
+import { LigarDoModulo, ligarDoModulo } from '../ui/LigarDoModulo';
+import { Recolhivel, type LigarNaSecao, type VariosNaSecao } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { numero } from '../ui/util';
 
 /** O tamanho do x de desligar, como o da anotação. */
 const ICONE_DO_DESLIGAR = 14;
 const ITEM_JA_LIGADO = 'Este item já estava ligado a este compromisso.';
+/** O nome da corrente do título quando ela abre o menu dos módulos (ou está desligada, com o compromisso cheio). */
+const LIGAR_A_UM_ITEM = 'Ligar a um item existente';
 type Lidos = { visiveis: ItemDoCompromisso[]; ocultos: number };
 
 interface Props {
@@ -61,7 +64,11 @@ export function ItensDoCompromisso({ id, somenteLer, versao, aoMudar }: Props) {
 
   const cheio = total !== undefined ? motivoSemMaisItens(total) : '';
   const ligados = (m: ModuloDoCompromisso) => typeof lidos === 'object' && lidos ? lidos.visiveis.filter(i => i.modulo === m).map(i => i.id) : [];
-  return <Recolhivel titulo="Ligado a" icone="vinculo" preferencia="compromissos.cartao.ligado" contador={total}>
+  const opcoes = modulos.map(m => ligarDoModulo(m));
+  const corrente: LigarNaSecao | VariosNaSecao<LigarNaSecao> | undefined = somenteLer || !opcoes.length ? undefined
+    : cheio ? { rotulo: LIGAR_A_UM_ITEM, indisponivel: cheio }
+    : opcoes.length === 1 ? opcoes[0] : { rotulo: LIGAR_A_UM_ITEM, opcoes };
+  return <Recolhivel titulo="Ligado a" icone="vinculo" preferencia="compromissos.cartao.ligado" contador={total} ligar={corrente}>
     {lidos === null ? <Carregando />
       : typeof lidos === 'string' ? <Aviso tipo="erro">{lidos}</Aviso>
       : <>

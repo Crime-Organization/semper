@@ -19,7 +19,7 @@ async function abrirProcesso(page: Page) {
 
 /** Lança um prazo já vencido e cria a tarefa de cumpri-lo; devolve o link da tarefa, no prazo. */
 async function prazoVencidoComTarefa(cartao: Locator, descricao: string) {
-  await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
+  await cartao.getByRole('button', { name: 'Novo prazo', exact: true }).click();
   const form = cartao.getByRole('form', { name: 'Novo prazo' });
   await form.getByLabel('Que prazo é este').fill(descricao);
   await form.getByText('Digitar a data').click();

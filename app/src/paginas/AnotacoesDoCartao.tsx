@@ -1,7 +1,7 @@
 // A seção "Anotações" do cartão de uma pessoa, um processo, um contrato, uma demanda, uma tarefa ou um compromisso (#303):
 // as anotações ligadas ao item que quem lê pode ver, o "+" para escrever uma nova já ligada a este item (ela abre em Documentos, na
-// mesma janela da anotação, #369) e, embaixo, como nos processos do contrato e da demanda, "Ligar anotação existente" (#341) e
-// "Nova anotação". A lista leve (sem o texto) é lida ao abrir o cartão, para o número aparecer com a seção fechada, e de novo quando
+// mesma janela da anotação, #369) e a corrente "Ligar anotação existente" (#341), os dois no título da seção (#427), como nos
+// outros cartões. A lista leve (sem o texto) é lida ao abrir o cartão, para o número aparecer com a seção fechada, e de novo quando
 // algo muda (a janela do cadastro fechou, ligaram uma anotação, desfizeram algo).
 // Desde a #360, a seção fica na coluna da direita do cartão, entre "Comentários" e "Histórico de alterações" (ao lado e na janela
 // estreita, no pé do cartão, na mesma ordem), e cada anotação aparece como um comentário (ComoComentario): quem a escreveu e quando
@@ -27,6 +27,8 @@ import { relativo } from '../ui/util';
 export const ENDERECO_DA_ANOTACAO = '/documentos/?id=';
 /** O aviso quando a anotação escolhida já estava ligada ao item (alguém ligou enquanto a busca estava aberta). */
 export const JA_ESTAVA_LIGADA = 'Esta anotação já estava ligada a este item.';
+/** O nome da corrente do título da seção (#427), que abre a busca das anotações para ligar. */
+const LIGAR_ANOTACAO = 'Ligar anotação existente';
 /**
  * A preferência que guarda se a seção fica aberta, desde que ela foi para a coluna (#360). Não é a de antes
  * (`<módulo>.cartao.anotacoes`): na coluna, a seção começa recolhida para todos, e a escolha vale daqui em diante.
@@ -69,6 +71,7 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
   // A anotação nova abre em Documentos, na janela da anotação, já ligada a este item (#369).
   const cadastro = enderecoDaAnotacaoNova({ [ITEM_DA_ANOTACAO[modulo].parametro]: id });
   const novo = somenteLer ? undefined : { para: cadastro, rotulo: 'Nova anotação ligada a este item' };
+  const corrente = somenteLer ? undefined : { rotulo: LIGAR_ANOTACAO };
 
   async function ligar(a: AnotacaoParaLigar) {
     try {
@@ -79,13 +82,14 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
     } catch (e) { falha(e); }
   }
 
-  return <Recolhivel titulo="Anotações" icone="documentos" preferencia={preferenciaDasAnotacoes(modulo)} contador={Array.isArray(lista) ? lista.length : undefined} novo={novo} atalho="anotacao">
+  return <Recolhivel titulo="Anotações" icone="documentos" preferencia={preferenciaDasAnotacoes(modulo)} contador={Array.isArray(lista) ? lista.length : undefined}
+    ligar={corrente} novo={novo} atalho="anotacao">
     {lista === null ? <Carregando />
       : typeof lista === 'string' ? <Aviso tipo="erro">{lista}</Aviso>
       : !lista.length ? <Nota>{VAZIO[modulo]}</Nota>
       : <ListaDasAnotacoes modulo={modulo} id={id} versao={versao} />}
-    {!somenteLer && <AcoesDosLigados novo={{ para: cadastro, rotulo: 'Nova anotação' }}>
-      <LigarExistente<AnotacaoParaLigar> rotulo="Ligar anotação existente" buscar={termo => SD.anotacoesParaLigar(modulo, id, termo)}
+    {!somenteLer && <AcoesDosLigados>
+      <LigarExistente<AnotacaoParaLigar> rotulo={LIGAR_ANOTACAO} buscar={termo => SD.anotacoesParaLigar(modulo, id, termo)}
         mostrar={a => ({ id: a.id, titulo: a.titulo, detalhe: `${a.codigo} · Atualizada ${relativo(a.atualizado_em)}`, motivo: motivoDeNaoLigarAAnotacao(a) })}
         aoEscolher={ligar} rotuloDaBusca="Buscar anotação para ligar" dicaDaBusca="Título ou código da anotação" nomeDaLista="Anotações para ligar"
         semAchados={{ comTexto: 'Nenhuma anotação ativa com esse texto que você possa ligar.', semTexto: 'Nenhuma anotação ativa que você possa ligar.' }}

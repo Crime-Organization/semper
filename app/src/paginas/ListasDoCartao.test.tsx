@@ -37,14 +37,14 @@ describe('Checklists no cartão (#358)', () => {
     itemAtualizar.mockImplementation(async (id, campos) => ({ ...item(id, campos.texto ?? ''), ...campos } as ItemDaLista));
   });
 
-  it('quando o cartão abre, então a seção se chama "Checklists" e o botão diz "Adicionar checklist"', async () => {
+  it('quando o cartão abre, então a seção se chama "Checklists" e o "Adicionar checklist" fica só no título (#427)', async () => {
     // Quando
     montar();
     await secao();
     // Então
     expect(screen.getByRole('button', { name: /^Checklists/ })).toBeInTheDocument();
-    // O botão de baixo mostra o nome; desde a #390, o "+" do título tem o mesmo nome (para o leitor de tela), só com o ícone.
-    expect(screen.getByText('Adicionar checklist', { selector: 'button' })).toBeInTheDocument();
+    // Desde a #427, o botão de baixo saiu: fica só o "+" do título, com o nome para o leitor de tela, só com o ícone.
+    expect(screen.queryByText('Adicionar checklist', { selector: 'button' })).not.toBeInTheDocument();
     expect(within(screen.getByRole('heading', { name: /^Checklists/ })).getByRole('button', { name: 'Adicionar checklist' })).toBeInTheDocument();
     expect(screen.queryByText(/Listas|Adicionar lista/)).not.toBeInTheDocument();
   });

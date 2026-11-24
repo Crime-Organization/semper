@@ -2,7 +2,8 @@
 // por módulo ligado no escritório (as pessoas sempre; o processo, nunca), e cada um leva ao cadastro do item já ligado à anotação
 // (regras/novoNaAnotacao.ts). Na anotação nova, ainda sem ir ao banco, não há a que ligar: o botão fica desligado, mas no Tab
 // (aria-disabled), com o motivo na dica e para o leitor de tela, como o botão do lembrete; ele liga sozinho quando ela é gravada.
-// Quem mostra o botão confere antes se a pessoa liga itens na anotação e se ela ainda tem lugar (as condições do "Ligar").
+// Quem mostra o botão confere antes se a pessoa liga itens na anotação e se ela ainda tem lugar (as condições do "Ligar"). Na seção
+// com o "+" no título (#427), o botão daqui não aparece: o "+" abre o mesmo menu (e, na anotação nova, fica desligado com o motivo).
 import { useId, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { ItemDaAnotacao, ModuloDaAnotacao } from '../dados';
@@ -35,7 +36,7 @@ export function NovoNaAnotacao({ modulos, anotacaoId, itens = [] }: Props) {
   const [botao, setBotao] = useState<HTMLElement | null>(null);
   const idDoMotivo = useId();
   // O "+" do título da seção abre o mesmo menu, preso a ele (a anotação nova, que espera, não tem o "+").
-  usePedidoDeNovo(alvo => { if (anotacaoId) setBotao(alvo); });
+  const { peloTitulo } = usePedidoDeNovo(alvo => { if (anotacaoId) setBotao(alvo); });
   const opcoes = modulosDoNovo(modulos);
   if (!opcoes.length) return null;
   const esperando = !anotacaoId;
@@ -44,12 +45,12 @@ export function NovoNaAnotacao({ modulos, anotacaoId, itens = [] }: Props) {
     navegar(cadastroNaAnotacao(m, anotacaoId!, itens));
   }
   return <>
-    <button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" aria-expanded={!!botao} aria-disabled={esperando || undefined}
+    {!peloTitulo && <><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" aria-expanded={!!botao} aria-disabled={esperando || undefined}
       aria-describedby={esperando ? idDoMotivo : undefined} title={esperando ? NOVO_ESPERA_A_ANOTACAO : undefined}
       onClick={e => { if (esperando) return; const alvo = e.currentTarget; setBotao(b => b ? null : alvo); }}>
       <Icone nome="mais" tam={ICONE_DO_BOTAO} /> {ROTULO_DO_NOVO_NA_ANOTACAO}
     </button>
-    {esperando && <span className="sr" id={idDoMotivo}>{NOVO_ESPERA_A_ANOTACAO}</span>}
+    {esperando && <span className="sr" id={idDoMotivo}>{NOVO_ESPERA_A_ANOTACAO}</span>}</>}
     {botao && <MenuFlutuante botao={botao} aoFechar={() => setBotao(null)} rotulo={NOME_DO_MENU_NOVO_NA_ANOTACAO}>
       {opcoes.map(m => <button key={m} type="button" role="menuitem" onClick={() => abrir(m)}>
         <Icone nome={ICONE_DO_MODULO[m]} tam={ICONE_DO_MENU} /> {NOVO_NA_ANOTACAO[m].rotulo}

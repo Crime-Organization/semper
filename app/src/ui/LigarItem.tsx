@@ -1,12 +1,14 @@
 // Ligar uma anotação a mais um item do sistema (#303), no modelo de LigarProcesso: o botão "+ Ligar a outro item" abre a
 // escolha do tipo de item (pessoa, processo, contrato…) e a busca por cima do que vem abaixo. A lista mostra só os itens
-// ativos que a pessoa pode ver e que ainda não estão ligados. Sem nada digitado, aparecem os mais recentes.
+// ativos que a pessoa pode ver e que ainda não estão ligados. Sem nada digitado, aparecem os mais recentes. Numa seção com a
+// corrente no título (#427, o mesmo rótulo), o botão não aparece: a corrente abre a busca.
 import { useEffect, useRef, useState } from 'react';
 import { SD, type ItemDaAnotacao, type ModuloDaAnotacao } from '../dados';
 import { ITEM_DA_ANOTACAO } from '../regras/anotacao';
 import { falha } from './avisos';
 import { estiloBotao } from './base';
 import { Icone } from './Icone';
+import { usePedidoDeLigar } from './Recolhivel';
 import { useAtrasado } from './util';
 
 interface Props {
@@ -19,7 +21,10 @@ interface Props {
   rotulo?: string;
 }
 
-export function LigarItem({ modulos, ligados, aoEscolher, rotulo = 'Ligar a outro item' }: Props) {
+/** O nome do botão (e da corrente do título da seção, #427): sem nenhum item ainda, "Ligar a um item"; com algum, "Ligar a outro item". */
+export const rotuloDeLigarItem = (ligados: number) => ligados ? 'Ligar a outro item' : 'Ligar a um item';
+
+export function LigarItem({ modulos, ligados, aoEscolher, rotulo = rotuloDeLigarItem(1) }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [modulo, setModulo] = useState<ModuloDaAnotacao>(modulos[0]);
   const [termo, setTermo] = useState('');
@@ -28,6 +33,10 @@ export function LigarItem({ modulos, ligados, aoEscolher, rotulo = 'Ligar a outr
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
+  /** A corrente do título que abriu a busca (#427): ao fechar, o foco volta a ela. */
+  const corrente = useRef<HTMLElement | null>(null);
+  // Com a corrente no título da seção (o mesmo rótulo), o botão de baixo não aparece.
+  const peloTitulo = usePedidoDeLigar(rotulo, alvo => { corrente.current = alvo; setBuscando(true); });
 
   const oferecidos = achados?.filter(i => !ligados.some(l => l.modulo === i.modulo && l.id === i.id));
   const tipo = ITEM_DA_ANOTACAO[modulo];
@@ -52,14 +61,14 @@ export function LigarItem({ modulos, ligados, aoEscolher, rotulo = 'Ligar a outr
     setBuscando(false);
     setTermo('');
     setAchados(null);
-    setTimeout(() => botao.current?.focus(), 0);
+    setTimeout(() => (botao.current ?? corrente.current)?.focus(), 0);
   }
   function escolher(i: ItemDaAnotacao) {
     fechar();
     void aoEscolher(i);
   }
 
-  if (!modulos.length) return null;
+  if (!modulos.length || (!buscando && peloTitulo)) return null;
   if (!buscando) return <div>
     <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}>
       <Icone nome="vinculo" tam={13} /> {rotulo}

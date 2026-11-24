@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Criar, do cartão, um item já ligado (#376), nas seções que já criavam mas fora do padrão: Contratos e Processos da pessoa e
-// Processos da demanda. Cada uma tem o "+" no título e o "+ Novo …" embaixo; depois de gravar, a tela volta ao cartão de origem,
+// Processos da demanda. Cada uma tem o "+" no título (desde a #427, o único: o "+ Novo …" de baixo saiu); depois de gravar, a tela volta ao cartão de origem,
 // com o item na seção e o contador atualizado. No cartão arquivado, nenhum "+" aparece.
 // A semente do banco fictício: LUCIANA ROCHA AMOSTRA não tem contratos nem processos; JOSÉ DA SILVA TESTE é cliente do contrato
 // "Registro de marca" (com as demandas "Registro de marca" e "Busca de anterioridade"). Quem está logado é o Mauro (administrador).
@@ -60,7 +60,7 @@ test.describe('Contratos da pessoa', () => {
     await expect(cartao.getByText('Nenhum contrato ligado a esta pessoa.')).toBeVisible();
     await expect(tituloDaSecao(cartao, 'Contratos')).toHaveText('Contratos0');
     // Quando
-    await cartao.getByRole('link', { name: 'Novo contrato', exact: true }).click();
+    await cartao.getByRole('link', { name: 'Novo contrato com esta pessoa como cliente' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await expect(cadastro.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveText('Trocar');
     await salvarContrato(page);
@@ -92,7 +92,7 @@ test.describe('Processos da pessoa', () => {
     await expect(cartao.getByText('Nenhum processo ligado a esta pessoa.')).toBeVisible();
     await expect(tituloDaSecao(cartao, 'Processos')).toHaveText('Processos0');
     // Quando
-    await cartao.getByRole('link', { name: 'Novo processo', exact: true }).click();
+    await cartao.getByRole('link', { name: 'Novo processo com esta pessoa como cliente' }).click();
     await salvarProcesso(page);
     // Então
     await expect(page).toHaveURL(/\/pessoas\/\?id=/);
@@ -123,7 +123,7 @@ test.describe('Processos da demanda', () => {
     await expect(cartao.getByText('Nenhum processo ligado a esta demanda.')).toBeVisible();
     await expect(tituloDaSecao(cartao, 'Processos')).toHaveText('Processos0');
     // Quando
-    await cartao.getByRole('link', { name: 'Novo processo', exact: true }).click();
+    await cartao.getByRole('link', { name: 'Novo processo desta demanda' }).click();
     await expect(page.getByText('Este processo nasce da demanda', { exact: false })).toBeVisible();
     await salvarProcesso(page);
     // Então
@@ -186,7 +186,7 @@ test.describe('A volta ao cartão de origem só vale quando o item ficou ligado 
     // Dado
     const cartao = await abrirPessoa(page, 'luciana', 'LUCIANA ROCHA AMOSTRA');
     await abrirSecao(cartao, 'Contratos');
-    await cartao.getByRole('link', { name: 'Novo contrato', exact: true }).click();
+    await cartao.getByRole('link', { name: 'Novo contrato com esta pessoa como cliente' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     // Quando
     await cadastro.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();

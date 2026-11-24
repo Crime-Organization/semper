@@ -1451,17 +1451,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
-/* Com itens: a lista e, à direita, o "+" redondo para criar outro já ligado. Sem itens: o texto e o botão com o nome,
-   na mesma linha (o botão desce quando não cabe). */
-.ligados-com-novo { display: flex; align-items: flex-start; gap: 12px }
-.ligados-com-novo > .itens-ligados { flex: 1; min-width: 0 }
-.mini.ligados-novo { width: 40px; height: 40px; padding: 0; flex-shrink: 0; justify-content: center; border-radius: 999px }
-/* Os botões abaixo da lista ("Ligar … existente" e "+ Novo …"), lado a lado; a busca aberta ocupa a linha toda. */
+/* Embaixo da lista, a busca de ligar que a corrente do título abre (#427), na linha toda; fechada, a linha some. */
 .ligados-acoes { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 10px }
 .ligados-acoes > :is(.busca-processo, .busca-existente) { flex: 1 1 100% }
+.ligados-acoes:empty { display: none }
 /* A lista do cartão já está cheia (#341): o botão de ligar desabilitado, com o motivo ao lado. */
 .ligar-indisponivel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
-.ligados-vazio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px }
 .itens-ligados > li { display: flex; align-items: center; gap: 8px }
 .item-ligado { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink); font: inherit; text-align: left }
 :is(a, button).item-ligado { cursor: pointer }

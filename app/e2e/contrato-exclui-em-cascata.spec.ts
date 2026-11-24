@@ -56,7 +56,7 @@ test('dado um contrato com recebimento e repasse pago, quando o administrador pe
   // Dado a conta PJ (sem DAS), o contrato com tudo na conta da empresa e a parcela 1 recebida, com o repasse pago
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
-  await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
   const conta = page.getByRole('form', { name: 'Nova conta' });
   await conta.getByLabel('Nome da conta').fill('PJ');
   await conta.getByLabel('Saldo inicial').fill('0,00');

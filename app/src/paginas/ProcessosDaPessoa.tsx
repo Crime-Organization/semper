@@ -1,7 +1,7 @@
 // Os processos ligados ao cartão da pessoa, cada um num quadrinho que abre o cartão dele, com o papel dela (cliente, equipe ou
 // um papel como testemunha ou perito, #316), o tipo e a
-// situação. Embaixo, "Ligar processo existente" (ela entra como cliente de um processo que já existe, #341) e o atalho para um
-// processo novo com ela como cliente, que também fica no "+" do título da seção (#376). Com a pessoa arquivada, nenhum dos dois.
+// situação. Embaixo, a busca "Ligar processo existente", que a corrente do título abre (ela entra como cliente de um processo que já existe, #341, #427); o atalho para um
+// processo novo com ela como cliente fica no "+" do título da seção (#376). Com a pessoa arquivada, nenhum dos dois.
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { nomeDoProcesso, papeisPorExtenso, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
@@ -45,6 +45,6 @@ export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer =
       id: p.id, para: TIPOS_PROCESSO[p.tipo].caminho + '?id=' + p.id, codigo: p.codigo, titulo: nomeDoProcesso(p), selo: p.arquivado_em ? 'Arquivado' : undefined,
       detalhe: [TIPOS_PROCESSO[p.tipo].nome, p.numero, papeisPorExtenso(p), situacao(p.etapa_id)].filter(Boolean).join(' · ')
     }))} />
-    {!somenteLer && <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} novo={novoProcessoDaPessoa(pessoaId, 'Novo processo')} />}
+    {!somenteLer && <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} />}
   </>;
 }

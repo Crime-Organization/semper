@@ -6,7 +6,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosParaLigar, DadosPessoas, DemandaParaEscolher, PessoaLista } from '../dados';
 import { ITENS_PARA_LIGAR } from '../dados/limites';
-import { LigarDoModulo } from './LigarDoModulo';
+import { LigarDoModulo, ligarDoModulo } from './LigarDoModulo';
+import { Recolhivel } from './Recolhivel';
 import { AcoesDosLigados } from './ItensLigados';
 import { MemoryRouter } from 'react-router';
 
@@ -88,14 +89,46 @@ describe('Ligar, no cartão, um item de outro módulo', () => {
   });
 });
 
-describe('As ações embaixo da lista da seção', () => {
-  it('dado o atalho do item novo, então ele aparece ao lado do botão de ligar', () => {
-    // Dado / Quando
-    render(<MemoryRouter><AcoesDosLigados novo={{ para: '/tarefas/nova/?pessoa=p1', rotulo: 'Nova tarefa' }}>
-      <LigarDoModulo modulo="pessoas" aoEscolher={() => undefined} />
-    </AcoesDosLigados></MemoryRouter>);
+describe('A corrente do título da seção (#427)', () => {
+  beforeEach(() => {
+    demandasParaLigar.mockReset().mockResolvedValue([]);
+    pessoasListar.mockReset();
+  });
+
+  it('dada a seção com a corrente, quando ela abre, então não há o botão embaixo; e a corrente abre a busca, e o Esc devolve o foco a ela', async () => {
+    // Dado
+    render(<MemoryRouter><Recolhivel titulo="Demandas" icone="demandas" ligar={ligarDoModulo('demandas')}>
+      <AcoesDosLigados><LigarDoModulo modulo="demandas" aoEscolher={() => undefined} /></AcoesDosLigados>
+    </Recolhivel></MemoryRouter>);
+    // Quando: a corrente abre a seção fechada e a busca
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar demanda existente' }));
     // Então
-    expect(screen.getByRole('button', { name: 'Ligar pessoa existente' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Nova tarefa' })).toHaveAttribute('href', '/tarefas/nova/?pessoa=p1');
+    expect(screen.getAllByRole('button', { name: 'Ligar demanda existente' })).toHaveLength(1);
+    expect(screen.getByRole('textbox', { name: 'Buscar demanda para ligar' })).toHaveFocus();
+    await waitFor(() => expect(demandasParaLigar).toHaveBeenCalled());
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ligar demanda existente' })).toHaveFocus());
+    expect(screen.queryByRole('textbox', { name: 'Buscar demanda para ligar' })).not.toBeInTheDocument();
+  });
+
+  it('dada a lista do item cheia, quando a seção abre, então a corrente fica desligada, com o motivo na dica, e embaixo só o motivo', async () => {
+    // Dado
+    const motivo = 'Este processo já tem 10 clientes, o máximo.';
+    render(<MemoryRouter><Recolhivel titulo="Clientes" icone="pessoas" ligar={{ rotulo: 'Ligar pessoa existente', indisponivel: motivo }}>
+      <LigarDoModulo modulo="pessoas" indisponivel={motivo} aoEscolher={() => undefined} />
+    </Recolhivel></MemoryRouter>);
+    const corrente = screen.getByRole('button', { name: 'Ligar pessoa existente' });
+    // Quando
+    await userEvent.click(corrente);
+    await userEvent.click(screen.getByRole('button', { name: 'Clientes' }));
+    // Então
+    expect(corrente).toHaveAttribute('aria-disabled', 'true');
+    expect(corrente).toHaveAttribute('data-dica', motivo);
+    // O motivo duas vezes: o da corrente, para o leitor de tela, e a nota dentro da seção.
+    expect(screen.getAllByText(motivo)).toHaveLength(2);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(pessoasListar).not.toHaveBeenCalled();
   });
 });

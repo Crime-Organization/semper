@@ -366,7 +366,7 @@ test.describe('Dados os prazos do processo (#395)', () => {
     await abrirSecao(cartao, 'Prazos');
     return cartao;
   }
-  const novoPrazo = (cartao: Locator) => cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' });
+  const novoPrazo = (cartao: Locator) => cartao.getByRole('button', { name: 'Novo prazo', exact: true });
   const lista = (cartao: Locator) => cartao.getByRole('list', { name: 'Prazos do processo' });
   async function lancar(cartao: Locator, descricao: string, data: string) {
     await novoPrazo(cartao).click();

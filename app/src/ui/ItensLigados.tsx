@@ -3,8 +3,7 @@
 // toda ligação entre partes do sistema aparece assim, em todos os módulos.
 import { createContext, useContext, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { BotaoLink, Nota, Selo } from './base';
-import { Icone } from './Icone';
+import { Nota, Selo } from './base';
 
 export interface ItemLigado {
   id: string;
@@ -41,9 +40,9 @@ export interface NovoLigado { para: string; rotulo: string }
 const PodeCriar = createContext(true);
 
 /**
- * Em volta do corpo do cartão (#376): com `pode={false}` (o cartão arquivado, ou quem só lê), nenhum atalho para criar um item
- * ligado aparece nas seções de dentro: nem o "+" do título (`<Recolhivel>`), nem o "+ Novo …" de baixo (`<AcoesDosLigados>`),
- * nem o "+" ao lado da lista (`<ItensLigados>`). Uma regra só, para nenhuma seção esquecer o caso.
+ * Em volta do corpo do cartão (#376): com `pode={false}` (o cartão arquivado, ou quem só lê), nenhum atalho para criar ou ligar um
+ * item aparece nas seções de dentro: nem o "+" nem a corrente do título (`<Recolhivel>`). Uma regra só, para nenhuma seção esquecer
+ * o caso.
  */
 export function CriarNoCartao({ pode, children }: { pode: boolean; children: ReactNode }) {
   return <PodeCriar.Provider value={pode}>{children}</PodeCriar.Provider>;
@@ -55,36 +54,19 @@ export function useNovoNoCartao<T>(novo: T | undefined): T | undefined {
 }
 
 /**
- * A lista de quadrinhos. Com "novo": se há itens, só um "+" redondo à direita da lista (o nome do atalho fica na dica e
- * para o leitor de tela); se não há, o texto de vazio à esquerda e o botão com o nome à direita, na mesma linha.
+ * A lista de quadrinhos; sem itens, o texto de vazio. Os atalhos de ligar e de criar ficam só no título da seção (#427: a corrente
+ * e o "+" do `<Recolhivel>`), e não ao lado da lista.
  */
-export function ItensLigados({ itens, vazio, novo: pedido, rotulo }: { itens: ItemLigado[]; vazio?: string; novo?: NovoLigado; /** Nome da lista para o leitor de tela. */ rotulo?: string }) {
-  const novo = useNovoNoCartao(pedido);
-  if (!itens.length) {
-    if (!novo) return vazio ? <Nota>{vazio}</Nota> : null;
-    return <div className="ligados-vazio">
-      {vazio && <Nota>{vazio}</Nota>}
-      <BotaoLink forma="mini" to={novo.para}><Icone nome="mais" tam={13} /> {novo.rotulo}</BotaoLink>
-    </div>;
-  }
-  const lista = <ul className="itens-ligados" aria-label={rotulo}>{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}</li>)}</ul>;
-  if (!novo) return lista;
-  return <div className="ligados-com-novo">
-    {lista}
-    <BotaoLink forma="mini" className="ligados-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={16} /></BotaoLink>
-  </div>;
+export function ItensLigados({ itens, vazio, rotulo }: { itens: ItemLigado[]; vazio?: string; /** Nome da lista para o leitor de tela. */ rotulo?: string }) {
+  if (!itens.length) return vazio ? <Nota>{vazio}</Nota> : null;
+  return <ul className="itens-ligados" aria-label={rotulo}>{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}</li>)}</ul>;
 }
 
 /**
- * Embaixo da lista de uma seção do cartão (#341): os botões de ligar um item que já existe e, ao lado, o atalho para criar um novo já
- * ligado, como nos processos do contrato e da demanda. A busca aberta ocupa a linha toda.
+ * Embaixo da lista de uma seção do cartão (#341): onde abre a busca de ligar um item que já existe, pedida pela corrente do título
+ * (#427). A busca aberta ocupa a linha toda; fechada, a linha não ocupa espaço (o estilo esconde a linha vazia).
  */
-export function AcoesDosLigados({ children, novo: pedido }: { children?: ReactNode; novo?: NovoLigado }) {
-  const novo = useNovoNoCartao(pedido);
-  // Sem nada para mostrar (o cartão arquivado, onde a seção só tinha o "+ Novo …"), nem o espaço da linha fica.
-  if (!children && !novo) return null;
-  return <div className="ligados-acoes">
-    {children}
-    {novo && <BotaoLink forma="mini" to={novo.para}><Icone nome="mais" tam={13} /> {novo.rotulo}</BotaoLink>}
-  </div>;
+export function AcoesDosLigados({ children }: { children?: ReactNode }) {
+  if (!children) return null;
+  return <div className="ligados-acoes">{children}</div>;
 }

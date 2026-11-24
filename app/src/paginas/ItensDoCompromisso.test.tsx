@@ -30,7 +30,7 @@ beforeEach(() => {
 describe('A seção "Ligado a" do cartão do compromisso', () => {
   const montar = (somenteLer = false) => render(<MemoryRouter><ItensDoCompromisso id="c1" somenteLer={somenteLer} versao={0} aoMudar={() => undefined} /></MemoryRouter>);
 
-  it('dado um compromisso ligado a uma tarefa e a uma demanda, quando o cartão abre, então o número aparece com a seção fechada e, aberta, os itens', async () => {
+  it('dado um compromisso ligado a uma tarefa e a uma demanda, quando o cartão abre, então o número aparece com a seção fechada e, aberta, os itens, com a corrente no título', async () => {
     // Dado
     vi.spyOn(SD, 'compromissoItens').mockResolvedValue({ visiveis: [item('demandas', 'd1', 'Inventário'), item('tarefas', 't1', 'Ligar para o cliente')], ocultos: 1 });
     // Quando
@@ -42,7 +42,10 @@ describe('A seção "Ligado a" do cartão do compromisso', () => {
     expect(screen.getByRole('link', { name: /Ligar para o cliente/ })).toHaveAttribute('href', '/tarefas/?id=t1');
     expect(screen.getByRole('link', { name: /Inventário/ })).toHaveAttribute('href', '/demandas/?id=d1');
     expect(screen.getByText(/1 item ligado aqui que você não tem acesso/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ligar contrato existente/ })).toBeInTheDocument();
+    // A corrente do título (#427) abre um menu com a busca de cada módulo; embaixo, nenhum botão de ligar.
+    expect(screen.queryByRole('button', { name: /Ligar contrato existente/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar a um item existente' }));
+    expect(within(screen.getByRole('menu', { name: 'Ligar a um item existente' })).getByRole('menuitem', { name: 'Ligar contrato existente' })).toBeInTheDocument();
   });
 
   it('dado quem muda o compromisso, quando desliga um item, então a ligação sai', async () => {

@@ -10,7 +10,7 @@ const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.
 async function prepararCaixa(page: Page) {
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
-  await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
   const conta = page.getByRole('form', { name: 'Nova conta' });
   await conta.getByLabel('Nome da conta').fill('PJ');
   await conta.getByLabel('Saldo inicial').fill('0,00');
@@ -25,7 +25,7 @@ async function prepararCaixa(page: Page) {
   await das.getByRole('button', { name: 'Salvar DAS' }).click();
   await expect(page.getByRole('list', { name: 'DAS lançados' })).toContainText('01/2020');
   await abrirSecao(page, 'Sócios');
-  await page.getByRole('button', { name: 'Novo sócio' }).filter({ hasText: 'Novo sócio' }).click();
+  await page.getByRole('button', { name: 'Novo sócio', exact: true }).click();
   const socio = page.getByRole('form', { name: 'Novo sócio' });
   await socio.getByLabel('Pessoa').fill('MAURO TEIXEIRA');
   await socio.getByRole('button', { name: /MAURO TEIXEIRA/ }).click();
@@ -145,7 +145,7 @@ test.describe('Lucro dos sócios', () => {
     await receberComoSocio(page);
     await page.goto('/financeiro/contas/');
     await abrirSecao(page, 'Contas');
-    await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
+    await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
     const conta = page.getByRole('form', { name: 'Nova conta' });
     await conta.getByLabel('Nome da conta').fill('PF');
     await conta.getByLabel('Saldo inicial').fill('0,00');
