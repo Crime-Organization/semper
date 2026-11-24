@@ -29,8 +29,12 @@ test.describe('Objetos de contrato nas Configurações (#281)', () => {
     // Dado / Quando
     const secao = await abrirObjetos(page);
     // Então
-    await expect(linha(secao, 'Registro de marca').getByRole('cell')).toHaveText(['', 'Registro de marca', '1', '1', /Corrigir/]);
-    await expect(linha(secao, 'Ação de cobrança').getByRole('cell')).toHaveText(['', 'Ação de cobrança', '1', '0', /Corrigir/]);
+    // As ações da linha são só ícones (#423): a última coluna não tem texto, e o Corrigir está nela pelo nome.
+    await expect(linha(secao, 'Registro de marca').getByRole('cell')).toHaveText(['', 'Registro de marca', '1', '1', '']);
+    await expect(linha(secao, 'Registro de marca').getByRole('cell').last().getByRole('button', { name: 'Corrigir o objeto Registro de marca' })).toBeVisible();
+    // As ações da linha são só ícones (#423): a última coluna não tem texto, e o Corrigir está nela pelo nome.
+    await expect(linha(secao, 'Ação de cobrança').getByRole('cell')).toHaveText(['', 'Ação de cobrança', '1', '0', '']);
+    await expect(linha(secao, 'Ação de cobrança').getByRole('cell').last().getByRole('button', { name: 'Corrigir o objeto Ação de cobrança' })).toBeVisible();
   });
 
   test('quando o administrador corrige um nome, então ele muda na lista, no contrato e na demanda nascida dele', async ({ page }) => {
@@ -80,7 +84,9 @@ test.describe('Objetos de contrato nas Configurações (#281)', () => {
     // Então
     await expect(page.getByText('Objetos juntados em "Ação de cobrança". Mudou em 1 contrato e 0 demandas.')).toBeVisible();
     await expect(linha(secao, 'Ação de cobrança.')).toHaveCount(0);
-    await expect(linha(secao, 'Ação de cobrança').getByRole('cell')).toHaveText(['', 'Ação de cobrança', '2', '0', /Corrigir/]);
+    // As ações da linha são só ícones (#423): a última coluna não tem texto, e o Corrigir está nela pelo nome.
+    await expect(linha(secao, 'Ação de cobrança').getByRole('cell')).toHaveText(['', 'Ação de cobrança', '2', '0', '']);
+    await expect(linha(secao, 'Ação de cobrança').getByRole('cell').last().getByRole('button', { name: 'Corrigir o objeto Ação de cobrança' })).toBeVisible();
     await expect(await contratoDe(page, 'COMERCIAL NORTE TESTE LTDA')).toContainText('Ação de cobrança');
   });
 

@@ -7,7 +7,7 @@ import { SD, type FuncaoNaTarefa } from '../dados';
 import { TAMANHO_FUNCAO_NA_TAREFA } from '../dados/limites';
 import { dadosDaFuncao, errosDaFuncao, formDaFuncao, FUNCAO_NOVA, funcoesNaOrdem, type FormDaFuncao } from '../regras/funcoesNaTarefa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { recarregarFuncoes } from '../ui/funcoesNaTarefa';
 import { Icone } from '../ui/Icone';
@@ -77,8 +77,8 @@ export function FuncoesDosParticipantes() {
       <tbody>{funcoes.map(f => <tr key={f.id}>
         <td>{f.nome}</td><td>{f.executa ? <Selo tipo="ok">Executa a tarefa</Selo> : <span className="nota">—</span>}</td>
         <td><span className="config-campos-acoes">
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar a função ${f.nome}`} onClick={() => abrirForm(f)}><Icone nome="editar" tam={13} /> Mudar</button>
-          <BotaoDuplo pequeno confirmar={`Confirmar: apagar ${f.nome}`} aoConfirmar={() => apagar(f)}><Icone nome="lixeira" tam={13} /> Apagar</BotaoDuplo>
+          <BotaoDeIcone icone="editar" rotulo={`Mudar a função ${f.nome}`} dica="Mudar a função" onClick={() => abrirForm(f)} />
+          <BotaoDuplo icone="lixeira" rotulo="Apagar" dica="Apagar a função" confirmar={`Confirmar: apagar ${f.nome}`} aoConfirmar={() => apagar(f)} />
         </span></td>
       </tr>)}</tbody>
     </table></div> : <Nota>Nenhuma função cadastrada: os participantes ficam sem função.</Nota>}

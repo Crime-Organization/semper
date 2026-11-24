@@ -100,10 +100,11 @@ test.describe('Cadastro de processo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA', level: 2 })).toBeVisible();
-    await expect(cartao).toContainText(NUMERO_NOVO);
     // No quadro de processos toda coluna fica num grupo, e o menu mostra o grupo na frente (#302).
     await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('INÍCIO: DISTRIBUÍDO');
+    // E o número está em "Dados do processo" (não no topo do cartão: #430)
     await abrirSecao(cartao, 'Dados do processo');
+    await expect(cartao.getByRole('definition').filter({ hasText: NUMERO_NOVO })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'Montes Claros' })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'R$' })).toContainText('1.500,50');
     await expect(cartao.getByRole('definition').filter({ hasText: 'Réu' })).toBeVisible();
@@ -286,6 +287,18 @@ test.describe('Cartão do processo', () => {
     await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
     return cartao;
   }
+
+  test('quando a pessoa abre o cartão, então Tarefas e Compromissos vêm antes de Clientes (#429)', async ({ page }) => {
+    // Dado / Quando
+    const cartao = await abrirProcesso(page);
+    // Então
+    await expect(cartao.getByRole('heading', { name: /^Clientes/, level: 3 })).toBeVisible();
+    const secoes = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
+    const posicao = (titulo: string) => secoes.findIndex(t => t.startsWith(titulo));
+    expect(posicao('Tarefas')).toBeGreaterThan(-1);
+    expect(posicao('Compromissos')).toBeGreaterThan(posicao('Tarefas'));
+    expect(posicao('Clientes')).toBeGreaterThan(posicao('Compromissos'));
+  });
 
   test('quando edita um campo, então ele muda no cartão e entra no histórico', async ({ page }) => {
     // Dado
@@ -612,6 +625,47 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Então
     await abrirSecao(cartao, 'Tarefas');
     await expect(cartao.getByRole('link', { name: /Intimação: Intimado uma vez/ })).toHaveCount(1);
+  });
+
+  test('dado um prazo, quando a pessoa o vê, então as ações são só ícones, com a explicação ao passar o mouse e no foco; a tarefa criada aparece no botão de sempre (#423)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await form.getByLabel('Que prazo é este').fill('Tréplica');
+    await form.getByText('Digitar a data').click();
+    await form.getByLabel('Último dia').fill('2030-04-15');
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    const prazo = cartao.getByRole('list', { name: 'Prazos do processo' }).getByRole('listitem').filter({ hasText: 'Tréplica' });
+    const acoes = [prazo.getByRole('button', { name: 'Criar tarefa' }), prazo.getByRole('button', { name: 'Ligar tarefa existente' }),
+      prazo.getByRole('button', { name: 'Mudar o prazo Tréplica' }), prazo.getByRole('button', { name: 'Excluir', exact: true })];
+    const dicaVisivel = (b: Locator) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
+    // Então: cada ação é só o ícone, sem texto à vista
+    for (const acao of acoes) {
+      await expect(acao).toHaveText('');
+      await expect(acao.locator('svg')).toBeVisible();
+    }
+    // Quando: passa o mouse no ícone de criar tarefa
+    await acoes[0].hover();
+    // Então: a explicação aparece
+    await expect(acoes[0]).toHaveAttribute('data-dica', 'Criar a tarefa de cumprir este prazo');
+    await expect.poll(() => dicaVisivel(acoes[0])).toBe('1');
+    // Quando: chega ao ícone de mudar pelo teclado
+    await acoes[2].focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    // Então
+    await expect(acoes[2]).toBeFocused();
+    await expect.poll(() => dicaVisivel(acoes[2])).toBe('1');
+    // Quando: clica no ícone de criar tarefa
+    await acoes[0].click();
+    // Então: o botão da tarefa ligada continua com o código escrito e leva à tarefa
+    const tarefa = prazo.getByRole('link', { name: /^Tarefa [0-9A-Z]+$/ });
+    await expect(tarefa).toBeVisible();
+    await expect(prazo.getByRole('button', { name: 'Criar tarefa' })).toHaveCount(0);
+    await tarefa.click();
+    await expect(page.getByRole('dialog')).toContainText('Prazo: Tréplica');
   });
 
   test('quando muda o último dia de um prazo com tarefa, então a tarefa acompanha', async ({ page }) => {
@@ -1282,5 +1336,46 @@ test.describe('Nome do cartão no próprio lugar (#346)', () => {
     // Então
     await expect(cartao.getByRole('textbox', { name: 'Nome do cartão' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'JOSÉ DA SILVA TESTE', exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('O número só em "Dados do processo" (#430)', () => {
+  const NUMERO = '0001234-97.2026.8.13.0024';
+  /** Abre o processo judicial da semente pela tabela, achando a linha pelo número. */
+  async function abrirJudicial(page: Page, titulo: string) {
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: NUMERO }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: titulo, level: 2 })).toBeVisible();
+    return cartao;
+  }
+  const numeroVisivel = (cartao: Locator) => cartao.getByText(NUMERO, { exact: true }).filter({ visible: true });
+
+  test('dado o cartão de um processo, quando a pessoa o abre, então o número não aparece no topo e continua em "Dados do processo"', async ({ page }) => {
+    // Dado / Quando
+    const cartao = await abrirJudicial(page, 'JOSÉ DA SILVA TESTE');
+    // Então: com as seções recolhidas, o número não aparece no cartão
+    await expect(numeroVisivel(cartao)).toHaveCount(0);
+    // E, ao abrir "Dados do processo", ele está lá, uma vez só
+    await abrirSecao(cartao, 'Dados do processo');
+    await expect(cartao.getByRole('definition').filter({ hasText: NUMERO })).toBeVisible();
+    await expect(numeroVisivel(cartao)).toHaveCount(1);
+  });
+
+  test('dado um processo sem nome e sem clientes, quando a pessoa o abre, então o número é o nome do cartão e não se repete no topo', async ({ page }) => {
+    // Dado: o processo judicial da semente sem os clientes (como alguns que vieram do histórico)
+    await page.goto('/processos/judicial/');
+    await page.evaluate(numero => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { processos: { numero: string; clientes: string[] }[] };
+      bd.processos.filter(p => p.numero === numero).forEach(p => { p.clientes = []; });
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    }, NUMERO);
+    // O banco fictício lê a aba ao abrir a página: recarrega para valer a mudança.
+    await page.reload();
+    // Quando
+    const cartao = await abrirJudicial(page, NUMERO);
+    // Então: o número aparece só no título
+    await expect(numeroVisivel(cartao)).toHaveCount(1);
   });
 });

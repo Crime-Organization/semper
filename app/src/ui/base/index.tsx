@@ -10,6 +10,7 @@ export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } fr
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
 export { TextoEditavel } from './TextoEditavel';
+export { DadosEditaveis, FormularioDosDados } from './DadosEditaveis';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';
@@ -18,6 +19,7 @@ export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';
+export { BotaoDeIcone, IconeDoBotao, propsDoBotaoDeIcone, type SoIcone } from './BotaoDeIcone';
 
 /**
  * A dica que aparece junto de um botão pequeno, só de ícone ou de iniciais (as bolinhas da equipe), ao passar o mouse e no foco

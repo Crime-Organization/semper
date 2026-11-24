@@ -16,6 +16,9 @@ const SD = vi.hoisted(() => ({
   processoAndamentoExcluir: vi.fn<DadosAcompanhamento['processoAndamentoExcluir']>(async () => {}), processoAndamentoRestaurar: vi.fn<DadosAcompanhamento['processoAndamentoRestaurar']>(async () => {})
 }));
 vi.mock('../../dados', () => ({ SD: SD satisfies Pick<DadosAcompanhamento, keyof typeof SD> }));
+// Criar a tarefa da intimação passa pela peça comum do processo (tarefaDoProcesso.ts), que grava a tarefa e chama a ligação.
+const criarTarefaLigada = vi.hoisted(() => vi.fn());
+vi.mock('./tarefaDoProcesso', () => ({ criarTarefaLigada, arquivarTarefaCriada: vi.fn(), quemRecebe: (eu: string) => ({ eu, ativos: [eu] }) }));
 const EQUIPE: Membro[] = [{ id: 'u-mauro', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', ativo: true }];
 vi.mock('../../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro' }, equipe: EQUIPE, ehAdmin: true, escritorio: { modulos: { tarefas: true } } }) }));
 
@@ -23,7 +26,7 @@ const andamento = (extra: Partial<AndamentoDeProcesso> = {}): AndamentoDeProcess
   id: 'a1', processo_id: 'p1', tipo: 'andamento', categoria: 'despacho', data: '2026-11-10', hora: null, local: null, texto: 'Cite-se.', tratada_em: null,
   tarefa_id: null, tarefa: null, criado_por: 'u-mauro', criado_em: '2026-11-10T10:00:00Z', atualizado_em: '2026-11-10T10:00:00Z', ...extra
 });
-const PROCESSO = { id: 'p1', numero: '0001234-97.2026.8.13.0024', titulo: null, orgao: 'TJMG', clientes: [], responsavel_id: 'u-mauro', colaboradores: [] } as unknown as Processo;
+const PROCESSO = { id: 'p1', numero: '0001234-97.2026.8.13.0024', titulo: null, orgao: 'TJMG', clientes: [], cliente_nome: '', responsavel_id: 'u-mauro', colaboradores: [] } as unknown as Processo;
 const aoMudar = vi.fn(async () => {});
 const montar = (lista: AndamentoDeProcesso[], somenteLer = false) => render(<MemoryRouter><Avisos />
   <Andamentos processo={PROCESSO} andamentos={lista} prazos={[]} orgao={null} somenteLer={somenteLer} aoMudar={aoMudar} /></MemoryRouter>);
@@ -139,5 +142,32 @@ describe('Andamentos do processo (#362)', () => {
     expect(within(linhaDoTempo()).getByText('Cite-se.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Ações do andamento/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Novo andamento' })).not.toBeInTheDocument();
+  });
+
+  it('dada uma intimação a tratar, quando a seção mostra, então as ações dela são só ícones, com o nome de sempre e a explicação na dica (#423)', () => {
+    // Quando
+    montar([andamento({ tipo: 'intimacao', categoria: null, texto: 'Intime-se.' })]);
+    // Então
+    const caixa = within(within(linhaDoTempo()).getByRole('listitem', { name: 'Intimação de 10/11/2026' }));
+    for (const [nome, dica] of [['Criar tarefa', 'Criar a tarefa de tratar esta intimação'], ['Lançar prazo', 'Lançar o prazo que nasce desta intimação'],
+      ['Não precisa de tarefa', 'Marcar que esta intimação não precisa de tarefa']]) {
+      const botao = caixa.getByRole('button', { name: nome });
+      expect(botao).toHaveTextContent('');
+      expect(botao).toHaveAttribute('data-dica', dica);
+    }
+  });
+
+  it('dada uma intimação a tratar, quando a pessoa clica no ícone de criar tarefa, então a tarefa é criada e ligada como antes', async () => {
+    // Dado
+    const tarefaCriar = vi.fn(async () => ({ id: 't1', codigo: 'T1A2' }));
+    SD.processoAndamentoAtualizar.mockResolvedValue(undefined as never);
+    criarTarefaLigada.mockImplementation(async (_dados: unknown, ligar: (id: string) => Promise<unknown>) => { const r = await tarefaCriar(); await ligar(r.id); return r; });
+    montar([andamento({ tipo: 'intimacao', categoria: null, texto: 'Intime-se.' })]);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Criar tarefa' }));
+    // Então
+    expect(tarefaCriar).toHaveBeenCalledOnce();
+    expect(SD.processoAndamentoAtualizar).toHaveBeenCalledWith('a1', expect.objectContaining({ tarefa_id: 't1' }));
+    expect(aoMudar).toHaveBeenCalled();
   });
 });

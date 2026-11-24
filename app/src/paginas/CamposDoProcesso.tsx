@@ -5,7 +5,7 @@ import { SD, type CampoDeProcesso } from '../dados';
 import { TAMANHO_CAMPO } from '../dados/limites';
 import { CAMPO_NOVO, dadosDoCampo, errosDoFormDoCampo, formDoCampo, ONDE_APARECE, TIPOS_DE_CAMPO, TIPOS_DE_CAMPO_EM_ORDEM, type FormDoCampo } from '../regras/camposDeProcesso';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -80,8 +80,8 @@ export function CamposDoProcesso() {
       <tbody>{ativos.map(c => <tr key={c.id}>
         <td>{c.nome}</td><td>{tipoNaTabela(c)}</td><td>{ONDE_APARECE[c.aparece_em]}</td>
         <td><span className="config-campos-acoes">
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o campo ${c.nome}`} onClick={() => abrirForm(c)}><Icone nome="editar" tam={13} /> Mudar</button>
-          <BotaoDuplo pequeno variante="perigo" confirmar={`Confirmar: apagar ${c.nome}`} aoConfirmar={() => apagar(c, true).catch(falha)}><Icone nome="lixeira" tam={13} /> Apagar</BotaoDuplo>
+          <BotaoDeIcone icone="editar" rotulo={`Mudar o campo ${c.nome}`} dica="Mudar o campo" onClick={() => abrirForm(c)} />
+          <BotaoDuplo icone="lixeira" rotulo="Apagar" dica="Apagar o campo" variante="perigo" confirmar={`Confirmar: apagar ${c.nome}`} aoConfirmar={() => apagar(c, true).catch(falha)} />
         </span></td>
       </tr>)}</tbody>
     </table></div> : <Nota>Nenhum campo criado ainda.</Nota>}

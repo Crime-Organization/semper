@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { SD, type Socio, type Usuario } from '../../dados';
 import { dadosDoSocio, errosDoSocio, periodoAtualDoSocio, periodoDoSocio, type FormDoSocio } from '../../regras/parcelas';
 import { falha, feito } from '../../ui/avisos';
-import { estiloBotao, Nota } from '../../ui/base';
+import { BotaoDeIcone, estiloBotao, Nota } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { hojeISO } from '../../ui/util';
@@ -53,8 +53,8 @@ export function SocioNaEquipe({ usuario, socios, aoMudar }: { usuario: Pick<Usua
     {periodos.length > 0 && <ul className="financeiro-lista" aria-label={`Períodos de sócio de ${usuario.nome}`}>{periodos.map(s => <li key={s.id}>
       <span>Sócio {periodoDoSocio(s)}</span>
       <span className="financeiro-acoes">
-        <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o período ${periodoDoSocio(s)}`} onClick={() => setAberto({ o: 'mudar', socio: s })}><Icone nome="editar" tam={13} /> Mudar</button>
-        <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: tirar" aoConfirmar={() => tirar(s)}><Icone nome="lixeira" tam={13} /> Tirar</BotaoDuplo>
+        <BotaoDeIcone icone="editar" rotulo={`Mudar o período ${periodoDoSocio(s)}`} dica="Mudar o período de sócio" onClick={() => setAberto({ o: 'mudar', socio: s })} />
+        <BotaoDuplo icone="lixeira" rotulo="Tirar" dica="Tirar este período de sócio" variante="perigo" confirmar="Confirmar: tirar" aoConfirmar={() => tirar(s)} />
       </span>
     </li>)}</ul>}
     {aberto?.o === 'novo' && <FormNovoPeriodo usuario={usuario} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}

@@ -268,6 +268,26 @@ export function errosDaEtapaProcesso(etapa: EtapaProcesso, c: CamposProcesso): P
 /** Posição da primeira etapa com erro (para voltar a ela ao salvar), ou -1 se pode salvar. */
 export const primeiraEtapaComErroProcesso = (c: CamposProcesso) => ETAPAS_PROCESSO.findIndex(e => Object.keys(errosDaEtapaProcesso(e.id, c)).length > 0);
 
+// ---------- a seção "Dados do processo" mudada no próprio lugar (#428) ----------
+/**
+ * Os campos do cadastro que a seção "Dados do processo" do cartão muda ali mesmo: os que ela mostra (o número, o órgão, o polo e
+ * os detalhes). O nome, os clientes e a equipe ficam de fora: mudam em outros lugares do cartão (o título, a seção Clientes, as
+ * bolinhas do topo) e pelo lápis.
+ */
+export const CAMPOS_DA_SECAO_DE_DADOS: readonly (keyof CamposProcesso)[] = [
+  'numero', 'numeroAntigo', 'orgao', 'polo', ...ETAPAS_PROCESSO.find(e => e.id === 'detalhes')!.campos
+];
+/** O que a seção de dados grava não leva estes: o que está gravado neles continua como está (#428). */
+const FORA_DA_SECAO_DE_DADOS = ['titulo', 'clientes', 'responsavel_id', 'colaboradores'] as const;
+/** Erros só dos campos da seção de dados (o cliente que falta num processo antigo não impede de mudar o número, por exemplo). */
+export function errosDosDadosDoProcesso(c: CamposProcesso): Partial<Record<keyof CamposProcesso, string>> {
+  return Object.fromEntries(Object.entries(validarProcesso(c)).filter(([campo]) => CAMPOS_DA_SECAO_DE_DADOS.includes(campo as keyof CamposProcesso)));
+}
+/** O que a seção de dados grava: tudo o que o cadastro grava, menos o nome, os clientes e a equipe. */
+export function soOsDadosDaSecao(d: DadosProcesso): DadosProcesso {
+  return Object.fromEntries(Object.entries(d).filter(([campo]) => !(FORA_DA_SECAO_DE_DADOS as readonly string[]).includes(campo))) as DadosProcesso;
+}
+
 // ---------- cartão e histórico ----------
 type ParaNomear = Pick<ProcessoLista, 'titulo' | 'cliente_nome' | 'numero'>;
 /** O nome do cartão: o que a pessoa deu; sem isso, os clientes. */

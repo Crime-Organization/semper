@@ -13,9 +13,8 @@ import { AJUDA } from '../regras/ajuda';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, BotaoDeIcone, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
-import { Icone } from '../ui/Icone';
 import { PaginaModulo } from '../ui/PaginaModulo';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -99,15 +98,14 @@ export default function Financeiro() {
       recarregar();
     } catch (e) { falha(e); }
   }
-  const botaoExcluir = (l: Lancamento) => <BotaoDuplo pequeno variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={() => excluir(l)}>
-    <Icone nome="lixeira" tam={13} /> Excluir
-  </BotaoDuplo>;
+  const botaoExcluir = (l: Lancamento) => <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={() => excluir(l)}
+    icone="lixeira" rotulo="Excluir" dica={l.par_id ? 'Excluir o lançamento e a outra ponta dele' : 'Excluir o lançamento'} />;
   /** O que a última coluna de cada linha mostra, conforme onde o lançamento muda. */
   const ACOES_DA_LINHA: Record<OndeMuda, (l: Lancamento) => ReactNode> = {
     na_origem: l => <span className="financeiro-origem">{ORIGEM_DO_LANCAMENTO[l.origem!]}</span>,
     repasse_entre_contas: l => <span className="financeiro-acoes">{botaoExcluir(l)}</span>,
     ajuste: l => <span className="financeiro-acoes">
-      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o lançamento ${l.descricao}`} onClick={() => setAberto({ o: 'mudar', lancamento: l })}><Icone nome="editar" tam={13} /> Mudar</button>
+      <BotaoDeIcone icone="editar" rotulo={`Mudar o lançamento ${l.descricao}`} dica="Mudar o lançamento" onClick={() => setAberto({ o: 'mudar', lancamento: l })} />
       {botaoExcluir(l)}
     </span>,
     // Abre a aba no mês do lançamento, com ele à vista (#419).

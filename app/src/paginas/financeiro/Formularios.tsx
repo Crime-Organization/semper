@@ -10,9 +10,9 @@ import { erroDoDas, lerAliquota } from '../../regras/financeiro';
 import { fmtData } from '../../regras/pessoa';
 import { normal } from '../../regras/texto';
 import { avisar, falha, feito } from '../../ui/avisos';
-import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
+import { BotaoDeIcone, Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
-import { Icone, ICONE_DO_BOTAO_PEQUENO } from '../../ui/Icone';
+import { Icone } from '../../ui/Icone';
 import { usePedidoDeNovo } from '../../ui/Recolhivel';
 
 const DICA_DO_AJUSTE = 'Por que o saldo precisou deste acerto: é o que se confere na auditoria. O ajuste muda o saldo da conta, mas não conta como receita, despesa nem lucro.';
@@ -185,13 +185,12 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
       <span><b>{c.nome}</b>{c.tem_das ? ' (recolhe DAS)' : ''}{c.arquivada_em ? ' (arquivada)' : ''}<br /><small>Saldo inicial de {centavosNoCampo(c.saldo_inicial)} em {fmtData(c.saldo_inicial_em)}</small>
         {c.arquivada_em && comLancamentos?.has(c.id) && <><br /><small>{CONTA_COM_LANCAMENTOS}</small></>}</span>
       <span className="financeiro-acoes">
-        {!c.arquivada_em && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar a conta ${c.nome}`} onClick={() => abrir(c)}>Mudar</button>}
+        {!c.arquivada_em && <BotaoDeIcone icone="editar" rotulo={`Mudar a conta ${c.nome}`} dica="Mudar a conta" onClick={() => abrir(c)} />}
         {c.arquivada_em
-          ? <Botao forma="mini" aria-label={`Desarquivar a conta ${c.nome}`} onClick={() => arquivar(c, false)}><Icone nome="arquivoAberto" tam={ICONE_DO_BOTAO_PEQUENO} /> Desarquivar</Botao>
-          : <Botao forma="mini" aria-label={`Arquivar a conta ${c.nome}`} onClick={() => arquivar(c, true)}><Icone nome="arquivo" tam={ICONE_DO_BOTAO_PEQUENO} /> Arquivar</Botao>}
+          ? <Botao icone="arquivoAberto" rotulo={`Desarquivar a conta ${c.nome}`} dica="Desarquivar a conta" onClick={() => arquivar(c, false)} />
+          : <Botao icone="arquivo" rotulo={`Arquivar a conta ${c.nome}`} dica="Arquivar a conta" onClick={() => arquivar(c, true)} />}
         {c.arquivada_em && comLancamentos && !comLancamentos.has(c.id) &&
-          <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${c.nome}`} aoConfirmar={() => excluir(c)}>
-            <Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir <span className="sr">a conta {c.nome}</span></BotaoDuplo>}
+          <BotaoDuplo icone="lixeira" rotulo={`Excluir a conta ${c.nome}`} dica="Excluir a conta" variante="perigo" confirmar={`Confirmar exclusão de ${c.nome}`} aoConfirmar={() => excluir(c)} />}
       </span>
     </li>)}</ul>}
     {edicao ? <form className="financeiro-form" noValidate aria-label={edicao.id ? 'Mudar conta' : 'Nova conta'} onSubmit={salvar}>

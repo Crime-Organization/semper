@@ -22,7 +22,7 @@ import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, Codigo, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, BotaoDeIcone, Carregando, Codigo, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
@@ -409,8 +409,8 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
       <div className="meta">
         <span>{s.autor || 'Usuário removido'} · {dataHora(s.atualizado_em)}</span>
         {s.pode_editar && <span style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => editar(s)}><Icone nome="editar" tam={13} /> Editar</button>
-          <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar" aoConfirmar={() => apagar(s)}>Apagar</BotaoDuplo>
+          <BotaoDeIcone icone="editar" rotulo="Editar" dica="Editar a informação sigilosa" onClick={() => editar(s)} />
+          <BotaoDuplo icone="lixeira" rotulo="Apagar" dica="Apagar a informação sigilosa" variante="perigo" confirmar="Confirmar" aoConfirmar={() => apagar(s)} />
         </span>}
       </div>
     </div>)

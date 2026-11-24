@@ -1,0 +1,5 @@
+{
+  "titulo": "Ações das listas só com ícones",
+  "texto": "Nos prazos e andamentos do processo, as ações de cada linha (criar tarefa, ligar tarefa, lançar prazo, mudar, excluir) viraram ícones. Passe o mouse ou chegue pelo teclado para ver o que cada um faz. O botão da tarefa já ligada continua igual. O mesmo vale para as listas das Configurações, do Financeiro e do painel de Processos.",
+  "ondeAchar": "Cartão do processo > Prazos e Andamentos; Configurações; Financeiro."
+}

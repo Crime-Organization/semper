@@ -202,7 +202,8 @@ export default function PainelProcessos() {
       <CartaoDoPainel titulo="Intimações a tratar" id={LISTA.intimacoes} largura="metade" contador={contagem(painel.total_intimacoes)}>
         <ListaDoPainel vazio="Nenhuma intimação a tratar." itens={painel.intimacoes.map(a => ({
           ...andamentoLigado(a),
-          acao: ctx.escritorio?.modulos?.tarefas && <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`Criar tarefa da intimação: ${a.texto.slice(0, 60)}`} onClick={() => criarTarefa(a)}>Criar tarefa</Botao>
+          acao: ctx.escritorio?.modulos?.tarefas && <Botao icone="tarefas" rotulo={`Criar tarefa da intimação: ${a.texto.slice(0, 60)}`} dica="Criar a tarefa de tratar esta intimação"
+            ocupadoTexto="Criando…" onClick={() => criarTarefa(a)} />
         }))} />
         <MaisDoQueCabe total={painel.total_intimacoes} />
       </CartaoDoPainel>

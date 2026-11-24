@@ -5,7 +5,7 @@
 // aparecem os mais recentes. No cartão só para ler (ou arquivado), a peça não aparece.
 import { useEffect, useId, useRef, useState } from 'react';
 import { falha } from './avisos';
-import { estiloBotao, Nota } from './base';
+import { estiloBotao, IconeDoBotao, Nota, propsDoBotaoDeIcone } from './base';
 import { Icone, type NomeIcone } from './Icone';
 import { useAtrasado } from './util';
 
@@ -40,6 +40,8 @@ interface Props<T> {
   /** Por que agora não se pode ligar (ex.: a lista do cartão já tem o máximo): o botão aparece desabilitado, com o motivo ao lado. */
   indisponivel?: string;
   icone?: NomeIcone;
+  /** Só o ícone no botão (#423: nas ações de cada linha, como a do prazo do processo): o rótulo vira o nome e a dica dele. */
+  soIcone?: boolean;
   /** Dentro de uma janela (como a de copiar a tarefa para outra demanda): a busca já aberta, sem o botão. Escolher só responde (a
    *  janela fecha); o Esc e o clique fora são da janela. */
   naJanela?: boolean;
@@ -48,7 +50,7 @@ interface Props<T> {
 /** Os botões dos achados que se podem escolher, na ordem da lista. */
 const ESCOLHIVEIS = '.achados button:not(:disabled)';
 
-export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, indisponivel, icone = 'vinculo', naJanela = false }: Props<T>) {
+export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, indisponivel, icone = 'vinculo', soIcone = false, naJanela = false }: Props<T>) {
   const [buscando, setBuscando] = useState(naJanela);
   const [termo, setTermo] = useState('');
   const buscado = useAtrasado(termo);
@@ -91,9 +93,9 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
   }
 
   if (!buscando) return <div className={indisponivel ? 'ligar-indisponivel' : undefined}>
-    <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}
-      disabled={!!indisponivel} aria-describedby={indisponivel ? motivo : undefined}>
-      <Icone nome={icone} tam={13} /> {rotulo}
+    <button ref={botao} type="button" className={estiloBotao({ forma: soIcone ? 'icone' : 'mini' })} onClick={() => setBuscando(true)}
+      disabled={!!indisponivel} aria-describedby={indisponivel ? motivo : undefined} {...(soIcone ? propsDoBotaoDeIcone(rotulo) : {})}>
+      {soIcone ? <IconeDoBotao icone={icone} /> : <><Icone nome={icone} tam={13} /> {rotulo}</>}
     </button>
     {indisponivel && <Nota id={motivo}>{indisponivel}</Nota>}
   </div>;

@@ -1,0 +1,5 @@
+{
+  "titulo": "O número do processo não se repete no cartão",
+  "texto": "O número do processo saiu do topo do cartão, logo abaixo do nome, e fica só em \"Dados do processo\". Quando o processo não tem nome nem clientes, o número continua sendo o nome do cartão, uma vez só.",
+  "ondeAchar": "Em Processos, ao abrir o cartão de um processo: o número está na seção \"Dados do processo\"."
+}
