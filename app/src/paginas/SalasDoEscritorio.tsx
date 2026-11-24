@@ -6,7 +6,7 @@ import { SD, type Sala } from '../dados';
 import { TAMANHO_SALA } from '../dados/limites';
 import { capacidadeDaSala, dadosDaSala, errosDaSala, formDaSala, nomeDaSala, SALA_NOVA, type FormDaSala } from '../regras/sala';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -75,8 +75,8 @@ export function SalasDoEscritorio() {
       <tbody>{ativas.map(s => <tr key={s.id}>
         <td>{s.nome}</td><td>{capacidadeDaSala(s.capacidade)}</td>
         <td><span className="config-campos-acoes">
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar a sala ${s.nome}`} onClick={() => abrirForm(s)}><Icone nome="editar" tam={13} /> Mudar</button>
-          <BotaoDuplo pequeno confirmar={`Confirmar: desativar ${s.nome}`} aoConfirmar={() => ativar(s, false).catch(falha)}><Icone nome="arquivo" tam={13} /> Desativar</BotaoDuplo>
+          <BotaoDeIcone icone="editar" rotulo={`Mudar a sala ${s.nome}`} dica="Mudar a sala" onClick={() => abrirForm(s)} />
+          <BotaoDuplo icone="arquivo" rotulo="Desativar" dica="Desativar a sala" confirmar={`Confirmar: desativar ${s.nome}`} aoConfirmar={() => ativar(s, false).catch(falha)} />
         </span></td>
       </tr>)}</tbody>
     </table></div> : <Nota>Nenhuma sala cadastrada ainda.</Nota>}

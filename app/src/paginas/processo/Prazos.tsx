@@ -10,7 +10,7 @@ import { comoFoiContado, formDoPrazo, naOrdemDosPrazos, prazoNovo, rotuloDoPrazo
 import { diaDaSemana } from '../../regras/calendario';
 import { fmtData } from '../../regras/pessoa';
 import { avisar, falha, feito } from '../../ui/avisos';
-import { estiloBotao, Nota, Selo } from '../../ui/base';
+import { BotaoDeIcone, estiloBotao, Nota, Selo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { usePedidoDeNovo } from '../../ui/Recolhivel';
@@ -24,6 +24,8 @@ import { ligarEAvisar, ligarTarefaNoPrazo } from '../ligarNoCartao';
 
 /** O botão de baixo da seção e o "+" do título dela (#390), com o mesmo nome. */
 export const ROTULO_DO_NOVO_PRAZO = 'Novo prazo';
+/** A explicação de cada ação da linha do prazo, que só mostra o ícone (#423), ao passar o mouse e no foco do teclado. */
+const DICA = { criarTarefa: 'Criar a tarefa de cumprir este prazo', mudar: 'Mudar o prazo', excluir: 'Excluir o prazo' };
 /** Na busca da tarefa para ligar ao prazo: o que muda depois. */
 const TAREFA_SEGUE_O_PRAZO = 'O prazo da tarefa passa a ser o último dia deste prazo, e muda junto quando ele mudar. A tarefa sem processo passa a ser deste processo.';
 
@@ -131,13 +133,13 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMuda
             {z.tarefa ? <Link className={estiloBotao({ forma: 'mini' })} to={'/tarefas/?id=' + z.tarefa.id}>Tarefa {z.tarefa.codigo}</Link>
               : z.tarefa_id ? <span className="nota">Tarefa ligada (você não tem acesso a ela)</span>
               : !somenteLer && ctx.escritorio?.modulos?.tarefas && <>
-                <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(z)}>Criar tarefa</Botao>
-                <LigarDoModulo modulo="tarefas" filtro={{ doProcesso: p.id }} aviso={TAREFA_SEGUE_O_PRAZO}
+                <Botao icone="tarefas" rotulo="Criar tarefa" dica={DICA.criarTarefa} ocupadoTexto="Criando…" onClick={() => criarTarefa(z)} />
+                <LigarDoModulo modulo="tarefas" soIcone filtro={{ doProcesso: p.id }} aviso={TAREFA_SEGUE_O_PRAZO}
                   aoEscolher={t => ligarEAvisar(() => ligarTarefaNoPrazo(p.id, z.id, t.id),
                     { feito: `Tarefa ${t.codigo} ligada ao prazo.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este prazo.' }, aoMudar)} />
               </>}
-            {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o prazo ${z.descricao}`} data-abre={z.id} onClick={() => edicao.pedir(z.id)}><Icone nome="editar" tam={13} /> Mudar</button>}
-            {!somenteLer && <BotaoDuplo pequeno variante="perigo" confirmar={`Confirmar: excluir ${z.descricao}`} aoConfirmar={() => excluir(z)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
+            {!somenteLer && <BotaoDeIcone icone="editar" rotulo={`Mudar o prazo ${z.descricao}`} dica={DICA.mudar} data-abre={z.id} onClick={() => edicao.pedir(z.id)} />}
+            {!somenteLer && <BotaoDuplo icone="lixeira" rotulo="Excluir" dica={DICA.excluir} variante="perigo" confirmar={`Confirmar: excluir ${z.descricao}`} aoConfirmar={() => excluir(z)} />}
           </div>
         </li>)}
     </ul>

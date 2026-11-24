@@ -9,7 +9,7 @@ import {
   semUso, textoDosContratos, trocaPedeConferencia
 } from '../regras/objetos';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 
@@ -101,11 +101,11 @@ export function ObjetosDeContrato() {
         <td>{o.descricao}{comParecidos.has(o.id) && <> <Selo tipo="pend" dica={`Parecido com: ${comParecidos.get(o.id)!.join('; ')}`}>parecido</Selo></>}</td>
         <td>{textoDosContratos(o)}</td><td>{o.demandas}</td>
         <td><span className="config-campos-acoes">
-          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Corrigir o objeto ${o.descricao}`} onClick={() => abrirCorrecao(o)}><Icone nome="editar" tam={13} /> Corrigir</button>
+          <BotaoDeIcone icone="editar" rotulo={`Corrigir o objeto ${o.descricao}`} dica="Corrigir o objeto" onClick={() => abrirCorrecao(o)} />
           {semUso(o)
-            ? <BotaoDuplo pequeno variante="perigo" confirmar={`Confirmar: apagar ${o.descricao}`} aoConfirmar={() => apagar(o).catch(falha)}><Icone nome="lixeira" tam={13} /> Apagar</BotaoDuplo>
-            : <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Apagar o objeto ${o.descricao}`}
-              onClick={() => avisar(avisoDoObjetoEmUso(contratosDoObjeto(o)), 'erro')}><Icone nome="lixeira" tam={13} /> Apagar</button>}
+            ? <BotaoDuplo icone="lixeira" rotulo="Apagar" dica="Apagar o objeto" variante="perigo" confirmar={`Confirmar: apagar ${o.descricao}`} aoConfirmar={() => apagar(o).catch(falha)} />
+            : <BotaoDeIcone icone="lixeira" rotulo={`Apagar o objeto ${o.descricao}`} dica="Apagar o objeto"
+              onClick={() => avisar(avisoDoObjetoEmUso(contratosDoObjeto(o)), 'erro')} />}
         </span></td>
       </tr>)}</tbody>
     </table></div> : <Nota>{objetos.length ? 'Nenhum objeto encontrado.' : 'Nenhum objeto ainda. Eles entram aqui quando um contrato é salvo.'}</Nota>}

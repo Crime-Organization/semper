@@ -8,7 +8,6 @@ import { CONTAGENS, type Contagem } from '../../regras/prazos';
 import { avisar, falha } from '../../ui/avisos';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { estiloBotao, naGrade, Nota, TituloSecao, Vazio } from '../../ui/base';
-import { Icone } from '../../ui/Icone';
 
 /** O nome curto de cada coluna da tabela (o nome inteiro e a explicação ficam na nota). */
 const COLUNA: Record<keyof typeof CALENDARIOS_PRONTOS, string> = { recesso: 'Recesso', praxe: 'De praxe', justica_federal: 'Justiça Federal' };
@@ -61,9 +60,7 @@ export function OrgaosDoEscritorio({ orgaos, ehAdmin, aoMudar }: { orgaos: Orgao
             ? <input type="checkbox" className="marca" aria-label={`${o.sigla}: ${CALENDARIOS_PRONTOS[s].nome}`} checked={o[s]} onChange={e => mudar(o, { [s]: e.target.checked })} />
             : o[s] ? 'Sim' : 'Não'}</td>)}
           {ehAdmin && <td className="acoes-linha">
-            <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(o)}>
-              <Icone nome="lixeira" tam={13} /> Excluir
-            </BotaoDuplo>
+            <BotaoDuplo icone="lixeira" rotulo="Excluir" dica="Excluir o órgão" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(o)} />
           </td>}
         </tr>)}</tbody>
       </table></div>}

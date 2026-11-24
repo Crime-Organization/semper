@@ -72,7 +72,7 @@ export function DiasDoAno({ orgaos, ehAdmin, versao, aoMudar }: { orgaos: Orgao[
           <span className="dia-data"><b>{fmtPeriodo(p.de, p.ate)}</b>{p.de === p.ate && <small>{diaDaSemana(p.de)}</small>}</span>
           <span className="dia-motivo">{p.motivo}<small>{ORIGENS[p.origem]}: {p.valePara}</small></span>
           <Selo tipo={SELO_DO_TIPO[p.tipo]}>{TIPOS_NA_TELA[p.tipo].curto}</Selo>
-          {ehAdmin && p.ids.length > 0 && <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(p)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
+          {ehAdmin && p.ids.length > 0 && <BotaoDuplo icone="lixeira" rotulo="Excluir" dica="Excluir este dia sem expediente" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(p)} />}
         </li>)}</ul>
       </section>)}</div>}
     <Nota>{Object.values(TIPOS_NA_TELA).map(t => `${t.curto}: ${t.explicacao}`).join(' ')}</Nota>

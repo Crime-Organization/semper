@@ -102,13 +102,15 @@ interface Props<M extends ModuloParaLigar> {
   indisponivel?: string;
   /** A busca já aberta, dentro de uma janela (veja LigarExistente). */
   naJanela?: boolean;
+  /** Só o ícone no botão, com o rótulo no nome e na dica (veja LigarExistente). */
+  soIcone?: boolean;
 }
 
 /** O botão "Ligar … existente" de uma seção de cartão, com a busca do módulo. */
-export function LigarDoModulo<M extends ModuloParaLigar>({ modulo, filtro, aoEscolher, motivo, rotulo, aviso, indisponivel, naJanela }: Props<M>) {
+export function LigarDoModulo<M extends ModuloParaLigar>({ modulo, filtro, aoEscolher, motivo, rotulo, aviso, indisponivel, naJanela, soIcone }: Props<M>) {
   const m = MODULOS[modulo] as Modulo<M>;
   const lerFiltro = async () => (typeof filtro === 'function' ? await filtro() : filtro ?? {}) as Filtros[M];
   return <LigarExistente<Achados[M]> rotulo={rotulo ?? m.rotulo} rotuloDaBusca={m.rotuloDaBusca} dicaDaBusca={m.dicaDaBusca} nomeDaLista={m.nomeDaLista} semAchados={m.semAchados}
     buscar={async termo => m.buscar(termo, await lerFiltro())} mostrar={x => ({ ...m.mostrar(x), motivo: motivo?.(x) || undefined })}
-    aoEscolher={aoEscolher} aviso={aviso} indisponivel={indisponivel} naJanela={naJanela} />;
+    aoEscolher={aoEscolher} aviso={aviso} indisponivel={indisponivel} naJanela={naJanela} soIcone={soIcone} />;
 }

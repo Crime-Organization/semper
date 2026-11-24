@@ -13,7 +13,7 @@ import {
 } from '../regras/gruposDaLista';
 import { avisar, falha } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Vazio } from '../ui/base';
+import { Aviso, BotaoDeIcone, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
@@ -80,11 +80,9 @@ export default function ModelosDeLista() {
           {m.itens.length ? <ArvoreDoChecklist arvore={arvoreDaLista(listaDoModelo(m.arvore))} modo="modelo" rotuloDoNovo="" aoFocarNoTopo={() => {}} />
             : <Nota>Sem itens.</Nota>}
           <div className="modelo-form-acoes">
-            <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => editar(m)}>
-              <Icone nome="editar" tam={13} /> Editar
-            </button>
+            <BotaoDeIcone icone="editar" rotulo="Editar" dica="Editar o modelo" onClick={() => editar(m)} />
             {(m.criado_por === ctx.perfil.id || ctx.ehAdmin) &&
-              <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(m)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
+              <BotaoDuplo icone="lixeira" rotulo="Excluir" dica="Excluir o modelo" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => excluir(m)} />}
           </div>
         </Cartao></li>)}</ul>}
   </div>;

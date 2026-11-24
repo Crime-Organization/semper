@@ -107,7 +107,9 @@ describe('As contas do escritório', () => {
     // Quando
     const lixeiras = await screen.findAllByRole('button', { name: /^Excluir/ });
     // Então
-    expect(lixeiras.map(b => b.textContent?.trim())).toEqual(['Excluir a conta ANTIGA', 'Excluir a conta RESERVA']);
+    // A lixeira é só o ícone (#423): o que o leitor de tela ouve é o nome do botão.
+    expect(lixeiras[0]).toHaveAccessibleName('Excluir a conta ANTIGA');
+    expect(lixeiras[1]).toHaveAccessibleName('Excluir a conta RESERVA');
     expect(lixeiras.map(icone)).toEqual(['lixeira', 'lixeira']);
   });
 

@@ -12,7 +12,7 @@ import {
   nomeDoAndamento, prazoNovo, quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO, tipoDaEscolha, type EscolhaDoTipo, type FormDoAndamento
 } from '../../regras/andamentos';
 import { falha, feito } from '../../ui/avisos';
-import { Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
+import { BotaoDeIcone, Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { MenuFlutuante } from '../../ui/Menu';
@@ -28,6 +28,11 @@ const comoEstava = ({ tipo, categoria, data, hora, local, texto, tratada_em }: A
 
 /** O botão do alto da seção e o "+" do título dela (#390), com o mesmo nome. */
 export const ROTULO_DO_NOVO_ANDAMENTO = 'Novo andamento';
+/** A explicação de cada ação da caixa da intimação, que só mostra o ícone (#423), ao passar o mouse e no foco do teclado. */
+const DICA = {
+  criarTarefa: 'Criar a tarefa de tratar esta intimação', lancarPrazo: 'Lançar o prazo que nasce desta intimação',
+  naoPrecisa: 'Marcar que esta intimação não precisa de tarefa', voltarATratar: 'Voltar a intimação para "a tratar"'
+};
 /** O que a lista "Tipo" mostra enquanto o andamento novo ainda não tem tipo (escolher é obrigatório). */
 const SEM_TIPO = 'Escolha o tipo';
 
@@ -172,10 +177,12 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
           <div className="acomp-acoes">
             {a.tarefa ? <Link className={estiloBotao({ forma: 'mini' })} to={'/tarefas/?id=' + a.tarefa.id}>Tarefa {a.tarefa.codigo}</Link>
               : a.tarefa_id ? <span className="nota">Tarefa ligada (você não tem acesso a ela)</span> : null}
-            {!somenteLer && ctx.escritorio?.modulos?.tarefas && a.tipo === 'intimacao' && !a.tarefa_id && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(a)}>Criar tarefa</Botao>}
-            {!somenteLer && a.tipo === 'intimacao' && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setAberto({ o: 'prazo', id: a.id })}>Lançar prazo</button>}
-            {!somenteLer && aTratar(a) && <Botao forma="mini" onClick={() => marcarTratada(a, true)}>Não precisa de tarefa</Botao>}
-            {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id && <Botao forma="mini" onClick={() => marcarTratada(a, false)}>Voltar a tratar</Botao>}
+            {!somenteLer && ctx.escritorio?.modulos?.tarefas && a.tipo === 'intimacao' && !a.tarefa_id &&
+              <Botao icone="tarefas" rotulo="Criar tarefa" dica={DICA.criarTarefa} ocupadoTexto="Criando…" onClick={() => criarTarefa(a)} />}
+            {!somenteLer && a.tipo === 'intimacao' && <BotaoDeIcone icone="relogio" rotulo="Lançar prazo" dica={DICA.lancarPrazo} onClick={() => setAberto({ o: 'prazo', id: a.id })} />}
+            {!somenteLer && aTratar(a) && <Botao icone="check" rotulo="Não precisa de tarefa" dica={DICA.naoPrecisa} onClick={() => marcarTratada(a, true)} />}
+            {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id &&
+              <Botao icone="voltar" rotulo="Voltar a tratar" dica={DICA.voltarATratar} onClick={() => marcarTratada(a, false)} />}
           </div>
           {aberto?.o === 'prazo' && aberto.id === a.id && <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao, a)} orgao={orgao} siglaDoProcesso={p.orgao}
             aoSalvar={lancarPrazo} aoCancelar={() => setAberto(null)} />}

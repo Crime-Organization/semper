@@ -119,6 +119,18 @@ describe('Ligar um item que já existe: a busca', () => {
     expect(screen.queryByRole('textbox', { name: 'Buscar anotação para ligar' })).not.toBeInTheDocument();
     expect(buscar).not.toHaveBeenCalled();
   });
+
+  it('dado o botão só de ícone (#423), então ele tem o mesmo nome, a dica com o rótulo e abre a mesma busca', async () => {
+    // Dado
+    montar({ soIcone: true });
+    const botao = screen.getByRole('button', { name: 'Ligar anotação existente' });
+    expect(botao).toHaveTextContent('');
+    expect(botao).toHaveAttribute('data-dica', 'Ligar anotação existente');
+    // Quando
+    await abrir();
+    // Então
+    expect(campo()).toHaveFocus();
+  });
 });
 
 describe('Ligar um item que já existe: a busca dentro de uma janela (#312)', () => {
