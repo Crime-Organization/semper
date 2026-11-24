@@ -9,7 +9,8 @@ import { proximaOpcao } from '../regras/buscaGeral';
 
 interface Props {
   botao: HTMLElement; aoFechar: () => void; painel?: boolean; rotulo?: string; setas?: boolean;
-  /** Enquanto vale (ex.: a janela das datas gravando, #422), o Esc e o clique fora não fecham o painel: o Esc passa adiante. */
+  /** Enquanto vale (ex.: a janela das datas gravando, #422), o Esc e o clique fora não fecham o painel. O Esc fica preso aqui: não
+   *  passa ao cartão nem à janela onde o painel está, que fechariam com a gravação em andamento. */
   travado?: boolean;
   children: ReactNode;
 }
@@ -71,7 +72,13 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, setas =
     // composedPath: vale mesmo se o clique tirou da tela o elemento clicado (ex.: o formulário de um painel).
     const fora = (e: MouseEvent) => { if (preso.current || (painel && e.composedPath().includes(ref.current!))) return; fechar.current(); };
     // Antes dos outros (captura): o Esc fecha só o menu, e não também a janela ou o cartão onde ele está.
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !preso.current) { e.stopPropagation(); fechar.current(); botao.focus(); } };
+    // Travado, o Esc não fecha nada: nem o painel, nem o que está atrás dele.
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      if (preso.current) { e.preventDefault(); return; }
+      fechar.current(); botao.focus();
+    };
     const fecharDeFora = () => {
       const focoDentro = !!ref.current?.contains(document.activeElement);
       fechar.current();
