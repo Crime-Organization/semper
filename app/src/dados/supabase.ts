@@ -1902,14 +1902,10 @@ export const SD: Dados = {
   },
   // A regra RLS da cópia escondida (#284) só mostra as linhas do escritório a um administrador; a cópia (jsonb) não vem: a tela não a mostra.
   async financeiroExcluidos() {
-    const todos: RecebimentoExcluido[] = [];
-    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
-      const { data } = await rodar(sb.from('financeiro_excluidos')
-        .select('id, contrato_codigo, tipo, parcela_numero, data, valor, conta_nome, estornado, excluido_por, excluido_em')
-        .order('excluido_em', { ascending: false }).order('id', { ascending: false }).range(i, i + LINHAS_POR_CONSULTA - 1));
-      todos.push(...(data as RecebimentoExcluido[]).map(r => ({ ...r, valor: Number(r.valor) })));
-      if (data.length < LINHAS_POR_CONSULTA) return todos;
-    }
+    const linhas = await emPartes<RecebimentoExcluido>(() => sb.from('financeiro_excluidos')
+      .select('id, contrato_codigo, tipo, parcela_numero, data, valor, conta_nome, estornado, excluido_por, excluido_em')
+      .order('excluido_em', { ascending: false }).order('id', { ascending: false }));
+    return linhas.map(r => ({ ...r, valor: Number(r.valor) }));
   },
 
   // ---------- painel de processos ----------
