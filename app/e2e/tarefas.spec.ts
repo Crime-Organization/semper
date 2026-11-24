@@ -574,12 +574,17 @@ test.describe('Cronômetro da tarefa', () => {
       .toContainText(/−20 min.*Mauro Teixeira Duarte.*Ajuste/);
   });
 
-  test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {
+  test('quando a tarefa está concluída, então a situação diz "encerrado" e o cartão mostra o esforço da equipe', async ({ page }) => {
     // Quando: "Organizar a pasta" está concluída, com 40 min do Bruno
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
     await apertarT(page, cartao);
-    // Então
-    await expect(cartao.getByText('Tarefa concluída: a contagem encerrou.')).toBeVisible();
+    // Então: a situação ao lado do relógio diz "encerrado", com a frase de antes na dica. A regra mudou na revisão da #434: a frase
+    // "Tarefa concluída: a contagem encerrou." ficava ao lado de "pausado", repetia (e contradizia) a situação, e saiu da faixa
+    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+    await expect(tempo.getByText('encerrado', { exact: true })).toHaveAttribute('title', 'Tarefa concluída: a contagem encerrou.');
+    await expect(tempo.getByText('pausado', { exact: true })).toHaveCount(0);
+    await expect(tempo.getByText('Tarefa concluída: a contagem encerrou.')).toHaveCount(0);
+    await expect(tempo.getByRole('button', { name: 'Ajustar meu tempo' })).toBeVisible();
     await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
     await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
     // O total da equipe fica na faixa das datas, como o último dado (#397); o resumo traz a parte de cada um

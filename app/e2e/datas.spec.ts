@@ -532,7 +532,7 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
 test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, com os botões um em cima do outro', async ({ page }) => {
+  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, com a situação embaixo do relógio e os botões à direita, um em cima do outro', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
@@ -549,18 +549,23 @@ test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', ()
       expect(Math.abs(m.valor.y - m.nome.y)).toBeLessThan(m.nome.height);
       expect(m.valor.linhas).toBe(1);
     }
-    // E nada do tempo sai da faixa dele: o relógio e a situação juntos, o botão e o ajuste inteiros dentro dela
+    // E nada do tempo sai da faixa dele: o relógio, a situação, o botão e o ajuste inteiros dentro dela
     const faixa = (await tempo.boundingBox())!;
     for (const parte of partesDoTempo(tempo)) {
       const caixa = (await parte.boundingBox())!;
       expect(caixa.x).toBeGreaterThanOrEqual(faixa.x);
       expect(caixa.x + caixa.width).toBeLessThanOrEqual(faixa.x + faixa.width);
     }
-    const [relogio, situacao, botao, ajustar] = partesDoTempo(tempo);
-    expect((await situacao.boundingBox())!.y).toBeLessThan((await relogio.boundingBox())!.y + (await relogio.boundingBox())!.height);
-    // E os botões continuam um em cima do outro (#434), da mesma largura, embaixo do relógio
-    conferirOsBotoesEmpilhados((await botao.boundingBox())!, (await ajustar.boundingBox())!);
-    expect((await botao.boundingBox())!.y).toBeGreaterThanOrEqual((await relogio.boundingBox())!.y + (await relogio.boundingBox())!.height);
+    const [relogio, situacao, botao, ajustar] = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
+    // E os botões continuam um em cima do outro (#434), da mesma largura. A regra mudou na revisão da #434: antes, a situação ficava
+    // ao lado do relógio e os botões desciam para baixo dele, ocupando uma linha a mais; agora a situação fica embaixo do relógio e
+    // os botões, à direita dos dois, na mesma altura, e a faixa fica mais baixa
+    conferirOsBotoesEmpilhados(botao, ajustar);
+    expect(situacao.y).toBeGreaterThanOrEqual(relogio.y + relogio.height);
+    expect(situacao.x).toBeCloseTo(relogio.x, 0);
+    expect(botao.x).toBeGreaterThanOrEqual(Math.max(relogio.x + relogio.width, situacao.x + situacao.width));
+    expect(botao.y).toBeLessThan(relogio.y + relogio.height);
+    expect(situacao.y).toBeLessThan(ajustar.y + ajustar.height);
   });
 
   test('dada uma demanda sem prazo, quando a pessoa abre o cartão, então "Sem prazo" fica numa linha só, alinhado com as outras datas', async ({ page }) => {
