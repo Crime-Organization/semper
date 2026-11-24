@@ -1,9 +1,9 @@
 // O tempo no cartão da tarefa: o cronômetro de quem está com o cartão aberto ("Seu tempo nesta tarefa": Iniciar,
 // Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo, a lista dos registros para mudar e apagar (#400) e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
-// Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
-// situação (pausado ou contando) embaixo dele, e Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), ao lado, num bloco
-// compacto (#436), num dado largo, e o resumo de quem registrou tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
+// Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio e a
+// situação (pausado ou contando) lado a lado e, logo depois, Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), numa
+// linha só, encostada à esquerda (#436), num dado largo, e o resumo de quem registrou tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
 // Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda) entra na faixa das datas, como o último dado, à
 // direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
 // lê o tempo e desenha as duas faixas: o cronômetro liga uma vez só (duas vezes, gravaria o tempo em dobro), e o total acompanha o
@@ -11,7 +11,8 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { SD, type RegistroDeTempo, type Tarefa, type TempoDaTarefa } from '../dados';
 import { TAMANHO_MOTIVO } from '../dados/limites';
-import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa, totalAoVivo, totalAparece } from '../regras/cronometro';
+import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, parteDeCadaUmAparece, partesAoVivo, somaDoTempo, totalAoVivo, totalAparece,
+  type ParteDoTempo } from '../regras/cronometro';
 import { fmtData } from '../regras/pessoa';
 import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, MOTIVO_DO_DESFAZER, NOME_DO_TIPO, possoMexer, registrosEmOrdem,
   talvezContando, tipoDoRegistro, type CamposDaCorrecao } from '../regras/registrosDeTempo';
@@ -143,14 +144,14 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     } catch (e) { falha(e); }
   }
 
-  // A faixa do tempo (#383, arrumada na #400, na #434 e na #436): um bloco compacto, encostado à esquerda, numa grade de duas
-  // linhas: o relógio ao lado de Iniciar/Pausar e, embaixo, a situação ao lado de "Ajustar meu tempo" (os botões um em cima do
-  // outro, da mesma largura), igual no computador e no celular (só numa faixa estreita demais os botões descem para baixo do
-  // relógio). Na tarefa concluída, a pílula diz "encerrado" e só "Ajustar meu tempo" fica. Embaixo, a parte de cada um e a lista
-  // dos registros.
+  // A faixa do tempo (#383, arrumada na #400, na #434 e na #436): uma linha só, encostada à esquerda: o relógio e a situação, lado
+  // a lado, e logo depois os botões, um em cima do outro, da mesma largura; igual no computador e no celular (só numa faixa
+  // estreita demais os botões descem). Na tarefa concluída, a pílula diz "encerrado" e só "Ajustar meu tempo" fica, na mesma
+  // linha. Embaixo, a parte de cada um (com o meu tempo de agora, como o relógio e o tempo total) e a lista dos registros.
   const situacao = SITUACAO[situacaoDoRelogio(!!t.concluida_em, relogio.contando)];
+  const partes = partesAoVivo(tempo, eu, relogio.periodoId, relogio.segundos);
   return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={<div className="tempo-resumo">
-    {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
+    {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} partes={partes} />}
     <RegistrosDoTempo t={t} tempo={tempo} relogio={relogio} carregar={carregar} />
   </div>}>
     <div className="cronometro">
@@ -342,22 +343,25 @@ export function TempoDaDemanda({ demandaId, versao }: { demandaId: string; versa
 /**
  * O esforço da equipe: com a tarefa concluída, o tempo da criação à conclusão e a parte de cada um em % (o total está na faixa das
  * datas, #397). Os administradores veem também a duração de cada um (a qualquer momento); os ajustes estão na lista dos registros (#400).
+ * A parte de cada um vem com o meu tempo de agora (partesAoVivo, #436), e não aparece quando a única pessoa com tempo é quem está
+ * vendo: a linha dela só repetia o relógio e o tempo total.
  */
-function TempoDaEquipe({ t, tempo }: { t: Tarefa; tempo: TempoDaTarefa }) {
+function TempoDaEquipe({ t, partes }: { t: Tarefa; partes: ParteDoTempo[] }) {
   const ctx = useCtx();
   const membro = (id: string | null) => ctx.equipe.find(m => m.id === id) ?? { id: id ?? '', nome: 'Usuário removido' };
-  const porPessoa = tempoPorPessoa(tempo.registros);
-  if (!tempo.equipe.length) return ctx.ehAdmin ? <div className="tempo-equipe"><Nota>Ninguém registrou tempo nesta tarefa ainda.</Nota></div> : null;
+  if (!partes.length) return ctx.ehAdmin ? <div className="tempo-equipe"><Nota>Ninguém registrou tempo nesta tarefa ainda.</Nota></div> : null;
+  const comLista = parteDeCadaUmAparece(partes, ctx.perfil.id);
+  if (!t.concluida_em && !comLista) return null;
   return <div className="tempo-equipe">
     {t.concluida_em && <p className="tempo-equipe-total">
       Da criação à conclusão: <b className="duracao">{fmtDecorrido(t.criado_em, t.concluida_em)}</b>
     </p>}
-    <ul className="tempo-equipe-lista" aria-label="Parte de cada um">
-      {tempo.equipe.map(p => <li key={p.perfil_id ?? 'removido'}>
+    {comLista && <ul className="tempo-equipe-lista" aria-label="Parte de cada um">
+      {partes.map(p => <li key={p.perfil_id ?? 'removido'}>
         <span className="tempo-equipe-quem"><Avatar p={membro(p.perfil_id)} tam={TAMANHO_DO_AVATAR_NO_TEMPO} />{membro(p.perfil_id).nome}</span>
         <b className="num">{p.percentual.toLocaleString('pt-BR')}%</b>
-        {ctx.ehAdmin && <span className="nota num">{fmtDuracao(porPessoa.get(p.perfil_id) ?? 0)}</span>}
+        {ctx.ehAdmin && <span className="nota num">{fmtDuracao(p.segundos)}</span>}
       </li>)}
-    </ul>
+    </ul>}
   </div>;
 }

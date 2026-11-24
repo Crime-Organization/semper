@@ -732,9 +732,12 @@ bd.demandas.forEach(d => { d.data_inicio ??= inicioDoCriadoEm(d.criado_em); });
 if (!bd.tarefas) {
   const d = bd.demandas.find(x => x.titulo === 'Registro de marca');
   const daDemanda = d ? { demanda_id: d.id, demanda_codigo: d.codigo, contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, pessoas: [...d.clientes] } : {};
+  // "Organizar a pasta" foi criada dois dias antes de concluída (#436): o tempo registrado nela (um dia atrás) cabe entre a criação
+  // e a conclusão, e "Da criação à conclusão" não diz "0 min" ao lado de 40 min de trabalho.
+  const criacaoDaPasta = new Date(Date.now() - 2 * DIA).toISOString();
   bd.tarefas = [
     { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '5E1A7C20', titulo: 'Organizar a pasta', responsavel_id: 'u-bruno', etapa_id: 't4', etapa_ordem: 1,
-      concluida_em: agora() },
+      criado_em: criacaoDaPasta, data_inicio: inicioDoCriadoEm(criacaoDaPasta), concluida_em: agora() },
     { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: 'C0FFEE12', titulo: 'Emitir a GRU', responsavel_id: 'u-master', participantes: ['u-bruno'],
       etapa_id: 't2', etapa_ordem: 1, prazo: dataDaqui(2) },
     { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '9B3D4E51', titulo: 'Pedir documentos ao cliente', responsavel_id: 'u-bruno', etapa_id: 't1', etapa_ordem: 1 },

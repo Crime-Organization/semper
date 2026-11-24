@@ -1,6 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, segundosDoPeriodo, somaDoTempo, totalAoVivo, totalAparece, type Evento } from './cronometro';
+import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, parteDeCadaUmAparece, partesAoVivo, segundosDoPeriodo, somaDoTempo, totalAoVivo,
+  totalAparece, type Evento } from './cronometro';
 
 const MIN = 60_000;
 const INATIVIDADE = 10 * MIN;
@@ -79,11 +80,27 @@ describe('Tempo por extenso e ajuste à mão', () => {
   });
 
   // #436: o resumo dizia "0 min" enquanto o relógio, ao lado, mostrava 0:00:04
-  it.each([[4, '4 s'], [59, '59 s'], [59.6, '1 min'], [60, '1 min'], [0.4, '0 min']])(
+  // A regra mudou na revisão da #436: 59,6 s era "1 min" (arredondado) ao lado do relógio em 0:00:59; agora os dois cortam igual
+  it.each([[4, '4 s'], [4.6, '4 s'], [59, '59 s'], [59.6, '59 s'], [60, '1 min'], [0.4, '0 min']])(
     'dado menos de um minuto, quando são %d segundos, então mostra %s, sem contradizer o relógio', (s, texto) => {
       // Então
       expect(fmtDuracao(s)).toBe(texto);
     });
+
+  it.each([4.6, 59.6, 119.9, 3599.5, 1.15 * 3600])(
+    'dado um tempo quebrado (%d s), quando o relógio e o tempo por extenso o mostram, então dizem os mesmos segundos', s => {
+      // Quando
+      const [h, m, x] = fmtRelogio(s).split(':').map(Number);
+      // Então: o extenso é o relógio escrito de outro jeito (abaixo de um minuto, em segundos; depois, em horas e minutos)
+      const esperado = h ? fmtDuracao(h * 3600 + m * 60) : m ? `${m} min` : x ? `${x} s` : '0 min';
+      expect(fmtDuracao(s)).toBe(esperado);
+    });
+
+  it('dado 1,15 h (que a conta guarda como 4139,999… s), quando o tempo aparece, então é 1 h 09 min, e não 1 h 08 min', () => {
+    // Então
+    expect(fmtDuracao(1.15 * 3600)).toBe('1 h 09 min');
+    expect(fmtRelogio(1.15 * 3600)).toBe('1:09:00');
+  });
 
   it('quando o relógio do cartão mostra o tempo, então é horas:minutos:segundos', () => {
     // Então
@@ -149,6 +166,62 @@ describe('O tempo total da tarefa na faixa das datas (#397)', () => {
     const daRita = { registros: [{ id: 3, perfil_id: 'rita', segundos: 300 }], total: 900 };
     // Quando / Então
     expect(totalAoVivo(daRita, 'rita', 3, 360)).toBe(960);
+  });
+});
+
+describe('A parte de cada um, com o relógio contando (#436)', () => {
+  // Como no tempo total: a Ana tem 10 min gravados, 4 deles no período que o cartão aberto está contando (id 2); a Rita, 5 min
+  const tempo = {
+    registros: [{ id: 1, perfil_id: 'ana', segundos: 360 }, { id: 2, perfil_id: 'ana', segundos: 240 }, { id: 3, perfil_id: 'rita', segundos: 300 }],
+    equipe: [{ perfil_id: 'ana', percentual: 66.7 }, { perfil_id: 'rita', percentual: 33.3 }],
+    total: 900
+  };
+
+  it('dado o cronômetro parado, quando a parte de cada um aparece, então é a do banco, com a duração de cada um', () => {
+    // Quando / Então
+    expect(partesAoVivo(tempo, 'ana', null, 0)).toEqual([
+      { perfil_id: 'ana', percentual: 66.7, segundos: 600 }, { perfil_id: 'rita', percentual: 33.3, segundos: 300 }]);
+  });
+
+  it('dado o relógio da Ana contando, quando a parte de cada um aparece, então a linha dela anda com o relógio, e a % também', () => {
+    // Quando: 9 min no período que estava gravado com 4
+    const partes = partesAoVivo(tempo, 'ana', 2, 540);
+    // Então: 6 + 9 = 15 min da Ana e 5 da Rita; a soma das linhas é o tempo total ao vivo
+    expect(partes).toEqual([{ perfil_id: 'ana', segundos: 900, percentual: 75 }, { perfil_id: 'rita', segundos: 300, percentual: 25 }]);
+    expect(partes.reduce((s, p) => s + p.segundos, 0)).toBe(totalAoVivo(tempo, 'ana', 2, 540));
+  });
+
+  it('dado quem ainda não tinha tempo na tarefa, quando o relógio dela conta, então ela entra na parte de cada um, na ordem da %', () => {
+    // Quando: a Bia conta 30 min num período novo
+    const partes = partesAoVivo(tempo, 'bia', null, 1800);
+    // Então
+    expect(partes.map(p => [p.perfil_id, p.percentual])).toEqual([['bia', 66.7], ['ana', 22.2], ['rita', 11.1]]);
+  });
+
+  it('dado quem só vê os próprios registros, quando o relógio conta, então o tempo dos outros vem da % do banco', () => {
+    // Dado: a Rita não é administradora; o banco devolve só os registros dela, a parte de cada um e o total
+    const daRita = { ...tempo, registros: [{ id: 3, perfil_id: 'rita', segundos: 300 }] };
+    // Quando: mais 5 min no período dela
+    const partes = partesAoVivo(daRita, 'rita', 3, 600);
+    // Então: a Ana continua com os 10 min (66,7% de 15 min, arredondado no banco), e a Rita sobe para 10
+    expect(Object.fromEntries(partes.map(p => [p.perfil_id, Math.round(p.segundos)]))).toEqual({ ana: 600, rita: 600 });
+  });
+
+  it('dado ninguém com tempo, quando o relógio começa, então só quem conta aparece, com 100%', () => {
+    // Quando
+    const partes = partesAoVivo({ registros: [], equipe: [], total: 0 }, 'ana', null, 4);
+    // Então
+    expect(partes).toEqual([{ perfil_id: 'ana', segundos: 4, percentual: 100 }]);
+  });
+
+  it.each([
+    ['só quem está vendo tem tempo', [{ perfil_id: 'ana', segundos: 4, percentual: 100 }], false],
+    ['só outra pessoa tem tempo (diz quem fez)', [{ perfil_id: 'rita', segundos: 4, percentual: 100 }], true],
+    ['duas pessoas têm tempo', [{ perfil_id: 'ana', segundos: 4, percentual: 50 }, { perfil_id: 'rita', segundos: 4, percentual: 50 }], true],
+    ['ninguém tem tempo', [], true]
+  ])('quando %s, então a parte de cada um aparece: %s', (_caso, partes, aparece) => {
+    // Então: a linha de uma pessoa só, que é quem está vendo, repetia o relógio e o tempo total
+    expect(parteDeCadaUmAparece(partes, 'ana')).toBe(aparece);
   });
 });
 

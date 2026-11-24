@@ -481,10 +481,29 @@ function conferirOsBotoesEmpilhados(botao: Caixa, ajustar: Caixa) {
   expect(ajustar.x).toBeCloseTo(botao.x, 0);
   expect(ajustar.width).toBeCloseTo(botao.width, 0);
 }
+/**
+ * O vão entre a situação e os botões (#436), o --vao-entre-relogio-e-botoes: {spacing.lg} no computador e {spacing.md} no celular,
+ * onde a linha precisa caber; nada de vão maior no meio.
+ */
+const VAO_DA_SITUACAO_AOS_BOTOES = { computador: 24, celular: 16 };
+/** O vão entre a linha do relógio e a parte de cada um (#436), o --vao-do-cronometro-ao-resumo: {spacing.lg}, no computador e no celular. */
+const VAO_DO_RELOGIO_AO_RESUMO = 24;
+/** A folga das medidas: as frações de pixel do navegador. */
+const UM_PIXEL = 1;
+const meioDaAltura = (c: Caixa) => c.y + c.height / 2;
+/**
+ * A linha do relógio (#436): o relógio e a situação lado a lado, na mesma altura, e logo depois os botões empilhados, a um vão só
+ * da situação (sem o vão grande no meio, que separava o relógio dos botões na outra ponta), com o relógio no meio da altura dos dois.
+ */
+function conferirALinhaDoRelogio([relogio, situacao, botao, ajustar]: Caixa[], vao: number) {
+  conferirOsBotoesEmpilhados(botao, ajustar);
+  expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
+  expect(Math.abs(meioDaAltura(situacao) - meioDaAltura(relogio))).toBeLessThanOrEqual(UM_PIXEL);
+  expect(Math.abs(botao.x - (situacao.x + situacao.width) - vao)).toBeLessThanOrEqual(UM_PIXEL);
+  expect(Math.abs(meioDaAltura(relogio) - (botao.y + ajustar.y + ajustar.height) / 2)).toBeLessThanOrEqual(UM_PIXEL);
+}
 const DATAS_DA_TAREFA = ['Criada em', 'Datas'];
-/** O vão entre a coluna do relógio e a dos botões (#436): o {spacing.lg} de --vao-entre-relogio-e-botoes; nada de vão maior no meio. */
-const VAO_DO_RELOGIO_AOS_BOTOES = 24;
-/** As partes da faixa do tempo da tarefa (#383): o relógio com a situação embaixo (#436), e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
+/** As partes da faixa do tempo da tarefa (#383): o relógio e a situação, lado a lado (#436), e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
 const partesDoTempo = (tempo: Locator) => [tempo.getByRole('timer'), tempo.getByText('pausado', { exact: true }),
   tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ }), tempo.getByRole('button', { name: 'Ajustar meu tempo' })];
 
@@ -492,7 +511,7 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
   test.use({ viewport: { width: 1440, height: 900 } });
 
   for (const formato of ['ao lado', 'no centro']) {
-    test(`quando a pessoa abre o cartão da tarefa ${formato}, então as datas ficam lado a lado, os nomes numa linha e os valores alinhados na de baixo, e o tempo fica numa faixa própria, logo abaixo, com o relógio à esquerda e os botões à direita, um em cima do outro`, async ({ page }) => {
+    test(`quando a pessoa abre o cartão da tarefa ${formato}, então as datas ficam lado a lado, os nomes numa linha e os valores alinhados na de baixo, e o tempo fica numa faixa própria, logo abaixo, numa linha só: o relógio, a situação e, logo depois, os botões, um em cima do outro`, async ({ page }) => {
       // Quando
       const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
       if (formato === 'no centro') {
@@ -513,20 +532,13 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
       // E o tempo, embaixo das datas, sem nada dele na faixa das datas. Antes (#383), o relógio, a situação, o botão e o ajuste
       // ficavam todos na mesma linha; na #434 (pedido do dono), os dois botões ficaram um em cima do outro, à direita da situação.
       // A regra mudou na #436 (o dono achou o conjunto desajeitado, com um vão grande entre o relógio e os botões encostados na
-      // outra ponta): agora é um bloco compacto, igual ao do celular, com a situação embaixo do relógio e os botões logo ao lado
-      // dos dois, sem o vão no meio; o relógio fica na altura de Iniciar/Pausar e a situação, na de "Ajustar meu tempo"
+      // outra ponta): agora é uma linha só, igual à do celular, com o relógio e a situação lado a lado e os botões logo depois,
+      // sem o vão no meio
       await expect(datas.getByRole('timer')).toHaveCount(0);
       const faixaDasDatas = (await datas.boundingBox())!;
-      const [relogio, situacao, botao, ajustar] = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
-      expect(relogio.y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
-      expect(situacao.y).toBeGreaterThanOrEqual(relogio.y + relogio.height);
-      expect(situacao.x).toBeCloseTo(relogio.x, 0);
-      conferirOsBotoesEmpilhados(botao, ajustar);
-      const fimDaLeitura = Math.max(relogio.x + relogio.width, situacao.x + situacao.width);
-      expect(botao.x).toBeGreaterThanOrEqual(fimDaLeitura);
-      expect(botao.x - fimDaLeitura).toBeLessThanOrEqual(VAO_DO_RELOGIO_AOS_BOTOES + 1);
-      expect(Math.abs((relogio.y + relogio.height / 2) - (botao.y + botao.height / 2))).toBeLessThanOrEqual(1);
-      expect(Math.abs((situacao.y + situacao.height / 2) - (ajustar.y + ajustar.height / 2))).toBeLessThanOrEqual(1);
+      const caixas = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
+      expect(caixas[0].y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
+      conferirALinhaDoRelogio(caixas, VAO_DA_SITUACAO_AOS_BOTOES.computador);
       // E o tempo total da tarefa é o último dado da faixa das datas (#397); o resumo de quem registrou tempo fica na faixa do tempo
       await expect(datas.getByRole('group', { name: 'Tempo total' })).toHaveText(/2 h$/);
       await expect(tempo.getByRole('list', { name: 'Parte de cada um' })).toBeVisible();
@@ -537,7 +549,7 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
 test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, com a situação embaixo do relógio e os botões à direita, um em cima do outro', async ({ page }) => {
+  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, numa linha só: o relógio, a situação e os botões, um em cima do outro', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
@@ -561,16 +573,15 @@ test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', ()
       expect(caixa.x).toBeGreaterThanOrEqual(faixa.x);
       expect(caixa.x + caixa.width).toBeLessThanOrEqual(faixa.x + faixa.width);
     }
-    const [relogio, situacao, botao, ajustar] = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
-    // E os botões continuam um em cima do outro (#434), da mesma largura. A regra mudou na revisão da #434: antes, a situação ficava
-    // ao lado do relógio e os botões desciam para baixo dele, ocupando uma linha a mais; agora a situação fica embaixo do relógio e
-    // os botões, à direita dos dois, na mesma altura, e a faixa fica mais baixa
-    conferirOsBotoesEmpilhados(botao, ajustar);
-    expect(situacao.y).toBeGreaterThanOrEqual(relogio.y + relogio.height);
-    expect(situacao.x).toBeCloseTo(relogio.x, 0);
-    expect(botao.x).toBeGreaterThanOrEqual(Math.max(relogio.x + relogio.width, situacao.x + situacao.width));
-    expect(botao.y).toBeLessThan(relogio.y + relogio.height);
-    expect(situacao.y).toBeLessThan(ajustar.y + ajustar.height);
+    const caixas = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
+    // E os botões continuam um em cima do outro (#434), da mesma largura. A regra mudou na revisão da #434 (antes, a situação ficava
+    // ao lado do relógio e os botões desciam para baixo dele, numa linha a mais) e de novo na #436: o relógio e a situação lado a
+    // lado e os botões logo depois, na mesma linha, como no computador, com vãos menores para a linha caber
+    conferirALinhaDoRelogio(caixas, VAO_DA_SITUACAO_AOS_BOTOES.celular);
+    // E a parte de cada um fica tão longe dos botões quanto no computador (#436): antes, no celular, ela ficava grudada neles
+    const [, , , ajustar] = caixas;
+    const parte = (await tempo.getByRole('list', { name: 'Parte de cada um' }).boundingBox())!;
+    expect(parte.y - (ajustar.y + ajustar.height)).toBeGreaterThanOrEqual(VAO_DO_RELOGIO_AO_RESUMO - UM_PIXEL);
   });
 
   test('dada uma demanda sem prazo, quando a pessoa abre o cartão, então "Sem prazo" fica numa linha só, alinhado com as outras datas', async ({ page }) => {

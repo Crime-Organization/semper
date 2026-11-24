@@ -50,13 +50,21 @@ export const segundosDoPeriodo = (c: Cronometro, agora: number) =>
 
 // ---------- mostrar e ajustar ----------
 const MINUTO_EM_SEGUNDOS = 60, HORA_EM_SEGUNDOS = 60 * MINUTO_EM_SEGUNDOS;
+/** Os milissegundos de um segundo: a conta arredonda no milissegundo antes de cortar, e 4139,9999… (1,15 h) não vira 4139. */
+const MILISSEGUNDOS = 1000;
+/**
+ * Os segundos que o relógio e o tempo por extenso mostram: só os completos (4,6 s é 4 s), nunca negativos. Os dois usam a mesma
+ * conta (#436): antes, com 4,6 s, o relógio dizia 0:00:04 e o resumo, arredondado, "5 s".
+ */
+const segundosCompletos = (segundos: number) => Math.max(0, Math.floor(Math.round(segundos * MILISSEGUNDOS) / MILISSEGUNDOS));
 
 /**
  * Duração por extenso, curta: "0 min", "4 s", "45 min", "1 h 05 min", "12 h". Negativo vira zero (um total nunca é negativo).
- * Menos de um minuto aparece em segundos (#436): "0 min" ao lado do relógio que dizia 0:00:04 contradizia o relógio.
+ * Menos de um minuto aparece em segundos (#436): "0 min" ao lado do relógio que dizia 0:00:04 contradizia o relógio. Os segundos
+ * são contados como no relógio (segundosCompletos): 59,6 s é "59 s", e não "1 min" ao lado de 0:00:59.
  */
 export function fmtDuracao(segundos: number) {
-  const s = Math.max(0, Math.round(segundos));
+  const s = segundosCompletos(segundos);
   if (s > 0 && s < MINUTO_EM_SEGUNDOS) return `${s} s`;
   const h = Math.floor(s / HORA_EM_SEGUNDOS), m = Math.floor((s % HORA_EM_SEGUNDOS) / MINUTO_EM_SEGUNDOS);
   if (!h) return `${m} min`;
@@ -72,7 +80,7 @@ export function fmtDecorrido(desde: string, ate: string) {
 
 /** O relógio do cartão: "0:04:09", com as horas sem limite. */
 export function fmtRelogio(segundos: number) {
-  const s = Math.max(0, Math.floor(segundos));
+  const s = segundosCompletos(segundos);
   const h = Math.floor(s / HORA_EM_SEGUNDOS), m = Math.floor((s % HORA_EM_SEGUNDOS) / MINUTO_EM_SEGUNDOS), x = s % MINUTO_EM_SEGUNDOS;
   return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`;
 }
@@ -121,10 +129,40 @@ export const somaDoTempo = (registros: Registro[], perfilId?: string) => {
  * um conta como no banco: a soma dele, nunca negativa. Sem relógio aberto (segundos 0, período nenhum), é o total gravado.
  */
 export function totalAoVivo(tempo: { registros: (Registro & { id: number })[]; total: number }, eu: string, periodoId: number | null, segundos: number) {
-  const meuGravado = somaDoTempo(tempo.registros, eu);
-  const meuAgora = Math.max(0, somaDoTempo(tempo.registros.filter(r => r.id !== periodoId), eu) + segundos);
-  return Math.max(0, tempo.total - meuGravado + meuAgora);
+  return Math.max(0, tempo.total - somaDoTempo(tempo.registros, eu) + meuTempoAgora(tempo.registros, eu, periodoId, segundos));
 }
+/** O meu tempo agora: o que está gravado, menos o período aberto (que o relógio já conta), mais o relógio; nunca negativo. */
+const meuTempoAgora = (registros: (Registro & { id: number })[], eu: string, periodoId: number | null, segundos: number) =>
+  Math.max(0, somaDoTempo(registros.filter(r => r.id !== periodoId), eu) + segundos);
+
+/** A parte de uma pessoa no tempo da tarefa: quem, quanto (em segundos) e a % do total da equipe. */
+export interface ParteDoTempo { perfil_id: string | null; segundos: number; percentual: number }
+type ParteDoBanco = Omit<ParteDoTempo, 'segundos'>;
+/** A % com uma casa, como o banco a calcula (resumo_do_tempo): 2/3 é 66,7. */
+const percentualDe = (segundos: number, total: number) => Math.round(1000 * segundos / total) / 10;
+/**
+ * A parte de cada um, com o relógio de quem está com o cartão (#436), na mesma conta do banco: só quem tem tempo, a % com uma
+ * casa, da maior para a menor. O meu tempo é o de agora, como em totalAoVivo: o relógio, o tempo total e a minha linha dizem a
+ * mesma coisa (antes, a linha vinha só do que estava gravado e ficava parada enquanto o relógio andava). O dos outros vem dos
+ * registros, quando a pessoa os vê (administrador); senão, da % que o banco devolveu. Sem nada além do gravado no relógio, é o que
+ * o banco devolveu, com a % dele.
+ */
+export function partesAoVivo(tempo: { registros: (Registro & { id: number })[]; equipe: ParteDoBanco[]; total: number },
+  eu: string, periodoId: number | null, segundos: number): ParteDoTempo[] {
+  const porPessoa = tempoPorPessoa(tempo.registros);
+  const segundosDe = (p: ParteDoBanco) => porPessoa.get(p.perfil_id) ?? p.percentual * tempo.total / 100;
+  const meuAgora = meuTempoAgora(tempo.registros, eu, periodoId, segundos);
+  if (meuAgora === somaDoTempo(tempo.registros, eu)) return tempo.equipe.map(p => ({ ...p, segundos: segundosDe(p) }));
+  const outros = tempo.equipe.filter(p => p.perfil_id !== eu).map(p => ({ perfil_id: p.perfil_id, segundos: segundosDe(p) }));
+  const comTempo = [{ perfil_id: eu, segundos: meuAgora }, ...outros].filter(p => p.segundos > 0);
+  const total = comTempo.reduce((s, p) => s + p.segundos, 0);
+  return comTempo.map(p => ({ ...p, percentual: percentualDe(p.segundos, total) })).sort((a, b) => b.percentual - a.percentual);
+}
+/**
+ * Se a parte de cada um aparece (#436): não quando a única pessoa com tempo é quem está vendo. Aí a linha (o nome, "100%" e a
+ * duração) só repetia o relógio e o tempo total, que já estão na tela.
+ */
+export const parteDeCadaUmAparece = (partes: ParteDoTempo[], eu: string) => !(partes.length === 1 && partes[0].perfil_id === eu);
 /**
  * Se o tempo total da tarefa aparece na faixa das datas (#397). Quem altera a tarefa sempre o vê: o banco sempre lhe devolve o total
  * (resumo_do_tempo), e o relógio dele o acompanha. Quem só lê nem sempre o recebe: o banco não o devolve a quem vê a tarefa só pela

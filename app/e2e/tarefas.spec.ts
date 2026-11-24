@@ -590,8 +590,8 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(cartao.getByRole('button', { name: /Retomar/ })).toBeVisible();
   });
 
-  test('dado o relógio com poucos segundos, quando a pessoa pausa, então o tempo total e a parte de cada um mostram os segundos, sem "0 min" (#436)', async ({ page }) => {
-    // Dado: "Renovar a procuração" não tem tempo registrado
+  test('dado o relógio com poucos segundos, quando a pessoa pausa, então o tempo total mostra os segundos, sem "0 min", e não há uma linha só dela repetindo o relógio (#436)', async ({ page }) => {
+    // Dado: "Renovar a procuração" não tem tempo registrado; o Mauro (administrador) conta sozinho
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const relogio = cartao.getByRole('timer');
@@ -600,14 +600,51 @@ test.describe('Cronômetro da tarefa', () => {
     // Quando
     await page.keyboard.press('t');
     await expect(cartao.getByText('pausado')).toBeVisible();
-    // Então: o que o relógio diz (0:00:0X) é o que o total e a parte de cada um dizem ("X s")
+    // Então: o que o relógio diz (0:00:0X) é o que o total diz ("X s")
     const segundos = Number((await relogio.textContent())!.split(':')[2]);
     expect(segundos).toBeGreaterThan(0);
     const total = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
     await expect(total).toHaveText(new RegExp(`${segundos} s$`));
-    const parte = cartao.getByRole('list', { name: 'Parte de cada um' });
-    await expect(parte).toContainText(`${segundos} s`);
     await expect(cartao.getByText('0 min')).toHaveCount(0);
+    // E a parte de cada um não aparece. A regra mudou na revisão da #436: com uma pessoa só, que é quem está vendo, a linha dela
+    // ("100%" e "X s") só repetia o relógio e o tempo total; ela volta quando há duas pessoas ou mais
+    await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toHaveCount(0);
+    await expect(cartao.getByText('Ninguém registrou tempo nesta tarefa ainda.')).toHaveCount(0);
+  });
+
+  test('dado o administrador contando numa tarefa com o tempo de outra pessoa, quando o relógio anda, então a linha dele, o tempo total e o relógio dizem a mesma coisa (#436)', async ({ page }) => {
+    // Dado: "Emitir a GRU" tem 1 h 20 min do Mauro e 40 min do Bruno
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Emitir a GRU');
+    const relogio = cartao.getByRole('timer');
+    const total = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
+    const parte = cartao.getByRole('list', { name: 'Parte de cada um' });
+    const doMauro = parte.getByRole('listitem').filter({ hasText: 'Mauro Teixeira Duarte' });
+    await expect(doMauro).toContainText('66,7%');
+    await expect(doMauro).toContainText('1 h 20 min');
+    // Quando: o Mauro conta mais 5 min
+    await apertarT(page, cartao);
+    await page.clock.runFor(5 * 60_000);
+    // Então: o relógio diz 1:25, o total, 2 h 05 min (com os 40 min do Bruno), e a linha do Mauro anda junto, com a %
+    await expect(relogio).toHaveText(/^1:25:\d\d$/);
+    await expect(total).toHaveText(/2 h 05 min$/);
+    await expect(doMauro).toContainText('1 h 25 min');
+    await expect(doMauro).toContainText('68%');
+    await expect(parte.getByRole('listitem').filter({ hasText: 'Bruno Exemplo Souza' })).toContainText('32%');
+  });
+
+  test('dada a tarefa concluída, quando a pessoa abre o cartão, então o relógio, "encerrado" e "Ajustar meu tempo" ficam numa linha só (#436)', async ({ page }) => {
+    // Quando: "Organizar a pasta" está concluída
+    const cartao = await abrirTarefa(page, 'Organizar a pasta');
+    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+    const [relogio, situacao, ajustar] = await Promise.all([tempo.getByRole('timer'), tempo.getByText('encerrado', { exact: true }),
+      tempo.getByRole('button', { name: 'Ajustar meu tempo' })].map(async l => (await l.boundingBox())!));
+    // Então: os três na mesma altura, da esquerda para a direita; antes, "encerrado" ficava sozinho numa linha embaixo do relógio
+    const meio = (c: { y: number; height: number }) => c.y + c.height / 2;
+    expect(Math.abs(meio(situacao) - meio(relogio))).toBeLessThanOrEqual(1);
+    expect(Math.abs(meio(ajustar) - meio(relogio))).toBeLessThanOrEqual(1);
+    expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
+    expect(ajustar.x).toBeGreaterThanOrEqual(situacao.x + situacao.width);
   });
 
   test('quando a pessoa digita um T num comentário, então é só a letra, e o cronômetro não começa', async ({ page }) => {
