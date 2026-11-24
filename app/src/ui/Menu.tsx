@@ -62,11 +62,15 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, setas =
     };
     posicionar();
     // No menu, o primeiro item pode ser um link (o "Ver perfil" da bolinha da equipe, #388, quando as outras ações não valem).
-    m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button, a[href]')?.focus();
+    // Sem rolar: o menu ainda não está no lugar (o top novo vem no próximo desenho), e o foco num menu fora da tela rolaria o cartão.
+    m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button, a[href]')?.focus({ preventScroll: true });
     // O painel que cresce (ex.: uma etiqueta nova na lista) sobe para continuar dentro da tela.
     const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(posicionar);
     observador?.observe(m);
-    return () => observador?.disconnect();
+    // A página atrás de um cartão pode rolar com o painel aberto (o clique num campo dele leva a tela ao fim da página): o painel
+    // acompanha o botão, e não sobe por cima do topo do cartão, que fica parado.
+    window.addEventListener('scroll', posicionar, { passive: true });
+    return () => { observador?.disconnect(); window.removeEventListener('scroll', posicionar); };
   }, [botao, painel]);
   useEffect(() => {
     // composedPath: vale mesmo se o clique tirou da tela o elemento clicado (ex.: o formulário de um painel).

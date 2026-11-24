@@ -88,6 +88,7 @@ export function DatasDoCartao({ nome, titulo, resumo, lido, atalho, aoSalvar, ..
   const podeMudar = !!aoSalvar;
   // Se a edição deixa de ser permitida com a janela aberta (o lápis abriu, o item foi arquivado), a janela fecha sem gravar.
   useEffect(() => { if (!podeMudar) setAberta(null); }, [podeMudar]);
+  /** Pelo atalho do cartão, o resumo pode estar fora da vista: rola até ele antes de abrir a janela presa a ele. */
   function abrir() {
     const botao = valor.current;
     if (!botao) return;
@@ -102,7 +103,7 @@ export function DatasDoCartao({ nome, titulo, resumo, lido, atalho, aoSalvar, ..
   if (!aoSalvar) return <span className="dado-editavel" ref={soLido}>{lido}</span>;
   return <>
     <button ref={valor} type="button" className="data-editavel-botao dado-editavel-botao datas-do-cartao-botao" aria-label={`${nome}: ${resumo}. Clique para mudar`}
-      title="Clique para mudar" aria-haspopup="dialog" aria-expanded={!!aberta} onClick={() => { if (aberta) setAberta(null); else abrir(); }}>
+      title="Clique para mudar" aria-haspopup="dialog" aria-expanded={!!aberta} onClick={e => setAberta(aberta ? null : e.currentTarget)}>
       {lido}
     </button>
     {aberta && <JanelaDasDatas {...janela} titulo={titulo} botao={aberta} aoSalvar={aoSalvar} aoFechar={() => setAberta(null)} />}
@@ -129,7 +130,8 @@ function JanelaDasDatas({ botao, titulo, inicio, entrega, repeticao, inicial, co
   // Ao abrir, o foco vai à data ativa (depois do painel, que põe o foco no primeiro botão dele); desmarcada, à caixa de marcar dela.
   useEffect(() => {
     const campo = campos.current[ativaAoAbrir.current];
-    (campo && !campo.disabled ? campo : campo?.closest('.janela-datas-linha')?.querySelector<HTMLInputElement>('input[type="checkbox"]'))?.focus();
+    // Sem rolar: na primeira vez o painel ainda pode estar fora da tela, e o foco rolaria o cartão (o botão das datas sumiria do lugar).
+    (campo && !campo.disabled ? campo : campo?.closest('.janela-datas-linha')?.querySelector<HTMLInputElement>('input[type="checkbox"]'))?.focus({ preventScroll: true });
   }, []);
 
   const erros: ErrosDosCampos<CampoDasDatas> = conferido ? conferir(rascunho) : {};

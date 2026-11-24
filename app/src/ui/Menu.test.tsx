@@ -136,3 +136,23 @@ describe('Menu flutuante travado (#422)', () => {
     } finally { document.removeEventListener('keydown', noCartao); }
   });
 });
+
+describe('Menu flutuante com a página rolando atrás (#422)', () => {
+  it('dado o painel aberto num cartão parado, quando a página atrás rola, então o painel continua junto do botão', async () => {
+    // Dado: o botão fica parado na tela (como num cartão por cima da página), a 100px do topo
+    render(<ComMenu />);
+    const botao = screen.getByRole('button', { name: 'Mais ações' });
+    vi.spyOn(botao, 'getBoundingClientRect').mockReturnValue({ top: 80, bottom: 100, left: 10, right: 40, width: 30, height: 20, x: 10, y: 80, toJSON: () => ({}) });
+    await userEvent.click(botao);
+    const menu = screen.getByRole('menu', { name: 'Mais ações' });
+    const antes = parseFloat(menu.style.top);
+    // Quando: a página rola 200px
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 200 });
+    window.dispatchEvent(new Event('scroll'));
+    await new Promise(r => setTimeout(r, 0));
+    // Então: o painel desce o mesmo tanto, e continua na mesma altura da tela
+    try {
+      expect(parseFloat(menu.style.top)).toBe(antes + 200);
+    } finally { Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 }); }
+  });
+});
