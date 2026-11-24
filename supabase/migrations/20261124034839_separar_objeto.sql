@@ -91,13 +91,15 @@ begin
     delete from public.objeto_sugestoes where id = s.id;
   end if;
 
-  -- 3. Os contratos: os nomes novos no lugar do antigo. O gatilho privado.contrato_objetos tira o repetido (o contrato que já
-  -- tinha um dos novos fica com um só), confere o máximo de objetos e refaz o "servico"; o histórico ganha a mudança.
+  -- 3. Os contratos: os nomes novos no lugar do antigo, já sem o repetido (o contrato que já tinha um dos novos fica com um
+  -- só), como o gatilho privado.contrato_objetos os gravaria. Assim o contrato que fica igual (ex.: tinha "Patente" e
+  -- "Marca e patente", e "Marca e patente" vira "Marca e patente" e "Patente") não é mexido nem contado. O gatilho confere o
+  -- máximo de objetos e refaz o "servico"; o histórico ganha a mudança.
   with novos as (
-    select k.id, (select array_agg(x.nome order by o.n, x.m)
+    select k.id, privado.limpar_objetos((select array_agg(x.nome order by o.n, x.m)
                   from unnest(k.objetos) with ordinality as o(texto, n)
                   cross join lateral unnest(case when privado.mesmo_objeto(o.texto, s.descricao) then v_nomes else array[o.texto] end)
-                    with ordinality as x(nome, m)) as objetos
+                    with ordinality as x(nome, m))) as objetos
     from public.contratos k where k.id = any(v_contratos)
   )
   update public.contratos k set objetos = novos.objetos from novos where k.id = novos.id and k.objetos is distinct from novos.objetos;

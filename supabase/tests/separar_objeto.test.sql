@@ -166,5 +166,19 @@ select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000003'), 'Parecer |
   'O contrato tem o nome antigo e o novo');
 select ok(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Parecer') is not null, 'O nome antigo que é um dos novos fica na lista');
 
+-- Dado o contrato com "Parecer" e "Consulta", quando a Ana separa "Consulta" em "Consulta" e "Parecer" (os dois já estão nele),
+-- então o contrato fica igual: não é contado, nem mexido
+create temp table historico_antes on commit drop as
+  select count(*) as n from public.contrato_historico where contrato_id = 'c0000000-0000-0000-0000-000000000003';
+grant select on historico_antes to authenticated;
+select pg_temp.entrar(1); set local role authenticated;
+select is(public.objeto_separar(pg_temp.objeto('e0000000-0000-0000-0000-000000000001', 'Consulta'), array['Consulta', 'Parecer'], '[]'::jsonb) ->> 'contratos', '0',
+  'O contrato que fica igual não conta');
+reset role;
+select is(pg_temp.objetos_de('c0000000-0000-0000-0000-000000000003'), 'Parecer | Consulta | Registro de marca | Patente / Parecer; Consulta; Registro de marca; Patente',
+  'O contrato não mudou');
+select is((select count(*) from public.contrato_historico where contrato_id = 'c0000000-0000-0000-0000-000000000003'), (select n from historico_antes),
+  'O histórico do contrato não ganhou mudança');
+
 select * from finish();
 rollback;

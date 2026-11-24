@@ -448,6 +448,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await expect(SD.demandasDoObjeto(o.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
         });
 
+        it('dado um contrato que já tem os dois nomes novos, quando o administrador separa o objeto num deles e no outro, então o contrato fica igual e não conta (#410)', async () => {
+          // Dado: o contrato tem "Patente" e "Marca e patente"
+          const juntos = 'Marca e patente ' + marca(), patente = 'Patente ' + marca();
+          const k = await novoContrato({ objetos: [patente, juntos] });
+          const antes = await SD.contratoObter(k.id);
+          // Quando: "Marca e patente" vira "Marca e patente" e "Patente"
+          const troca = await SD.objetoSeparar((await naLista(juntos))!.id, [juntos, patente], []);
+          // Então
+          expect(troca.contratos).toBe(0);
+          expect((await SD.contratoObter(k.id))!.objetos).toEqual([patente, juntos]);
+          expect((await SD.contratoObter(k.id))!.atualizado_em).toBe(antes!.atualizado_em);
+        });
+
         it('dado um contrato assinado com "A definir" e sem a demanda de um objeto, quando o administrador corrige ou junta esse objeto, então nenhuma demanda nasce', async () => {
           // Dado: a demanda do objeto foi excluída
           const velho = 'Velho ' + marca(), outro = 'Outro ' + marca(), novo = 'Novo ' + marca();
