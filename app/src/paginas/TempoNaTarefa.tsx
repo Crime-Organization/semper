@@ -2,7 +2,7 @@
 // Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo, a lista dos registros para mudar e apagar (#400) e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
 // Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
-// situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" lado a lado, num dado largo, e o resumo de quem registrou
+// situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" um em cima do outro (#434), num dado largo, e o resumo de quem registrou
 // tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
 // Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda) entra na faixa das datas, como o último dado, à
 // direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
@@ -32,6 +32,20 @@ const FAIXA_DO_TEMPO = 'Tempo';
 const ROTULO_DO_TEMPO = 'Seu tempo nesta tarefa';
 /** O nome do tempo total da tarefa, o último dado da faixa das datas (#397). */
 export const ROTULO_DO_TEMPO_TOTAL = 'Tempo total';
+
+/** A situação do relógio, na pílula ao lado dele: parado, contando ou, na tarefa concluída, encerrado. */
+type SituacaoDoRelogio = 'pausado' | 'contando' | 'encerrado';
+/**
+ * O que a pílula de cada situação diz e a dica dela. Na tarefa concluída (#434), a pílula diz "encerrado", e a frase de antes
+ * ("Tarefa concluída: a contagem encerrou.") virou a dica dela, em vez de um segundo texto ao lado do botão.
+ */
+const SITUACAO: Record<SituacaoDoRelogio, { texto: string; dica?: string }> = {
+  pausado: { texto: 'pausado' },
+  contando: { texto: 'contando' },
+  encerrado: { texto: 'encerrado', dica: 'Tarefa concluída: a contagem encerrou.' }
+};
+const situacaoDoRelogio = (concluida: boolean, contando: boolean): SituacaoDoRelogio =>
+  concluida ? 'encerrado' : contando ? 'contando' : 'pausado';
 
 /** O tempo lido do banco: chegando (null), lido, ou a mensagem do erro. */
 type TempoLido = TempoDaTarefa | string | null;
@@ -129,8 +143,10 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     } catch (e) { falha(e); }
   }
 
-  // A faixa do tempo (#383, arrumada na #400): numa linha, o relógio com a situação à esquerda e os dois botões à direita, da mesma
-  // altura; no celular, os botões descem juntos e dividem a largura. Embaixo, a parte de cada um e a lista dos registros.
+  // A faixa do tempo (#383, arrumada na #400 e na #434): o relógio com a situação à esquerda e os botões à direita, um em cima
+  // do outro, da mesma largura, também no celular (só numa faixa estreita demais eles descem para baixo do relógio). Na tarefa
+  // concluída, a pílula diz "encerrado" e só "Ajustar meu tempo" fica. Embaixo, a parte de cada um e a lista dos registros.
+  const situacao = SITUACAO[situacaoDoRelogio(!!t.concluida_em, relogio.contando)];
   return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={<div className="tempo-resumo">
     {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
     <RegistrosDoTempo t={t} tempo={tempo} relogio={relogio} carregar={carregar} />
@@ -138,12 +154,10 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     <div className="cronometro">
       <span className="cronometro-leitura">
         <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>
-        <span className={'cronometro-situacao' + (relogio.contando ? ' contando' : '')}>{relogio.contando ? 'contando' : 'pausado'}</span>
+        <span className={'cronometro-situacao' + (relogio.contando ? ' contando' : '')} title={situacao.dica}>{situacao.texto}</span>
       </span>
       <span className="cronometro-acoes">
-        {t.concluida_em
-          ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
-          : <button type="button" className={estiloBotao({ forma: 'mini' }) + ' cronometro-alternar'} onClick={relogio.alternar}
+        {!t.concluida_em && <button type="button" className={estiloBotao({ forma: 'mini' }) + ' cronometro-alternar'} onClick={relogio.alternar}
             {...(atalhos ? { title: `Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`, 'aria-keyshortcuts': TECLA_DO_CRONOMETRO.toUpperCase() } : {})}>
             {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'}{atalhos && <Tecla>{TECLA_DO_CRONOMETRO.toUpperCase()}</Tecla>}
           </button>}

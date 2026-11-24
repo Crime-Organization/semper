@@ -97,12 +97,13 @@ test.describe('Dada uma reunião que se repete toda semana', () => {
     await cartao(page).getByRole('button', { name: /^Data e horário: / }).click();
     // A janela das datas (#422) flutua sobre o cartão: é achada pela página, e não dentro do cartão.
     const formulario = page.getByRole('dialog', { name: 'Mudar a data e o horário' }).filter({ has: page.getByRole('group', { name: 'Calendário' }) });
-    await formulario.getByLabel('Hora do compromisso').fill('15:00');
+    await formulario.getByLabel('Hora do compromisso').selectOption('15:00');   // desde a #431, a hora vem numa lista de horários
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     await page.getByRole('dialog', { name: 'Mudar a data e o horário' }).getByRole('button', { name: 'Esta e as seguintes' }).click();
     // Então
     await expect(page.getByText('3 compromissos mudados na repetição.')).toBeVisible();
-    await page.getByRole('button', { name: 'Fechar' }).click();
+    // O X do cartão (a janela das datas, que fecha logo depois de gravar, também tem o seu, desde a #431)
+    await cartao(page).getByRole('button', { name: 'Fechar', exact: true }).click();
     await expect(agenda(page).getByRole('listitem', { name: /04\/11$/ }).getByRole('link', { name: new RegExp(TITULO) })).toContainText('10:30');
     for (const dia of ['11/11', '18/11', '25/11']) {
       await expect(agenda(page).getByRole('listitem', { name: new RegExp(`${dia}$`) }).getByRole('link', { name: new RegExp(TITULO) })).toContainText('15:00');
@@ -122,7 +123,8 @@ test.describe('Dada uma reunião que se repete toda semana', () => {
     await page.getByRole('dialog', { name: 'Mudar a data e o horário' }).getByRole('button', { name: 'Só esta' }).click();
     // Então
     await expect(page.getByText('Compromisso atualizado.')).toBeVisible();
-    await page.getByRole('button', { name: 'Fechar' }).click();
+    // O X do cartão (a janela das datas, que fecha logo depois de gravar, também tem o seu, desde a #431)
+    await cartao(page).getByRole('button', { name: 'Fechar', exact: true }).click();
     await expect(agenda(page).getByRole('listitem', { name: /18\/11$/ }).getByRole('link', { name: new RegExp(TITULO) })).toHaveCount(0);
     await expect(agenda(page).getByRole('listitem', { name: /19\/11$/ }).getByRole('link', { name: new RegExp(TITULO) })).toHaveCount(1);
     await expect(datasDaReuniao(page)).toHaveCount(4);
@@ -137,7 +139,40 @@ test.describe('Dada uma reunião que se repete toda semana', () => {
     await page.getByRole('dialog', { name: 'Arquivar o compromisso' }).getByRole('button', { name: 'Esta e as seguintes' }).click();
     // Então
     await expect(page.getByText('3 compromissos arquivados. A repetição parou.')).toBeVisible();
-    await page.getByRole('button', { name: 'Fechar' }).click();
+    // O X do cartão (a janela das datas, que fecha logo depois de gravar, também tem o seu, desde a #431)
+    await cartao(page).getByRole('button', { name: 'Fechar', exact: true }).click();
     await expect(datasDaReuniao(page)).toHaveCount(1);
+  });
+});
+
+test.describe('Dada uma reunião que não se repete (#431)', () => {
+  test('quando a pessoa escolhe "Toda semana" na repetição da janela das datas e salva, então as datas seguintes vão para a agenda, e a lista passa a mostrar a repetição, sem mudar ali', async ({ page }) => {
+    // Dado: uma reunião de hoje, sem repetir
+    await page.goto('/agenda/novo/');
+    await page.getByLabel('Título').fill(TITULO);
+    await page.getByLabel('Data').fill('04/11/2026');
+    await page.getByLabel('Hora').fill('10:30');
+    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar compromisso' }).click();
+    await expect(cartao(page).getByRole('heading', { name: TITULO, level: 2 })).toBeVisible();
+    // Quando
+    await cartao(page).getByRole('button', { name: /^Data e horário: / }).click();
+    const janela = page.getByRole('dialog', { name: 'Mudar a data e o horário' });
+    await janela.getByRole('combobox', { name: 'Repetição' }).selectOption({ label: 'Toda semana' });
+    await janela.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(page.getByText(/Compromisso \w+ passa a se repetir, com mais \d+ datas na agenda\./)).toBeVisible();
+    await expect(janela).toHaveCount(0);
+    await cartao(page).getByRole('button', { name: /^Data e horário: / }).click();
+    await expect(janela.getByRole('combobox', { name: 'Repetição' })).toBeDisabled();
+    await expect(janela.getByRole('combobox', { name: 'Repetição' })).toHaveValue(/Toda semana/);
+    await page.keyboard.press('Escape');
+    await cartao(page).getByRole('button', { name: 'Fechar', exact: true }).click();
+    await visao(page, 'Agenda');
+    await periodo(page, 'Mês');
+    // Toda semana, sem data para terminar (como no cadastro): uma em cada quarta-feira
+    for (const dia of ['04/11', '11/11', '18/11', '25/11']) {
+      await expect(agenda(page).getByRole('listitem', { name: new RegExp(`${dia}$`) }).getByRole('link', { name: new RegExp(TITULO) })).toHaveCount(1);
+    }
   });
 });

@@ -16,6 +16,8 @@ import { DatasDoCartao, ResumoDasDatas } from './JanelaDasDatas';
 const TAMANHO_DO_SINO = 14;
 /** O nome das datas no cartão e o da janela. */
 export const NOME_DAS_DATAS = 'Datas', MUDAR_AS_DATAS = 'Mudar as datas';
+/** O nome da entrega em cima do campo, na janela (#431: "Data de início" e "Data de entrega", como no modelo). */
+const ROTULO_DA_ENTREGA = 'Data de entrega';
 
 interface Props {
   /** O nome do prazo (ex.: "Prazo", "Prazo de entrega"): o nome do campo da entrega, na janela. */
@@ -38,8 +40,8 @@ export function InicioEPrazo({ nomeDoPrazo, valor, conferirPrazo, aoSalvar, atal
   </>;
   const resumo = resumoDasDatas(pedacos) + (marcado ? `, lembrete: ${lembrete!.toLowerCase()}` : '');
   return <DatasDoCartao nome={NOME_DAS_DATAS} titulo={MUDAR_AS_DATAS} resumo={resumo} lido={lido} atalho={atalho}
-    inicio={{ rotulo: 'Início', nome: ROTULO_DO_INICIO }}
-    entrega={{ rotulo: 'Entrega', nome: nomeDoPrazo, opcional: true, hora: { rotulo: `Hora do ${nomeDoPrazo.toLowerCase()}` }, lembrete: true }}
+    inicio={{ rotulo: ROTULO_DO_INICIO, nome: ROTULO_DO_INICIO }}
+    entrega={{ rotulo: ROTULO_DA_ENTREGA, nome: nomeDoPrazo, opcional: true, hora: { rotulo: `Hora do ${nomeDoPrazo.toLowerCase()}` }, lembrete: true }}
     inicial={() => datasDoPrazo(valor)} conferir={c => errosDasDatasDoPrazo(c, erroDaDataDeInicio, conferirPrazo)}
     aoSalvar={aoSalvar && (c => aoSalvar(datasDoPrazoAoGravar(c)))} />;
 }

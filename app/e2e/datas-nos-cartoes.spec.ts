@@ -49,6 +49,11 @@ async function aVista(local: Locator) {
     return !!noPonto && (noPonto === el || el.contains(noPonto));
   });
 }
+/** A distância entre duas coisas da tela. */
+const distancia = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: b.x - a.x, y: b.y - a.y });
+/** Duas caixas da tela se cruzam (uma cobre parte da outra)? */
+const seCruzam = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 /** A coisa cabe inteira na tela, de cima a baixo e de um lado ao outro. */
 async function cabeNaTela(page: Page, local: Locator) {
   const caixa = (await local.boundingBox())!, tela = page.viewportSize()!;
@@ -72,19 +77,20 @@ for (const c of CARTOES) {
     test.describe(`Dado o cartão (${c.modulo}) no ${tela.nome} (#422)`, () => {
       test.use({ viewport: tela.viewport });
 
-      test('quando a pessoa clica em "Datas", então a janela flutua sobre o cartão, inteira na tela, e as datas do cartão ficam onde estavam', async ({ page }) => {
+      test('quando a pessoa clica em "Datas", então a janela flutua sobre o cartão, inteira na tela, sem cobrir o resumo das datas, e nada no cartão é empurrado', async ({ page }) => {
         // Dado
         const cartao = await abrirCartao(page, c.modulo, c.titulo);
-        const antes = { criacao: await posicao(dado(cartao, c.criacao)), datas: await posicao(dado(cartao, 'Datas')) };
+        const antes = distancia(await posicao(dado(cartao, c.criacao)), await posicao(dado(cartao, 'Datas')));
         // Quando
         await datas(cartao).click();
-        // Então: a janela, com o calendário, abre por cima, sem empurrar nada no cartão
+        // Então: a janela, com o calendário, abre por cima, sem empurrar nada no cartão (a regra mudou na #431: para a janela não
+        // cobrir o resumo, o cartão pode rolar; por isso conta a distância entre as datas, e não o lugar delas na tela)
         const janela = janelaDasDatas(page);
         await expect(janela.getByRole('group', { name: 'Calendário' })).toBeVisible();
         await esperarParar(janela);
-        expect(await posicao(dado(cartao, c.criacao))).toEqual(antes.criacao);
-        expect(await posicao(dado(cartao, 'Datas'))).toEqual(antes.datas);
+        expect(distancia(await posicao(dado(cartao, c.criacao)), await posicao(dado(cartao, 'Datas')))).toEqual(antes);
         expect(await cabeNaTela(page, janela)).toBe(true);
+        expect(seCruzam((await janela.boundingBox())!, (await datas(cartao).boundingBox())!)).toBe(false);
         // E o que se muda está à vista e ao alcance: o início, a entrega, a hora, o lembrete e Salvar
         for (const campo of [janela.getByRole('textbox', { name: 'Data de início' }), janela.getByRole('textbox', { name: c.prazo, exact: true }),
           janela.getByLabel(`Hora do ${c.prazo.toLowerCase()}`), janela.getByRole('combobox', { name: 'Lembrete' }), janela.getByRole('button', { name: 'Salvar' })]) {
@@ -95,19 +101,69 @@ for (const c of CARTOES) {
   }
 
   test.describe(`Dado o cartão (${c.modulo}) (#422)`, () => {
-    test('numa janela baixa de notebook, quando a pessoa abre as datas, então a janela cabe na tela e o "Hoje" e o Salvar são alcançáveis', async ({ page }) => {
+    test('numa janela baixa de notebook, quando a pessoa abre as datas, então a janela cabe na tela e o Salvar é alcançável', async ({ page }) => {
       // Dado
       await page.setViewportSize({ width: 1366, height: 650 });
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
       // Quando
       await datas(cartao).click();
-      // Então
+      // Então (desde a #431, sem o "Hoje" no calendário da janela: o dia de hoje fica marcado na grade)
       const janela = janelaDasDatas(page);
       await esperarParar(janela);
       expect(await cabeNaTela(page, janela)).toBe(true);
-      expect(await aVista(janela.getByRole('button', { name: 'Hoje', exact: true }))).toBe(true);
+      await expect(janela.getByRole('button', { name: 'Hoje', exact: true })).toHaveCount(0);
       expect(await aVista(janela.getByRole('button', { name: 'Salvar' }))).toBe(true);
     });
+
+    test('numa tela de notebook (1366x768), quando a pessoa abre as datas, então a janela cabe inteira sem rolar, a caixa de marcar fica na linha do campo, com o nome em cima, e Salvar e Remover ocupam a largura toda, um embaixo do outro (#431)', async ({ page }) => {
+      // Dado
+      await page.setViewportSize({ width: 1366, height: 768 });
+      const cartao = await abrirCartao(page, c.modulo, c.titulo);
+      // Quando
+      await datas(cartao).click();
+      // Então: inteira na tela, sem rolar por dentro
+      const janela = janelaDasDatas(page);
+      await esperarParar(janela);
+      expect(await cabeNaTela(page, janela)).toBe(true);
+      expect(await janela.evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
+      // E a caixa da entrega na mesma linha do campo, antes dele, com o nome em cima (nada por cima de nada)
+      const caixa = (await janela.getByRole('checkbox', { name: 'Data de entrega' }).boundingBox())!;
+      const campo = (await janela.getByRole('textbox', { name: c.prazo, exact: true }).boundingBox())!;
+      const nome = (await janela.getByText('Data de entrega', { exact: true }).boundingBox())!;
+      expect(Math.abs((caixa.y + caixa.height / 2) - (campo.y + campo.height / 2))).toBeLessThanOrEqual(1);
+      expect(caixa.x + caixa.width).toBeLessThanOrEqual(campo.x);
+      expect(nome.y + nome.height).toBeLessThanOrEqual(Math.min(caixa.y, campo.y));
+      // E a hora ao lado da data, numa lista de horários
+      const hora = janela.getByRole('combobox', { name: `Hora do ${c.prazo.toLowerCase()}` });
+      const caixaDaHora = (await hora.boundingBox())!;
+      expect(Math.abs(caixaDaHora.y - campo.y)).toBeLessThanOrEqual(1);
+      expect(caixaDaHora.x).toBeGreaterThanOrEqual(campo.x + campo.width);
+      // E Salvar em cima de Remover, os dois da largura do calendário
+      const largura = (await janela.getByRole('group', { name: 'Calendário' }).boundingBox())!.width;
+      const salvar = (await janela.getByRole('button', { name: 'Salvar' }).boundingBox())!;
+      const remover = (await janela.getByRole('button', { name: 'Remover' }).boundingBox())!;
+      expect(Math.round(salvar.width)).toBe(Math.round(largura));
+      expect(Math.round(remover.width)).toBe(Math.round(largura));
+      expect(remover.y).toBeGreaterThanOrEqual(salvar.y + salvar.height);
+    });
+
+    for (const tela of [{ nome: 'notebook', viewport: { width: 1366, height: 768 } }, { nome: 'celular', viewport: { width: 390, height: 844 } }]) {
+      test(`no ${tela.nome}, quando a pessoa abre as datas, então a janela não cobre o resumo que a abriu nem o lápis, e no celular fica no meio, com a mesma folga dos dois lados (#431)`, async ({ page }) => {
+        // Dado
+        await page.setViewportSize(tela.viewport);
+        const cartao = await abrirCartao(page, c.modulo, c.titulo);
+        // Quando
+        await datas(cartao).click();
+        // Então
+        const janela = janelaDasDatas(page);
+        await esperarParar(janela);
+        const caixa = (await janela.boundingBox())!;
+        expect(seCruzam(caixa, (await datas(cartao).boundingBox())!)).toBe(false);
+        expect(seCruzam(caixa, (await cartao.getByRole('button', { name: 'Editar', exact: true }).boundingBox())!)).toBe(false);
+        expect(await cabeNaTela(page, janela)).toBe(true);
+        if (tela.nome === 'celular') expect(Math.abs(caixa.x - (tela.viewport.width - caixa.x - caixa.width))).toBeLessThanOrEqual(1);
+      });
+    }
 
     test('dada a janela aberta, quando a pessoa aperta Esc, então só a janela fecha, sem mudar nada, o foco volta às datas, e o cartão continua aberto', async ({ page }) => {
       // Dado
@@ -206,17 +262,18 @@ test.describe('Dado o compromisso (#422)', () => {
   const criado = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Criado em', exact: true });
 
   for (const tela of TELAS) {
-    test(`no ${tela.nome}, quando a pessoa clica na data e no horário, então a janela abre sobre o cartão, com o calendário, a data, a hora, o "Até" e o Salvar à vista, e "Criado em" fica no lugar`, async ({ page }) => {
+    test(`no ${tela.nome}, quando a pessoa clica na data e no horário, então a janela abre sobre o cartão, sem cobrir a data, com o calendário, a data, a hora, o "Até" e o Salvar à vista, e "Criado em" fica junto da data`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela.viewport);
       const cartao = await abrirCompromisso(page, 'Reunião de equipe');
-      const antes = await posicao(criado(cartao));
+      const antes = distancia(await posicao(quando(cartao)), await posicao(criado(cartao)));
       // Quando
       await quando(cartao).click();
-      // Então
+      // Então (a regra mudou na #431: para a janela não cobrir a data, o cartão pode rolar; conta a distância, e não o lugar na tela)
       await expect(janela(page).getByRole('group', { name: 'Calendário' })).toBeVisible();
       await esperarParar(janela(page));
-      expect(await posicao(criado(cartao))).toEqual(antes);
+      expect(distancia(await posicao(quando(cartao)), await posicao(criado(cartao)))).toEqual(antes);
+      expect(seCruzam((await janela(page).boundingBox())!, (await quando(cartao).boundingBox())!)).toBe(false);
       expect(await cabeNaTela(page, janela(page))).toBe(true);
       for (const campo of [janela(page).getByRole('textbox', { name: 'Data' }), janela(page).getByLabel('Hora do compromisso'), janela(page).getByLabel('Até'),
         janela(page).getByRole('button', { name: 'Salvar' })]) {

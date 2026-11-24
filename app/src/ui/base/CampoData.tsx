@@ -214,7 +214,8 @@ interface PropsCalendario {
   noLugar: boolean;
   /**
    * Sempre aberto, no fluxo de quem o usa (#422, a janela das datas do cartão): não fecha com o Esc (quem fecha é a janela em
-   * volta), não rola a página até ele e o Tab segue a ordem da janela.
+   * volta), não rola a página até ele e o Tab segue a ordem da janela. Fica sem o rodapé (#431): o "Hoje" sozinho numa linha
+   * deixava a janela alta, e o dia de hoje já vem marcado na grade.
    */
   fixo?: boolean;
   escolhido: string | null;
@@ -379,7 +380,7 @@ function Calendario({ id, ref, ancora, noLugar, fixo = false, escolhido, limites
           pode={dentroDosLimites(dia, limites)} aoEscolher={() => escolher(dia)} aoTeclar={teclaNaGrade} />)}
       </tr>)}</tbody>
     </table>
-    <div className="campo-data-rodape">
+    {!fixo && <div className="campo-data-rodape">
       {hora && <label className="campo-data-hora">Hora
         <input type="time" ref={campoDaHora} value={hora.valor} onChange={e => hora.aoMudar(e.target.value)} />
       </label>}
@@ -387,7 +388,7 @@ function Calendario({ id, ref, ancora, noLugar, fixo = false, escolhido, limites
         {dentroDosLimites(hoje, limites) && <BotaoDoRodape aoClicar={() => { irAoMes(primeiroDoMes(hoje)); escolher(hoje); }}>Hoje</BotaoDoRodape>}
         {hora && <BotaoDoRodape aoClicar={aoTerminar}>Pronto</BotaoDoRodape>}
       </span>
-    </div>
+    </div>}
   </div>;
 }
 
@@ -408,7 +409,7 @@ const nada = () => undefined;
 
 /**
  * O calendário do mês sempre aberto, no fluxo de quem o usa (#422: a janela das datas do cartão). É o mesmo calendário do campo de
- * data (a grade, o teclado, o "Hoje"), sem o campo: a escolha do dia vai para quem o usa.
+ * data (a grade, o teclado, hoje marcado), sem o campo e sem o rodapé do "Hoje" (#431): a escolha do dia vai para quem o usa.
  */
 export function CalendarioDoMes({ escolhido, aoEscolher, min, max }: { escolhido: string | null; aoEscolher: (iso: string) => void; min?: string; max?: string }) {
   const ref = useRef<HTMLDivElement>(null);

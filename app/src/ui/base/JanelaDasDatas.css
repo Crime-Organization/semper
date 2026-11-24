@@ -1,42 +1,108 @@
-/* A janela das datas do cartão (#422; ui/base/JanelaDasDatas.tsx), que flutua sobre o cartão como a das etiquetas (.kmenu.painel):
-   o calendário do mês em cima, uma linha por data (o nome, a caixa de marcar e o campo, com a hora ao lado), a repetição, o
-   lembrete e, embaixo, Remover e Salvar. A aparência dos campos é a dos outros campos do cartão (.data-editavel-campo). */
+/* A janela das datas do cartão (#422, compacta desde a #431; ui/base/JanelaDasDatas.tsx), que flutua sobre o cartão como a das
+   etiquetas (.kmenu.painel), sem cobrir o resumo que a abriu: no alto, o nome e o X; o calendário do mês; uma linha por data (o nome
+   em cima e, numa linha só, a caixa de marcar, o campo e a hora); no compromisso, o "até" e a repetição; o lembrete com a frase
+   curta; e Salvar e Remover na largura toda. Tudo cabe numa tela de notebook (1366x768): os dias, os campos e os botões são um
+   pouco menores que os dos formulários. */
 :root {
-  /* O vão entre as partes da janela (o calendário, as datas, o lembrete, os botões) */
-  --vao-da-janela-das-datas: 12px;
-  /* O vão entre o nome de uma data e o campo dela, e entre o campo e a hora */
-  --vao-da-linha-das-datas: 6px;
-  /* A largura do campo dd/mm/aaaa: a data inteira, sem cortar */
-  --largura-da-data-na-janela: 132px;
+  /* O vão entre as partes da janela (a cabeça, o calendário, as datas, os botões) */
+  --vao-da-janela-das-datas: 10px;
+  /* O vão entre uma data e a seguinte (e o lembrete) */
+  --vao-entre-as-datas-da-janela: 8px;
+  /* O vão entre o nome de uma data e a linha do campo, e entre a caixa, o campo e a hora */
+  --vao-da-linha-das-datas: 5px;
+  /* A altura dos campos, das listas e dos botões da janela: um pouco menor que a dos formulários, para a janela caber sem rolar */
+  --campo-da-janela-das-datas: 32px;
+  /* O tamanho de cada dia do calendário na janela (no campo de data, --dia-do-calendario) */
+  --dia-da-janela-das-datas: 28px;
+  /* As setas do mês e o X da janela: o mesmo tamanho, menores que os do campo de data */
+  --botao-da-janela-das-datas: 28px;
+  /* A folga de dentro da janela (a do .kmenu.painel é um pouco maior) */
+  --recuo-da-janela-das-datas: 12px;
+  /* A folga em volta do nome do mês e dos dias da semana, no calendário da janela (no campo de data, um pouco maior) */
+  --folga-do-calendario-na-janela: 3px;
   /* O recuo do texto dentro dos campos e o arredondado deles: os mesmos dos outros campos do cartão */
   --recuo-do-campo-da-janela: 10px;
   --raio-do-campo-da-janela: 8px;
+  /* O lugar da seta fina das listas, à direita do texto (a seta tem 13px, a de .situacao-seta) */
+  --lugar-da-seta-da-janela: 30px;
   /* O recuo do botão do resumo no cartão, de cada lado, devolvido pela margem (o de .data-editavel-botao, em estilo.css) */
   --recuo-do-resumo: 6px;
 }
 
-/* A largura é a do calendário: a janela não fica mais larga que a tela (o .kmenu.painel já cuida da margem). */
+/* A largura é a do calendário: a janela não fica mais larga que a tela (o .kmenu.painel já cuida da margem). Sem o lugar fixo da
+   barra de rolagem (.kmenu): ela só aparece se a tela for baixa demais, e a folga da direita fica igual à da esquerda. */
+.kmenu.painel:has(> .janela-datas) { padding: var(--recuo-da-janela-das-datas); scrollbar-gutter: auto }
 .janela-datas { display: flex; flex-direction: column; gap: var(--vao-da-janela-das-datas); width: min(var(--largura-do-calendario), calc(100vw - 2 * var(--folga-do-calendario))) }
-.janela-datas-titulo { margin: 0; text-align: center }
-/* O calendário, sem a borda própria: ele já está dentro da janela. */
+/* No celular, a janela ocupa a largura da tela menos a folga das janelas dos dois lados; o MenuFlutuante a põe no meio. */
+@media (max-width: 640px) {
+  .kmenu.painel:has(> .janela-datas) { width: calc(100vw - 2 * var(--janela-margem)); max-width: none }
+  .janela-datas { width: 100% }
+}
+
+/* A cabeça: o nome ("Datas") no meio e o X na ponta direita (o X fica por cima da linha; o nome continua no meio da janela). */
+.janela-datas-cabeca { position: relative; display: flex; align-items: center; justify-content: center; min-height: var(--botao-da-janela-das-datas) }
+.janela-datas-titulo { margin: 0; font-size: var(--texto-tabela); font-weight: 700; color: var(--text) }
+.kmenu .janela-datas-cabeca .janela-datas-fechar { position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: var(--botao-da-janela-das-datas); height: var(--botao-da-janela-das-datas); border: 0; background: transparent; color: var(--text2) }
+.kmenu .janela-datas-cabeca .janela-datas-fechar:hover:not(:disabled) { background: var(--soft); color: var(--ink) }
+
+/* O calendário, sem a borda própria (já está dentro da janela) e com os dias um pouco menores. */
 .janela-datas .campo-data-calendario.no-lugar { width: 100%; padding: 0; border: 0 }
+.janela-datas .campo-data-topo { margin-bottom: var(--folga-do-calendario-na-janela) }
+.janela-datas .campo-data-grade th { padding: 0 0 var(--folga-do-calendario-na-janela) }
+/* Cada dia no meio da coluna, embaixo da letra do dia da semana, com o número no meio da bolinha: a regra dos botões do .kmenu
+   (flex, texto à esquerda, vão) não vale para os dias. */
+.kmenu .janela-datas .campo-data-grade td button { display: inline-flex; align-items: center; justify-content: center; gap: 0; margin-inline: auto; padding: 0; text-align: center;
+  width: var(--dia-da-janela-das-datas); height: var(--dia-da-janela-das-datas) }
+/* As setas do mês sem a folga dos botões do .kmenu (com ela, a seta encolhia até virar um ponto). */
+.janela-datas .campo-data-mes { width: var(--botao-da-janela-das-datas); height: var(--botao-da-janela-das-datas); padding: 0 }
+
+/* As datas, a repetição e o lembrete: o nome em cima, o campo embaixo. */
+.janela-datas-campos-da-janela { display: flex; flex-direction: column; gap: var(--vao-entre-as-datas-da-janela) }
 .janela-datas-linha { display: flex; flex-direction: column; gap: var(--vao-da-linha-das-datas); margin: 0 }
-.janela-datas-marcar { display: inline-flex; align-items: center; gap: var(--vao-da-linha-das-datas); cursor: pointer }
-.janela-datas-marcar input { width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: 0; accent-color: var(--accent) }
-.janela-datas-campos { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-da-linha-das-datas) }
-.janela-datas .data-editavel-campo { height: var(--campo-discreto); padding: 0 var(--recuo-do-campo-da-janela); border-radius: var(--raio-do-campo-da-janela); border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-corrido); color: var(--ink); font-variant-numeric: tabular-nums }
+.janela-datas-rotulo { align-self: flex-start; font-size: var(--texto-apoio); font-weight: 700; color: var(--text); cursor: default }
+label.janela-datas-rotulo { cursor: pointer }
+/* Com duas datas, o nome da que o calendário preenche fica verde, como a borda do campo dela. */
+.janela-datas-campos-da-janela:not([data-uma-data]) .janela-datas-linha[data-ativa] > .janela-datas-rotulo { color: var(--accent-ink) }
+
+/* A caixa de marcar, o campo e a hora, numa linha só, em colunas: a data e a hora com a mesma largura. Com alguma caixa de marcar
+   na janela, a coluna dela vem antes; a data sem caixa (o início) começa na coluna da caixa, junto do nome, e vai até o fim da
+   coluna da data de baixo. A data sozinha (a assinatura) ocupa a linha toda. */
+.janela-datas-campos { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: var(--vao-da-linha-das-datas) }
+[data-com-caixa] > .janela-datas-linha > .janela-datas-campos { grid-template-columns: var(--caixa-de-marcar) 1fr 1fr }
+[data-com-caixa] > .janela-datas-linha[data-sem-caixa] .janela-datas-data { grid-column: 1 / 3 }
+.janela-datas-campos > .janela-datas-data:only-child { grid-column: 1 / -1 }
+.janela-datas-caixa { width: var(--caixa-de-marcar); height: var(--caixa-de-marcar); margin: 0; accent-color: var(--accent); cursor: pointer }
+/* O fim do horário do compromisso, embaixo da hora: o "até" encostado nela, na coluna da data. */
+.janela-datas-fim > .janela-datas-ate { justify-self: end; font-size: var(--texto-apoio); color: var(--text2) }
+.janela-datas-fim > .janela-datas-lista { grid-column: 2 }
+
+.janela-datas .data-editavel-campo { width: 100%; height: var(--campo-da-janela-das-datas); min-width: 0; padding: 0 var(--recuo-do-campo-da-janela); border-radius: var(--raio-do-campo-da-janela); border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-tabela); color: var(--ink); font-variant-numeric: tabular-nums }
+.janela-datas .data-editavel-campo::placeholder { color: var(--muted); opacity: 1 }
+.janela-datas .data-editavel-campo:hover:not(:disabled, :focus) { border-color: var(--faint) }
 .janela-datas .data-editavel-campo:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
-.janela-datas .data-editavel-campo:disabled { background: var(--soft); color: var(--muted) }
+/* O que não se aplica agora (a entrega desmarcada, com a hora e o lembrete): um lugar vazio, de borda tracejada, sem fundo cinza.
+   Parece um espaço à espera da caixa de marcar, e não um campo quebrado; o texto continua legível. */
+.janela-datas .data-editavel-campo:disabled { border-style: dashed; background: transparent; color: var(--muted); cursor: not-allowed; opacity: 1 }
 .janela-datas .data-editavel-campo[aria-invalid="true"] { border-color: var(--erro) }
-.janela-datas-data { width: var(--largura-da-data-na-janela) }
-.janela-datas-hora { width: var(--largura-da-hora) }
-.janela-datas select.data-editavel-campo { width: 100% }
 /* A data que o calendário preenche agora fica marcada, como o campo com o foco: a pessoa vê para onde vai o dia escolhido. */
 .janela-datas-linha[data-ativa] .janela-datas-data:not(:disabled) { border-color: var(--accent) }
-.janela-datas-ate { display: inline-flex; align-items: center; gap: var(--vao-da-linha-das-datas); font-size: var(--texto-apoio); font-weight: 700; color: var(--text2) }
-.janela-datas-texto { font-size: var(--texto-corrido); color: var(--text) }
-.janela-datas-nota { margin: 0; font-size: var(--texto-apoio); color: var(--muted) }
-.janela-datas-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--vao-da-linha-das-datas) }
+
+/* As listas (a hora, a repetição, o lembrete) com a seta fina do sistema, como a lista "Situação" do cartão, e não a do navegador. */
+.janela-datas-lista { position: relative; display: flex; min-width: 0 }
+.janela-datas .janela-datas-lista select { appearance: none; padding-right: var(--lugar-da-seta-da-janela); text-overflow: ellipsis; cursor: pointer }
+.janela-datas .janela-datas-lista select option { background: var(--superficie); color: var(--ink) }
+.janela-datas .janela-datas-lista select:disabled { cursor: not-allowed }
+.janela-datas-seta { position: absolute; top: 50%; right: var(--recuo-do-campo-da-janela); transform: translateY(-50%); display: inline-flex; color: var(--text2); pointer-events: none }
+.janela-datas-lista:has(select:disabled) .janela-datas-seta { display: none }
+.janela-datas-nota { margin: 0; font-size: var(--texto-apoio); line-height: 1.4; color: var(--muted) }
+
+/* Salvar e Remover na largura toda, um embaixo do outro (o Salvar em cima, o principal). */
+.janela-datas-acoes { display: flex; flex-direction: column; gap: var(--vao-da-linha-das-datas) }
+.kmenu .janela-datas-acoes .btn { width: 100%; height: var(--campo-da-janela-das-datas); justify-content: center; border: 1px solid var(--line2); font-size: var(--texto-tabela) }
+.kmenu .janela-datas-acoes .btn.pri { border-color: var(--accent) }
+.kmenu .janela-datas-acoes .btn:not(.pri) { background: var(--superficie); font-weight: 700 }
+.kmenu .janela-datas-acoes .btn:not(.pri):hover:not(:disabled) { background: var(--soft) }
+
 /* O resumo curto no cartão: o nome de cada data em letra comum, o valor em negrito (o b da faixa das datas). */
 .resumo-das-datas { white-space: normal }
 /* Cada pedaço ("Início 20/11/2026") fica inteiro numa linha: quando não cabe, a quebra é entre os pedaços. */

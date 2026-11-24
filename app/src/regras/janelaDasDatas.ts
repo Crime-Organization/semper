@@ -5,6 +5,7 @@
 // Aqui, o rascunho da janela e o que cada clique faz nele. Tudo puro, sem tela nem banco: o que cada módulo grava fica em
 // regras/datasNoCartao.ts.
 import type { Lembrete } from '../dados/tipos';
+import { DIA, MINUTO } from '../ui/tempos';
 import { fmtData } from './pessoa';
 
 /** As duas datas que a janela pode ter: o início e a entrega (no compromisso, a data dele; no contrato, a assinatura). */
@@ -21,12 +22,14 @@ export interface CamposDasDatas {
   /** O fim do horário (o "Até" do compromisso), ou vazio. */
   horaFim: string;
   lembrete: Lembrete | null;
+  /** Como o item passa a se repetir (#431; no compromisso: 'semana', 'mes', 'ano'), ou vazio: "Nunca" (não muda nada). */
+  repetir: string;
 }
 /** Os campos que podem ter erro na janela. */
 export type CampoDasDatas = 'inicio' | 'entrega' | 'hora' | 'horaFim' | 'lembrete';
 
 /** A janela sem data nenhuma. */
-export const DATAS_VAZIAS: CamposDasDatas = { inicio: '', temInicio: false, entrega: '', temEntrega: false, hora: '', horaFim: '', lembrete: null };
+export const DATAS_VAZIAS: CamposDasDatas = { inicio: '', temInicio: false, entrega: '', temEntrega: false, hora: '', horaFim: '', lembrete: null, repetir: '' };
 
 /** O que a janela de um item tem: as datas que existem nele e se cada uma pode ficar sem data (a caixa de marcar). */
 export interface PartesDasDatas { inicio?: { opcional: boolean }; entrega?: { opcional: boolean } }
@@ -42,8 +45,22 @@ export const textoDaData = (c: CamposDasDatas, qual: QualData) => c[CAMPOS_DA_DA
 /** A data está marcada no rascunho? */
 export const dataMarcada = (c: CamposDasDatas, qual: QualData) => c[CAMPOS_DA_DATA[qual].marcada];
 
-/** A data que o calendário preenche quando a janela abre: a entrega, se o item tem uma; senão, o início. */
-export const dataAtivaAoAbrir = (partes: PartesDasDatas): QualData => partes.entrega ? 'entrega' : 'inicio';
+/**
+ * A data que o calendário preenche quando a janela abre: a entrega, se o item tem uma; senão, o início. A entrega desmarcada, numa
+ * janela que também tem o início (a tarefa sem prazo), não é a ativa (#431): o calendário mostra o início, que tem data; para dar
+ * um prazo, a pessoa marca a entrega, e ela passa a ser a ativa.
+ */
+export const dataAtivaAoAbrir = (partes: PartesDasDatas, c?: CamposDasDatas): QualData =>
+  !partes.entrega || (partes.inicio && partes.entrega.opcional && c && !dataMarcada(c, 'entrega')) ? 'inicio' : 'entrega';
+
+/** A outra data da janela (a entrega, para o início; o início, para a entrega). */
+const OUTRA_DATA: Record<QualData, QualData> = { inicio: 'entrega', entrega: 'inicio' };
+/**
+ * A data que o calendário preenche depois que a pessoa desmarca uma data (#431): se era a ativa, passa a ser a outra (a entrega
+ * desmarcada leva o calendário, e a borda verde, ao início); se a janela não tem outra, ou a desmarcada não era a ativa, nada muda.
+ */
+export const dataAtivaAoDesmarcar = (partes: PartesDasDatas, ativa: QualData, desmarcada: QualData): QualData =>
+  ativa === desmarcada && partes[OUTRA_DATA[desmarcada]] ? OUTRA_DATA[desmarcada] : ativa;
 
 /** A pessoa escolheu um dia no calendário (aaaa-mm-dd): ele vai para a data ativa, que fica marcada. */
 export function escolherDia(c: CamposDasDatas, qual: QualData, iso: string): CamposDasDatas {
@@ -76,7 +93,7 @@ export function datasQueValem(c: CamposDasDatas, partes: PartesDasDatas): Campos
   const semEntrega = !entrega.trim();
   return {
     inicio: temInicio ? c.inicio : '', temInicio, entrega, temEntrega,
-    hora: semEntrega ? '' : c.hora, horaFim: semEntrega ? '' : c.horaFim, lembrete: semEntrega ? null : c.lembrete
+    hora: semEntrega ? '' : c.hora, horaFim: semEntrega ? '' : c.horaFim, lembrete: semEntrega ? null : c.lembrete, repetir: c.repetir
   };
 }
 
@@ -102,3 +119,29 @@ export interface PedacoDoResumo { rotulo: string; valor: string }
 export const SEPARADOR_DO_RESUMO = ' · ';
 /** O resumo curto das datas, para o cartão e o leitor de tela: "Início 20/11/2026 · Entrega 15/12/2030 às 14:00". */
 export const resumoDasDatas = (pedacos: readonly PedacoDoResumo[]) => pedacos.map(p => p.rotulo ? `${p.rotulo} ${p.valor}` : p.valor).join(SEPARADOR_DO_RESUMO);
+
+/** A escolha de quem não se repete, no começo da lista da repetição (#431). */
+export const NUNCA_SE_REPETE = 'Nunca';
+
+/** De quantos em quantos minutos vem a lista de horários da janela (#431): 09:00, 09:15, 09:30… (a audiência das 14:15 cabe). */
+export const PASSO_DA_LISTA_DE_HORARIOS = 15;
+/** O último minuto do dia, no fim da lista: o prazo eletrônico vale até as 23:59. */
+export const FIM_DO_DIA = '23:59';
+/** Quantos minutos tem o dia. */
+const MINUTOS_DO_DIA = DIA / MINUTO;
+/** Quantos minutos tem a hora. */
+const MINUTOS_DA_HORA = 60;
+
+/** Os minutos do dia em hh:mm ("09:05"). */
+const horaDosMinutos = (minutos: number) =>
+  `${String(Math.floor(minutos / MINUTOS_DA_HORA)).padStart(2, '0')}:${String(minutos % MINUTOS_DA_HORA).padStart(2, '0')}`;
+
+/**
+ * Os horários da lista da hora (#431): do 00:00 ao 23:45, de 15 em 15 minutos, e o 23:59. A hora gravada que não está na lista
+ * (ex.: 20:38, de antes da lista) entra no lugar dela, para continuar escolhida.
+ */
+export function horariosDaLista(atual = ''): string[] {
+  const lista = Array.from({ length: MINUTOS_DO_DIA / PASSO_DA_LISTA_DE_HORARIOS }, (_, i) => horaDosMinutos(i * PASSO_DA_LISTA_DE_HORARIOS));
+  lista.push(FIM_DO_DIA);
+  return atual && !lista.includes(atual) ? [...lista, atual].sort() : lista;
+}

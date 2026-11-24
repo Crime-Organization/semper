@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { DISTANCIA_DO_BOTAO, FaixaDoCartao, MARGEM_DA_TELA, MenuFlutuante } from './Menu';
+import { DISTANCIA_DO_BOTAO, FaixaDoCartao, lugarSemCobrir, MARGEM_DA_TELA, MenuFlutuante, quantoRolarParaCaber } from './Menu';
 
 // Botão "⋯" que abre o menu, como na barra de um módulo.
 function ComMenu() {
@@ -200,5 +200,47 @@ describe('Menu flutuante dentro de um cartão, com a faixa de botões no alto (#
     const menu = screen.getByRole('dialog', { name: 'Mudar a data' });
     expect(parseFloat(menu.style.top)).toBe(54 + DISTANCIA_DO_BOTAO);
     expect(menu.style.maxHeight).toBe('');
+  });
+});
+
+describe('O painel que não cobre o botão que o abriu (#431, a janela das datas)', () => {
+  /** Uma tela de 768px de altura, com a faixa do cartão até 60px (o teto). */
+  const TELA = 768, TETO = 60, ALTURA = 600;
+
+  it('dado espaço embaixo do botão, então o painel abre logo embaixo dele, sem rolar nada', () => {
+    // Dado
+    const botao = { top: 100, bottom: 130 };
+    // Quando / Então
+    expect(quantoRolarParaCaber(botao, 400, TELA, TETO)).toBe(0);
+    expect(lugarSemCobrir(botao, 400, TELA, TETO)).toEqual({ top: 130 + DISTANCIA_DO_BOTAO });
+  });
+
+  it('dado o botão no meio da tela, sem espaço embaixo nem em cima, então o cartão rola só o que falta e o painel fica embaixo, inteiro', () => {
+    // Dado: com o botão em 200–230, o painel de 600px passaria do pé da tela em 80px
+    const botao = { top: 200, bottom: 230 };
+    // Quando
+    const rolar = quantoRolarParaCaber(botao, ALTURA, TELA, TETO);
+    // Então
+    expect(rolar).toBe(230 + DISTANCIA_DO_BOTAO + ALTURA - (TELA - MARGEM_DA_TELA));
+    const rolado = { top: botao.top - rolar, bottom: botao.bottom - rolar };
+    expect(lugarSemCobrir(rolado, ALTURA, TELA, TETO)).toEqual({ top: rolado.bottom + DISTANCIA_DO_BOTAO });
+  });
+
+  it('dado o botão perto do pé da tela, com espaço em cima, então o painel abre em cima dele, sem cobri-lo e sem rolar', () => {
+    // Dado
+    const botao = { top: 700, bottom: 730 };
+    // Quando / Então
+    expect(quantoRolarParaCaber(botao, 400, TELA, TETO)).toBe(0);
+    expect(lugarSemCobrir(botao, 400, TELA, TETO)).toEqual({ top: 700 - DISTANCIA_DO_BOTAO - 400 });
+  });
+
+  it('dado um painel mais alto que a tela, então ele fica do lado com mais espaço, do tamanho que cabe, e o botão continua à vista', () => {
+    // Dado
+    const botao = { top: TETO, bottom: TETO + 30 };
+    // Quando
+    const lugar = lugarSemCobrir(botao, 2000, TELA, TETO);
+    // Então
+    expect(lugar.top).toBe(botao.bottom + DISTANCIA_DO_BOTAO);
+    expect(lugar.top + lugar.maxHeight!).toBe(TELA - MARGEM_DA_TELA);
   });
 });

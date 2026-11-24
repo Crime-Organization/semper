@@ -15,7 +15,7 @@ function Cartao({ aoSalvar = vi.fn(), podeMudar = true, inicial = '2026-02-02' }
   const [valor, setValor] = useState<string | null>(inicial);
   return <>
     <Avisos />
-    <DataEditavel nome="Data da assinatura" rotulo="Assinado em" valor={valor} semData="Ainda não" conferir={erroDaAssinatura}
+    <DataEditavel nome="Data da assinatura" valor={valor} semData="Ainda não" conferir={erroDaAssinatura}
       aoSalvar={podeMudar ? iso => { setValor(iso); return aoSalvar(iso); } : undefined} />
   </>;
 }
@@ -33,7 +33,9 @@ describe('Uma data só do cartão, na janela das datas (#357, #422)', () => {
     render(<Cartao aoSalvar={aoSalvar} />);
     // Quando
     await userEvent.click(data());
-    expect(janela().getByRole('checkbox', { name: 'Assinado em' })).toBeChecked();
+    // A regra mudou na #431: numa data só, sem a caixa de marcar (o Remover já tira a data) nem o nome repetido em cima do campo
+    expect(janela().queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(janela().queryByText('Assinado em')).not.toBeInTheDocument();
     expect(campo()).toHaveValue('02/02/2026');
     await userEvent.click(within(janela().getByRole('group', { name: 'Calendário' })).getByRole('button', { name: /^segunda-feira, 9 de fevereiro de 2026/ }));
     await userEvent.click(janela().getByRole('button', { name: 'Salvar' }));
@@ -65,6 +67,21 @@ describe('Uma data só do cartão, na janela das datas (#357, #422)', () => {
     // Então
     expect(janela().getByRole('alert')).toHaveTextContent('Data inexistente.');
     expect(aoSalvar).not.toHaveBeenCalled();
+  });
+
+  it('dado um contrato ainda não assinado, quando a pessoa abre a janela e escolhe o dia no calendário, então o campo, livre e vazio, recebe a data, e Salvar grava (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao aoSalvar={aoSalvar} inicial={null} />);
+    await userEvent.click(data());
+    expect(campo()).toBeEnabled();
+    expect(campo()).toHaveValue('');
+    expect(janela().queryByRole('button', { name: 'Remover' })).not.toBeInTheDocument();
+    // Quando
+    await userEvent.click(within(janela().getByRole('group', { name: 'Calendário' })).getByRole('button', { name: /^sexta-feira, 20 de novembro de 2026/ }));
+    await userEvent.click(janela().getByRole('button', { name: 'Salvar' }));
+    // Então
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenCalledWith('2026-11-20'));
   });
 
   it('dado quem só lê, quando olha a data, então é só texto', () => {

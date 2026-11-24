@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONFERENCIAS_DO_LEMBRETE, HORA_PADRAO_DO_LEMBRETE, horaCurta, horaELembreteAoGravar, horaELembreteDoCartao, instanteDoLembrete, lembreteChegou, lembreteDesligado, LEMBRETES, lerLembrete,
-  momentoDoPrazo, NOTA_DO_LEMBRETE, OPCOES_DE_LEMBRETE, prazoComHora, rotuloDoLembrete, SEM_LEMBRETE, textoDoLembrete, TOLERANCIA_DO_LEMBRETE_EM_MINUTOS
+  momentoDoPrazo, NOTA_CURTA_DO_LEMBRETE, NOTA_DO_LEMBRETE, OPCOES_DE_LEMBRETE, prazoComHora, rotuloDoLembrete, SEM_LEMBRETE, textoDoLembrete, TOLERANCIA_DO_LEMBRETE_EM_MINUTOS
 } from './lembrete';
 
 describe('As opções de lembrete', () => {
@@ -46,6 +46,8 @@ describe('As opções de lembrete', () => {
     expect(horaCurta('14:30:00')).toBe('14h30');
     expect(NOTA_DO_LEMBRETE).toContain('Sem hora, o lembrete conta o prazo às 9h.');
     expect(NOTA_DO_LEMBRETE).not.toContain('Opcional');
+    // E a nota curta, da janela das datas (#431), diz o mesmo numa frase curta
+    expect(NOTA_CURTA_DO_LEMBRETE).toBe('Chega ao responsável e a quem está junto. Sem hora, conta às 9h.');
   });
 });
 

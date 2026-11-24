@@ -133,9 +133,15 @@ const quantas = (n: number, uma: string, varias: string) => `${n} ${n === 1 ? um
 const avisoDaSalaOcupada = (semSala: readonly string[]) => semSala.length
   ? ` Em ${quantas(semSala.length, 'data', 'datas')} (${semSala.map(fmtData).join(', ')}), a sala estava ocupada, e o compromisso ficou sem sala.`
   : '';
-/** O aviso depois de cadastrar o compromisso que se repete: quantas datas a mais e, se houver, em quantas a sala estava ocupada. */
-export const avisoDaRepeticao = (codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>) =>
-  `Compromisso ${codigo} cadastrado, com mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.` + avisoDaSalaOcupada(criada.semSala);
+/** O começo do aviso da repetição: no cadastro e no cartão (#431: o compromisso que passa a se repetir na janela das datas). */
+const CADASTRADO_COM_REPETICAO = 'cadastrado, com';
+export const REPETIDO_NO_CARTAO = 'passa a se repetir, com';
+/**
+ * O aviso depois de cadastrar o compromisso que se repete (ou de fazê-lo se repetir no cartão: `feito` = REPETIDO_NO_CARTAO):
+ * quantas datas a mais e, se houver, em quantas a sala estava ocupada.
+ */
+export const avisoDaRepeticao = (codigo: string, criada: Pick<RepeticaoCriada, 'ids' | 'semSala'>, feito = CADASTRADO_COM_REPETICAO) =>
+  `Compromisso ${codigo} ${feito} mais ${quantas(criada.ids.length, 'data', 'datas')} na agenda.` + avisoDaSalaOcupada(criada.semSala);
 
 /** A repetição por extenso, como o cartão mostra: "Todo ano", "A cada 10 anos, até 31/12/2050", "Toda semana, 12 vezes". */
 export function descreverRepeticao(r: Pick<RegraDeRepeticao, 'frequencia' | 'intervalo' | 'ate' | 'vezes'>) {

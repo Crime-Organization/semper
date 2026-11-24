@@ -59,15 +59,58 @@ describe('Data e horário do compromisso na janela das datas (#361, #422)', () =
     expect(aoSalvar).not.toHaveBeenCalled();
   });
 
-  it('dado um compromisso que se repete, quando a janela abre, então diz como ele se repete, só para ler', async () => {
+  it('dado um compromisso que se repete, quando a janela abre, então a lista "Repetição" mostra como ele se repete, sem mudar ali, e diz por quê (#431)', async () => {
     // Dado
     const repeticao: RepeticaoCompromisso = { id: 'r1', inicio: '2026-11-20', frequencia: 'semana', intervalo: 1, ate: null, vezes: null };
-    render(<QuandoDoCompromisso c={{ ...reuniao, repeticao }} aoSalvar={vi.fn()} />);
+    render(<QuandoDoCompromisso c={{ ...reuniao, repeticao }} aoSalvar={vi.fn()} aoRepetir={vi.fn()} />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: /^Data e horário/ }));
     // Então
-    expect(janela().getByText('Repetição')).toBeInTheDocument();
-    expect(janela().getByText(/semana/i)).toBeInTheDocument();
+    const lista = janela().getByRole('combobox', { name: 'Repetição' });
+    expect(lista).toBeDisabled();
+    expect(lista).toHaveDisplayValue('Toda semana, sem data para terminar');
+    expect(lista).toHaveAccessibleDescription(/As datas seguintes já estão na agenda/);
+  });
+
+  it('dado um compromisso que não se repete, quando a pessoa escolhe "Todo mês" na lista da repetição e salva, então ele passa a se repetir, sem mudar a data (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn(), aoRepetir = vi.fn();
+    render(<><Avisos /><QuandoDoCompromisso c={reuniao} aoSalvar={aoSalvar} aoRepetir={aoRepetir} /></>);
+    await userEvent.click(screen.getByRole('button', { name: /^Data e horário/ }));
+    const lista = janela().getByRole('combobox', { name: 'Repetição' });
+    expect(lista).toHaveDisplayValue('Nunca');
+    expect([...lista.querySelectorAll('option')].map(o => o.textContent)).toEqual(['Nunca', 'Toda semana', 'Todo mês', 'Todo ano']);
+    // Quando
+    await userEvent.selectOptions(lista, 'Todo mês');
+    await userEvent.click(janela().getByRole('button', { name: 'Salvar' }));
+    // Então
+    await vi.waitFor(() => expect(aoRepetir).toHaveBeenCalledWith('mes'));
+    expect(aoSalvar).not.toHaveBeenCalled();
+  });
+
+  it('dado um compromisso que não se repete, quando a pessoa muda o dia e escolhe "Toda semana", então grava a data primeiro e depois a repetição, que conta da data nova (#431)', async () => {
+    // Dado
+    const ordem: string[] = [];
+    const aoSalvar = vi.fn(() => { ordem.push('data'); }), aoRepetir = vi.fn(() => { ordem.push('repetir'); });
+    render(<><Avisos /><QuandoDoCompromisso c={reuniao} aoSalvar={aoSalvar} aoRepetir={aoRepetir} /></>);
+    await userEvent.click(screen.getByRole('button', { name: /^Data e horário/ }));
+    // Quando
+    await userEvent.click(within(janela().getByRole('group', { name: 'Calendário' })).getByRole('button', { name: /^quinta-feira, 26 de novembro de 2026/ }));
+    await userEvent.selectOptions(janela().getByRole('combobox', { name: 'Repetição' }), 'Toda semana');
+    await userEvent.click(janela().getByRole('button', { name: 'Salvar' }));
+    // Então
+    await vi.waitFor(() => expect(ordem).toEqual(['data', 'repetir']));
+    expect(aoSalvar).toHaveBeenCalledWith({ data: '2026-11-26', hora: '14:00', hora_fim: null });
+    expect(aoRepetir).toHaveBeenCalledWith('semana');
+  });
+
+  it('dada uma audiência, quando a janela abre, então não há lista da repetição (audiência e perícia não se repetem, como no cadastro)', async () => {
+    // Dado
+    render(<QuandoDoCompromisso c={{ ...reuniao, tipo: 'audiencia' }} aoSalvar={vi.fn()} aoRepetir={vi.fn()} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /^Data e horário/ }));
+    // Então
+    expect(janela().queryByRole('combobox', { name: 'Repetição' })).not.toBeInTheDocument();
   });
 
   it('dado quem só vê o compromisso, quando olha a data, então é só texto', () => {

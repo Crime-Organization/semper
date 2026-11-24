@@ -29,7 +29,7 @@ const janela = () => screen.getByRole('dialog', { name: 'Mudar as datas' });
 const dentro = () => within(janela());
 const prazo = () => dentro().getByRole('textbox', { name: 'Prazo' });
 const inicio = () => dentro().getByRole('textbox', { name: 'Data de início' });
-const entrega = () => dentro().getByRole('checkbox', { name: 'Entrega' });
+const entrega = () => dentro().getByRole('checkbox', { name: 'Data de entrega' });
 const dia = (nome: RegExp) => within(dentro().getByRole('group', { name: 'Calendário' })).getByRole('button', { name: nome });
 
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-18T15:00:00.000Z')); });
@@ -46,19 +46,22 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('quando a pessoa clica em "Datas", então a janela abre com o calendário, o início, a entrega com a caixa marcada, a hora, o lembrete, Salvar e Remover', async () => {
+  it('quando a pessoa clica em "Datas", então a janela abre com o nome e o X, o calendário (sem o "Hoje", #431), o início, a entrega com a caixa marcada, a hora numa lista, o lembrete, Salvar e Remover', async () => {
     // Dado
     render(<Cartao />);
     // Quando
     await userEvent.click(datas());
     // Então
     expect(dentro().getByRole('group', { name: 'Calendário' })).toBeInTheDocument();
-    expect(dentro().getByRole('button', { name: 'Hoje' })).toBeInTheDocument();
+    expect(dentro().getByText('Datas')).toBeInTheDocument();
+    expect(dentro().getByRole('button', { name: 'Fechar' })).toBeInTheDocument();
+    // A regra mudou na #431: o "Hoje" sozinho numa linha deixava a janela alta; o dia de hoje fica marcado na grade
+    expect(dentro().queryByRole('button', { name: 'Hoje' })).not.toBeInTheDocument();
     expect(inicio()).toHaveValue('18/11/2026');
     expect(entrega()).toBeChecked();
     expect(prazo()).toHaveValue('30/11/2026');
     expect(prazo()).toHaveFocus();
-    expect(dentro().getByLabelText('Hora do prazo')).toHaveValue('14:00');
+    expect(dentro().getByRole('combobox', { name: 'Hora do prazo' })).toHaveValue('14:00');
     expect(dentro().getByRole('combobox', { name: 'Lembrete' })).toHaveValue('60');
     expect(dentro().getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
     expect(dentro().getByRole('button', { name: 'Remover' })).toBeInTheDocument();
@@ -104,8 +107,10 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     expect(datas()).toHaveTextContent('Início 18/11/2026 · Sem prazo');
     await userEvent.click(datas());
     expect(entrega()).not.toBeChecked();
-    expect(entrega()).toHaveFocus();
+    // A regra mudou na #431: sem prazo, a data ativa é o início (o calendário escreve nele), e o foco vai para ele
+    expect(inicio()).toHaveFocus();
     expect(prazo()).toBeDisabled();
+    expect(prazo()).toHaveValue('');
     expect(dentro().queryByRole('button', { name: 'Remover' })).not.toBeInTheDocument();
     // Quando
     await userEvent.click(entrega());
@@ -180,6 +185,78 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     // Então
     await vi.waitFor(() => expect(screen.getAllByText('Sem conexão.').length).toBeGreaterThan(0));
     expect(prazo()).toHaveValue('25/11/2026');
+  });
+
+  it('dada uma mudança na janela, quando a pessoa clica no X, então a janela fecha, nada muda e o foco volta às datas (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao aoSalvar={aoSalvar} />);
+    await userEvent.click(datas());
+    await userEvent.click(dia(/^quarta-feira, 25 de novembro de 2026/));
+    // Quando
+    await userEvent.click(dentro().getByRole('button', { name: 'Fechar' }));
+    // Então
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(aoSalvar).not.toHaveBeenCalled();
+    expect(datas()).toHaveFocus();
+    expect(datas()).toHaveTextContent('Entrega 30/11/2026');
+  });
+
+  it('dada a entrega, quando a pessoa escolhe a hora, então escolhe numa lista de horários de 15 em 15 minutos, e Salvar grava (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao aoSalvar={aoSalvar} />);
+    await userEvent.click(datas());
+    const hora = dentro().getByRole('combobox', { name: 'Hora do prazo' });
+    // Então
+    expect(within(hora).getByRole('option', { name: 'Sem hora' })).toBeInTheDocument();
+    expect(within(hora).getByRole('option', { name: '14:15' })).toBeInTheDocument();
+    expect(within(hora).getByRole('option', { name: '23:59' })).toBeInTheDocument();
+    // Quando
+    await userEvent.selectOptions(hora, '16:45');
+    await userEvent.click(dentro().getByRole('button', { name: 'Salvar' }));
+    // Então
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenCalledWith({ data_inicio: '2026-11-18', prazo: '2026-11-30', prazo_hora: '16:45', lembrete: 60 }));
+  });
+
+  it('dada a janela, quando a pessoa a vê, então o nome de cada data marca a caixa dela, e Salvar vem antes de Remover (#431)', async () => {
+    // Dado
+    render(<Cartao />);
+    await userEvent.click(datas());
+    // Quando: o clique no nome "Data de entrega" desmarca a caixa
+    await userEvent.click(dentro().getByText('Data de entrega'));
+    // Então
+    expect(entrega()).not.toBeChecked();
+    expect(prazo()).toBeDisabled();
+    expect(dentro().getByRole('combobox', { name: 'Hora do prazo' })).toBeDisabled();
+    const botoes = dentro().getAllByRole('button', { name: /^(Salvar|Remover)$/ }).map(b => b.textContent);
+    expect(botoes).toEqual(['Salvar', 'Remover']);
+  });
+
+  it('dado um prazo, quando a pessoa desmarca a entrega, então o campo dela fica vazio, a hora e o lembrete voltam ao começo, e o calendário passa a escrever no início (#431)', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Cartao aoSalvar={aoSalvar} />);
+    await userEvent.click(datas());
+    // Quando
+    await userEvent.click(entrega());
+    // Então: nada do prazo antigo à vista, e o início não tem caixa de marcar (é obrigatório)
+    expect(prazo()).toHaveValue('');
+    expect(dentro().getByRole('combobox', { name: 'Hora do prazo' })).toHaveValue('');
+    expect(dentro().getByRole('combobox', { name: 'Lembrete' })).toHaveValue('');
+    expect(dentro().getAllByRole('checkbox')).toHaveLength(1);
+    // Quando: escolhe um dia
+    await userEvent.click(dia(/^sexta-feira, 20 de novembro de 2026/));
+    // Então: o dia vai para o início, e a entrega continua desmarcada
+    expect(inicio()).toHaveValue('20/11/2026');
+    expect(entrega()).not.toBeChecked();
+    // Quando: marca de novo
+    await userEvent.click(entrega());
+    // Então: o prazo de antes volta, e ele passa a ser o que o calendário preenche
+    expect(prazo()).toHaveValue('30/11/2026');
+    await userEvent.click(dia(/^quarta-feira, 25 de novembro de 2026/));
+    expect(prazo()).toHaveValue('25/11/2026');
+    expect(inicio()).toHaveValue('20/11/2026');
   });
 
   it('dado quem só lê o cartão, quando olha as datas, então vê o resumo como texto, sem botão nem janela', () => {

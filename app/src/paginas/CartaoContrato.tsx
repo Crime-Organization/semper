@@ -244,7 +244,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {/* O início das negociações (#311), antes da assinatura, e, com as duas datas, quantos dias a negociação levou. */}
         {k.negociacao_inicio && <DadoDoGrupo rotulo="Início das negociações"><b className="num">{fmtData(k.negociacao_inicio)}</b></DadoDoGrupo>}
         <DadoDoGrupo rotulo="Assinado em">
-          <DataEditavel nome="Data da assinatura" rotulo="Assinado em" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
+          <DataEditavel nome="Data da assinatura" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
             aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
         </DadoDoGrupo>
         {negociacao !== null && <DadoDoGrupo rotulo="Negociação"><b className="num">{textoDaNegociacao(negociacao)}</b></DadoDoGrupo>}

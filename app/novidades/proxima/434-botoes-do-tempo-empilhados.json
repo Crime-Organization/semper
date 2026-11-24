@@ -1,0 +1,5 @@
+{
+  "titulo": "Os botões do tempo da tarefa, um em cima do outro",
+  "texto": "Na faixa \"Seu tempo nesta tarefa\", os botões Iniciar (ou Pausar) e \"Ajustar meu tempo\" agora ficam um em cima do outro, com a mesma largura, ao lado do relógio, também no celular. Na tarefa concluída, o relógio mostra \"encerrado\" em vez de \"pausado\".",
+  "ondeAchar": "No cartão da tarefa, na faixa \"Seu tempo nesta tarefa\", logo abaixo das datas."
+}
