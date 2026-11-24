@@ -10,6 +10,7 @@ export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } fr
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
 export { TextoEditavel } from './TextoEditavel';
+export { DadosEditaveis, FormularioDosDados } from './DadosEditaveis';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CampoData, LugarDoCalendario, type HoraDoCampo, type PropsCampoData } from './CampoData';

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
-  semSairDoProcesso, validarProcesso, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso
+  semSairDoProcesso, validarProcesso, CAMPOS_DA_SECAO_DE_DADOS, errosDosDadosDoProcesso, soOsDadosDaSecao, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso
 } from './processo';
 
 const NUMERO_VALIDO = '0001234-97.2026.8.13.0024';
@@ -308,5 +308,43 @@ describe('Menções nos comentários do processo (#362)', () => {
     // Então
     expect(motivoSemMencaoNoProcesso(PROCESSO)({ id: 'u-fora', nome: 'Eli' })).toBe('não participa; inclua como colaborador');
     expect(mencaoNegadaNoProcesso('Eli')).toBe('Não é possível mencionar Eli neste processo: inclua essa pessoa como colaboradora antes.');
+  });
+});
+
+describe('Dados do processo mudados na própria seção (#428)', () => {
+  it('dado um processo antigo sem cliente, quando a seção confere os dados, então só os erros dos campos dela contam', () => {
+    // Dado
+    const c = valido({ clientes: [''], valorCausa: 'muito' });
+    // Quando
+    const erros = errosDosDadosDoProcesso(c);
+    // Então
+    expect(validarProcesso(c).clientes).toBeDefined();
+    expect(erros).toEqual({ valorCausa: 'Use um valor como 1.500,00.' });
+  });
+
+  it('dado o número fora do padrão do CNJ, quando a seção confere os dados, então o erro do número aparece nela', () => {
+    // Quando
+    const erros = errosDosDadosDoProcesso(valido({ numero: '123' }));
+    // Então
+    expect(erros.numero).toEqual(expect.any(String));
+  });
+
+  it('quando a seção grava, então leva os dados dela, e o nome, os clientes e a equipe continuam como estão', () => {
+    // Dado
+    const dados = dadosDoProcesso(valido({ titulo: 'Nome', comarca: 'Belo Horizonte', polo: 'autor' }));
+    // Quando
+    const gravados = soOsDadosDaSecao(dados);
+    // Então
+    expect(gravados).not.toHaveProperty('titulo');
+    expect(gravados).not.toHaveProperty('clientes');
+    expect(gravados).not.toHaveProperty('responsavel_id');
+    expect(gravados).not.toHaveProperty('colaboradores');
+    expect(gravados).toMatchObject({ numero: NUMERO_VALIDO, comarca: 'Belo Horizonte', polo: 'autor' });
+  });
+
+  it('quando lista os campos da seção, então estão o número, o órgão, o polo e os detalhes, e não o nome nem as pessoas', () => {
+    // Então
+    expect(CAMPOS_DA_SECAO_DE_DADOS).toEqual(expect.arrayContaining(['numero', 'orgao', 'polo', 'sistema', 'comarca', 'observacoes']));
+    expect(CAMPOS_DA_SECAO_DE_DADOS.some(campo => ['titulo', 'clientes', 'responsavelId', 'colaboradores'].includes(campo))).toBe(false);
   });
 });

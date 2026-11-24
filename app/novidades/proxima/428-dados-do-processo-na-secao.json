@@ -1,0 +1,5 @@
+{
+  "titulo": "Dados do processo mudados ali mesmo",
+  "texto": "Para mudar o número, o órgão, a comarca, a vara ou outro dado do processo, basta clicar na seção \"Dados do processo\": ela vira um formulário, com os campos vazios também, e Salvar e Cancelar. Esc fecha sem salvar. O lápis continua abrindo o processo inteiro.",
+  "ondeAchar": "Em Processos, no cartão de um processo: clique nos dados da seção \"Dados do processo\"."
+}

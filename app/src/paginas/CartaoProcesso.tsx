@@ -6,9 +6,9 @@
 // numa seção que recolhe (prazos, dados, clientes, demandas, contratos, tarefas, compromissos). Na coluna da direita (no centro) ou
 // no pé do cartão (ao lado), desde a #362: comentários, andamentos (a linha do tempo), anotações e histórico de alterações.
 // Desde a #346, quem altera o processo muda o nome do cartão no próprio lugar, como na anotação (o lápis não o repete). Sem
-// nome, o título mostra os clientes (ou o número); o campo abre em branco, e apagar o nome volta a mostrá-los. O número
-// (em "Dados do processo") não vira campo: muda pelo lápis, com a conferência do CNJ.
-import { Fragment, useCallback, useEffect, useState } from 'react';
+// nome, o título mostra os clientes (ou o número); o campo abre em branco, e apagar o nome volta a mostrá-los. Desde a #428, os
+// dados (o número, com a conferência do CNJ, o órgão, o polo e os detalhes) mudam na própria seção "Dados do processo".
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type ComoEntrarNoProcesso, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
 import { TAMANHO_PROCESSO } from '../dados/limites';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
@@ -21,7 +21,8 @@ import {
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadosEditaveis, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { confirmar } from '../ui/janela';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeNoTopo } from './EquipeNoTopo';
@@ -79,6 +80,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const [campos, setCampos] = useState<CampoDeProcesso[]>([]);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
+  // A seção "Dados do processo" aberta para mudar ali mesmo (#428), e se ela tem algo mudado (o lápis pergunta antes de abrir por cima).
+  const [editandoDados, setEditandoDados] = useState(false);
+  const dadosMudados = useRef(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // O nome do cartão em edição no próprio lugar (#346).
   const noLugar = useEdicaoNoLugar();
@@ -181,7 +185,18 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
+    setEditandoDados(false);
     if (salvou) { aoMudar(); void carregar(); void lerCampos(); setVersaoHist(x => x + 1); }
+  }
+  /**
+   * O lápis abre o cartão inteiro como formulário, e a seção de dados aberta (#428) fecha: com algo mudado nela, pergunta antes,
+   * para nada se perder sem a pessoa saber.
+   */
+  async function abrirOLapis() {
+    if (editandoDados && dadosMudados.current
+      && !await confirmar('Descartar as mudanças em "Dados do processo"?', 'O lápis abre o processo inteiro para editar, e o que você mudou na seção não será salvo.', 'Descartar e editar', true)) return;
+    setEditandoDados(false);
+    setEditando(true);
   }
 
   // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
@@ -205,7 +220,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => void abrirOLapis()) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
         </SituacaoDoCartao>} />}
@@ -226,8 +241,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} aoMudarRascunho={noLugar.rascunhoDe('prazoDoProcesso')} />
 
+    {/* Quem altera o processo clica nos dados e eles viram um formulário ali mesmo (#428), com todos os campos, inclusive os vazios;
+        depois de salvar, a seção volta a mostrar só os preenchidos. O lápis continua abrindo o processo inteiro. */}
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
-      <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+      <DadosEditaveis rotulo="Dados do processo" editando={editandoDados} aoEditar={mudaNoLugar ? () => setEditandoDados(true) : undefined}
+        edicao={<NovoProcesso edicao={{ id: p.id, soOsDados: true, aoTerminar: terminarEdicao, aoMudarSujo: sujo => { dadosMudados.current = sujo; } }} />}>
+        <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+      </DadosEditaveis>
     </Recolhivel>
 
     {/* Tarefas e Compromissos vêm antes de Clientes (#429). O "+ Nova tarefa" (#376), com as condições do ligar: a tarefa nasce com o processo e os clientes dele, e a tela volta aqui. */}

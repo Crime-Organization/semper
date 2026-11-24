@@ -13,7 +13,8 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
-  LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
+  errosDosDadosDoProcesso, LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao,
+  tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -29,7 +30,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, FormularioDosDados, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -49,6 +50,8 @@ const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="check
 const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: [] };
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
+/** A primeira pergunta com erro: na etapa que está na tela ou, na seção de dados do cartão (#428), no formulário dela. */
+const PERGUNTA_COM_ERRO = '.etapa.ativa .pergunta.erro, .dados-editaveis-edicao .pergunta.erro';
 
 /** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. Do processo: recurso ou incidental (#316). */
 const ORIGENS = ['demanda', 'contrato', 'tarefa', 'processo'] as const;
@@ -243,7 +246,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     subirAoCadastro();
   }
   const focarErro = () => requestAnimationFrame(() =>
-    document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    document.querySelector(PERGUNTA_COM_ERRO)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   function avancar() {
     if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
@@ -331,14 +334,20 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   </Campo>;
 
   // ---------- envio ----------
-  /** No lápis do cartão, o nome do cartão fica de fora: o cartão já o muda no próprio lugar (#346). */
-  const noLapis = (d: DadosProcesso): DadosProcesso => edicao ? semOsCamposDoLugar(d) : d;
+  /**
+   * No lápis do cartão, o nome do cartão fica de fora: o cartão já o muda no próprio lugar (#346). Na seção de dados (#428), também
+   * as pessoas e a equipe: o que está gravado nelas continua como está.
+   */
+  const soOsDados = !!edicao?.soOsDados;
+  const noLapis = (d: DadosProcesso): DadosProcesso => soOsDados ? soOsDadosDaSecao(d) : edicao ? semOsCamposDoLugar(d) : d;
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
     const comErro = extrasComErro ? ETAPAS_PROCESSO.findIndex(e => e.id === 'detalhes') : primeiraEtapaComErroProcesso(c);
     const primeiroErro = primeiraEtapaComErroProcesso(c);
-    if (primeiroErro >= 0 || comErro >= 0) {
+    // Na seção de dados, só os erros dos campos dela (o cliente que falta num processo antigo não a impede de salvar).
+    const temErro = soOsDados ? extrasComErro || Object.keys(errosDosDadosDoProcesso(c)).length > 0 : primeiroErro >= 0 || comErro >= 0;
+    if (temErro) {
       setConferidas(new Set(ETAPAS_PROCESSO.map(e => e.id)));
       if (!edicao) irPara(primeiroErro >= 0 ? primeiroErro : comErro);
       focarErro();
@@ -353,7 +362,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
         const antes = noLapis(dadosDoProcesso(camposDoProcesso(alvo)));
-        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
+        // A seção de dados não mexe na equipe: ninguém sai do processo por ela.
+        const eu = ctx.perfil.id, { dados: gravar, ficou } = soOsDados ? { dados, ficou: false }
+          : semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.processoAtualizar(alvo.id, gravar);
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
@@ -406,17 +417,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     }
   }
 
-  const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
-    processo: () => <>
-      {/* O recurso ou incidental (#316): nasce de outro processo, e a pessoa diz qual dos dois ele é. */}
-      {!alvo && c.origemId && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
-        {TIPOS_DE_LIGACAO.map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l} onChange={() => mudar({ ligacao: l })} />{LIGACOES[l].nome}</label>)}
-      </Escolhas>}
-      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
-      {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
-        : <Escolhas rotulo="Tipo" obrigatorio>
-          {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudarNumero({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
-        </Escolhas>}
+  // O número e o órgão, e o polo: no cadastro, cada um na sua etapa; na seção de dados do cartão (#428), juntos com os detalhes.
+  const numeroEOrgao = () => <>
       <Campo rotulo="Número do processo" para="numero" obrigatorio erro={erros.numero}
         dica={noPadrao ? 'No padrão do CNJ. O sistema confere o número e indica o órgão.' : judicial ? 'Como aparece nos autos.' : 'O número do pedido ou do protocolo no órgão.'}>
         <input type="text" {...propsDoCampo('numero', { dica: true, erro: erros.numero })} inputMode={noPadrao ? 'numeric' : undefined} maxLength={TAMANHO_PROCESSO.numero} value={c.numero}
@@ -429,6 +431,26 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         <CampoComSugestoes type="text" {...propsDoCampo('orgao', { dica: true, erro: erros.orgao })} maxLength={TAMANHO_PROCESSO.orgao} valor={c.orgao}
           aoMudar={orgao => mudar({ orgao: orgao.toUpperCase() })} sugestoes={emSugestoes(siglas)} />
       </Campo>
+  </>;
+  const campoDoPolo = () => <Campo rotulo="Polo do cliente" para="polo">
+    <select {...propsDoCampo('polo')} value={c.polo} onChange={e => mudar({ polo: e.target.value as CamposProcesso['polo'] })}>
+      <option value="">{NAO_INFORMADO}</option>
+      {Object.entries(POLOS).map(([v, nome]) => <option key={v} value={v}>{nome}</option>)}
+    </select>
+  </Campo>;
+
+  const CONTEUDO: Record<EtapaProcesso, () => ReactNode> = {
+    processo: () => <>
+      {/* O recurso ou incidental (#316): nasce de outro processo, e a pessoa diz qual dos dois ele é. */}
+      {!alvo && c.origemId && <Escolhas rotulo="Este processo é" obrigatorio erro={erros.ligacao}>
+        {TIPOS_DE_LIGACAO.map(l => <label key={l}><input type="radio" name="ligacao" checked={c.ligacao === l} onChange={() => mudar({ ligacao: l })} />{LIGACOES[l].nome}</label>)}
+      </Escolhas>}
+      {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
+      {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
+        : <Escolhas rotulo="Tipo" obrigatorio>
+          {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudarNumero({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
+        </Escolhas>}
+      {numeroEOrgao()}
       {/* No lápis do cartão, o nome não se repete: o cartão o muda no próprio lugar (#346). */}
       {!edicao && <Campo rotulo="Nome do cartão" para="titulo" erro={erros.titulo} dica="Opcional. Sem ele, o cartão mostra o nome dos clientes.">
         <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_PROCESSO.titulo} value={c.titulo}
@@ -450,12 +472,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <Icone nome="mais" tam={13} /> Adicionar cliente
         </button></div>
       </CampoDeVarios>
-      <Campo rotulo="Polo do cliente" para="polo">
-        <select {...propsDoCampo('polo')} value={c.polo} onChange={e => mudar({ polo: e.target.value as CamposProcesso['polo'] })}>
-          <option value="">{NAO_INFORMADO}</option>
-          {Object.entries(POLOS).map(([v, nome]) => <option key={v} value={v}>{nome}</option>)}
-        </select>
-      </Campo>
+      {campoDoPolo()}
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pelo processo: qualquer um da equipe.">
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId}
           onChange={e => mudar({ responsavelId: e.target.value, colaboradores: c.colaboradores.filter(x => x !== e.target.value) })}>
@@ -529,6 +546,16 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>
     </>
   };
+
+  // Na seção "Dados do processo" do cartão (#428): os dados que ela mostra, inclusive os vazios, com Cancelar e Salvar no pé.
+  if (edicao && soOsDados) return !pronto ? <Carregando />
+    : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
+    : <FormularioDosDados rotulo="Editar os dados do processo" estado={c} ocupado={ocupado} aoMudarSujo={edicao.aoMudarSujo}
+      aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()}>
+      {numeroEOrgao()}
+      {campoDoPolo()}
+      {CONTEUDO.detalhes()}
+    </FormularioDosDados>;
 
   // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
   if (edicao) return !pronto ? <Carregando />

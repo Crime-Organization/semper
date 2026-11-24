@@ -229,7 +229,7 @@ export const ASSUNTOS: Assunto[] = [
       'ProcessosDoCartao', 'ProcessosRelacionados', 'ContratosDoProcesso', 'prazoDaTarefa', pasta('app/src/paginas/processo'),
       'processo', 'andamentos', 'camposDeProcesso', 'graficosDeProcessos', 'painelProcessos', 'numeroCNJ', 'processoDaDemanda', 'processoPartesERecursos', 'prazoDaTarefa',
       'EscolhaDeProcessos', 'LigarProcesso',
-      'processos', 'andamentos-e-comentarios-do-processo', 'mais-no-titulo-das-secoes', 'processo-partes-e-recursos', 'ligar-processo',
+      'processos', 'dados-do-processo-na-secao', 'andamentos-e-comentarios-do-processo', 'mais-no-titulo-das-secoes', 'processo-partes-e-recursos', 'ligar-processo',
       'criar-processo-e-tarefa-ligados', 'prazo-da-tarefa',
       'historico_processos_sem_nome_ordem', 'campos_de_processo', 'andamentos_e_prazos', 'painel_de_processos', 'painel_com_tipo_do_andamento', 'processo_demandas',
       'advogado_entra_no_processo', 'andamentos_tipo_e_comentarios_de_processos', 'colunas_de_acompanhamento_dos_processos', 'ligar_processo_existente',

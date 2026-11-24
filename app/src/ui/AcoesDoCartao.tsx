@@ -30,6 +30,13 @@ export interface EdicaoNoCartao {
   id: string;
   /** Contrato editado por quem não é parte: só o que não é valor. */
   semValores?: boolean;
+  /**
+   * A seção de dados mudada no próprio lugar (#428; ui/base/DadosEditaveis): o formulário mostra e grava só os dados que ela
+   * mostra, sem o nome, as pessoas e a equipe.
+   */
+  soOsDados?: boolean;
+  /** Na seção de dados: avisa quando há (ou deixa de haver) algo mudado, para o cartão perguntar antes de abrir o lápis por cima. */
+  aoMudarSujo?: (sujo: boolean) => void;
   aoTerminar: (salvou: boolean) => void;
 }
 

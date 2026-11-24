@@ -491,10 +491,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .titulo-editavel-campo:focus { outline: 2px solid var(--accent); outline-offset: 2px }
 .titulo-editavel-campo::placeholder { color: var(--faint); opacity: 1 }
 .texto-editavel { display: flex; flex-direction: column; align-items: flex-start }
-.texto-editavel-area { align-self: stretch; margin: 0 -10px; padding: 2px 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
+.texto-editavel-area, .dados-editaveis { align-self: stretch; margin: 0 -10px; padding: 2px 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
 /* O texto recebe o foco do teclado (#385): Enter abre a edição. No foco, o mesmo fundo do mouse e o contorno verde, colado nele. */
-.texto-editavel-area:hover, .texto-editavel-area:focus-visible { background: var(--soft) }
-.texto-editavel-area:focus-visible { outline-offset: 0 }
+.texto-editavel-area:hover, .texto-editavel-area:focus-visible, .dados-editaveis:hover, .dados-editaveis:focus-visible { background: var(--soft) }
+.texto-editavel-area:focus-visible, .dados-editaveis:focus-visible { outline-offset: 0 }
 .texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
 .texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
 .texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
@@ -504,6 +504,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
 .texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 .texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
+/* A seção de dados que se muda no lugar (#428): o mesmo fundo do texto ao passar o mouse, com a mão de clicar; aberta, os campos
+   em coluna, com o vão das etapas do lápis, e Cancelar e Salvar presos ao pé do cartão (.edicao-rodape). */
+.dados-editaveis { display: block; cursor: pointer }
+.dados-editaveis-edicao { display: flex; flex-direction: column; gap: 20px }
 /* A descrição na cabeça dos cartões (#346), depois dos dados (#397): o vão acima dela é o da cabeça (.cartao-cabeca-descricao), o
    mesmo para a descrição lida, a caixa aberta e o convite da descrição vazia, e fica fora do texto que se muda (#385): o fundo do
    mouse e o contorno do foco começam no texto. O convite da descrição vazia é discreto, para não pesar mais que o título. */
