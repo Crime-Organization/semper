@@ -144,7 +144,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const prazosNaAgenda = naAgenda ? acompanhamentoDaProtecao(p, hoje, calendarioDoInpi) : null, prazoExtra = naAgenda ? prazoExtraDaProtecao(p, hoje, calendarioDoInpi) : null;
   const aposODeferimento = naAgenda ? prazoAposODeferimentoNaAgenda(p, hoje, calendarioDoInpi) : null, concluir = naAgenda ? tituloDoDeferimentoAConcluir(p) : null;
   const acompanharNaAgenda = prazosNaAgenda || prazoExtra || aposODeferimento || concluir ? {
-    processoId: p.id, comDemanda: !!modulos?.demandas, hoje, concluir, aoMudar: () => setVersaoHist(v => v + 1),
+    processoId: p.id, comDemanda: !!modulos?.demandas, hoje, concluir, aoMudar: () => setVersaoHist(v => v + 1), versaoDoCartao: versaoHist,
     serie: prazosNaAgenda && { acompanhamento: prazosNaAgenda, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PROTECAO}` },
     extra: prazoExtra && { prazo: prazoExtra, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PRAZO_EXTRA}` },
     deferimento: aposODeferimento && { prazo: aposODeferimento, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_DEFERIMENTO}` }

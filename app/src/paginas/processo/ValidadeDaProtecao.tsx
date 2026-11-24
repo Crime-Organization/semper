@@ -42,6 +42,11 @@ export interface AcompanharNaAgenda {
   concluir: string | null;
   /** Depois de mudar um compromisso (atualizar as datas ou concluir): o cartão relê o que mostra. */
   aoMudar?: () => void;
+  /**
+   * A versão do cartão (a que as outras seções usam): muda quando algo do cartão mudou fora desta seção (um compromisso tirado do processo na
+   * seção "Compromissos", um desfazer). A seção relê os compromissos, para não oferecer o que já foi feito.
+   */
+  versaoDoCartao?: number;
 }
 
 /** O aviso de quando o calendário do INPI não pôde ser lido: a conta fica só com os feriados nacionais. */
@@ -87,7 +92,7 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar, calendario = 'pro
 interface NaAgenda { ligados: CompromissoLigado[]; concluida: string | null }
 
 /** Os atalhos para acompanhar os prazos na agenda (o prazo extra, o prazo após o deferimento e a série), ou os compromissos que já os acompanham. */
-function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferimento, concluir, aoMudar }: AcompanharNaAgenda) {
+function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferimento, concluir, aoMudar, versaoDoCartao }: AcompanharNaAgenda) {
   // undefined: ainda lendo os compromissos do processo (o atalho só aparece depois, para não oferecer um segundo).
   const [lido, setLido] = useState<NaAgenda | undefined>();
   const [versao, setVersao] = useState(0);
@@ -98,7 +103,7 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
       .then(([ligados, cols]) => { if (vale) setLido({ ligados, concluida: cols.find(c => c.marco === 'concluido')?.id ?? null }); })
       .catch(() => { if (vale) setLido({ ligados: [], concluida: null }); });
     return () => { vale = false; };
-  }, [processoId, concluir, versao]);
+  }, [processoId, concluir, versao, versaoDoCartao]);
   if (!lido) return null;
   const { ligados } = lido;
   const mudou = () => { setVersao(v => v + 1); aoMudar?.(); };

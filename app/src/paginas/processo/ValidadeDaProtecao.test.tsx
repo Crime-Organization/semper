@@ -5,7 +5,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Dados } from '../../dados';
+import type { CompromissoLigado, Dados } from '../../dados';
 import type { PrazoExtraDaProtecao, PrazosDaProtecao } from '../../regras/propriedadeIntelectual';
 import { Avisos } from '../../ui/avisos';
 import { CALENDARIO_DO_INPI_FALHOU, ValidadeDaProtecao, type AcompanharNaAgenda } from './ValidadeDaProtecao';
@@ -61,5 +61,26 @@ describe('Validade e anuidades: o calendário do INPI (#418)', () => {
     // Então
     expect(await screen.findByRole('link', { name: /Pôr o prazo na agenda/ })).toBeInTheDocument();
     expect(screen.getByText(`Cria na agenda "${TITULO}" em 05/01/2027.`)).toBeInTheDocument();
+  });
+});
+
+const ligado = (extra: Partial<CompromissoLigado> = {}): CompromissoLigado => ({
+  id: 'c1', codigo: 'C-1', tipo: 'outro', titulo: TITULO, data: '2027-01-05', hora: null, hora_fim: null, pessoa_nome: '', processo_numero: '918000001',
+  etapa_id: null, arquivado_em: null, papeis: [], ...extra
+});
+
+describe('Validade e anuidades: os compromissos do processo (#418)', () => {
+  beforeEach(() => { Object.values(SD).forEach(f => f.mockClear()); });
+
+  it('dado o prazo já na agenda, quando o compromisso sai do processo em outra seção do cartão, então a seção relê e volta a oferecer o atalho', async () => {
+    // Dado
+    SD.compromissosDoProcesso.mockResolvedValueOnce([ligado()]);
+    const { rerender } = montar('pronto', acompanhar({ versaoDoCartao: 0 }));
+    expect(await screen.findByText(`O prazo após o deferimento já está na agenda: ${TITULO}, na seção "Compromissos".`)).toBeInTheDocument();
+    // Quando: a seção "Compromissos" tirou o compromisso, e o cartão mudou de versão
+    rerender(<MemoryRouter><Avisos /><ValidadeDaProtecao prazos={PRAZOS} hoje={HOJE} acompanhar={acompanhar({ versaoDoCartao: 1 })} calendario="pronto" /></MemoryRouter>);
+    // Então
+    expect(await screen.findByRole('link', { name: /Pôr o prazo na agenda/ })).toBeInTheDocument();
+    expect(SD.compromissosDoProcesso).toHaveBeenCalledTimes(2);
   });
 });
