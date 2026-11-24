@@ -33,8 +33,14 @@ test.describe('Separar um objeto de contrato (#410)', () => {
     // Então
     await expect(page.getByText('Objeto separado em "Pedido de registro" e "Acompanhamento do registro". Mudou em 1 contrato e 1 demanda.')).toBeVisible();
     await expect(linha(secao, 'Registro de marca')).toHaveCount(0);
-    await expect(linha(secao, 'Pedido de registro').getByRole('cell')).toHaveText(['', 'Pedido de registro', '1', '1', /Corrigir/]);
-    await expect(linha(secao, 'Acompanhamento do registro').getByRole('cell')).toHaveText(['', 'Acompanhamento do registro', '1', '0', /Corrigir/]);
+    // As ações da linha são só ícones (#423): a última coluna não tem texto, e o Corrigir e o Separar estão nela pelo nome.
+    await expect(linha(secao, 'Pedido de registro').getByRole('cell')).toHaveText(['', 'Pedido de registro', '1', '1', '']);
+    await expect(linha(secao, 'Pedido de registro').getByRole('cell').last().getByRole('button', { name: 'Corrigir o objeto Pedido de registro' })).toBeVisible();
+    await expect(linha(secao, 'Pedido de registro').getByRole('cell').last().getByRole('button', { name: 'Separar o objeto Pedido de registro' })).toBeVisible();
+    // As ações da linha são só ícones (#423): a última coluna não tem texto, e o Corrigir e o Separar estão nela pelo nome.
+    await expect(linha(secao, 'Acompanhamento do registro').getByRole('cell')).toHaveText(['', 'Acompanhamento do registro', '1', '0', '']);
+    await expect(linha(secao, 'Acompanhamento do registro').getByRole('cell').last().getByRole('button', { name: 'Corrigir o objeto Acompanhamento do registro' })).toBeVisible();
+    await expect(linha(secao, 'Acompanhamento do registro').getByRole('cell').last().getByRole('button', { name: 'Separar o objeto Acompanhamento do registro' })).toBeVisible();
     await page.goto('/contratos/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }))
