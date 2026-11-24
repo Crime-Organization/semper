@@ -1,15 +1,19 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Propriedade intelectual (#418): o prazo após a publicação do deferimento da marca (60 dias úteis, mais 30 extras, sem falar em taxa)
 // aparece no cartão até a concessão ser informada; vai para a agenda com um clique; o compromisso acompanha a data quando ela muda e é
-// concluído quando a concessão chega. A série dos prazos do INPI também acompanha o depósito. O relógio fica parado em quarta-feira,
-// 04/11/2026, 12h em Brasília. Na semente do banco fictício: a pessoa LUCIANA ROCHA AMOSTRA. Quem está logado é o Mauro.
+// concluído quando a concessão chega. A série dos prazos do INPI também acompanha o depósito. O relógio fica parado (e anda um minuto a
+// cada mudança das datas do processo) em quarta-feira, 04/11/2026, 12h em Brasília. Na semente do banco fictício: a pessoa LUCIANA ROCHA AMOSTRA. Quem está logado é o Mauro.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 const NUMERO = '918000001';
+/** Quanto o relógio parado anda a cada mudança das datas do processo: o cartão só oferece atualizar se elas mudaram DEPOIS do compromisso. */
+const UM_MINUTO = 60 * 1000;
+let relogio = AGORA;
 
 test.beforeEach(async ({ page }) => {
+  relogio = AGORA;
   await page.clock.setFixedTime(AGORA);
 });
 
@@ -32,8 +36,10 @@ async function cadastrar(page: Page, protecao: string, datas: Record<string, str
   return cartao;
 }
 
-/** Muda uma data do processo na seção "Dados do processo" (#428), clicando no tipo de proteção. */
+/** Muda uma data do processo na seção "Dados do processo" (#428), clicando no tipo de proteção, um minuto depois do que veio antes. */
 async function mudarData(page: Page, cartao: Locator, protecao: string, rotulo: string, valor: string) {
+  relogio = new Date(relogio.getTime() + UM_MINUTO);
+  await page.clock.setFixedTime(relogio);
   await abrirSecao(cartao, 'Dados do processo');
   await cartao.getByRole('definition').filter({ hasText: new RegExp(`^${protecao}$`) }).click();
   const form = cartao.getByRole('form', { name: 'Editar os dados do processo' });

@@ -343,7 +343,7 @@ os papéis titular e inventor nas partes, a validade e os prazos do INPI na agen
   - O "Acompanhar na agenda" preenche o cadastro do compromisso que se repete (`compromissoRepetir`, `paginas/NovoCompromisso.tsx`; veja [Agenda e compromissos](#agenda)).
   - A ordem das datas (a concessão depois do depósito) é conferida no banco e no `falso.ts`; a frase (`CONCESSAO_ANTES_DO_DEPOSITO`, em `regras/propriedadeIntelectual.ts`) traduz o erro do banco em `dados/erros.ts`.
   - Os prazos de PI em dias contam só os dias úteis do INPI (#418): o órgão INPI de Feriados e prazos, lido por `paginas/processo/useCalendarioDoInpi.ts` e passado às contas (`CalendarioDoInpi`); sem ele, os feriados nacionais. Os papéis de PI fora da área são recusados no banco (gatilho `papel_so_da_pi`) e no `falso.ts`, com a frase `PAPEL_SO_DA_PI`.
-  - Os compromissos dos prazos do INPI são achados pelo título (`compromissoDoAcompanhamento`): mudar o título muda o que o cartão reconhece; o "Atualizar as datas na agenda" usa `compromissoMudarSeguintes` na série e `compromissoAtualizar` no compromisso só.
+  - Os compromissos dos prazos do INPI são achados pelo título (`compromissoDoAcompanhamento`): mudar o título muda o que o cartão reconhece; o "Atualizar as datas na agenda" usa `compromissoMudarSeguintes` na série e `compromissoAtualizar` no compromisso só, e só aparece se o histórico do processo tem o depósito, o deferimento ou a concessão mudados depois do `atualizado_em` do compromisso (`datasMudaramDepois`).
 
 <a id="agenda"></a>
 ## Agenda e compromissos

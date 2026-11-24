@@ -8,7 +8,7 @@
 // Os compromissos já criados acompanham as datas (#418): quando o depósito, a concessão ou o deferimento mudam e a conta dá outra data,
 // o cartão oferece atualizar esta e as seguintes; com a concessão informada, oferece concluir o compromisso do prazo após o deferimento.
 import { Fragment, useEffect, useState } from 'react';
-import { SD, type Coluna, type CompromissoLigado } from '../../dados';
+import { SD, type Coluna, type CompromissoLigado, type Historico } from '../../dados';
 import {
   compromissoAConcluir, compromissoDoAcompanhamento, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar, descreverPrazoAposODeferimento,
   descreverPrazoExtra, extraNaTabela, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
@@ -88,8 +88,11 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar, calendario = 'pro
   </>;
 }
 
-/** O que os compromissos do processo já são: a lista e a coluna de concluído do quadro de compromissos (só lida quando há o que concluir). */
-interface NaAgenda { ligados: CompromissoLigado[]; concluida: string | null }
+/**
+ * O que os compromissos do processo já são: a lista, a coluna de concluído do quadro de compromissos (só lida quando há o que concluir) e o
+ * histórico do processo (para saber se as datas dele mudaram depois da última mudança do compromisso, #418).
+ */
+interface NaAgenda { ligados: CompromissoLigado[]; concluida: string | null; historico: Historico[] }
 
 /** Os atalhos para acompanhar os prazos na agenda (o prazo extra, o prazo após o deferimento e a série), ou os compromissos que já os acompanham. */
 function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferimento, concluir, aoMudar, versaoDoCartao }: AcompanharNaAgenda) {
@@ -99,13 +102,13 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
   useEffect(() => {
     let vale = true;
     const colunas: Promise<Coluna[]> = concluir ? SD.colunasListar('compromissos') : Promise.resolve([]);
-    Promise.all([SD.compromissosDoProcesso(processoId), colunas])
-      .then(([ligados, cols]) => { if (vale) setLido({ ligados, concluida: cols.find(c => c.marco === 'concluido')?.id ?? null }); })
-      .catch(() => { if (vale) setLido({ ligados: [], concluida: null }); });
+    Promise.all([SD.compromissosDoProcesso(processoId), colunas, SD.processoHistorico(processoId)])
+      .then(([ligados, cols, historico]) => { if (vale) setLido({ ligados, concluida: cols.find(c => c.marco === 'concluido')?.id ?? null, historico }); })
+      .catch(() => { if (vale) setLido({ ligados: [], concluida: null, historico: [] }); });
     return () => { vale = false; };
   }, [processoId, concluir, versao, versaoDoCartao]);
   if (!lido) return null;
-  const { ligados } = lido;
+  const { ligados, historico } = lido;
   const mudou = () => { setVersao(v => v + 1); aoMudar?.(); };
   const aConcluir = concluir ? compromissoAConcluir(ligados, concluir, lido.concluida) : null;
   return <>
@@ -115,19 +118,21 @@ function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferi
         <Botao forma="mini" ocupadoTexto="Concluindo…" onClick={() => concluirNaAgenda(aConcluir.id, lido.concluida!, mudou)}>Concluir na agenda</Botao>
       </AcoesDosLigados>
     </>}
-    {extra && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={extra.prazo} para={extra.para} mudou={mudou}
+    {extra && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={extra.prazo} para={extra.para} mudou={mudou}
       jaEsta={c => `O prazo extra já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`} descricao={descreverPrazoExtra(extra.prazo)}
       atalho="Pôr o prazo extra na agenda" />}
-    {deferimento && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={deferimento.prazo} para={deferimento.para} mudou={mudou}
+    {deferimento && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={deferimento.prazo} para={deferimento.para} mudou={mudou}
       jaEsta={c => `O prazo após o deferimento já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverPrazoAposODeferimento(deferimento.prazo)} atalho="Pôr o prazo na agenda" />}
-    {serie && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
+    {serie && <PrazoNaAgenda ligados={ligados} historico={historico} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
       jaEsta={c => `Estes prazos já estão na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
       descricao={descreverAcompanhamento(serie.acompanhamento, comDemanda)} atalho="Acompanhar na agenda" />}
   </>;
 }
 
 interface PropsDoPrazoNaAgenda {
+  /** O histórico do processo: o "Atualizar" só aparece se as datas dele mudaram depois do compromisso. */
+  historico: Historico[];
   ligados: CompromissoLigado[];
   hoje: string;
   /** O título e a primeira data que a conta dá. */
@@ -139,13 +144,13 @@ interface PropsDoPrazoNaAgenda {
   mudou: () => void;
 }
 /** Um prazo na agenda: o atalho para criar o compromisso ou, se ele já existe, qual é e, se as datas do processo mudaram, o "Atualizar as datas". */
-function PrazoNaAgenda({ ligados, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
+function PrazoNaAgenda({ ligados, historico, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
   const ja = compromissoDoAcompanhamento(ligados, prazo);
   if (!ja) return <>
     <Nota>{descricao}</Nota>
     <AtalhoParaAAgenda para={para}>{atalho}</AtalhoParaAAgenda>
   </>;
-  const atualizar = dataParaAtualizar(ligados, prazo, hoje);
+  const atualizar = dataParaAtualizar(ligados, prazo, hoje, historico);
   return <>
     <Nota>{jaEsta(ja)}</Nota>
     {atualizar && <>

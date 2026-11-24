@@ -11,10 +11,11 @@ import { Avisos } from '../../ui/avisos';
 import { CALENDARIO_DO_INPI_FALHOU, ValidadeDaProtecao, type AcompanharNaAgenda } from './ValidadeDaProtecao';
 import type { SituacaoDoCalendario } from './useCalendarioDoInpi';
 
-// A seção lê os compromissos do processo e as colunas do quadro de compromissos; o mock declara exatamente essas operações.
+// A seção lê os compromissos do processo, as colunas do quadro de compromissos e o histórico do processo; o mock declara exatamente essas operações.
 const SD = vi.hoisted(() => ({
   compromissosDoProcesso: vi.fn<Dados['compromissosDoProcesso']>(async () => []),
-  colunasListar: vi.fn<Dados['colunasListar']>(async () => [])
+  colunasListar: vi.fn<Dados['colunasListar']>(async () => []),
+  processoHistorico: vi.fn<Dados['processoHistorico']>(async () => [])
 }));
 vi.mock('../../dados', () => ({ SD: SD satisfies Pick<Dados, keyof typeof SD> }));
 
@@ -66,7 +67,7 @@ describe('Validade e anuidades: o calendário do INPI (#418)', () => {
 
 const ligado = (extra: Partial<CompromissoLigado> = {}): CompromissoLigado => ({
   id: 'c1', codigo: 'C-1', tipo: 'outro', titulo: TITULO, data: '2027-01-05', hora: null, hora_fim: null, pessoa_nome: '', processo_numero: '918000001',
-  etapa_id: null, arquivado_em: null, papeis: [], ...extra
+  etapa_id: null, arquivado_em: null, atualizado_em: '2026-11-01T13:00:00Z', papeis: [], ...extra
 });
 
 describe('Validade e anuidades: os compromissos do processo (#418)', () => {

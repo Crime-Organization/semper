@@ -1731,7 +1731,7 @@ export interface FiltroCompromissos {
 /** Papel de uma pessoa num compromisso (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNoCompromisso = 'pessoa' | 'responsavel' | 'participante';
 /** Compromisso como aparece em outro cartão (da pessoa ou do processo), com o papel da pessoa nele. */
-export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em'> { papeis: PapelNoCompromisso[] }
+export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em' | 'atualizado_em'> { papeis: PapelNoCompromisso[] }
 /** Os módulos a que um compromisso se liga, de muitos para muitos, além das pessoas e do processo (#306). */
 export type ModuloDoCompromisso = Extract<Modulo, 'tarefas' | 'demandas' | 'contratos'>;
 /** Um item ligado ao compromisso, como aparece no cartão dele (o mesmo formato dos itens da anotação). */

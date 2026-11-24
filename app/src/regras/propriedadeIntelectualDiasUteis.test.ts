@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DiaLancado, Orgao } from '../dados/tipos';
 import {
-  ACOMPANHAR_DEFERIMENTO, anosDosPrazosEmDiasUteis, AREA_DA_PI, calendarioDoInpi, camposParaAcompanhar, compromissoAConcluir, contagemDoProcesso, dataParaAtualizar,
+  ACOMPANHAR_DEFERIMENTO, anosDosPrazosEmDiasUteis, AREA_DA_PI, calendarioDoInpi, camposParaAcompanhar, compromissoAConcluir, contagemDoProcesso, dataParaAtualizar, datasMudaramDepois,
   descreverDataParaAtualizar, descreverPrazoAposODeferimento, PAPEL_SO_DA_PI, papelCabeNoProcesso, PRAZO_APOS_O_DEFERIMENTO, prazoAposODeferimentoNaAgenda,
   prazoPorExtenso, prazosDaProtecao, siglaDoCalendario, situacaoDoPrazo, somarDiasUteisNoInpi, SO_FERIADOS_NACIONAIS, tituloDoDeferimentoAConcluir,
   type DatasDaProtecao, type OndeHaProtecao
@@ -154,17 +154,21 @@ describe('O prazo após o deferimento na agenda', () => {
 });
 
 describe('Os compromissos dos prazos acompanham as datas', () => {
-  const ligado = (id: string, data: string, arquivado_em: string | null = null) => ({ id, titulo: 'Prorrogação da marca', data, arquivado_em });
+  /** O compromisso foi mexido pela última vez às 10h de 01/11/2026. */
+  const MEXIDO = '2026-11-01T13:00:00+00:00';
+  const ligado = (id: string, data: string, arquivado_em: string | null = null) => ({ id, titulo: 'Prorrogação da marca', data, arquivado_em, atualizado_em: MEXIDO });
+  /** A concessão mudou depois disso, às 9h de 03/11/2026 (o histórico grava o nome da coluna). */
+  const CONCESSAO_MUDOU = [{ alteracoes: { concessao: { de: '2025-05-10', para: '2025-06-20' } }, em: '2026-11-03T12:00:00.000Z' }];
 
   it('dado o compromisso na data da conta, quando o cartão confere, então não oferece nada', () => {
     // Então
-    expect(dataParaAtualizar([ligado('c1', '2035-05-10'), ligado('c2', '2045-05-10')], { titulo: 'Prorrogação da marca', data: '2035-05-10' }, HOJE)).toBeNull();
+    expect(dataParaAtualizar([ligado('c1', '2035-05-10'), ligado('c2', '2045-05-10')], { titulo: 'Prorrogação da marca', data: '2035-05-10' }, HOJE, CONCESSAO_MUDOU)).toBeNull();
   });
 
-  it('dada a concessão mudada, quando a conta dá outra data, então o cartão oferece levar a próxima data do compromisso para a da conta', () => {
+  it('dada a concessão mudada depois do compromisso, quando a conta dá outra data, então o cartão oferece levar a próxima data do compromisso para a da conta', () => {
     // Quando
     const x = dataParaAtualizar([ligado('c2', '2045-05-10'), ligado('c1', '2035-05-10'), ligado('c0', '2025-05-10')],
-      { titulo: 'Prorrogação da marca', data: '2035-06-20' }, HOJE)!;
+      { titulo: 'Prorrogação da marca', data: '2035-06-20' }, HOJE, CONCESSAO_MUDOU)!;
     // Então: a próxima data é a de 2035 (a de 2025 já passou)
     expect(x).toEqual({ id: 'c1', titulo: 'Prorrogação da marca', de: '2035-05-10', para: '2035-06-20' });
     expect(descreverDataParaAtualizar(x)).toBe('As datas do processo mudaram: "Prorrogação da marca" está na agenda em 10/05/2035, e a conta de agora dá 20/06/2035.');
@@ -173,9 +177,26 @@ describe('Os compromissos dos prazos acompanham as datas', () => {
   it('dado o compromisso arquivado, de outro título ou só no passado, quando o cartão confere, então não oferece nada', () => {
     // Então
     const conta = { titulo: 'Prorrogação da marca', data: '2035-06-20' };
-    expect(dataParaAtualizar([ligado('c1', '2035-05-10', '2026-01-01')], conta, HOJE)).toBeNull();
-    expect(dataParaAtualizar([{ ...ligado('c1', '2035-05-10'), titulo: 'Outro' }], conta, HOJE)).toBeNull();
-    expect(dataParaAtualizar([ligado('c0', '2025-05-10')], conta, HOJE)).toBeNull();
+    expect(dataParaAtualizar([ligado('c1', '2035-05-10', '2026-01-01')], conta, HOJE, CONCESSAO_MUDOU)).toBeNull();
+    expect(dataParaAtualizar([{ ...ligado('c1', '2035-05-10'), titulo: 'Outro' }], conta, HOJE, CONCESSAO_MUDOU)).toBeNull();
+    expect(dataParaAtualizar([ligado('c0', '2025-05-10')], conta, HOJE, CONCESSAO_MUDOU)).toBeNull();
+  });
+
+  it('dado o compromisso que a pessoa levou ao próximo dia útil (ou acertou pela RPI) sem que as datas do processo mudassem depois, quando o cartão confere, então não oferece desfazer', () => {
+    // Dado: a conta dá 12/05/2035, e a pessoa deixou o compromisso em 14/05/2035 (o dia útil seguinte, ou a data da RPI) às 10h de 01/11/2026
+    const levado = { ...ligado('c1', '2035-05-14') };
+    const conta = { titulo: 'Prorrogação da marca', data: '2035-05-12' };
+    // Quando: o histórico não tem mudança de data, ou só tem a de antes do compromisso ser mexido, ou só a de outros campos
+    const antes = [{ alteracoes: { concessao: { de: null, para: '2025-05-10' } }, em: '2026-10-30T12:00:00Z' }];
+    const outroCampo = [{ alteracoes: { titulo: { de: null, para: 'Marca' } }, em: '2026-11-03T12:00:00Z' }];
+    // Então
+    expect(dataParaAtualizar([levado], conta, HOJE, [])).toBeNull();
+    expect(dataParaAtualizar([levado], conta, HOJE, antes)).toBeNull();
+    expect(dataParaAtualizar([levado], conta, HOJE, outroCampo)).toBeNull();
+    // E se o depósito ou o deferimento mudam depois, aí sim
+    expect(datasMudaramDepois([{ alteracoes: { deposito: { de: '2025-03-10', para: '2025-03-11' } }, em: '2026-11-03T12:00:00Z' }], MEXIDO)).toBe(true);
+    expect(datasMudaramDepois([{ alteracoes: { deferimento: { de: null, para: '2026-10-06' } }, em: '2026-11-03T12:00:00Z' }], MEXIDO)).toBe(true);
+    expect(dataParaAtualizar([levado], conta, HOJE, CONCESSAO_MUDOU)?.para).toBe('2035-05-12');
   });
 });
 

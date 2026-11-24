@@ -19,7 +19,8 @@ vi.mock('../ui/sessao', () => ({
 
 const item = (modulo: ItemDoCompromisso['modulo'], id: string, nome: string): ItemDoCompromisso => ({ modulo, id, codigo: id.toUpperCase(), nome, arquivado_em: null });
 const ligado = (id: string, titulo: string): CompromissoLigado => ({
-  id, codigo: 'C-' + id, tipo: 'atendimento', titulo, data: '2026-12-01', hora: '14:00:00', hora_fim: null, pessoa_nome: '', processo_numero: null, etapa_id: null, arquivado_em: null, papeis: []
+  id, codigo: 'C-' + id, tipo: 'atendimento', titulo, data: '2026-12-01', hora: '14:00:00', hora_fim: null, pessoa_nome: '', processo_numero: null, etapa_id: null, arquivado_em: null,
+  atualizado_em: '2026-11-01T10:00:00Z', papeis: []
 });
 
 beforeEach(() => {

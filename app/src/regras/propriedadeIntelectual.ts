@@ -34,7 +34,7 @@
 // - Não confirmados nos guias (nenhum deles trata do assunto): a anuidade da patente (o início no 3º ano, os 3 meses do prazo normal,
 //   os 6 meses do extra e a contagem pelo aniversário do depósito); os 36 meses do pedido de exame; os 180 dias do prazo extra da
 //   prorrogação do desenho; o 2º quinquênio pago no 5º ano; e o dia útil seguinte nos prazos de patente e de desenho.
-import type { ApresentacaoMarca, CompromissoLigado, DiaLancado, NaturezaMarca, Orgao, PapelDaParte, Processo, RegraDeRepeticao, TipoProcesso, TipoProtecao } from '../dados/tipos';
+import type { ApresentacaoMarca, CompromissoLigado, DiaLancado, Historico, NaturezaMarca, Orgao, PapelDaParte, Processo, RegraDeRepeticao, TipoProcesso, TipoProtecao } from '../dados/tipos';
 import { CLASSE_NICE_MAIOR, DEMANDA_DO_COMPROMISSO, TAMANHO_COMPROMISSO, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from '../dados/limites';
 import type { CamposCompromisso } from './compromisso';
 import { descreverRepeticao, somarMeses } from './repeticao';
@@ -549,15 +549,25 @@ export const compromissoDoAcompanhamento = <T extends Pick<CompromissoLigado, 't
   ligados.find(c => !c.arquivado_em && c.titulo === a.titulo) ?? null;
 /** A data de um compromisso dos prazos do INPI que ficou diferente da conta: o compromisso (a próxima data dele), a data que ele tem e a da conta. */
 export interface DataParaAtualizar { id: string; titulo: string; de: string; para: string }
+/** As datas do processo de que partem os prazos que vão para a agenda (os nomes das colunas, como o histórico do processo os grava). */
+export const DATAS_DOS_PRAZOS_NA_AGENDA: readonly string[] = ['deposito', 'deferimento', 'concessao'];
+/** Uma linha do histórico do processo: o que mudou e quando. */
+type MudancaDoProcesso = Pick<Historico, 'alteracoes' | 'em'>;
+/** Se o histórico do processo tem uma mudança do depósito, do deferimento ou da concessão depois do instante dado. */
+export const datasMudaramDepois = (historico: readonly MudancaDoProcesso[], desde: string) =>
+  historico.some(h => Date.parse(h.em) > Date.parse(desde) && DATAS_DOS_PRAZOS_NA_AGENDA.some(campo => Object.hasOwn(h.alteracoes, campo)));
 /**
  * Quando o depósito, a concessão ou o deferimento mudam, a conta dá outra data: a próxima data do compromisso (a primeira de hoje em
  * diante, das que não foram arquivadas) fica diferente da primeira data da conta, e o cartão oferece atualizar esta e as seguintes.
- * null: o compromisso está em dia, ou não há data dele por vir.
+ * Só oferece se uma dessas datas do processo mudou DEPOIS da última mudança do compromisso (o histórico do processo diz): o compromisso
+ * que a pessoa levou ao próximo dia útil, ou acertou pela RPI, fica como ela deixou. null: o compromisso está em dia, ou não há data dele
+ * por vir, ou as datas do processo não mudaram desde que ele foi mexido.
  */
-export function dataParaAtualizar<T extends Pick<CompromissoLigado, 'id' | 'titulo' | 'data' | 'arquivado_em'>>(ligados: readonly T[],
-  a: Pick<AcompanhamentoDaProtecao, 'titulo' | 'data'>, hoje: string): DataParaAtualizar | null {
+export function dataParaAtualizar<T extends Pick<CompromissoLigado, 'id' | 'titulo' | 'data' | 'arquivado_em' | 'atualizado_em'>>(ligados: readonly T[],
+  a: Pick<AcompanhamentoDaProtecao, 'titulo' | 'data'>, hoje: string, historico: readonly MudancaDoProcesso[]): DataParaAtualizar | null {
   const proxima = ligados.filter(c => !c.arquivado_em && c.titulo === a.titulo && c.data >= hoje).toSorted((x, y) => x.data.localeCompare(y.data))[0];
-  return proxima && proxima.data !== a.data ? { id: proxima.id, titulo: a.titulo, de: proxima.data, para: a.data } : null;
+  return proxima && proxima.data !== a.data && datasMudaramDepois(historico, proxima.atualizado_em)
+    ? { id: proxima.id, titulo: a.titulo, de: proxima.data, para: a.data } : null;
 }
 /** O que o cartão diz da data a atualizar: "As datas do processo mudaram: "…" está na agenda em 10/06/2027, e a conta de agora dá 10/09/2027." */
 export const descreverDataParaAtualizar = (x: DataParaAtualizar) =>

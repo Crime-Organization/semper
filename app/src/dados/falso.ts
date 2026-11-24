@@ -1845,7 +1845,7 @@ const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, pessoa_nome: nomesDosClientes(c.pessoas),
-  processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, etapa_id: c.etapa_id, arquivado_em: c.arquivado_em, papeis
+  processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, etapa_id: c.etapa_id, arquivado_em: c.arquivado_em, atualizado_em: c.atualizado_em, papeis
 });
 const buscaCompromisso = (c: CompromissoGuardado) => {
   const numero = processoDoCompromisso(c)?.numero ?? c.processo_numero ?? '';
