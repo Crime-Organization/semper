@@ -608,6 +608,8 @@ const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colab
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   // Propriedade intelectual (#317).
   + 'protecao, deposito, concessao, publicacao, criacao, apresentacao_marca, natureza_marca, classes_nice, especificacao, variacoes, linguagem, '
+  // A publicação do deferimento da marca (#418).
+  + 'deferimento, '
   + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** As pessoas com papel no processo (#316). */
 const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;

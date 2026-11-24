@@ -1038,6 +1038,8 @@ export interface Processo {
    * as de que os prazos do INPI partem (regras/propriedadeIntelectual.ts). Os processos de antes da migração vêm com tudo vazio.
    */
   protecao?: TipoProtecao | null; deposito?: string | null; concessao?: string | null; publicacao?: string | null; criacao?: string | null;
+  /** A publicação do deferimento da marca na RPI (#418): dela conta o prazo após o deferimento, até a concessão. */
+  deferimento?: string | null;
   apresentacao_marca?: ApresentacaoMarca | null; natureza_marca?: NaturezaMarca | null; classes_nice?: number[];
   especificacao?: string | null; variacoes?: number | null; linguagem?: string | null;
 }

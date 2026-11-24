@@ -1,47 +1,59 @@
 // No cartão do processo de propriedade intelectual (#317), a seção "Validade e anuidades": a validade, o próximo prazo a cumprir e a
-// lista de todos os prazos (anuidades, quinquênio, prorrogações, pedido de exame), cada um com a situação de hoje. As contas são as
-// de regras/propriedadeIntelectual.ts; aqui só se mostra. As datas são estimativas: o cartão manda conferir na RPI. Embaixo, o
-// "Acompanhar na agenda" (parte C, com a #307) abre o cadastro do compromisso que se repete, já preenchido com os prazos; se o processo
-// já tem esse compromisso, o cartão diz qual, em vez de oferecer outro. O prazo que já está no prazo extra (com taxa), mais urgente, ganha
-// antes o seu atalho: um compromisso só, no último dia do prazo extra (a série começa no prazo seguinte).
+// lista de todos os prazos (anuidades, quinquênio, prorrogações, pedido de exame e, na marca ainda não concedida, o prazo após o
+// deferimento, #418), cada um com a situação de hoje. As contas são as de regras/propriedadeIntelectual.ts; aqui só se mostra. As datas
+// são estimativas: o cartão manda conferir na RPI. Embaixo, o "Acompanhar na agenda" (parte C, com a #307) abre o cadastro do
+// compromisso que se repete, já preenchido com os prazos; se o processo já tem esse compromisso, o cartão diz qual, em vez de oferecer
+// outro. O prazo que já está no prazo extra (com taxa), mais urgente, ganha antes o seu atalho: um compromisso só, no último dia do prazo
+// extra (a série começa no prazo seguinte). O prazo após o deferimento também ganha o seu (um compromisso só, sem falar em taxa).
+// Os compromissos já criados acompanham as datas (#418): quando o depósito, a concessão ou o deferimento mudam e a conta dá outra data,
+// o cartão oferece atualizar esta e as seguintes; com a concessão informada, oferece concluir o compromisso do prazo após o deferimento.
 import { Fragment, useEffect, useState } from 'react';
-import { SD, type CompromissoLigado } from '../../dados';
+import { SD, type Coluna, type CompromissoLigado } from '../../dados';
 import {
-  compromissoDoAcompanhamento, descreverAcompanhamento, descreverPrazoExtra, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
-  type AcompanhamentoDaProtecao, type PrazoExtraDaProtecao, type PrazosDaProtecao
+  compromissoAConcluir, compromissoDoAcompanhamento, dataParaAtualizar, descreverAcompanhamento, descreverDataParaAtualizar, descreverPrazoAposODeferimento,
+  descreverPrazoExtra, prazoPorExtenso, proximoPrazo, situacaoDoPrazo, SITUACOES_DO_PRAZO,
+  type AcompanhamentoDaProtecao, type DataParaAtualizar, type PrazoExtraDaProtecao, type PrazosDaProtecao
 } from '../../regras/propriedadeIntelectual';
 import { nomeDoCompromisso } from '../../regras/compromisso';
 import { fmtData } from '../../regras/pessoa';
+import { avisar, falha } from '../../ui/avisos';
 import { BotaoLink, Nota, Selo } from '../../ui/base';
+import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { AcoesDosLigados } from '../../ui/ItensLigados';
 
 /** O aviso de que as datas são da lei e precisam ser conferidas. */
 export const AVISO_DAS_DATAS_DO_INPI = 'Datas calculadas pela lei, para acompanhar: confira sempre na Revista da Propriedade Industrial (RPI). '
-  + 'O prazo que vence em dia sem expediente no INPI passa para o próximo dia útil.';
+  + 'O prazo que vence em dia sem expediente no INPI passa para o próximo dia útil; os prazos em dias contam só os dias úteis.';
 
 /**
  * O que o cartão passa para oferecer os compromissos dos prazos: o processo, se gera demanda e, cada um com o endereço do cadastro, a série
- * dos prazos e o prazo que está no prazo extra (null: não há).
+ * dos prazos, o prazo que está no prazo extra e o prazo após o deferimento (null: não há). `concluir`: com a concessão informada, o título
+ * do compromisso do prazo após o deferimento que o cartão oferece concluir.
  */
 export interface AcompanharNaAgenda {
   processoId: string;
   comDemanda: boolean;
+  hoje: string;
   serie: { acompanhamento: AcompanhamentoDaProtecao; para: string } | null;
   extra: { prazo: PrazoExtraDaProtecao; para: string } | null;
+  deferimento: { prazo: PrazoExtraDaProtecao; para: string } | null;
+  concluir: string | null;
+  /** Depois de mudar um compromisso (atualizar as datas ou concluir): o cartão relê o que mostra. */
+  aoMudar?: () => void;
 }
 
 export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: PrazosDaProtecao; hoje: string; acompanhar?: AcompanharNaAgenda | null }) {
-  if (prazos.falta) return <Nota>{prazos.falta}</Nota>;
   const proximo = proximoPrazo(prazos.datas, hoje);
   const linhas: [string, string][] = [
     ...(prazos.validade ? [[prazos.validade.rotulo, fmtData(prazos.validade.data)] as [string, string]] : []),
     ...(proximo ? [['Próximo prazo', `${proximo.nome}: ${prazoPorExtenso(proximo)}`] as [string, string]] : [])
   ];
   return <>
-    <dl className="dados">{linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+    {prazos.falta && <Nota>{prazos.falta}</Nota>}
+    {linhas.length > 0 && <dl className="dados">{linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>}
     {prazos.datas.length > 0 && <div className="tabela"><table aria-label="Prazos do INPI">
-      <thead><tr><th scope="col">Prazo</th><th scope="col">De</th><th scope="col">Até</th><th scope="col">Com taxa extra até</th><th scope="col">Situação</th></tr></thead>
+      <thead><tr><th scope="col">Prazo</th><th scope="col">De</th><th scope="col">Até</th><th scope="col">Prazo extra até</th><th scope="col">Situação</th></tr></thead>
       <tbody>{prazos.datas.map(x => {
         const situacao = SITUACOES_DO_PRAZO[situacaoDoPrazo(x, hoje)];
         return <tr key={x.nome}>
@@ -50,36 +62,106 @@ export function ValidadeDaProtecao({ prazos, hoje, acompanhar }: { prazos: Prazo
         </tr>;
       })}</tbody>
     </table></div>}
-    <Nota>{AVISO_DAS_DATAS_DO_INPI}</Nota>
+    {(linhas.length > 0 || prazos.datas.length > 0) && <Nota>{AVISO_DAS_DATAS_DO_INPI}</Nota>}
     {acompanhar && <AcompanharOsPrazos {...acompanhar} />}
   </>;
 }
 
-/** Os atalhos para acompanhar os prazos na agenda (o prazo extra e a série), ou os compromissos que já os acompanham. */
-function AcompanharOsPrazos({ processoId, comDemanda, serie, extra }: AcompanharNaAgenda) {
+/** O que os compromissos do processo já são: a lista e a coluna de concluído do quadro de compromissos (só lida quando há o que concluir). */
+interface NaAgenda { ligados: CompromissoLigado[]; concluida: string | null }
+
+/** Os atalhos para acompanhar os prazos na agenda (o prazo extra, o prazo após o deferimento e a série), ou os compromissos que já os acompanham. */
+function AcompanharOsPrazos({ processoId, comDemanda, hoje, serie, extra, deferimento, concluir, aoMudar }: AcompanharNaAgenda) {
   // undefined: ainda lendo os compromissos do processo (o atalho só aparece depois, para não oferecer um segundo).
-  const [ligados, setLigados] = useState<CompromissoLigado[] | undefined>();
+  const [lido, setLido] = useState<NaAgenda | undefined>();
+  const [versao, setVersao] = useState(0);
   useEffect(() => {
     let vale = true;
-    SD.compromissosDoProcesso(processoId).then(l => { if (vale) setLigados(l); }).catch(() => { if (vale) setLigados([]); });
+    const colunas: Promise<Coluna[]> = concluir ? SD.colunasListar('compromissos') : Promise.resolve([]);
+    Promise.all([SD.compromissosDoProcesso(processoId), colunas])
+      .then(([ligados, cols]) => { if (vale) setLido({ ligados, concluida: cols.find(c => c.marco === 'concluido')?.id ?? null }); })
+      .catch(() => { if (vale) setLido({ ligados: [], concluida: null }); });
     return () => { vale = false; };
-  }, [processoId]);
-  if (!ligados) return null;
-  const jaExtra = extra && compromissoDoAcompanhamento(ligados, extra.prazo), ja = serie && compromissoDoAcompanhamento(ligados, serie.acompanhamento);
+  }, [processoId, concluir, versao]);
+  if (!lido) return null;
+  const { ligados } = lido;
+  const mudou = () => { setVersao(v => v + 1); aoMudar?.(); };
+  const aConcluir = concluir ? compromissoAConcluir(ligados, concluir, lido.concluida) : null;
   return <>
-    {extra && (jaExtra
-      ? <Nota>O prazo extra já está na agenda: {nomeDoCompromisso(jaExtra)}, na seção "Compromissos".</Nota>
-      : <>
-        <Nota>{descreverPrazoExtra(extra.prazo)}</Nota>
-        <AtalhoParaAAgenda para={extra.para}>Pôr o prazo extra na agenda</AtalhoParaAAgenda>
-      </>)}
-    {serie && (ja
-      ? <Nota>Estes prazos já estão na agenda: {nomeDoCompromisso(ja)}, na seção "Compromissos".</Nota>
-      : <>
-        <Nota>{descreverAcompanhamento(serie.acompanhamento, comDemanda)}</Nota>
-        <AtalhoParaAAgenda para={serie.para}>Acompanhar na agenda</AtalhoParaAAgenda>
-      </>)}
+    {aConcluir && <>
+      <Nota>A concessão foi informada: o prazo após o deferimento terminou. O compromisso {nomeDoCompromisso(aConcluir)} ainda está em aberto na agenda.</Nota>
+      <AcoesDosLigados>
+        <Botao forma="mini" ocupadoTexto="Concluindo…" onClick={() => concluirNaAgenda(aConcluir.id, lido.concluida!, mudou)}>Concluir na agenda</Botao>
+      </AcoesDosLigados>
+    </>}
+    {extra && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={extra.prazo} para={extra.para} mudou={mudou}
+      jaEsta={c => `O prazo extra já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`} descricao={descreverPrazoExtra(extra.prazo)}
+      atalho="Pôr o prazo extra na agenda" />}
+    {deferimento && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={deferimento.prazo} para={deferimento.para} mudou={mudou}
+      jaEsta={c => `O prazo após o deferimento já está na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
+      descricao={descreverPrazoAposODeferimento(deferimento.prazo)} atalho="Pôr o prazo na agenda" />}
+    {serie && <PrazoNaAgenda ligados={ligados} hoje={hoje} prazo={serie.acompanhamento} para={serie.para} mudou={mudou}
+      jaEsta={c => `Estes prazos já estão na agenda: ${nomeDoCompromisso(c)}, na seção "Compromissos".`}
+      descricao={descreverAcompanhamento(serie.acompanhamento, comDemanda)} atalho="Acompanhar na agenda" />}
   </>;
+}
+
+interface PropsDoPrazoNaAgenda {
+  ligados: CompromissoLigado[];
+  hoje: string;
+  /** O título e a primeira data que a conta dá. */
+  prazo: { titulo: string; data: string };
+  para: string;
+  jaEsta: (c: CompromissoLigado) => string;
+  descricao: string;
+  atalho: string;
+  mudou: () => void;
+}
+/** Um prazo na agenda: o atalho para criar o compromisso ou, se ele já existe, qual é e, se as datas do processo mudaram, o "Atualizar as datas". */
+function PrazoNaAgenda({ ligados, hoje, prazo, para, jaEsta, descricao, atalho, mudou }: PropsDoPrazoNaAgenda) {
+  const ja = compromissoDoAcompanhamento(ligados, prazo);
+  if (!ja) return <>
+    <Nota>{descricao}</Nota>
+    <AtalhoParaAAgenda para={para}>{atalho}</AtalhoParaAAgenda>
+  </>;
+  const atualizar = dataParaAtualizar(ligados, prazo, hoje);
+  return <>
+    <Nota>{jaEsta(ja)}</Nota>
+    {atualizar && <>
+      <Nota>{descreverDataParaAtualizar(atualizar)}</Nota>
+      <AcoesDosLigados>
+        <Botao forma="mini" ocupadoTexto="Atualizando…" onClick={() => atualizarNaAgenda(atualizar, mudou)}>Atualizar as datas na agenda</Botao>
+      </AcoesDosLigados>
+    </>}
+  </>;
+}
+
+/**
+ * Leva o compromisso para a data da conta: no que se repete, esta data e as seguintes em aberto (a série recomeça dali, como o "esta e as
+ * seguintes" do cartão do compromisso); no que não se repete, só ele.
+ */
+async function atualizarNaAgenda(x: DataParaAtualizar, mudou: () => void) {
+  try {
+    const c = await SD.compromissoObter(x.id);
+    if (!c) throw new Error('O compromisso não foi encontrado: atualize a página e confira.');
+    if (c.repeticao_id) {
+      await SD.compromissoMudarSeguintes(c.id, { data: x.para, hora: c.hora, hora_fim: c.hora_fim });
+      avisar(`Na agenda, esta data e as seguintes passaram a contar de ${fmtData(x.para)}.`);
+    } else {
+      await SD.compromissoAtualizar(c.id, { data: x.para });
+      avisar(`A data passou para ${fmtData(x.para)} na agenda.`);
+    }
+    mudou();
+  } catch (e) { falha(e); }
+}
+
+/** Leva o compromisso do prazo após o deferimento para a coluna de concluído do quadro de compromissos. */
+async function concluirNaAgenda(id: string, concluida: string, mudou: () => void) {
+  try {
+    await SD.compromissoMover(id, concluida, null);
+    avisar('O compromisso do prazo após o deferimento foi concluído.');
+    mudou();
+  } catch (e) { falha(e); }
 }
 
 /** O tamanho do "+" no atalho (o dos botões pequenos embaixo das listas das seções). */

@@ -2521,6 +2521,35 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['titular', 'inventor', 'autor_da_criacao']);
       });
+
+      it('dado um processo de outra área, quando alguém tenta pôr titular, inventor ou autor da criação, então é recusado, como no banco (#418)', async () => {
+        // Dado
+        const processo = await novoProcesso({ area: 'Previdenciário' });
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        const pedidos = await Promise.allSettled((['titular', 'inventor', 'autor_da_criacao'] as const).map(papel => SD.processoParteIncluir(processo.id, pessoa, papel)));
+        // Então
+        expect(pedidos.map(r => r.status)).toEqual(['rejected', 'rejected', 'rejected']);
+        expect(pedidos[0]).toMatchObject({ reason: { message: 'Titular, inventor e autor da criação só existem nos processos de propriedade intelectual.' } });
+        // E os papéis de qualquer processo continuam entrando
+        await SD.processoParteIncluir(processo.id, pessoa, 'testemunha');
+        expect((await SD.processoPartes(processo.id)).map(x => x.papel)).toEqual(['testemunha']);
+      });
+
+      it('quando a publicação do deferimento da marca é informada, então volta gravada; num judicial, fica vazia, como no banco (#418)', async () => {
+        // Dado
+        const { id } = await novoProcesso({ protecao: 'marca', deposito: '2025-03-10' });
+        expect(await SD.processoObter(id)).toMatchObject({ deferimento: null });
+        // Quando
+        await SD.processoAtualizar(id, { deferimento: '2026-10-06' });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ deferimento: '2026-10-06' });
+        expect((await SD.processoHistorico(id))[0].alteracoes.deferimento).toEqual({ de: null, para: '2026-10-06' });
+        // Quando o judicial recebe a data
+        const judicial = await novoProcesso({ tipo: 'judicial', deferimento: '2026-10-06' });
+        // Então
+        expect(await SD.processoObter(judicial.id)).toMatchObject({ deferimento: null });
+      });
     });
 
     describe('Processos: pessoas com papel, recursos e incidentais (#316)', () => {

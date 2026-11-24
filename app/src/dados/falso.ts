@@ -53,7 +53,7 @@ import {
   SO_JUDICIAL_NO_ADMINISTRATIVO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
-import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
+import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
 import { CLASSE_NICE_MAIOR, TAMANHO_PROTECAO, VARIACOES_DO_DESENHO } from './limites';
 import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -2807,7 +2807,7 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
 }
 /** Os campos de propriedade intelectual vazios (#317), como nascem no banco. */
 const PI_VAZIA = { protecao: null, deposito: null, concessao: null, publicacao: null, criacao: null, apresentacao_marca: null, natureza_marca: null,
-  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null };
+  classes_nice: [] as number[], especificacao: null, variacoes: null, linguagem: null, deferimento: null };
 /** As regras check da migração propriedade_intelectual (#317): as listas, as classes de 1 a 45, os tamanhos e a concessão depois do depósito. */
 function conferirProtecao(d: DadosProcesso, atual?: ProcessoGuardado) {
   const naLista = (v: string | null | undefined, lista: object) => v === undefined || v === null || Object.hasOwn(lista, v);
@@ -5628,6 +5628,8 @@ export const SD: Dados = {
     const p = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
     if (!p || p.arquivado_em || soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     if (!(papel in PAPEIS_DA_PARTE)) return erro(FORMATO_INVALIDO);
+    // Como o gatilho papel_so_da_pi (#418): titular, inventor e autor da criação só nos processos de propriedade intelectual.
+    if (!papelCabeNoProcesso(papel, p)) return erro(PAPEL_SO_DA_PI);
     if (!bd.pessoas.some(x => x.id === pessoaId)) return erro('Pessoa não encontrada neste escritório.');
     if (bd.processoPartes!.some(x => x.processo_id === processoId && x.pessoa_id === pessoaId && x.papel === papel)) return erro(PAPEL_REPETIDO);
     if (bd.processoPartes!.filter(x => x.processo_id === processoId).length >= PARTES_MAXIMAS) return erro(`Um processo pode ter até ${PARTES_MAXIMAS} pessoas com papel.`);

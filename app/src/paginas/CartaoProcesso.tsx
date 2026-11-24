@@ -41,8 +41,12 @@ import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, hojeISO, relativo } from '../ui/util';
-import { ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, PARAMETRO_ACOMPANHAR, prazoExtraDaProtecao, prazosDaProtecao, prazosPorVir } from '../regras/propriedadeIntelectual';
+import {
+  ACOMPANHAR_DEFERIMENTO, ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, anosDosPrazosEmDiasUteis, PARAMETRO_ACOMPANHAR, prazoAposODeferimentoNaAgenda,
+  prazoExtraDaProtecao, prazosDaProtecao, prazosPorVir, tituloDoDeferimentoAConcluir
+} from '../regras/propriedadeIntelectual';
 import { ValidadeDaProtecao } from './processo/ValidadeDaProtecao';
+import { useCalendarioDoInpi } from './processo/useCalendarioDoInpi';
 import { CartoesLigados } from './CartoesLigados';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
@@ -99,6 +103,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   useMudancas(() => { void carregar(); void lerCampos(); setVersaoHist(v => v + 1); });
   // Os prazos (no corpo) e os andamentos (na coluna) leem juntos; cada mudança neles relê o histórico.
   const acompanhamento = useAcompanhamento(id, () => setVersaoHist(v => v + 1));
+  // Os prazos de PI em dias úteis (#418) contam no calendário do INPI (o órgão INPI de Feriados e prazos e os dias lançados).
+  const calendarioDoInpi = useCalendarioDoInpi(p ? anosDosPrazosEmDiasUteis(p) : []);
 
   // O que cada seção tem, para o número ao lado do título.
   const modulos = ctx.escritorio?.modulos;
@@ -120,7 +126,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   // Propriedade intelectual (#317): os prazos do INPI (null fora da área ou sem o tipo de proteção).
-  const hoje = hojeISO(), protecao = prazosDaProtecao(p, hoje);
+  const hoje = hojeISO(), protecao = prazosDaProtecao(p, hoje, calendarioDoInpi);
   const meus = meusGrupos(ctx.grupos, ctx.perfil.id), podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m, meus));
   const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil, meus) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
@@ -133,12 +139,16 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // compromisso e o módulo Compromissos ligado. O cadastro abre já preenchido (?acompanhar=protecao). O prazo que já está no prazo extra
   // (com taxa) vira um compromisso só, no último dia dele (?acompanhar=prazo-extra): a série começa no prazo seguinte.
   const naAgenda = podeCriarCompromisso && !!modulos?.compromissos;
-  const prazosNaAgenda = naAgenda ? acompanhamentoDaProtecao(p, hoje) : null, prazoExtra = naAgenda ? prazoExtraDaProtecao(p, hoje) : null;
-  const acompanharNaAgenda = (prazosNaAgenda || prazoExtra) && {
-    processoId: p.id, comDemanda: !!modulos?.demandas,
+  // O prazo após o deferimento da marca (#418) também vira um compromisso só (?acompanhar=deferimento); com a concessão informada, o cartão
+  // oferece concluí-lo. Os compromissos já criados acompanham as datas: o cartão oferece atualizá-las quando a conta muda.
+  const prazosNaAgenda = naAgenda ? acompanhamentoDaProtecao(p, hoje, calendarioDoInpi) : null, prazoExtra = naAgenda ? prazoExtraDaProtecao(p, hoje, calendarioDoInpi) : null;
+  const aposODeferimento = naAgenda ? prazoAposODeferimentoNaAgenda(p, hoje, calendarioDoInpi) : null, concluir = naAgenda ? tituloDoDeferimentoAConcluir(p) : null;
+  const acompanharNaAgenda = prazosNaAgenda || prazoExtra || aposODeferimento || concluir ? {
+    processoId: p.id, comDemanda: !!modulos?.demandas, hoje, concluir, aoMudar: () => setVersaoHist(v => v + 1),
     serie: prazosNaAgenda && { acompanhamento: prazosNaAgenda, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PROTECAO}` },
-    extra: prazoExtra && { prazo: prazoExtra, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PRAZO_EXTRA}` }
-  };
+    extra: prazoExtra && { prazo: prazoExtra, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_PRAZO_EXTRA}` },
+    deferimento: aposODeferimento && { prazo: aposODeferimento, para: `${novoCompromisso}&${PARAMETRO_ACOMPANHAR}=${ACOMPANHAR_DEFERIMENTO}` }
+  } : null;
   // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
   const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };

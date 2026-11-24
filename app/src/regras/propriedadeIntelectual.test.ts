@@ -76,14 +76,14 @@ describe('Classes de Nice', () => {
 });
 
 describe('Cadastro dos campos de propriedade intelectual', () => {
-  it('quando a marca é salva, então vão as datas, as classes e a especificação, e os campos de outros tipos ficam vazios', () => {
+  it('quando a marca é salva, então vão as datas (com a publicação do deferimento), as classes e a especificação, e os campos de outros tipos ficam vazios', () => {
     // Dado
-    const c = campos({ protecao: 'marca', deposito: '10/03/2020', concessao: '17/05/2022', classesNice: '45, 35', especificacao: ' Serviços jurídicos ',
+    const c = campos({ protecao: 'marca', deposito: '10/03/2020', deferimento: '05/04/2022', concessao: '17/05/2022', classesNice: '45, 35', especificacao: ' Serviços jurídicos ',
       apresentacaoMarca: 'mista', naturezaMarca: 'servico', variacoes: '3', linguagem: 'TypeScript', criacao: '01/01/2020' });
     // Quando
     const d = dadosDaProtecao(c);
     // Então
-    expect(d).toEqual({ protecao: 'marca', deposito: '2020-03-10', concessao: '2022-05-17', publicacao: null, criacao: null, apresentacao_marca: 'mista',
+    expect(d).toEqual({ protecao: 'marca', deposito: '2020-03-10', deferimento: '2022-04-05', concessao: '2022-05-17', publicacao: null, criacao: null, apresentacao_marca: 'mista',
       natureza_marca: 'servico', classes_nice: [35, 45], especificacao: 'Serviços jurídicos', variacoes: null, linguagem: null });
   });
 
