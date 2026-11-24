@@ -4210,6 +4210,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await SD.financeiroRecebimento(id)).toBeNull();
         });
 
+        it('dado um contrato com dinheiro excluído, quando um administrador lê os recebimentos excluídos, então vê cada um, e quem não é administrador não vê nada (#413)', async () => {
+          // Dado um recebimento e uma parcela importada como paga, em contratos excluídos pelo administrador
+          const k = await assinado(), importada = await assinado(), conta = await contaPJ();
+          await receber(k.parcelas[0].id, conta.id);
+          falso().importarParcelaPaga(importada.parcelas[0].id, '2020-03-10', 70000);
+          await SD.contratosArquivar([k.id, importada.id]);
+          await SD.contratosExcluir([k.id, importada.id]);
+          const dosContratos = async () => (await SD.financeiroExcluidos()).filter(r => [k.codigo, importada.codigo].includes(r.contrato_codigo));
+          // Quando
+          const lidos = await dosContratos();
+          // Então
+          expect(lidos).toHaveLength(2);
+          expect(lidos).toEqual(expect.arrayContaining([
+            expect.objectContaining({ contrato_codigo: k.codigo, tipo: 'recebimento', parcela_numero: 1, data: '2026-03-10', valor: 100000, conta_nome: conta.nome,
+              estornado: false, excluido_por: 'u-master' }),
+            expect.objectContaining({ contrato_codigo: importada.codigo, tipo: 'parcela_importada', data: '2020-03-10', valor: 70000, conta_nome: null })
+          ]));
+          expect(lidos[0]).not.toHaveProperty('copia');
+          // Quando quem não é administrador lê
+          falso().entrarComo('u-bruno');
+          // Então
+          expect(await SD.financeiroExcluidos()).toEqual([]);
+        });
+
         it('dado um repasse já pago, quando pede para excluir, então ninguém exclui até o pagamento ser desfeito', async () => {
           // Dado
           const k = await assinado(), conta = await contaPJ();

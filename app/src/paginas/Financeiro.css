@@ -19,6 +19,7 @@
 .financeiro-marcar { display: flex; align-items: center; gap: 8px }
 .financeiro-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
 .financeiro-lista li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; overflow-wrap: anywhere }
+.financeiro-lista .financeiro-linha-inteira { flex-basis: 100% }
 .financeiro-ajustes { margin-top: 18px }
 .financeiro-origem { color: var(--muted); font-size: 13px; white-space: nowrap }
 .financeiro-divisao { display: flex; flex-direction: column; gap: 4px; margin: 0 }

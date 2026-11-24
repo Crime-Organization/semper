@@ -27,32 +27,32 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Calendário e prazos](#calendario), linhas 367–386: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
 - [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 387–404: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
 - [Documentos e anotações](#documentos), linhas 405–432: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
-- [Financeiro](#financeiro), linhas 433–458: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
-- [Parcelas e recebimentos](#parcelas), linhas 459–481: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
-- [Lucro dos sócios](#lucros), linhas 482–497: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
-- [Meus valores](#meus-valores), linhas 498–510: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
-- [Conferência dos lançamentos](#conferencia), linhas 511–525: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
-- [Equipe, grupos e permissões](#equipe), linhas 526–556: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
-- [Perfil profissional e foto](#perfil), linhas 557–576: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
-- [Configurações e escritório](#configuracoes), linhas 577–593: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
-- [Registro de ações e LGPD](#registro), linhas 594–606: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
-- [Mensagens e avisos](#mensagens), linhas 607–631: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
-- [Comentários e menções](#comentarios), linhas 632–649: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
-- [Etiquetas](#etiquetas), linhas 650–666: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
-- [Ligações entre itens](#ligacoes), linhas 667–688: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
-- [Quadros (kanban) e situação](#quadros), linhas 689–715: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 716–738: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 739–751: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 752–766: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 767–787: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 788–801: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 802–821: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 822–840: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 841–854: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 855–868: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 869–880: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 881–985: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 986–989: nada.
+- [Financeiro](#financeiro), linhas 433–459: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
+- [Parcelas e recebimentos](#parcelas), linhas 460–482: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
+- [Lucro dos sócios](#lucros), linhas 483–498: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
+- [Meus valores](#meus-valores), linhas 499–511: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
+- [Conferência dos lançamentos](#conferencia), linhas 512–526: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
+- [Equipe, grupos e permissões](#equipe), linhas 527–557: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
+- [Perfil profissional e foto](#perfil), linhas 558–577: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
+- [Configurações e escritório](#configuracoes), linhas 578–594: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
+- [Registro de ações e LGPD](#registro), linhas 595–607: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
+- [Mensagens e avisos](#mensagens), linhas 608–632: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado e os pedidos para participar de um item.
+- [Comentários e menções](#comentarios), linhas 633–650: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
+- [Etiquetas](#etiquetas), linhas 651–667: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
+- [Ligações entre itens](#ligacoes), linhas 668–689: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções) e como as ligações aparecem no quadro.
+- [Quadros (kanban) e situação](#quadros), linhas 690–716: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
+- [Cartão dos itens](#cartao), linhas 717–739: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 740–752: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 753–767: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 768–788: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 789–802: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 803–822: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google e contatos](#google), linhas 823–841: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+- [Novidades e versão](#novidades), linhas 842–855: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 856–869: A ajuda de cada tela de módulo (o botão "?") e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 870–881: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 882–986: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 987–990: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -439,19 +439,20 @@ Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e rec
 - **Tabelas:** `financeiro_contas` (financeiro_caixa), `financeiro_das` (financeiro_caixa), `financeiro_lancamentos` (financeiro_caixa), `financeiro_socios` (financeiro_parcelas), `financeiro_ajustes` (financeiro_caixa), `financeiro_historico` (financeiro_caixa), `financeiro_excluidos` (contrato_exclui_em_cascata); entre parênteses, a migração que a cria
 - **Migrações:** (supabase/migrations/) 20261102175057_financeiro_caixa, 20261102192042_financeiro_parcelas, 20261103000916_financeiro_lucro, 20261104000100_ajuste_de_saldo, 20261107215301_lancamento_da_planilha, 20261107233223_correcao_de_recebimento, 20261120231028_excluir_conta, 20261122235537_contrato_exclui_em_cascata
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
-  - `DadosFinanceiro`: financeiroContas, financeiroContaCriar, financeiroContaAtualizar, financeiroContaExcluir, financeiroArquivadasComLancamentos, financeiroLancamentos, financeiroAjustesDeSaldo, financeiroSaldoAntes, financeiroLancamentoCriar, financeiroLancamentoAtualizar, financeiroLancamentoExcluir, financeiroLancamentoRestaurar, financeiroTransferir, financeiroHistorico, financeiroDas, financeiroDasSalvar, financeiroAjustes
+  - `DadosFinanceiro`: financeiroContas, financeiroContaCriar, financeiroContaAtualizar, financeiroContaExcluir, financeiroArquivadasComLancamentos, financeiroLancamentos, financeiroAjustesDeSaldo, financeiroSaldoAntes, financeiroLancamentoCriar, financeiroLancamentoAtualizar, financeiroLancamentoExcluir, financeiroLancamentoRestaurar, financeiroTransferir, financeiroHistorico, financeiroDas, financeiroDasSalvar, financeiroAjustes, financeiroExcluidos
 - **Regras:** (app/src/regras/)
   - `caixa.ts`: O caixa do escritório: as categorias de cada lançamento, a conferência dos formulários e o saldo de cada dia.
   - `financeiro.ts`: A divisão de cada recebimento: quanto chega ao escritório, quanto fica com o responsável, quanto ele repassa e o que o escritório paga ao sócio que indicou.
   - `graficosFinanceiros.ts`: As contas dos indicadores e gráficos do Financeiro (sem tela, sem banco), só com o que já entrou (#268): nada de valor a receber, contratado ou em aberto, para…
   - `numerosDoFinanceiro.ts`: Os números e os gráficos do painel do Financeiro (#403).
   - `painelFinanceiro.ts`: O painel do financeiro: o ano mês a mês, o extrato com filtros, a carteira de contratos e o arquivo para planilha.
-- **Telas:** (app/src/paginas/) Financeiro.css, Financeiro.tsx, financeiro/APassar.tsx, financeiro/AbasDoFinanceiro.tsx, financeiro/AjustesDeSaldo.tsx, financeiro/CorrigirRecebimento.tsx, financeiro/DetalheFinanceiro.tsx, financeiro/Formularios.tsx, financeiro/Graficos.tsx, financeiro/Hub.tsx, financeiro/NovoLancamento.tsx, financeiro/Parcelas.tsx, financeiro/Repasses.tsx, financeiro/SocioNaEquipe.tsx, financeiro/Socios.tsx
+  - `recebimentosExcluidos.ts`: Os recebimentos que saíram com os contratos excluídos (#284), como a seção "Recebimentos excluídos" de "Contas, DAS e sócios" os mostra (#413): o contrato, a…
+- **Telas:** (app/src/paginas/) Financeiro.css, Financeiro.tsx, financeiro/APassar.tsx, financeiro/AbasDoFinanceiro.tsx, financeiro/AjustesDeSaldo.tsx, financeiro/CorrigirRecebimento.tsx, financeiro/DetalheFinanceiro.tsx, financeiro/Formularios.tsx, financeiro/Graficos.tsx, financeiro/Hub.tsx, financeiro/NovoLancamento.tsx, financeiro/Parcelas.tsx, financeiro/RecebimentosExcluidos.tsx, financeiro/Repasses.tsx, financeiro/SocioNaEquipe.tsx, financeiro/Socios.tsx
 - **Rotas:** `/financeiro/`, `/financeiro/contas/`, `/financeiro/saidas/`
 - **Peças de ui:** (app/src/ui/) MenuFinanceiro.tsx
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/lancamento_da_planilha.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/conferencia.test.ts src/dados/contrato.test.ts src/paginas/Financeiro.test.tsx src/paginas/financeiro/ContasDoEscritorio.test.tsx src/paginas/financeiro/SocioNaEquipe.test.tsx src/regras/caixa.test.ts src/regras/conferencia.test.ts src/regras/financeiro.test.ts src/regras/graficosFinanceiros.test.ts src/regras/numerosDoFinanceiro.test.ts src/regras/painelFinanceiro.test.ts src/regras/parcelas.test.ts src/ui/MenuFinanceiro.test.tsx`
-- **Testes de tela:** na pasta app, `npx playwright test e2e/conferencia.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/mais-no-titulo-das-secoes.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/lancamento_da_planilha.test.sql supabase/tests/recebimentos_excluidos.test.sql`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/conferencia.test.ts src/dados/contrato.test.ts src/paginas/Financeiro.test.tsx src/paginas/financeiro/ContasDoEscritorio.test.tsx src/paginas/financeiro/RecebimentosExcluidos.test.tsx src/paginas/financeiro/SocioNaEquipe.test.tsx src/regras/caixa.test.ts src/regras/conferencia.test.ts src/regras/financeiro.test.ts src/regras/graficosFinanceiros.test.ts src/regras/numerosDoFinanceiro.test.ts src/regras/painelFinanceiro.test.ts src/regras/parcelas.test.ts src/regras/recebimentosExcluidos.test.ts src/ui/MenuFinanceiro.test.tsx`
+- **Testes de tela:** na pasta app, `npx playwright test e2e/conferencia.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/mais-no-titulo-das-secoes.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts e2e/recebimentos-excluidos.spec.ts e2e/topo-do-cartao.spec.ts`
 - **Armadilhas:**
   - Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.
   - O Hub e as abas (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx` e `TELAS_DO_FINANCEIRO` de `e2e/ajudantes.ts`) abrem Parcelas, Lucros, Meus valores e Conferência: mexeu no Hub ou nos endereços, rode os testes dessas telas (já no comando abaixo) e veja [Rotas e endereços](#rotas).
@@ -926,7 +927,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/atalhos.spec.ts e2e/financeiro.spec.ts e2e/parcelas.spec.ts`
 - `/financeiro/contas/` (Financeiro): [Financeiro](#financeiro)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/financeiro/Graficos.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/conferencia.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/mais-no-titulo-das-secoes.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/conferencia.spec.ts e2e/contrato-exclui-em-cascata.spec.ts e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/mais-no-titulo-das-secoes.spec.ts e2e/meus-valores.spec.ts e2e/parcelas.spec.ts e2e/recebimentos-excluidos.spec.ts`
 - `/financeiro/direitos/` (HubDoFinanceiro): [Parcelas e recebimentos](#parcelas)
   - escrevem o endereço: (app/) src/paginas/financeiro/AbasDoFinanceiro.tsx, src/paginas/financeiro/Graficos.tsx, src/regras/enderecosAntigos.test.ts, src/regras/enderecosAntigos.ts, src/regras/painelInicial.test.ts, src/regras/painelInicial.ts, src/ui/MenuFinanceiro.test.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/parcelas.spec.ts`
@@ -938,7 +939,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/financeiro.spec.ts e2e/lucros.spec.ts e2e/parcelas.spec.ts e2e/topo-do-cartao.spec.ts`
 - `/inicio/` (Inicio): [Painel inicial](#painel-inicial)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/Conferencia.test.tsx, src/paginas/Conferencia.tsx, src/paginas/Configuracoes.test.tsx, src/paginas/Configuracoes.tsx, src/paginas/Entrada.tsx, src/paginas/Equipe.tsx, src/paginas/Financeiro.test.tsx, src/paginas/Financeiro.tsx, src/paginas/Home.tsx, src/paginas/Lucros.tsx, src/paginas/MeusValores.test.tsx, src/paginas/MeusValores.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts, src/ui/BuscaGeral.test.tsx, src/ui/Casca.tsx, src/ui/MaisDoMenu.test.tsx, src/ui/MenuFinanceiro.test.tsx, src/ui/SubmenuLateral.test.tsx
-  - 42 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
+  - 43 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
 - `/lucros/` (Lucros): [Lucro dos sócios](#lucros)
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
 - `/mensagens/` (Mensagens): [Mensagens e avisos](#mensagens)

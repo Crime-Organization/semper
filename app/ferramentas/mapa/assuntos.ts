@@ -332,7 +332,7 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
     tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
     dados: ['DadosFinanceiro'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],

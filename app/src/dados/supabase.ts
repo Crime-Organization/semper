@@ -15,7 +15,7 @@ import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { meusGrupos, pedidoDoFiltroDeGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
-import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
@@ -1899,6 +1899,17 @@ export const SD: Dados = {
   async financeiroAjustes() {
     const { data } = await rodar(sb.from('financeiro_ajustes').select('id, alteracoes, feito_por, em').order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
     return data;
+  },
+  // A regra RLS da cópia escondida (#284) só mostra as linhas do escritório a um administrador; a cópia (jsonb) não vem: a tela não a mostra.
+  async financeiroExcluidos() {
+    const todos: RecebimentoExcluido[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_excluidos')
+        .select('id, contrato_codigo, tipo, parcela_numero, data, valor, conta_nome, estornado, excluido_por, excluido_em')
+        .order('excluido_em', { ascending: false }).order('id', { ascending: false }).range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...(data as RecebimentoExcluido[]).map(r => ({ ...r, valor: Number(r.valor) })));
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
   },
 
   // ---------- painel de processos ----------

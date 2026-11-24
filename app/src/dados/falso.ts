@@ -73,7 +73,7 @@ import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMO
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
 import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
-import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
+import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { PARTES_MAXIMAS } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, ITENS_DO_COMPROMISSO, PROCESSOS_PARA_LIGAR, TAMANHO_FUNCAO_NA_TAREFA, TAMANHO_SALA, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
@@ -269,9 +269,12 @@ interface Banco {
   demandasRelacionadas?: { demanda_a: string; demanda_b: string }[];
   /** O que cada contrato arquivou junto (privado.arquivados_com_contrato no banco, #284): o id da demanda ou da tarefa. */
   arquivadosComContrato?: { contrato_id: string; id: string }[];
-  /** A cópia escondida do dinheiro que saiu com o contrato excluído (financeiro_excluidos no banco, #284). Ninguém lê pela tela. */
+  /**
+   * A cópia escondida do dinheiro que saiu com o contrato excluído (financeiro_excluidos no banco, #284). Só os administradores leem, na
+   * seção "Recebimentos excluídos" (#413); ninguém muda nem apaga. Só cresce: o id de cada linha é a posição dela, a partir de 1.
+   */
   financeiroExcluidos?: { contrato_id: string; contrato_codigo: string; tipo: 'recebimento' | 'parcela_importada'; parcela_numero: number; data: string | null;
-    valor: number; conta_id: string | null; estornado: boolean; copia: unknown; excluido_por: string; excluido_em: string }[];
+    valor: number; conta_id: string | null; conta_nome?: string | null; estornado: boolean; copia: unknown; excluido_por: string; excluido_em: string }[];
   /** Os processos ligados aos contratos (contrato_processos no banco). */
   contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -3737,12 +3740,13 @@ export const SD: Dados = {
     const lancamentos = new Set([...recebimentos.flatMap(x => [x.lancamento_id, x.lancamento_taxa_id]), ...repasses.map(x => x.lancamento_id)].filter(Boolean));
     const copia = { excluido_por: eu, excluido_em: agora() };
     recebimentos.forEach(x => bd.financeiroExcluidos!.push({ contrato_id: x.contrato_id, contrato_codigo: acharContrato(x.contrato_id).codigo, tipo: 'recebimento',
-      parcela_numero: acharParcela(x.parcela_id).numero, data: x.data, valor: x.valor, conta_id: x.conta_id, estornado: !!x.estornado_em, ...copia,
+      parcela_numero: acharParcela(x.parcela_id).numero, data: x.data, valor: x.valor, conta_id: x.conta_id,
+      conta_nome: bd.contasFinanceiras!.find(c => c.id === x.conta_id)?.nome ?? null, estornado: !!x.estornado_em, ...copia,
       copia: { recebimento: x, repasses: repasses.filter(y => y.recebimento_id === x.id), terceiros_pagos: bd.terceirosPagos!.filter(m => m.recebimento_id === x.id),
         lancamentos: bd.lancamentos!.filter(l => lancamentos.has(l.id) || l.corrige_recebimento === x.id) } }));
     bd.parcelas!.filter(p => ok.includes(p.contrato_id) && importadaComoPaga(p)).forEach(p => bd.financeiroExcluidos!.push({ contrato_id: p.contrato_id,
       contrato_codigo: acharContrato(p.contrato_id).codigo, tipo: 'parcela_importada', parcela_numero: p.numero, data: p.recebida_em, valor: p.recebido ?? 0, conta_id: null,
-      estornado: false, ...copia, copia: { parcela: p } }));
+      conta_nome: null, estornado: false, ...copia, copia: { parcela: p } }));
     bd.repasses = bd.repasses!.filter(x => !idsDosRecebimentos.has(x.recebimento_id));
     bd.terceirosPagos = bd.terceirosPagos!.filter(m => !idsDosRecebimentos.has(m.recebimento_id));
     bd.recebimentos = bd.recebimentos!.filter(x => !idsDosRecebimentos.has(x.id));
@@ -4908,6 +4912,10 @@ export const SD: Dados = {
     return espera(undefined);
   },
   financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
+  // Como a regra RLS da cópia escondida: quem não é administrador recebe a lista vazia, sem erro. A cópia das linhas não vem.
+  financeiroExcluidos: () => espera(souAdmin() ? bd.financeiroExcluidos!
+    .map(({ contrato_id: _k, conta_id: _c, copia: _x, conta_nome, ...r }, i): RecebimentoExcluido => ({ ...r, id: i + 1, conta_nome: conta_nome ?? null }))
+    .toSorted((a, b) => b.excluido_em.localeCompare(a.excluido_em) || b.id - a.id) : []),
 
   // ---------- parcelas, recebimentos e repasses (como supabase/migrations/20261102192042_financeiro_parcelas.sql) ----------
   parcelasDoContrato: contratoId => espera(bd.parcelas!.filter(p => p.contrato_id === contratoId && cuidoDoContrato(contratoId) && !p.excluido_em).toSorted((a, b) => a.numero - b.numero).map(semExcluida)),

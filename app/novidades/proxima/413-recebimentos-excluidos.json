@@ -1,0 +1,5 @@
+{
+  "titulo": "Recebimentos dos contratos excluídos",
+  "texto": "Os administradores veem os recebimentos que saíram do Caixa quando um contrato foi excluído: o contrato, a parcela, a data, o valor, a conta e quem excluiu. É só para conferir: ninguém muda nem apaga essas linhas.",
+  "ondeAchar": "Financeiro, botão Contas e DAS, seção Recebimentos excluídos (só para administradores)."
+}
