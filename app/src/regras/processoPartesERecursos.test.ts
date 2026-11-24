@@ -23,7 +23,7 @@ describe('Tipos de processo', () => {
 
   it('quando o processo é administrativo, então o número não segue o CNJ e os campos só do judicial não são gravados', () => {
     // Dado
-    const c = { ...processoVazio('administrativo'), numero: 'Notificação 12/2026', clientes: ['p1'], responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
+    const c = { ...processoVazio('administrativo'), numero: 'Notificação 12/2026', clientes: ['p1'], papeisClientes: { p1: 'autor' as const }, responsavelId: 'u1', comarca: 'Montes Claros', advogadoContrario: 'Fulano' };
     // Quando
     const erros = validarProcesso(c), dados = dadosDoProcesso(c);
     // Então
@@ -82,14 +82,14 @@ describe('Pessoas com papel no processo', () => {
 });
 
 describe('Recursos e incidentais', () => {
-  it('quando o cadastro nasce de um processo, então traz o tipo, os clientes, o polo e a equipe ativa dele, e não o número', () => {
+  it('quando o cadastro nasce de um processo, então traz o tipo, os clientes com o papel de cada um (#426) e a equipe ativa dele, e não o número', () => {
     // Dado
-    const origem = { id: 'o1', tipo: 'judicial' as const, responsavel_id: 'u-saiu', colaboradores: ['u1', 'u-saiu', 'u2'], polo: 'autor' as const, area: 'Cível', sistema: 'PJe', meio: 'eletronico' as const,
-      clientes: [{ id: 'p1' }, { id: 'p2' }] };
+    const origem = { id: 'o1', tipo: 'judicial' as const, responsavel_id: 'u-saiu', colaboradores: ['u1', 'u-saiu', 'u2'], papeis_clientes: { p1: 'autor' as const, p2: 'reu' as const },
+      area: 'Cível', sistema: 'PJe', meio: 'eletronico' as const, clientes: [{ id: 'p1' }, { id: 'p2' }] };
     // Quando
     const campos = processoDoProcesso(origem, ['u1', 'u2', 'eu'], 'eu');
     // Então
-    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], polo: 'autor', area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
+    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor', p2: 'reu' }, area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
     expect(campos).not.toHaveProperty('numero');
   });
 

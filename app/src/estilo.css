@@ -103,6 +103,8 @@
   --vao-da-lista-de-atalhos: 8px;
   --vao-entre-as-teclas: 4px;
   --separacao-na-lista-de-atalhos: 16px;
+  /* Os selos lado a lado na miniatura do processo: o órgão, o sistema e o papel dos clientes (#426) */
+  --vao-entre-os-selos: 4px;
   /* O botão "?" da ajuda da tela (#85), redondo, ao lado do título da página de módulo: menor que os controles da barra (42px),
      para não competir com o título, e ainda um alvo de toque confortável */
   --tamanho-do-botao-de-ajuda: 32px;

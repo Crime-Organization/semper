@@ -1,5 +1,5 @@
 // Cadastro de processo (novo ou atualizar), por etapas como os de pessoa, contrato e demanda: o processo (tipo, número,
-// nome e órgão), as pessoas (clientes, polo e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
+// nome e órgão), as pessoas (clientes, o papel de cada um e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 // Vindo do "+ Novo processo" de uma demanda, de um contrato ou de uma tarefa (?demanda=, ?contrato=, ?tarefa=; #376), ele traz o que
 // a origem tem (NASCE_DE) e, ao salvar, nasce ligado a ela; do contrato e da tarefa, a tela volta ao cartão de origem. Da demanda e
@@ -12,8 +12,8 @@ import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limi
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
-  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
-  LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
+  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
+  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, LIGACOES, ligacaoDoEndereco, origemAoCriar, primeiraEtapaComErroProcesso, processoDoProcesso, processoVazio, semSairDoProcesso, tipoDoEndereco, TIPOS, TIPOS_DE_LIGACAO,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -271,7 +271,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // ---------- clientes ----------
   const escolherCliente = (i: number) => (p: PessoaLista | null) => {
     setClientes(atual => atual.map((x, j) => j === i ? p : x));
-    setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x) }));
+    setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x),
+      papeisClientes: papeisAoTrocarCliente(atual.papeisClientes, atual.clientes[i], p?.id ?? '') }));
   };
   function acrescentarCliente() {
     const chave = proximaChave.current++;
@@ -436,12 +437,20 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>}
     </>,
     pessoas: () => <>
-      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes} grupo={grupoDosClientes}>
-        {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
+      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes ?? erros.papeisClientes} grupo={grupoDosClientes}
+        dica="Ao lado de cada cliente, o papel dele no processo (obrigatório).">
+        {c.clientes.map((id, i) => <div className="linha-cliente com-papel" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
+          {/* O papel do cliente (#426): a mesma lista das pessoas com papel; escolhe-se depois da pessoa. */}
+          <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`} value={(id && c.papeisClientes[id]) || ''} disabled={!id}
+            aria-invalid={erros.papeisClientes && id && !c.papeisClientes[id] ? true : undefined}
+            onChange={e => mudar({ papeisClientes: comPapelDoCliente(c.papeisClientes, id, e.target.value) })}>
+            <option value="">Papel do cliente…</option>
+            {PAPEIS_DO_CLIENTE.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
+          </select>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
             <Icone nome="fechar" tam={15} />
           </button>}
@@ -450,12 +459,6 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <Icone nome="mais" tam={13} /> Adicionar cliente
         </button></div>
       </CampoDeVarios>
-      <Campo rotulo="Polo do cliente" para="polo">
-        <select {...propsDoCampo('polo')} value={c.polo} onChange={e => mudar({ polo: e.target.value as CamposProcesso['polo'] })}>
-          <option value="">{NAO_INFORMADO}</option>
-          {Object.entries(POLOS).map(([v, nome]) => <option key={v} value={v}>{nome}</option>)}
-        </select>
-      </Campo>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pelo processo: qualquer um da equipe.">
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId}
           onChange={e => mudar({ responsavelId: e.target.value, colaboradores: c.colaboradores.filter(x => x !== e.target.value) })}>

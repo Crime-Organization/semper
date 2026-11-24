@@ -48,7 +48,7 @@ import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
 import {
   alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, ehTipoDeProcesso, TIPOS_PROCESSO,
-  LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, type QuadroDeProcesso
+  LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, ehPapelDaParte, papeisAoGravar, type QuadroDeProcesso
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { APRESENTACOES_DA_MARCA, CONCESSAO_ANTES_DO_DEPOSITO, NATUREZAS_DA_MARCA, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
@@ -634,10 +634,15 @@ bd.processos ??= (() => {
     criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora(), etapa_ordem: 1, origem_id: null, ligacao: null };
   const lista: ProcessoGuardado[] = [];
   const jose = pessoa('JOSÉ DA SILVA TESTE'), maria = pessoa('MARIA APARECIDA EXEMPLO');
-  if (jose) lista.push({ ...base, id: novoId(), codigo: codigo(), tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', orgao: 'TJMG', comarca: 'Montes Claros', vara: '2ª Vara Cível', clientes: [jose], etapa_id: coluna('Distribuído') });
-  if (maria) lista.push({ ...base, id: novoId(), codigo: codigo(), tipo: 'administrativo', numero: '912345678', titulo: 'Registro da marca Exemplo', orgao: 'INPI', clientes: [maria], etapa_id: coluna('Protocolado') });
+  if (jose) lista.push({ ...base, id: novoId(), codigo: codigo(), tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', orgao: 'TJMG', sistema: 'PJe', comarca: 'Montes Claros', vara: '2ª Vara Cível', clientes: [jose],
+    papeis_clientes: { [jose]: 'autor' }, etapa_id: coluna('Distribuído') });
+  if (maria) lista.push({ ...base, id: novoId(), codigo: codigo(), tipo: 'administrativo', numero: '912345678', titulo: 'Registro da marca Exemplo', orgao: 'INPI', clientes: [maria],
+    papeis_clientes: { [maria]: 'titular' }, etapa_id: coluna('Protocolado') });
   return lista;
 })();
+// O papel de cada cliente (#426), uma vez, nos processos guardados antes dele: o polo antigo vira o papel de cada cliente, como a
+// migração papel_do_cliente.
+for (const p of bd.processos) p.papeis_clientes ??= papeisAoGravar({}, p.clientes, p.polo);
 // Colunas de compromissos: "Agendado" e "Realizado" são as colunas-marco (como a migração de compromissos).
 if (!bd.colunas.some(c => c.modulo === 'compromissos')) {
   bd.colunas.push(...SITUACOES_COMPROMISSO.map((nome, i) => ({ id: novoId(), nome, ordem: i + 1, criado_por: null, modulo: 'compromissos' as const,
@@ -2651,7 +2656,7 @@ function conferirOrigemDoProcesso(d: DadosProcesso) {
 const processoCompleto =(p: ProcessoGuardado): Processo => ({ ...PI_VAZIA, ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [], cliente_nome: nomesDosClientes(p.clientes),
-  orgao: p.orgao, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
+  orgao: p.orgao, sistema: p.sistema, papeis_clientes: p.papeis_clientes, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
 });
 const buscaProcesso = (p: ProcessoGuardado) => normal([p.codigo, p.numero, p.numero.replace(/\D/g, ''), p.titulo, nomesDosClientes(p.clientes), p.orgao, p.comarca, p.vara].join(' '));
 function filtrarProcessos(f: FiltroProcessos) {
@@ -2703,6 +2708,13 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
     if (!d.clientes.length) throw new Error('Escolha pelo menos um cliente.');
     if (d.clientes.length > CLIENTES_MAXIMOS) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     if (d.clientes.some(c => !bd.pessoas.some(p => p.id === c))) throw new Error('Cliente não encontrado neste escritório.');
+  }
+  // Como o gatilho preparar_papeis e a regra processos_papeis_clientes_validos (#426): só os clientes guardam papel, o que falta vem do
+  // polo antigo, e um papel fora da lista é recusado.
+  if (d.papeis_clientes !== undefined || d.clientes !== undefined || d.polo !== undefined) {
+    const papeis = papeisAoGravar(d.papeis_clientes ?? atual?.papeis_clientes ?? {}, d.clientes ?? atual?.clientes ?? [], d.polo !== undefined ? d.polo : atual?.polo ?? null);
+    if (!Object.values(papeis).every(ehPapelDaParte)) throw new Error(FORMATO_INVALIDO);
+    d.papeis_clientes = papeis;
   }
   const responsavel = d.responsavel_id ?? atual?.responsavel_id;
   if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
@@ -5369,7 +5381,7 @@ export const SD: Dados = {
     pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
-      origem_id: null, ligacao: null, ...PI_VAZIA,
+      origem_id: null, ligacao: null, papeis_clientes: {}, ...PI_VAZIA,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
     bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });

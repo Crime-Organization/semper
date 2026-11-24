@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
-  semSairDoProcesso, validarProcesso, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso
+  semSairDoProcesso, validarProcesso, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso,
+  clienteNoCartao, comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, PAPEL_DO_CLIENTE_OBRIGATORIO, papeisAoGravar, papeisAoTrocarCliente, papeisDosClientesPorExtenso,
+  selosDoProcesso
 } from './processo';
 
 const NUMERO_VALIDO = '0001234-97.2026.8.13.0024';
-const valido = (extra: Partial<CamposProcesso> = {}): CamposProcesso => ({ ...processoVazio('judicial'), numero: NUMERO_VALIDO, clientes: ['p1'], responsavelId: 'u1', ...extra });
+const valido = (extra: Partial<CamposProcesso> = {}): CamposProcesso => ({ ...processoVazio('judicial'), numero: NUMERO_VALIDO, clientes: ['p1'], papeisClientes: { p1: 'autor' }, responsavelId: 'u1', ...extra });
 
 describe('Cadastro de processo', () => {
   it('quando tem tipo, número, cliente e responsável, então pode salvar: nada mais é obrigatório', () => {
@@ -64,7 +66,9 @@ describe('Cadastro de processo', () => {
     // Quando
     const d = dadosDoProcesso(valido({ numero: '00012349720268130024', titulo: '  ', colaboradores: ['u1', 'u2', 'u2'], clientes: ['p1', '', 'p1'], valorCausa: '1.500,50', distribuicao: '02/03/2026' }));
     // Então
-    expect(d).toMatchObject({ numero: NUMERO_VALIDO, titulo: null, colaboradores: ['u2'], clientes: ['p1'], valor_causa: 1500.5, distribuicao: '2026-03-02', polo: null, segredo: false });
+    expect(d).toMatchObject({ numero: NUMERO_VALIDO, titulo: null, colaboradores: ['u2'], clientes: ['p1'], papeis_clientes: { p1: 'autor' }, valor_causa: 1500.5, distribuicao: '2026-03-02', segredo: false });
+    // O antigo polo do processo não é mais gravado pela tela (#426): fica como estava, para a versão anterior do site.
+    expect(d).not.toHaveProperty('polo');
   });
 
   it('quando é administrativo, então os campos só do judicial não vão para o banco', () => {
@@ -218,13 +222,13 @@ describe('Listas e cartão', () => {
     expect(ehOpcaoPronta('sistema', '')).toBe(false);
   });
 
-  it.each(['vitima', 'investigado', 'apenado'] as const)('dado o polo %s escolhido no cadastro, judicial ou administrativo, quando salva e abre para editar, então o polo volta igual (#289)', polo => {
+  it.each(['vitima', 'investigado', 'apenado'] as const)('dado o papel %s de um cliente, judicial ou administrativo, quando salva e abre para editar, então o papel volta igual (#289, #426)', papel => {
     for (const tipo of ['judicial', 'administrativo'] as const) {
       // Quando
-      const d = dadosDoProcesso(valido({ tipo, polo }));
+      const d = dadosDoProcesso(valido({ tipo, papeisClientes: { p1: papel } }));
       // Então
-      expect(d.polo).toBe(polo);
-      expect(camposDoProcesso({ ...d, id: 'x', clientes: [] } as unknown as Processo).polo).toBe(polo);
+      expect(d.papeis_clientes).toEqual({ p1: papel });
+      expect(camposDoProcesso({ ...d, id: 'x', clientes: [{ id: 'p1' }] } as unknown as Processo).papeisClientes).toEqual({ p1: papel });
     }
   });
 
@@ -308,5 +312,92 @@ describe('Menções nos comentários do processo (#362)', () => {
     // Então
     expect(motivoSemMencaoNoProcesso(PROCESSO)({ id: 'u-fora', nome: 'Eli' })).toBe('não participa; inclua como colaborador');
     expect(mencaoNegadaNoProcesso('Eli')).toBe('Não é possível mencionar Eli neste processo: inclua essa pessoa como colaboradora antes.');
+  });
+});
+
+describe('Papel de cada cliente no processo (#426)', () => {
+  it('dado o cadastro de um processo novo, quando algum cliente está sem papel, então não salva e diz que o papel é obrigatório', () => {
+    // Dado
+    const c = valido({ clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor' } });
+    // Então
+    expect(validarProcesso(c).papeisClientes).toBe(PAPEL_DO_CLIENTE_OBRIGATORIO);
+    expect(primeiraEtapaComErroProcesso(c)).toBe(1);
+    expect(Object.keys(errosDaEtapaProcesso('pessoas', c))).toEqual(['papeisClientes']);
+  });
+
+  it('dado um processo com dois clientes, quando cada um tem o seu papel, então salva e cada cliente guarda o seu', () => {
+    // Dado
+    const c = valido({ clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor', p2: 'reu' } });
+    // Então
+    expect(validarProcesso(c)).toEqual({});
+    expect(dadosDoProcesso(c).papeis_clientes).toEqual({ p1: 'autor', p2: 'reu' });
+  });
+
+  it('dado um cliente que saiu da lista, quando grava, então o papel dele não vai junto', () => {
+    // Quando
+    const d = dadosDoProcesso(valido({ clientes: ['p1', ''], papeisClientes: { p1: 'autor', saiu: 'reu' } }));
+    // Então
+    expect(d.papeis_clientes).toEqual({ p1: 'autor' });
+  });
+
+  it('dado um processo antigo sem papel, quando abre para editar, então precisa informar o papel para salvar', () => {
+    // Dado
+    const antigo = { ...dadosDoProcesso(valido()), id: 'x', tipo: 'judicial', clientes: [{ id: 'p1' }], papeis_clientes: {} } as unknown as Processo;
+    // Quando
+    const c = camposDoProcesso(antigo);
+    // Então
+    expect(validarProcesso(c).papeisClientes).toBe(PAPEL_DO_CLIENTE_OBRIGATORIO);
+    expect(validarProcesso({ ...c, papeisClientes: comPapelDoCliente(c.papeisClientes, 'p1', 'terceiro') })).toEqual({});
+  });
+
+  it('quando escolhe a opção vazia, então o cliente fica sem papel; um valor fora da lista também não vale', () => {
+    // Então
+    expect(comPapelDoCliente({ p1: 'autor' }, 'p1', '').p1).toBeUndefined();
+    expect(comPapelDoCliente({}, 'p1', 'Autor').p1).toBeUndefined();
+    expect(comPapelDoCliente({}, 'p1', 'reu').p1).toBe('reu');
+  });
+
+  it('quando troca a pessoa de uma linha, então o papel escolhido na linha passa para a nova', () => {
+    // Então
+    expect(papeisAoTrocarCliente({ p1: 'autor' }, 'p1', 'p2')).toEqual({ p1: 'autor', p2: 'autor' });
+    expect(papeisAoTrocarCliente({ p1: 'autor', p2: 'reu' }, 'p1', 'p2')).toEqual({ p1: 'autor', p2: 'reu' });
+    expect(papeisAoTrocarCliente({ p1: 'autor' }, 'p1', '')).toEqual({ p1: 'autor' });
+  });
+
+  it('quando oferece os papéis do cliente, então é a mesma lista das pessoas com papel, com o "Outro papel" por último', () => {
+    // Então
+    expect([...PAPEIS_DO_CLIENTE].sort()).toEqual(Object.keys(PAPEIS_DA_PARTE).sort());
+    expect(PAPEIS_DO_CLIENTE.at(-1)).toBe('outro');
+    expect(PAPEIS_DO_CLIENTE.slice(0, 2)).toEqual(['autor', 'reu']);
+  });
+
+  it('dado um processo antigo com polo, quando a mudança chega, então o polo vira o papel de cada cliente; sem polo, nenhum papel', () => {
+    // Então
+    expect(papeisAoGravar({}, ['p1', 'p2'], 'apenado')).toEqual({ p1: 'apenado', p2: 'apenado' });
+    expect(papeisAoGravar({}, ['p1'], null)).toEqual({});
+  });
+
+  it('dado um cliente com papel, quando grava, então o papel dele fica e o de quem não é cliente sai', () => {
+    // Então
+    expect(papeisAoGravar({ p1: 'reu', fora: 'autor' }, ['p1', 'p2'], 'autor')).toEqual({ p1: 'reu', p2: 'autor' });
+  });
+
+  it('quando mostra os papéis dos clientes, então cada papel aparece uma vez, na ordem da lista', () => {
+    // Então
+    expect(papeisDosClientesPorExtenso({ p2: 'reu', p1: 'autor', p3: 'autor' })).toBe('Autor, Réu');
+    expect(papeisDosClientesPorExtenso({})).toBe('');
+    expect(valorLegivelProcesso('papeis_clientes', { p1: 'vitima' })).toBe('Vítima');
+  });
+
+  it('dado um processo com papel do cliente, quando aparece a miniatura, então mostra o órgão, o sistema e o papel; os vazios saem', () => {
+    // Então
+    expect(selosDoProcesso({ orgao: 'TJMG', sistema: 'PJe', papeis_clientes: { p1: 'autor' } })).toEqual(['TJMG', 'PJe', 'Autor']);
+    expect(selosDoProcesso({ orgao: null, sistema: null, papeis_clientes: {} })).toEqual([]);
+  });
+
+  it('quando o cartão mostra o cliente, então diz o papel dele, ou que ainda falta informá-lo', () => {
+    // Então
+    expect(clienteNoCartao('reu')).toBe('Cliente · Réu');
+    expect(clienteNoCartao(undefined)).toBe('Cliente · papel a informar');
   });
 });

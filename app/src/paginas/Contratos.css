@@ -45,3 +45,10 @@
 /* Cada cliente numa linha: a busca da pessoa e, havendo mais de um, o botão de tirar. */
 .linha-cliente { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end }
 .linha-cliente > .icone-btn { margin-bottom: 6px }
+/* O cliente do processo com o papel dele ao lado (#426): a busca, o papel e o "x". */
+.linha-cliente.com-papel { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto }
+/* No celular (o mesmo degrau do estilo.css), o papel desce para baixo do cliente, e o "x" fica ao lado do cliente. */
+@media (max-width: 640px) {
+  .linha-cliente.com-papel { grid-template-columns: minmax(0, 1fr) auto }
+  .linha-cliente.com-papel > select { grid-column: 1; grid-row: 2 }
+}

@@ -90,6 +90,8 @@ test.describe('Recursos e incidentais (#316)', () => {
     await page.getByLabel('Número do processo').fill(NUMERO_DO_RECURSO);
     await page.getByRole('button', { name: 'Próxima' }).click();
     await expect(page.getByTitle('JOSÉ DA SILVA TESTE', { exact: true })).toBeVisible();
+    // E o cliente vem com o papel que tem no processo de origem (#426)
+    await expect(page.getByLabel('Papel do cliente')).toHaveValue('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então volta ao processo de origem, que mostra o recurso
@@ -141,6 +143,7 @@ test.describe('Tipos de processo: judicial e administrativo (#406)', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então
@@ -176,6 +179,7 @@ test.describe('Tipos de processo: judicial e administrativo (#406)', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByLabel('Papel do cliente').selectOption('autor');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então

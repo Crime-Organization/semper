@@ -965,8 +965,11 @@ export interface DadosModelos {
 export type TipoProcesso = 'judicial' | 'administrativo';
 /** Como o processo nasceu de outro (#316): recurso ou incidental. */
 export type LigacaoDeProcesso = 'recurso' | 'incidental';
-/** O papel de uma pessoa no processo, além dos clientes (#316). A lista do banco é a mesma (processo_partes). */
-export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'advogado_contrario' | 'outro'
+/**
+ * O papel de uma pessoa no processo (#316) e o de cada cliente (#426). A lista do banco é a mesma (processo_partes e
+ * processos.papeis_clientes). O apenado veio do antigo "Polo do cliente" (#426).
+ */
+export type PapelDaParte = 'autor' | 'reu' | 'terceiro' | 'testemunha' | 'perito' | 'assistente_tecnico' | 'vitima' | 'investigado' | 'apenado' | 'advogado_contrario' | 'outro'
   /** Só nos processos de propriedade intelectual (#317). */
   | 'titular' | 'inventor' | 'autor_da_criacao';
 /** O tipo de proteção do processo de propriedade intelectual (#317). A lista do banco é a mesma (migração propriedade_intelectual). */
@@ -974,7 +977,10 @@ export type TipoProtecao = 'marca' | 'patente_invencao' | 'modelo_utilidade' | '
 /** Como a marca se apresenta e a natureza dela (#317, as listas do Manual de Marcas do INPI). */
 export type ApresentacaoMarca = 'nominativa' | 'mista' | 'figurativa' | 'tridimensional' | 'posicao';
 export type NaturezaMarca = 'produto' | 'servico' | 'coletiva' | 'certificacao';
+/** O antigo "Polo do cliente", um só para o processo: a tela não o grava mais; o papel de cada cliente (#426) ficou no lugar dele. */
 export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
+/** O papel de cada cliente no processo (#426), pelo id da pessoa. O cliente sem papel (processo antigo, sem polo) fica de fora. */
+export type PapeisDosClientes = Partial<Record<string, PapelDaParte>>;
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
 /** As listas que o administrador pode ampliar. */
@@ -992,6 +998,8 @@ export interface Processo {
   etapa_id: string | null; etapa_ordem: number | null; arquivado_em: string | null; arquivado_por: string | null;
   criado_por: string | null; criado_em: string; atualizado_por: string | null; atualizado_em: string;
   clientes: PessoaResumida[];
+  /** O papel de cada cliente (#426). O banco só guarda o dos clientes do processo. */
+  papeis_clientes: PapeisDosClientes;
   /** Os valores dos campos que o escritório criou, por id do campo. */
   campos: Record<string, string>;
   /** O processo de que este nasceu, como recurso ou incidental (#316). Gravados só ao criar; excluída a origem, origem_id fica vazio. */
@@ -1057,7 +1065,7 @@ export type MudancaNoPrazo = Partial<DadosPrazo & Pick<PrazoDeProcesso, 'conclui
 /** Campos que o cadastro de processo grava. */
 export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
 /** Linha das listagens de processos (tabela e quadro). */
-export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome' | 'orgao' | 'comarca' | 'vara'
+export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome' | 'orgao' | 'sistema' | 'papeis_clientes' | 'comarca' | 'vara'
   | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroProcessos {
   /** O quadro de cada tipo é separado: o tipo vem sempre. */

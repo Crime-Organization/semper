@@ -5,7 +5,7 @@
 // A semente do banco fictício: LUCIANA ROCHA AMOSTRA não tem contratos nem processos; JOSÉ DA SILVA TESTE é cliente do contrato
 // "Registro de marca" (com as demandas "Registro de marca" e "Busca de anterioridade"). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao, entrarComo, escolherPapeisDosClientes } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
 /** O número do processo em qualquer formato (com ou sem os pontos e o traço). */
@@ -47,6 +47,7 @@ async function salvarProcesso(page: Page) {
   const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
   await cadastro.getByLabel('Número do processo').fill(NUMERO_NOVO);
   await cadastro.getByRole('button', { name: 'Próxima' }).click();
+  await escolherPapeisDosClientes(cadastro);
   await cadastro.getByRole('button', { name: 'Próxima' }).click();
   await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
   await expect(cadastro).toHaveCount(0);
@@ -210,6 +211,7 @@ test.describe('A volta ao cartão de origem só vale quando o item ficou ligado 
     // Quando: aberto pelo endereço, o cadastro ocupa a página
     await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
     await page.getByRole('button', { name: 'Próxima' }).click();
+    await escolherPapeisDosClientes(page);
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então

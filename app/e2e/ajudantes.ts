@@ -159,3 +159,13 @@ export async function acaoDaBolinha(page: Page, lugar: Page | Locator, bolinha: 
   const menu = await abrirMenuDaBolinha(page, lugar, bolinha);
   await menu.getByRole('menuitem', { name: acao, exact: true }).click();
 }
+
+/**
+ * No cadastro de processo, já na etapa Pessoas: escolhe o papel de cada cliente (#426, obrigatório), o mesmo para todos. Serve aos
+ * cadastros que já chegam com os clientes (do contrato, da demanda, da pessoa).
+ */
+export async function escolherPapeisDosClientes(lugar: Page | Locator, papel = 'autor') {
+  const campos = lugar.getByLabel(/^Papel do cliente( \d+)?$/);
+  await expect(campos.first()).toBeEnabled();
+  for (const campo of await campos.all()) await campo.selectOption(papel);
+}

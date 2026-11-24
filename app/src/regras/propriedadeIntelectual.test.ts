@@ -106,7 +106,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando a concessão vem antes do depósito, a classe passa de 45 ou as variações passam de 20, então o cadastro avisa no campo', () => {
     // Dado
-    const base = { ...processoVazio('administrativo'), numero: '900000001', clientes: ['p1'], responsavelId: 'u1', area: AREA_DA_PI };
+    const base = { ...processoVazio('administrativo'), numero: '900000001', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', area: AREA_DA_PI };
     // Quando
     const marca = validarProcesso({ ...base, protecao: 'marca', deposito: '10/03/2022', concessao: '01/01/2021', classesNice: '9, 46' });
     const desenho = validarProcesso({ ...base, protecao: 'desenho_industrial', variacoes: '21' });
@@ -117,7 +117,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando um campo de outro tipo ou de fora da área tem erro, então ele não conta (não está na tela)', () => {
     // Dado
-    const base = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], responsavelId: 'u1', classesNice: '99', variacoes: 'muitas' };
+    const base = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', classesNice: '99', variacoes: 'muitas' };
     // Então
     expect(validarProcesso({ ...base, area: AREA_DA_PI, protecao: 'patente_invencao' })).toEqual({});
     expect(validarProcesso({ ...base, area: 'Cível', protecao: 'marca' })).toEqual({});
@@ -125,7 +125,7 @@ describe('Cadastro dos campos de propriedade intelectual', () => {
 
   it('quando o processo de PI é gravado, então os campos dela vão junto com os de sempre', () => {
     // Dado
-    const c = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], responsavelId: 'u1', area: AREA_DA_PI, protecao: 'programa_computador' as const,
+    const c = { ...processoVazio('administrativo'), numero: '1', clientes: ['p1'], papeisClientes: { p1: 'titular' as const }, responsavelId: 'u1', area: AREA_DA_PI, protecao: 'programa_computador' as const,
       criacao: '15/08/2019', linguagem: 'Python' };
     // Então
     expect(dadosDoProcesso(c)).toMatchObject({ area: AREA_DA_PI, protecao: 'programa_computador', criacao: '2019-08-15', linguagem: 'Python', deposito: null });

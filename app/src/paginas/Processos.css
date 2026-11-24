@@ -1,5 +1,7 @@
 /* Processos: o que não vem de Contratos.css, Demandas.css e estilo.css */
 .tabela-processos td:nth-child(2) { min-width: 260px; max-width: 420px }
+/* Os selos da miniatura do processo (#426): o órgão, o sistema e o papel dos clientes, lado a lado. */
+.selos-do-processo { display: flex; flex-wrap: wrap; gap: var(--vao-entre-os-selos) }
 
 /* Painel de Processos (o resto vem da seção "painéis" do estilo.css) */
 .painel-grupo { margin: 0 0 8px; font-size: inherit }

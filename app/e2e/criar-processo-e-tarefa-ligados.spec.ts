@@ -5,7 +5,7 @@
 // (sem processo); "Renovar a procuração" é uma tarefa avulsa (sem processo nem pessoas); JOSÉ DA SILVA TESTE é cliente do processo
 // judicial 0001234-97.2026.8.13.0024. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, escolherPapeisDosClientes } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
 type Colecao = 'processos' | 'contratos' | 'tarefas';
@@ -59,6 +59,7 @@ test.describe('Criar, no cartão, o item novo já ligado (#376)', () => {
     // Então
     await expect(cadastro.getByRole('group', { name: 'Clientes' })).toContainText('MARIA APARECIDA EXEMPLO');
     // Quando
+    await escolherPapeisDosClientes(cadastro);
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
     // Então: volta ao contrato, com o processo na seção e o contador maior
@@ -86,6 +87,7 @@ test.describe('Criar, no cartão, o item novo já ligado (#376)', () => {
     // A tarefa não tem pessoas: o cliente é escolhido no cadastro
     await cadastro.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await cadastro.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await cadastro.getByLabel('Papel do cliente').selectOption('autor');
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
     // Então

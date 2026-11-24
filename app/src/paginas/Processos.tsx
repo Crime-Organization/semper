@@ -1,6 +1,7 @@
 // Processos: um quadro para cada tipo (judicial e administrativo; extrajudicial e investigação saíram na #406), cada um com as suas colunas e grupos. Tabela
 // com ações em lote, quadro e o cartão de cada processo. A estrutura da página vem de <PaginaModulo>; o modelo é o
-// módulo Pessoas. O órgão aparece como um selo neutro acima do nome do cartão, fora da lista de etiquetas.
+// módulo Pessoas. O órgão, o sistema e o papel dos clientes (#426) aparecem como selos neutros acima do nome do cartão, fora da lista
+// de etiquetas (selosDoProcesso).
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroProcessos, type Ordem, type Pagina, type ProcessoLista, type TipoProcesso } from '../dados';
@@ -9,7 +10,7 @@ import { AJUDA } from '../regras/ajuda';
 import { clientesPorExtenso } from '../regras/contrato';
 import { SEM_FASE } from '../regras/painelProcessos';
 import { soLeOCartao } from '../regras/equipeVeTudo';
-import { alteraOProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
+import { alteraOProcesso, nomeDoProcesso, selosDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
 import { emCaixaAlta } from '../regras/texto';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -40,6 +41,11 @@ import './Processos.css';
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
 /** Comarca e vara, quando há. */
 const localDoProcesso = (p: Pick<ProcessoLista, 'comarca' | 'vara'>) => [p.vara, p.comarca].filter(Boolean).join(' · ');
+/** Os selos da miniatura (quadro e lista): o órgão, o sistema e o papel dos clientes (#426). Nenhum: nada. */
+function SelosDoProcesso({ p }: { p: ProcessoLista }) {
+  const selos = selosDoProcesso(p);
+  return selos.length ? <div className="selos-do-processo">{selos.map(s => <Selo key={s} tipo="arq">{s}</Selo>)}</div> : null;
+}
 
 export default function Processos({ tipo }: { tipo: TipoProcesso }) {
   const { titulo, quadro: moduloDoQuadro } = TIPOS_PROCESSO[tipo];
@@ -212,7 +218,7 @@ function CartaoKanban({ p, ordem }: { p: ProcessoLista; ordem: Ordem }) {
   const data = dataDaOrdem(ordem, p), local = localDoProcesso(p);
   return <>
     <EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id)))} />
-    {p.orgao && <div><Selo tipo="arq">{p.orgao}</Selo></div>}
+    <SelosDoProcesso p={p} />
     <div className="kt">{nomeDoProcesso(p)}</div>
     <div className="km">
       <span className="codigo">{p.numero}</span>
@@ -257,14 +263,14 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, cadastro,
     <div className="tabela tabela-processos"><table>
       <thead><tr>
         <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(alteraveis.map(p => p.id), e.target.checked)} /></th>
-        <th scope="col">Processo</th><th scope="col">Órgão</th><th scope="col">Situação</th><th scope="col">Pessoas</th>
+        <th scope="col">Processo</th><th scope="col">Órgão e papel</th><th scope="col">Situação</th><th scope="col">Pessoas</th>
         <th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.codigo}`} checked={selecionadas.has(p.id)} disabled={!alteraveis.includes(p)} onChange={e => marcar([p.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{nomeDoProcesso(p)}</NomeDaLinha>
           <div className="sub"><span className="codigo">{p.numero}</span>{p.titulo && p.cliente_nome ? ' · ' + clientesPorExtenso(p.cliente_nome) : ''}{localDoProcesso(p) ? ' · ' + localDoProcesso(p) : ''}</div></td>
-        <td>{p.orgao ? <Selo tipo="arq">{p.orgao}</Selo> : <span className="nota">—</span>}</td>
+        <td>{selosDoProcesso(p).length ? <SelosDoProcesso p={p} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(p.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[p.responsavel_id, ...p.colaboradores]} equipe={ctx.equipe} />
           <GruposDoItem grupos={gruposDoItem(ctx.grupos, p.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>

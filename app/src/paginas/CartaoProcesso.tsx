@@ -16,7 +16,7 @@ import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/c
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
 import { advogadoNaAdaptacao, equipeEditaTudo, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import {
-  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, papeisParaEscolher, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
+  alteraOProcesso, CAMPOS_PROCESSO, clienteNoCartao, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, papeisParaEscolher, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -143,8 +143,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       aoMudar(); await carregar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
+  // Embaixo do nome, o papel do cliente no processo (#426), ou que ele ainda falta.
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
-    detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined });
+    detalhe: clienteNoCartao(p!.papeis_clientes?.[c.id]), selo: c.arquivado_em ? 'Arquivada' : undefined });
 
   async function arquivar() {
     const estava = !!p!.arquivado_em;

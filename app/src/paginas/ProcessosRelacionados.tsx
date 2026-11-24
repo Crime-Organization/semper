@@ -1,6 +1,6 @@
 // Os processos ligados ao processo aberto (#316): o de origem (se este é um recurso ou incidental) e os recursos e incidentais que
 // nasceram dele, cada um num quadrinho que abre o cartão dele, com a relação, o tipo, o número e a situação. Embaixo, "Novo recurso" e
-// "Novo incidental": o cadastro abre com o que este processo tem (clientes, equipe, polo...), e o novo tem o próprio número e os
+// "Novo incidental": o cadastro abre com o que este processo tem (clientes com o papel de cada um, equipe...), e o novo tem o próprio número e os
 // próprios andamentos. Quem não pode criar itens ligados (cartão arquivado, ou só para ler) não vê os botões.
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoRelacionado } from '../dados';
