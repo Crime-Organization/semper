@@ -700,7 +700,8 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
+    // (o "+" do título da seção, #427)
+    await cartao.getByRole('button', { name: 'Novo prazo', exact: true }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     await form.getByLabel('Que prazo é este').fill('Tréplica');
     await form.getByText('Digitar a data').click();
