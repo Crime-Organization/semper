@@ -65,19 +65,19 @@ select is(('2026-03-10 02:30:00+00'::timestamptz at time zone 'America/Sao_Paulo
 
 -- Quando a Bia, participante comum, muda a data de início
 select pg_temp.entrar(2); set local role authenticated;
-select lives_ok($$ update public.tarefas set data_inicio = '2026-11-25' where id = '70000000-0000-0000-0000-000000000001' $$, 'A participante muda o início da tarefa');
-select lives_ok($$ update public.demandas set data_inicio = '2026-12-01' where id = '71000000-0000-0000-0000-000000000001' $$, 'A colaboradora muda o início da demanda');
+select lives_ok($$ update public.tarefas set data_inicio = '2001-01-15' where id = '70000000-0000-0000-0000-000000000001' $$, 'A participante muda o início da tarefa');
+select lives_ok($$ update public.demandas set data_inicio = '2001-02-01' where id = '71000000-0000-0000-0000-000000000001' $$, 'A colaboradora muda o início da demanda');
 select throws_ok($$ update public.tarefas set data_inicio = null where id = '70000000-0000-0000-0000-000000000001' $$, '23502', null, 'O início não fica vazio');
 -- E o site antigo muda outro campo
 select lives_ok($$ update public.tarefas set titulo = 'Tarefa antiga, mudada' where id = '70000000-0000-0000-0000-000000000001' $$, 'O site antigo continua gravando');
 reset role;
 -- Então a mudança fica no histórico, com a data de antes e a nova, e por quem
-select is((select data_inicio from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), '2026-11-25'::date, 'Mudar outro campo não mexe no início');
+select is((select data_inicio from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), '2001-01-15'::date, 'Mudar outro campo não mexe no início');
 select is((select alteracoes -> 'data_inicio' from public.tarefa_historico
   where tarefa_id = '70000000-0000-0000-0000-000000000001' and alteracoes ? 'data_inicio' and feito_por = 'a0000000-0000-0000-0000-000000000002'),
-  jsonb_build_object('de', pg_temp.hoje(), 'para', '2026-11-25'), 'O histórico da tarefa guarda o início de antes e o novo');
+  jsonb_build_object('de', pg_temp.hoje(), 'para', '2001-01-15'), 'O histórico da tarefa guarda o início de antes e o novo');
 select is((select alteracoes -> 'data_inicio' -> 'para' from public.demanda_historico
-  where demanda_id = '71000000-0000-0000-0000-000000000001' and alteracoes ? 'data_inicio'), to_jsonb('2026-12-01'::text), 'O histórico da demanda guarda o início novo');
+  where demanda_id = '71000000-0000-0000-0000-000000000001' and alteracoes ? 'data_inicio'), to_jsonb('2001-02-01'::text), 'O histórico da demanda guarda o início novo');
 select is((select count(*) from public.tarefa_historico where tarefa_id = '70000000-0000-0000-0000-000000000001' and alteracoes ? 'titulo' and alteracoes ? 'data_inicio'),
   0::bigint, 'A mudança de outro campo não aparece como mudança do início');
 
@@ -89,8 +89,8 @@ update public.tarefas set data_inicio = '2020-01-01' where id = '70000000-0000-0
 update public.demandas set data_inicio = '2020-01-01' where id = '71000000-0000-0000-0000-000000000001';
 reset role;
 -- Então nada muda
-select is((select data_inicio from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), '2026-11-25'::date, 'Outro escritório não muda o início da tarefa');
-select is((select data_inicio from public.demandas where id = '71000000-0000-0000-0000-000000000001'), '2026-12-01'::date, 'Outro escritório não muda o início da demanda');
+select is((select data_inicio from public.tarefas where id = '70000000-0000-0000-0000-000000000001'), '2001-01-15'::date, 'Outro escritório não muda o início da tarefa');
+select is((select data_inicio from public.demandas where id = '71000000-0000-0000-0000-000000000001'), '2001-02-01'::date, 'Outro escritório não muda o início da demanda');
 
 set local role anon;
 select throws_ok($$ update public.tarefas set data_inicio = '2020-01-01' $$, '42501', null, 'Quem não entrou não muda nada');
