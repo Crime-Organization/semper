@@ -178,8 +178,13 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
      ler a que já existe; se ela foi cancelada antes, volta com um link novo);
    - **os convidados** (`attendees`): a equipe do compromisso (o responsável e os participantes ativos, pelo e-mail do Google
      de cada um; a conta reservada não) e as pessoas ligadas que têm e-mail (o primeiro e-mail de cada uma). A própria conta
-     do escritório não vai como convidada (é a organizadora). Cada um recebe o convite pelo e-mail do escritório e entra com
-     a conta que quiser;
+     do escritório não vai como convidada (é a organizadora). O e-mail torto (sem arroba ou sem domínio, de uma pessoa
+     importada, por exemplo) fica de fora, para o Google não recusar a reunião inteira. Cada um recebe o convite pelo e-mail
+     do escritório e entra com a conta que quiser;
+   - **a reunião que falha não segura as cópias**: se o Google recusar a reunião (um convidado, o link, a agenda principal
+     ou o Meet), as cópias nas agendas vão do mesmo jeito (com o link que já estava guardado) e só depois o pedido falha e
+     volta à fila com espera. A falha de autorização da reunião conta como recusa daquele pedido, nunca como problema de
+     autorização do escritório inteiro (que pararia a fila de todos);
    - **a descrição do convite** não traz nada da ficha (nem os nomes dos clientes, nem o processo, nem o link do SEMPER, que
      só a equipe abre): só "Reunião marcada pelo escritório…". O título, o horário e o local são os do compromisso;
    - **o link**: `conferenceData.entryPoints[video].uri` (ou `hangoutLink`). Se o Google responde que ainda está criando

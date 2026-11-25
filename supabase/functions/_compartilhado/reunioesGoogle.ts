@@ -12,7 +12,7 @@
 //   - o link fica guardado (agenda_google_reunioes), aparece no cartão do compromisso e vai na descrição das cópias.
 // O que fazer é decidido por funções puras (reuniaoDesejada, planejarReuniao, linkDaResposta); os pedidos ao Google ficam
 // no adaptador (apiDaAgenda.ts). Sem Deno: testado no app (app/src/regras/reunioesGoogle.test.ts).
-import { FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type EventoDaReuniao, type RespostaDaReuniao } from './apiDaAgenda.ts';
+import { emailParaCompartilhar, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type EventoDaReuniao, type RespostaDaReuniao } from './apiDaAgenda.ts';
 import type { PedidoDaFila } from './agendasGoogle.ts';
 import { assinaturaDoEvento, corpoParaMudar, MARCA_DO_ESCRITORIO, MARCA_DO_ITEM, quandoDoCompromissoNaAgenda, type CompromissoNaAgenda } from './eventosGoogle.ts';
 
@@ -41,10 +41,12 @@ export const idDaReuniao = (compromissoId: string) => 'r' + compromissoId.toLowe
 export const DESCRICAO_DA_REUNIAO = 'Reunião marcada pelo escritório. Para entrar, use o link do Google Meet deste convite, com a conta Google que preferir.';
 
 const limpo = (t: string | null | undefined) => (t ?? '').trim();
-/** Os convidados: sem repetir (maiúsculas não contam), sem a própria conta do escritório (a organizadora), em ordem. */
+/**
+ * Os convidados: sem repetir (maiúsculas não contam), sem a própria conta do escritório (a organizadora), em ordem. O e-mail
+ * torto (de uma pessoa importada, por exemplo) fica de fora: o Google recusaria a reunião inteira por causa dele.
+ */
 export function convidadosDaReuniao(emails: readonly (string | null | undefined)[], contaDoEscritorio: string) {
-  const conta = contaDoEscritorio.trim().toLowerCase();
-  return [...new Set(emails.map(e => limpo(e).toLowerCase()).filter(e => e && e !== conta))].sort();
+  return [...new Set(emails.map(e => emailParaCompartilhar(e, contaDoEscritorio)).filter((e): e is string => !!e))].sort();
 }
 
 /**
@@ -119,8 +121,18 @@ export interface ExecucaoDaReuniao {
 /**
  * O que a execução fez: o link (para as cópias levarem na descrição), quantas mudanças na reunião foram ao Google (criada,
  * mudada ou cancelada) e se restou o que fazer (o link ainda sendo criado, ou o orçamento acabou: o pedido volta à fila).
+ * erro: a reunião falhou. As cópias vão mesmo assim (com o link que já estava guardado), e só depois a falha segue para a
+ * fila, para o pedido voltar com espera.
  */
-export interface ResultadoDaReuniao { link: string | null; feitas: number; restam: boolean }
+export interface ResultadoDaReuniao { link: string | null; feitas: number; restam: boolean; erro?: unknown }
+
+/**
+ * A falha da reunião, como vai para a fila: a de autorização (o Google negando a agenda principal ou o Meet) vira recusa só
+ * deste pedido. Ela nunca para a fila do escritório inteiro: as agendas e as cópias usam outras permissões, que continuam.
+ */
+export function falhaDaReuniao(e: unknown) {
+  return e instanceof FalhaDaAgenda && e.tipo === 'autorizacao' ? new FalhaDaAgenda('recusado', e.detalhe, e.motivo) : e;
+}
 
 /** A falha do Google ao criar o link: o pedido fica na fila como recusado (o administrador vê em Configurações). */
 const SEM_LINK = 'o Google não criou o link do Meet';
@@ -209,13 +221,15 @@ const FAZER: Record<AcaoNaReuniao, Fazer> = {
 export async function levarReuniao(x: ExecucaoDaReuniao, item: CompromissoNaAgenda | null, guardadaAntes: ReuniaoGuardada | null, meet: boolean): Promise<ResultadoDaReuniao> {
   const desejada = reuniaoDesejada(item, x.pedido.escritorio_id, x.pedido.conta_email);
   let estado: Estado = { guardada: guardadaAntes, restam: false, feita: false };
-  let feitas = 0;
-  for (let acao = planejarReuniao(desejada, estado.guardada, meet); acao; acao = planejarReuniao(desejada, estado.guardada, meet)) {
-    if (x.orcamento.restante <= 0) { estado.restam = true; break; }
-    x.orcamento.restante--;
-    estado = await FAZER[acao](x, desejada, estado.guardada);
-    if (estado.feita) feitas++;
-    if (estado.restam) break;
-  }
-  return { link: desejada ? estado.guardada?.link ?? null : null, feitas, restam: estado.restam };
+  let feitas = 0, erro: unknown;
+  try {
+    for (let acao = planejarReuniao(desejada, estado.guardada, meet); acao; acao = planejarReuniao(desejada, estado.guardada, meet)) {
+      if (x.orcamento.restante <= 0) { estado.restam = true; break; }
+      x.orcamento.restante--;
+      estado = await FAZER[acao](x, desejada, estado.guardada);
+      if (estado.feita) feitas++;
+      if (estado.restam) break;
+    }
+  } catch (e) { erro = falhaDaReuniao(e); }
+  return { link: desejada ? estado.guardada?.link ?? null : null, feitas, restam: estado.restam, ...(erro === undefined ? {} : { erro }) };
 }

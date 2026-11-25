@@ -8,7 +8,7 @@
 // (apiDaAgenda.ts) e o banco entra pelos "passos". Sem Deno: testado no app (app/src/regras/agendasGoogle.test.ts).
 // Só no sentido SEMPER → Google: o que alguém mudar no Google (o nome da agenda, por exemplo) é desfeito na próxima vez.
 // O compromisso com "Criar link do Google Meet" (#437) leva também a reunião, antes das cópias (reunioesGoogle.ts).
-import { apiDaAgenda, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type TipoDoErroDaAgenda } from './apiDaAgenda.ts';
+import { apiDaAgenda, emailParaCompartilhar, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type TipoDoErroDaAgenda } from './apiDaAgenda.ts';
 import { esperaDaTentativa, FalhaDoGoogle, tokenDeAcesso, type PassosDaSincronizacao, type TipoDaFalha } from './contatosGoogle.ts';
 import {
   copiasDoItem, corpoParaMudar, planejarEventos, type AcaoNoEvento, type AssuntoDoEvento, type CompromissoNaAgenda, type CopiaDesejada, type ItemDaFila
@@ -66,12 +66,8 @@ export interface AgendaDesejada { tipo: TipoDeAgenda; perfil_id: string | null; 
 /** A mesma agenda no SEMPER e no desejo: o tipo e de quem é (a pessoa ou a sala). */
 export const chaveDaAgenda = (a: Pick<AgendaGuardada, 'tipo' | 'perfil_id' | 'sala_id'>) => `${a.tipo}:${a.perfil_id ?? a.sala_id ?? ''}`;
 
-const FORMATO_DO_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-/** O e-mail para compartilhar: minúsculo e válido, e nunca a própria conta do escritório (ela já é a dona). */
-export function emailParaCompartilhar(email: string | null | undefined, conta: string) {
-  const e = String(email ?? '').trim().toLowerCase();
-  return FORMATO_DO_EMAIL.test(e) && e !== conta.trim().toLowerCase() ? e : null;
-}
+/** O e-mail para compartilhar (o mesmo dos convites do Meet) fica em apiDaAgenda.ts. */
+export { emailParaCompartilhar };
 const unicos = (leitores: Leitor[]) => leitores.filter((l, i) => leitores.findIndex(o => o.email === l.email) === i);
 
 /**
@@ -339,31 +335,39 @@ async function levarItem(x: Execucao) {
   const assunto = x.pedido.assunto as AssuntoDoEvento;
   const dados = await x.passos.item(x.pedido);
   const antes = await (ANTES_DAS_COPIAS[assunto] ?? NADA_ANTES)(x, dados);
-  if (antes.parar) return true;
-  for (const acao of planejarEventos(copiasDoItem(assunto, antes.item, dados.agendas, x.pedido.escritorio_id), dados.eventos)) {
+  const restam = antes.parar || await levarCopias(x, assunto, antes.item, dados);
+  // A falha de antes (a reunião do Meet) não impede as cópias: ela segue para a fila só depois delas.
+  if ('erro' in antes) throw antes.erro;
+  return restam || antes.restam;
+}
+
+/** As cópias do item nas agendas, uma ação de cada vez, dentro do orçamento. Devolve se o orçamento acabou antes do fim. */
+async function levarCopias(x: Execucao, assunto: AssuntoDoEvento, item: ItemDaFila['item'], dados: ItemDaFila) {
+  for (const acao of planejarEventos(copiasDoItem(assunto, item, dados.agendas, x.pedido.escritorio_id), dados.eventos)) {
     if (x.orcamento.restante <= 0) return true;
     x.orcamento.restante--;
     const feito = await (FAZER_NO_EVENTO[acao.acao] as (x: Execucao, a: AcaoNoEvento) => Promise<TipoDaAcaoNoEvento | null>)(x, acao);
     if (feito) x.feitas[feito]++;
   }
-  return antes.restam;
+  return false;
 }
 
 /**
  * O que vem antes das cópias de um assunto: o item com o que as cópias levam a mais, se restou o que fazer (o pedido volta à
- * fila) e se é para parar já (o orçamento acabou).
+ * fila), se é para parar já (o orçamento acabou) e a falha que segue para a fila depois das cópias.
  */
-type AntesDasCopias = (x: Execucao, dados: ItemDaFila) => Promise<{ item: ItemDaFila['item']; restam: boolean; parar?: boolean }>;
+type AntesDasCopias = (x: Execucao, dados: ItemDaFila) => Promise<{ item: ItemDaFila['item']; restam: boolean; parar?: boolean; erro?: unknown }>;
 const NADA_ANTES: AntesDasCopias = async (_x, dados) => ({ item: dados.item, restam: false });
 const ANTES_DAS_COPIAS: Partial<Record<AssuntoDoEvento, AntesDasCopias>> = {
   // A reunião do Google Meet (#437), antes das cópias: o link criado agora já vai na descrição delas. O link ainda sendo
-  // criado faz o pedido voltar (as cópias vão já, e ganham o link na próxima vez).
+  // criado faz o pedido voltar (as cópias vão já, e ganham o link na próxima vez). A reunião que falha (o Google recusando
+  // um convidado, o link ou a agenda principal) não segura as cópias: elas vão com o link já guardado, e a falha vem depois.
   async compromisso(x, dados) {
     const c = dados.item as CompromissoNaAgenda | null;
     const r = await levarReuniao({ api: x.api, passos: x.passos, pedido: x.pedido, orcamento: x.orcamento, novoPedido: x.passos.novoPedido ?? (() => crypto.randomUUID()) },
       c, dados.reuniao ?? null, !!dados.meet);
     x.feitas.reuniao += r.feitas;
-    return { item: c && { ...c, reuniao_link: r.link }, restam: r.restam, parar: r.restam && x.orcamento.restante <= 0 };
+    return { item: c && { ...c, reuniao_link: r.link }, restam: r.restam, parar: r.restam && x.orcamento.restante <= 0, ...('erro' in r ? { erro: r.erro } : {}) };
   }
 };
 

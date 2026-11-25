@@ -19,8 +19,20 @@ export type TipoDoErroDaAgenda = 'autorizacao' | 'temporario' | 'recusado' | 'su
  */
 export const TAMANHO_DO_DETALHE = 200;
 
+/** A falha do Google: o tipo, o detalhe guardado no banco e o motivo que o Google mandou (quando mandou). */
 export class FalhaDaAgenda extends Error {
-  constructor(readonly tipo: TipoDoErroDaAgenda, readonly detalhe: string) { super(detalhe); }
+  constructor(readonly tipo: TipoDoErroDaAgenda, readonly detalhe: string, readonly motivo: string | null = null) { super(detalhe); }
+}
+
+const FORMATO_DO_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/**
+ * O e-mail que vai ao Google (num compartilhamento ou num convite do Meet): minúsculo e válido (o mesmo formato de
+ * emailValido, em app/src/regras/pessoa.ts), e nunca a própria conta do escritório (ela já é a dona e a organizadora).
+ * Inválido: null (o Google recusaria o pedido inteiro por causa dele).
+ */
+export function emailParaCompartilhar(email: string | null | undefined, conta: string) {
+  const e = String(email ?? '').trim().toLowerCase();
+  return FORMATO_DO_EMAIL.test(e) && e !== conta.trim().toLowerCase() ? e : null;
 }
 
 /**
@@ -54,9 +66,10 @@ async function pedir<T>(buscar: typeof fetch, url: string, init: RequestInit): P
     throw new FalhaDaAgenda('temporario', `sem resposta: ${(e as Error).message}`.slice(0, TAMANHO_DO_DETALHE));
   }
   if (r.ok) return (r.status === SEM_CORPO ? undefined : await r.json().catch(() => undefined)) as T;
-  const corpo = await r.json().catch(() => ({})) as { error?: { errors?: { reason?: string }[]; status?: string } };
-  const motivo = corpo.error?.errors?.[0]?.reason ?? null;
-  throw new FalhaDaAgenda(tipoDoErroDaAgenda(r.status, motivo), `${r.status} ${motivo ?? corpo.error?.status ?? ''}`.trim().slice(0, TAMANHO_DO_DETALHE));
+  // O motivo vem em errors[] na Calendar API (v3) e em details[] (google.rpc.ErrorInfo) na Meet REST API (v2).
+  const corpo = await r.json().catch(() => ({})) as { error?: { errors?: { reason?: string }[]; details?: { reason?: string }[]; status?: string } };
+  const motivo = corpo.error?.errors?.[0]?.reason ?? corpo.error?.details?.find(d => d.reason)?.reason ?? null;
+  throw new FalhaDaAgenda(tipoDoErroDaAgenda(r.status, motivo), `${r.status} ${motivo ?? corpo.error?.status ?? ''}`.trim().slice(0, TAMANHO_DO_DETALHE), motivo);
 }
 
 const AGENDA = 'https://www.googleapis.com/calendar/v3';
@@ -103,9 +116,15 @@ export interface EventoDaReuniao extends EventoDoGoogle {
   attendees: { email: string }[];
   conferenceData?: { createRequest: { requestId: string; conferenceSolutionKey: { type: 'hangoutsMeet' } } };
 }
-/** O que o Google devolve da reunião: o estado do pedido do link ('pending', 'success' ou 'failure') e os pontos de entrada. */
+/**
+ * O que o Google devolve da reunião: o estado do pedido do link ('pending', 'success' ou 'failure'), os pontos de entrada e
+ * o convite como está lá (para saber se ele já está como o compromisso).
+ */
 export interface RespostaDaReuniao {
   id?: string; status?: string; hangoutLink?: string;
+  summary?: string; description?: string; location?: string;
+  start?: { date?: string; dateTime?: string; timeZone?: string }; end?: { date?: string; dateTime?: string; timeZone?: string };
+  attendees?: { email?: string }[];
   conferenceData?: {
     createRequest?: { status?: { statusCode?: string } };
     entryPoints?: { entryPointType?: string; uri?: string }[];

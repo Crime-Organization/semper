@@ -62,6 +62,11 @@ describe('A reunião que o compromisso deve ter', () => {
       .toEqual(['ana@exemplo.com', 'beto@exemplo.com']);
   });
 
+  it('dado um e-mail torto (de uma pessoa importada), quando os convidados são montados, então ele fica de fora e os outros seguem', () => {
+    // Quando / Então
+    expect(convidadosDaReuniao(['cliente sem arroba', 'dois@@exemplo.com', 'sem-ponto@exemplo', 'ana@exemplo.com'], CONTA)).toEqual(['ana@exemplo.com']);
+  });
+
   it('dado o compromisso mudado de hora, então a assinatura muda; com os mesmos dados, fica a mesma', () => {
     // Quando / Então
     const antes = reuniaoDesejada(compromisso(), ESCRITORIO, CONTA)!.assinatura;
@@ -295,6 +300,38 @@ describe('A execução da reunião, com o Google simulado', () => {
     expect(r.falhas).toBe(1);
     expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'recusado', 'o Google não criou o link do Meet', expect.any(Number));
     expect(banco.reuniao).toMatchObject({ evento_id: ID, link: null });
+  });
+
+  it.each([
+    ['recusa um convidado (400)', resposta(400, { error: { code: 400, errors: [{ reason: 'invalid' }] } }), 'recusado', '400 invalid'],
+    ['nega a agenda principal (403 insufficientPermissions)', resposta(403, { error: { code: 403, errors: [{ reason: 'insufficientPermissions' }] } }), 'recusado', '403 insufficientPermissions'],
+    ['responde 401', resposta(401, { error: { code: 401 } }), 'recusado', '401'],
+    ['está fora do ar (503)', resposta(503, { error: { code: 503 } }), 'temporario', '503']
+  ])('dado o Google que %s ao criar a reunião, quando a fila é feita, então as cópias são gravadas mesmo assim e o pedido falha como %s (nunca para o escritório)', async (_caso, recusa, falha, detalhe) => {
+    // Dado
+    const g = google(x => (x.metodo === 'POST' && x.url.startsWith(PRINCIPAL) ? recusa.clone() : null));
+    const { passos: p, banco } = passos(compromisso(), null, g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(g.copias()).toHaveLength(1);
+    expect(p.eventoGravado).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ falhas: 1, feitas: { gravar_evento: 1, reuniao: 0 } });
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), falha, detalhe, expect.any(Number));
+    expect(p.concluir).not.toHaveBeenCalled();
+    expect(banco.reuniao).toBeNull();
+  });
+
+  it('dada a reunião já criada e o Google recusando o convite atualizado, quando a fila é feita, então as cópias mudam com o link já guardado e o pedido falha', async () => {
+    // Dado
+    const g = google(x => (x.metodo === 'PATCH' && x.url.startsWith(PRINCIPAL) ? resposta(400, { error: { code: 400, errors: [{ reason: 'invalid' }] } }) : null));
+    const { passos: p } = passos(compromisso({ hora: '16:00', hora_fim: null }), guardada({ assinatura: 'antiga', gravacao: 'ligada' }), g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(g.copias()[0].corpo).toContain(LINHA_DO_MEET(LINK));
+    expect(r).toMatchObject({ falhas: 1, feitas: { gravar_evento: 1 } });
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'recusado', '400 invalid', expect.any(Number));
   });
 
   it('dada a conta sem as permissões do Meet, quando a fila é feita, então nada vai à agenda principal e as cópias vão sem link', async () => {
