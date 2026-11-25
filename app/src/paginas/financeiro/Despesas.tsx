@@ -7,7 +7,7 @@ import { SD, type DespesaDoEscritorio } from '../../dados';
 import { REPETICAO, TAMANHO_FINANCEIRO } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
 import {
-  avisoDaDespesaCriada, avisoDaDespesaExcluida, avisoDaDespesaMudada, CAMPOS_DA_DESPESA, dadosDaDespesa, despesaNova, errosDaDespesa, ESCOLHAS_DA_REPETICAO,
+  avisoDaDespesaCriada, avisoDaDespesaExcluida, avisoDaDespesaMudada, CAMPOS_DA_DESPESA, dadosDaDespesa, despesaNova, dicaDaRepeticao, errosDaDespesa, ESCOLHAS_DA_REPETICAO,
   formDaDespesa, repeticaoDaDespesa, rotuloDaDespesa, totalAPagar, valorNaDespesa, type ErrosDaDespesa, type FormDaDespesa
 } from '../../regras/despesas';
 import { nestePeriodo } from '../../regras/numerosDoFinanceiro';
@@ -56,7 +56,7 @@ function CamposDaDespesa({ id, f, erros, mudar }: { id: string; f: FormDaDespesa
 /** Os campos da repetição, só no cadastro: a frequência, o "a cada N" e como termina. */
 function CamposDaRepeticao({ id, f, erros, mudar }: { id: string; f: FormDaDespesa; erros: ErrosDaDespesa; mudar: (m: Partial<FormDaDespesa>) => void }) {
   return <>
-    <Campo rotulo="Repetir" para={id + 'repetir'} dica="As próximas datas nascem sozinhas, até 12 meses adiante.">
+    <Campo rotulo="Repetir" para={id + 'repetir'} dica={dicaDaRepeticao()}>
       <select {...propsDoCampo(id + 'repetir', { dica: true })} value={f.repetir} onChange={e => mudar({ repetir: e.target.value as FormDaDespesa['repetir'] })}>
         <option value="">Não se repete</option>
         {ESCOLHAS_DA_REPETICAO.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}

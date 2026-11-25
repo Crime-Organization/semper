@@ -94,6 +94,11 @@ export const totalAPagar = (lista: readonly Pick<DespesaDoEscritorio, 'valor' | 
 /** Como a despesa aparece nos rótulos dos botões: "Conta de luz, vence em 10/12/2026". */
 export const rotuloDaDespesa = (d: Pick<DespesaDoEscritorio, 'descricao' | 'vencimento'>) => `${d.descricao}, vence em ${fmtData(d.vencimento)}`;
 
+// ---------- a dica da repetição ----------
+/** Até onde as datas nascem sozinhas, contado de REPETICAO.horizonteMeses (o mesmo de privado.horizonte_da_repeticao, no banco). */
+export const dicaDaRepeticao = (horizonteMeses = REPETICAO.horizonteMeses) =>
+  `As próximas datas nascem sozinhas, até ${horizonteMeses} ${horizonteMeses === 1 ? 'mês' : 'meses'} adiante.`;
+
 // ---------- os avisos ----------
 const quantas = (n: number, uma: string, varias: string) => `${n} ${n === 1 ? uma : varias}`;
 /** Depois de cadastrar: com a repetição, quantas datas a mais nasceram. */

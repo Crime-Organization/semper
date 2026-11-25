@@ -2,7 +2,7 @@
 // As despesas do escritório a pagar (#439), em regras/despesas.ts.
 import { describe, expect, it } from 'vitest';
 import {
-  avisoDaDespesaCriada, avisoDaDespesaExcluida, avisoDaDespesaMudada, dadosDaDespesa, despesaNoLimite, despesaNoPeriodo, despesaNova, errosDaDespesa, FIM_ANTES_DO_VENCIMENTO,
+  avisoDaDespesaCriada, avisoDaDespesaExcluida, avisoDaDespesaMudada, dadosDaDespesa, despesaNoLimite, despesaNoPeriodo, despesaNova, dicaDaRepeticao, errosDaDespesa, FIM_ANTES_DO_VENCIMENTO,
   formDaDespesa, repeticaoDaDespesa, rotuloDaDespesa, totalAPagar, valorNaDespesa, type FormDaDespesa
 } from './despesas';
 import { REPETICAO, TAMANHO_FINANCEIRO } from '../dados/limites';
@@ -100,6 +100,15 @@ describe('Lista das despesas', () => {
   it('dada uma despesa, quando aparece num botão, então leva a descrição e o vencimento', () => {
     // Quando / Então
     expect(rotuloDaDespesa({ descricao: 'Conta de luz', vencimento: '2026-12-10' })).toBe('Conta de luz, vence em 10/12/2026');
+  });
+});
+
+describe('Dica da repetição', () => {
+  it('dado o horizonte da repetição, quando o formulário mostra a dica, então ela diz até quantos meses as datas nascem', () => {
+    // Quando / Então
+    expect(dicaDaRepeticao()).toBe(`As próximas datas nascem sozinhas, até ${REPETICAO.horizonteMeses} meses adiante.`);
+    expect(dicaDaRepeticao(6)).toBe('As próximas datas nascem sozinhas, até 6 meses adiante.');
+    expect(dicaDaRepeticao(1)).toBe('As próximas datas nascem sozinhas, até 1 mês adiante.');
   });
 });
 
