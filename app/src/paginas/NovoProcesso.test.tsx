@@ -109,7 +109,7 @@ describe('Formulário de processo', () => {
     expect([...papel.options].map(o => o.text)).toContain('Apenado');
     // O Outro papel fecha a lista fixa; por último, a opção de escrever um papel (#443).
     expect([...papel.options].at(-2)?.text).toBe('Outro papel');
-    expect([...papel.options].at(-1)?.text).toBe('+ Escrever outro papel…');
+    expect([...papel.options].at(-1)?.text).toBe('+ Escrever o nome do papel…');
     expect(screen.queryByLabelText('Polo do cliente')).toBeNull();
   });
 
@@ -248,6 +248,7 @@ describe('Processo que nasce do "+ Novo processo" de um contrato ou de uma taref
 
 describe('O papel do cliente escrito pela equipe (#443)', () => {
   const gravar = vi.fn<typeof SD.processoAtualizar>();
+  const incluir = vi.fn<typeof SD.processoPapeisIncluir>();
   beforeEach(() => {
     sessao.ehAdmin = false;
     Object.assign(Element.prototype, { scrollIntoView: () => undefined });
@@ -256,6 +257,8 @@ describe('O papel do cliente escrito pela equipe (#443)', () => {
     vi.spyOn(SD, 'processoPapeisEscritos').mockResolvedValue([]);
     gravar.mockReset().mockResolvedValue({ id: 'p1', codigo: 'ABCD1234' });
     vi.spyOn(SD, 'processoAtualizar').mockImplementation(gravar);
+    incluir.mockReset().mockResolvedValue();
+    vi.spyOn(SD, 'processoPapeisIncluir').mockImplementation(incluir);
     lojaDePapeisEscritos.reiniciar();
   });
   /** Abre o processo para editar, com as janelas (a de escrever o papel) na tela. */
@@ -267,13 +270,16 @@ describe('O papel do cliente escrito pela equipe (#443)', () => {
   }
   const escolhido = (select: HTMLSelectElement) => select.selectedOptions[0]?.text;
 
-  it('dado um cliente escolhido, quando escolhe "+ Escrever outro papel…" e escreve Inventariante com Enter, então o papel fica Inventariante e o processo o grava', async () => {
+  it('dado um cliente escolhido, quando escolhe "+ Escrever o nome do papel…" e escreve Inventariante com Enter, então o papel fica Inventariante e o processo o grava', async () => {
     // Dado
     const papel = await abrirComJanelas();
     // Quando
-    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
-    const janela = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
-    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever outro papel' }), '  Inventariante {Enter}');
+    await userEvent.selectOptions(papel, '+ Escrever o nome do papel…');
+    const janela = await screen.findByRole('dialog', { name: 'Escrever o nome do papel' });
+    // A janela dá um exemplo e diz que o nome fica na lista; o botão não diz "Salvar", porque o processo ainda não foi salvo.
+    expect(within(janela).getByRole('textbox', { name: 'Escrever o nome do papel' })).toHaveAccessibleDescription(/O nome fica na lista do escritório/);
+    expect(within(janela).getByRole('button', { name: 'Usar este papel' })).toBeInTheDocument();
+    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever o nome do papel' }), '  Inventariante {Enter}');
     // Então
     expect(await screen.findByRole('option', { name: 'Inventariante', selected: true })).toBeInTheDocument();
     expect(escolhido(papel)).toBe('Inventariante');
@@ -281,17 +287,19 @@ describe('O papel do cliente escrito pela equipe (#443)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Salvar/ }));
     // Então
     expect(gravar).toHaveBeenCalledWith('p1', expect.objectContaining({ papeis_clientes: { c1: 'outro' }, papeis_escritos: { c1: 'Inventariante' } }));
+    // E, depois de gravar, o nome escrito vai para a lista do escritório
+    expect(incluir).toHaveBeenCalledWith(['Inventariante']);
   });
 
   it('dada a janela de escrever aberta, quando a pessoa desiste com Esc, então o papel de antes continua', async () => {
     // Dado
     const papel = await abrirComJanelas();
-    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
-    await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    await userEvent.selectOptions(papel, '+ Escrever o nome do papel…');
+    await screen.findByRole('dialog', { name: 'Escrever o nome do papel' });
     // Quando
     await userEvent.keyboard('{Escape}');
     // Então
-    expect(screen.queryByRole('dialog', { name: 'Escrever outro papel' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Escrever o nome do papel' })).toBeNull();
     expect(escolhido(papel)).toBe('Réu');
   });
 
@@ -302,9 +310,9 @@ describe('O papel do cliente escrito pela equipe (#443)', () => {
     const grupo = await screen.findByRole('group', { name: 'Do escritório' });
     expect(within(grupo).getByRole('option', { name: 'Inventariante' })).toBeInTheDocument();
     // Quando
-    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
-    const janela = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
-    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever outro papel' }), 'inventariante{Enter}');
+    await userEvent.selectOptions(papel, '+ Escrever o nome do papel…');
+    const janela = await screen.findByRole('dialog', { name: 'Escrever o nome do papel' });
+    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever o nome do papel' }), 'inventariante{Enter}');
     // Então
     expect(await screen.findByRole('option', { name: 'Inventariante', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('option', { name: 'Inventariante' })).toHaveLength(1);
@@ -315,5 +323,15 @@ describe('O papel do cliente escrito pela equipe (#443)', () => {
     const papel = await abrirComJanelas({ papeis_clientes: { c1: 'outro' }, papeis_escritos: { c1: 'Curador' } });
     // Então
     expect(escolhido(papel)).toBe('Curador');
+  });
+
+  it('dado um processo com papel escrito que saiu da lista, quando é salvo de novo sem escrever nada, então o nome não volta à lista', async () => {
+    // Dado
+    await abrirComJanelas({ papeis_clientes: { c1: 'outro' }, papeis_escritos: { c1: 'Curador' } });
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    // Então
+    expect(gravar).toHaveBeenCalledWith('p1', expect.objectContaining({ papeis_escritos: { c1: 'Curador' } }));
+    expect(incluir).not.toHaveBeenCalled();
   });
 });

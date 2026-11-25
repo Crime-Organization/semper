@@ -100,6 +100,21 @@ describe('Pedir um texto', () => {
     // Então
     await expect(resposta).resolves.toBeNull();
   });
+
+  it('dada uma nota e o nome do botão, quando abre, então a nota explica o campo e o botão diz o que faz', async () => {
+    // Dado
+    let resposta!: Promise<string | null>;
+    // Quando
+    act(() => { resposta = janela.pedirTexto('Escrever o nome', '', { nota: 'Ex.: Inventariante.', acao: 'Usar este nome' }); });
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Escrever o nome' })).toHaveAccessibleDescription('Ex.: Inventariante.');
+    expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument();
+    // Quando
+    await userEvent.type(screen.getByRole('textbox', { name: 'Escrever o nome' }), 'Curador');
+    await userEvent.click(screen.getByRole('button', { name: 'Usar este nome' }));
+    // Então
+    await expect(resposta).resolves.toBe('Curador');
+  });
 });
 
 describe('Janela com campos', () => {

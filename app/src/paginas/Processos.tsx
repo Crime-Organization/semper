@@ -44,7 +44,7 @@ const localDoProcesso = (p: Pick<ProcessoLista, 'comarca' | 'vara'>) => [p.vara,
 /** Os selos da miniatura (quadro e lista): o órgão, o sistema e o papel dos clientes (#426). Nenhum: nada. */
 function SelosDoProcesso({ p }: { p: ProcessoLista }) {
   const selos = selosDoProcesso(p);
-  return selos.length ? <div className="selos-do-processo">{selos.map(s => <Selo key={s} tipo="arq">{s}</Selo>)}</div> : null;
+  return selos.length ? <div className="selos-do-processo">{selos.map(s => <Selo key={s} tipo="arq"><span className="selo-do-processo-texto" title={s}>{s}</span></Selo>)}</div> : null;
 }
 
 export default function Processos({ tipo }: { tipo: TipoProcesso }) {

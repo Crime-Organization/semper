@@ -1,5 +1,5 @@
 {
   "titulo": "Papel do cliente escrito pela equipe",
-  "texto": "No processo, o papel do cliente e o das pessoas do processo aceitam um nome escrito: escolha \"+ Escrever outro papel…\" no fim da lista. O nome fica guardado na lista do escritório e aparece nos próximos processos. O administrador tira da lista nas Configurações; os processos que já o usam continuam com o nome.",
+  "texto": "No processo, o papel do cliente aceita um nome escrito: escolha \"+ Escrever o nome do papel…\" no fim da lista. O nome fica na lista do escritório e aparece nos próximos processos. O administrador tira da lista nas Configurações; os processos que já o usam continuam com o nome.",
   "ondeAchar": "No cadastro do processo, etapa Pessoas, em \"Papel do cliente\"; a lista, em Configurações, \"Papéis escritos nos processos\"."
 }

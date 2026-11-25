@@ -276,7 +276,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
     // Então: a lista é a mesma das pessoas com papel, e o antigo "Polo do cliente" não aparece mais; por último, a opção de escrever um papel (#443)
     await expect(page.getByLabel('Papel do cliente').getByRole('option')).toHaveText(['Papel do cliente…', 'Autor', 'Réu', 'Terceiro interessado', 'Testemunha', 'Perito',
-      'Assistente técnico', 'Vítima', 'Investigado', 'Apenado', 'Advogado da parte contrária', 'Titular', 'Inventor', 'Autor da criação', 'Outro papel', '+ Escrever outro papel…']);
+      'Assistente técnico', 'Vítima', 'Investigado', 'Apenado', 'Advogado da parte contrária', 'Titular', 'Inventor', 'Autor da criação', 'Outro papel', '+ Escrever o nome do papel…']);
     await expect(page.getByLabel('Polo do cliente')).toHaveCount(0);
     // Quando
     await page.getByLabel('Papel do cliente').selectOption({ label: 'Vítima' });

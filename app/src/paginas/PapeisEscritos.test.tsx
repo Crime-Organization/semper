@@ -14,13 +14,13 @@ const INVENTARIANTE: PapelEscrito = { id: 'x1', nome: 'Inventariante' };
 
 describe('Papéis escritos nos processos, nas Configurações', () => {
   let lista: PapelEscrito[];
-  let tirar: MockInstance<typeof SD.processoPapelEscritoTirar>, devolver: MockInstance<typeof SD.processoPapelEscritoDevolver>;
+  let tirar: MockInstance<typeof SD.processoPapelEscritoTirar>, devolver: MockInstance<typeof SD.processoPapeisIncluir>;
   beforeEach(() => {
     lista = [{ id: 'x2', nome: 'Curador' }, INVENTARIANTE];
     vi.mocked(feito).mockClear();
     vi.spyOn(SD, 'processoPapeisEscritos').mockImplementation(async () => [...lista]);
     tirar = vi.spyOn(SD, 'processoPapelEscritoTirar').mockImplementation(async id => { lista = lista.filter(x => x.id !== id); });
-    devolver = vi.spyOn(SD, 'processoPapelEscritoDevolver').mockImplementation(async nome => { const x = { id: 'x9', nome }; lista.push(x); return x; });
+    devolver = vi.spyOn(SD, 'processoPapeisIncluir').mockImplementation(async nomes => { lista.push(...nomes.map(nome => ({ id: 'x9', nome }))); });
   });
 
   it('dado um escritório com papéis escritos, quando a seção abre, então mostra cada um', async () => {
@@ -47,7 +47,7 @@ describe('Papéis escritos nos processos, nas Configurações', () => {
     // E o Desfazer devolve o papel à lista
     const desfazer = vi.mocked(feito).mock.calls[0][2]!;
     await desfazer();
-    expect(devolver).toHaveBeenCalledWith('Inventariante');
+    expect(devolver).toHaveBeenCalledWith(['Inventariante']);
   });
 
   it('dado um escritório sem papéis escritos, quando a seção abre, então diz que ainda não há nenhum', async () => {

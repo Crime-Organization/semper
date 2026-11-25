@@ -339,10 +339,10 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
 };
 /** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem fica vazia quando é excluída (#316) ou desligada (#425). */
 const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'sem ligação' };
-/** A pessoa com papel como o histórico a guarda (#316): o nome e o papel (o escrito pela equipe, quando há, #443). */
+/** A pessoa com papel como o histórico a guarda (#316): o nome e o papel. */
 const parteNoHistorico = (v: unknown) => {
-  const x = v as { nome?: string; papel?: string; papel_escrito?: string };
-  return `${x.nome ?? 'pessoa excluída'} (${x.papel_escrito || (PAPEIS_DA_PARTE[x.papel as PapelDaParte] ?? x.papel)})`;
+  const x = v as { nome?: string; papel?: string };
+  return `${x.nome ?? 'pessoa excluída'} (${PAPEIS_DA_PARTE[x.papel as PapelDaParte] ?? x.papel})`;
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
@@ -396,9 +396,20 @@ export const PAPEL_DO_CLIENTE_OBRIGATORIO = 'O papel do cliente é obrigatório:
 export const PAPEIS_DO_CLIENTE: PapelDaParte[] = [...PAPEIS.filter(x => x !== 'outro'), 'outro'];
 /** Os clientes escolhidos que ainda estão sem papel. */
 export const clientesSemPapel = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes'>) => escolhidos(c.clientes).filter(id => !c.papeisClientes[id]);
+/** O nome escrito do papel (#443) sem os espaços das pontas e com os repetidos juntados ("  Inventariante   do  espólio " vira "Inventariante do espólio"). */
+export const limparPapelEscrito = (texto: string) => texto.replace(/\s+/g, ' ').trim();
+/**
+ * O nome escrito de cada cliente (#443), como o gatilho preparar_papeis_escritos do banco: só o cliente do processo com o papel
+ * 'outro' guarda o nome, limpo; o nome vazio sai. O formulário manda assim, e o banco fictício grava assim.
+ */
+export const escritosAoGravar = (escritos: PapeisEscritos, papeis: PapeisDosClientes, clientes: readonly string[]): PapeisEscritos =>
+  Object.fromEntries(clientes.flatMap(id => {
+    const nome = limparPapelEscrito(escritos[id] ?? '');
+    return papeis[id] === 'outro' && nome ? [[id, nome]] : [];
+  }));
 /** O que vai para o banco: o nome escrito de cada cliente escolhido com o papel 'outro' (#443; o de quem saiu ou trocou de papel fica de fora). */
 const escritosDosEscolhidos = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes' | 'papeisEscritos'>): PapeisEscritos =>
-  Object.fromEntries(escolhidos(c.clientes).flatMap(id => c.papeisClientes[id] === 'outro' && c.papeisEscritos[id]?.trim() ? [[id, c.papeisEscritos[id]!.trim()]] : []));
+  escritosAoGravar(c.papeisEscritos, c.papeisClientes, escolhidos(c.clientes));
 /** O que vai para o banco: o papel de cada cliente escolhido (o de quem saiu da lista fica de fora). */
 const papeisDosEscolhidos = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes'>): PapeisDosClientes =>
   Object.fromEntries(escolhidos(c.clientes).flatMap(id => c.papeisClientes[id] ? [[id, c.papeisClientes[id]]] : []));
@@ -452,9 +463,9 @@ export function papeisParaEscolher(p: { area?: string | null; protecao?: Process
 }
 /** A recusa de pôr a pessoa com um papel que ela já tem no processo (a mesma no banco e no fictício). */
 export const PAPEL_REPETIDO = 'Esta pessoa já tem esse papel neste processo.';
-/** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316), o "outro" com o nome escrito (#443). */
-export const papeisPorExtenso = (p: { papeis: PapelNoProcesso[]; partes?: PapelDaParte[]; papel_escrito?: string | null }) =>
-  [...p.papeis.map(x => PAPEIS_NO_PROCESSO[x]), ...(p.partes ?? []).map(x => nomeDoPapel(x, x === 'outro' ? p.papel_escrito : null))].join(', ');
+/** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316). */
+export const papeisPorExtenso = (p: { papeis: PapelNoProcesso[]; partes?: PapelDaParte[] }) =>
+  [...p.papeis.map(x => PAPEIS_NO_PROCESSO[x]), ...(p.partes ?? []).map(x => PAPEIS_DA_PARTE[x])].join(', ');
 /** Os papéis que a pessoa ainda não tem no processo (o mesmo papel duas vezes, o banco recusa). */
 export const papeisQueFaltam = (partes: readonly { papel: PapelDaParte; pessoa: { id: string } }[], pessoaId: string) =>
   PAPEIS.filter(papel => !partes.some(x => x.pessoa.id === pessoaId && x.papel === papel));
@@ -590,15 +601,13 @@ type ProcessoDaPessoa = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'ti
  * Os processos do cartão da pessoa: os em que ela é cliente ou da equipe (`daEquipe`) e os em que tem um papel (`partes`), cada
  * processo uma vez só, com tudo o que ela é nele, dos mais novos aos mais antigos.
  */
-export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes: readonly { papel: PapelDaParte; papel_escrito?: string | null; processo: ProcessoDaPessoa }[],
+export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes: readonly { papel: PapelDaParte; processo: ProcessoDaPessoa }[],
   pessoaId: string, perfilId: string | null): ProcessoLigado[] {
   const porId = new Map<string, ProcessoDaPessoa>();
   for (const p of [...daEquipe, ...partes.map(x => x.processo)]) porId.set(p.id, p);
   return [...porId.values()].map(({ clientes, responsavel_id, colaboradores, ...p }): ProcessoLigado => ({
     ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId),
-    partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel)),
-    // O nome escrito do papel "outro" dela (#443): uma pessoa tem um "outro" só por processo.
-    papel_escrito: partes.find(x => x.processo.id === p.id && x.papel === 'outro')?.papel_escrito ?? null
+    partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel))
   })).filter(p => p.papeis.length || p.partes?.length).toSorted((a, b) => b.criado_em.localeCompare(a.criado_em));
 }
 // ---------- processos relacionados de qualquer tipo (#440) ----------

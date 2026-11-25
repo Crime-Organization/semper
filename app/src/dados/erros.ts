@@ -8,7 +8,6 @@ import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, P
 import { CONTRATOS_DA_TAREFA_CHEIA, DEMANDAS_DA_TAREFA_CHEIA } from '../regras/tarefa';
 import { SALA_REPETIDA } from '../regras/sala';
 import { PAPEL_REPETIDO } from '../regras/processo';
-import { PAPEL_JA_NA_LISTA } from '../regras/papelEscrito';
 import { CONCESSAO_ANTES_DO_DEFERIMENTO, CONCESSAO_ANTES_DO_DEPOSITO, DEFERIMENTO_ANTES_DO_DEPOSITO } from '../regras/propriedadeIntelectual';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
@@ -41,8 +40,6 @@ const REPETIDO: Regra[] = [
   { padrao: /quadro_grupos_nome_unico/, mensagem: 'Já existe um grupo com esse nome neste quadro.' },
   { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },
   { padrao: /processo_opcoes_unica/, mensagem: 'Essa opção já está na lista.' },
-  // O papel escrito devolvido à lista (#443) que já voltou a ela.
-  { padrao: /processo_papeis_unico/, mensagem: PAPEL_JA_NA_LISTA },
   { padrao: /processo_campos_nome_unico/, mensagem: 'Já existe um campo com esse nome.' },
   { padrao: /processo_partes_processo_id_pessoa_id_papel_key/, mensagem: PAPEL_REPETIDO },
   { padrao: /financeiro_contas_nome_unico/, mensagem: 'Já existe uma conta com esse nome.' },

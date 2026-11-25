@@ -12,6 +12,7 @@ import { nomeDoProcesso } from '../../regras/processo';
 import { opcaoPelaChave, pontasDoVinculo, rotuloNaOutraPonta } from '../../regras/vinculos';
 import { porAPessoa, type Desfazer } from '../ligarNoCartao';
 import { pedirPapelDoCliente, SEM_PAPEL_NAO_LIGA } from '../PessoasNosItens';
+import { incluirOEscrito } from '../../ui/papeisEscritos';
 
 /** O item de origem já lido. */
 export interface ItemDeOrigem {
@@ -42,7 +43,10 @@ const LER_A_ORIGEM: Record<OrigemDaPessoa, (o: Origem) => Promise<Lido>> = {
   processos: async o => lido(await SD.processoObter(o.id), p => ({ nome: nomeDoProcesso(p), endereco: cartaoDeOrigem(o, p.tipo), ligar: async pessoa => {
     const papel = await pedirPapelDoCliente(p.papeis_clientes, p.papeis_escritos);
     if (!papel) throw new RecusaDaLigacao(SEM_PAPEL_NAO_LIGA);
-    return porAPessoa('processos', o.id, pessoa, papel.papel, papel.escrito);
+    const desfazer = await porAPessoa('processos', o.id, pessoa, papel.papel, papel.escrito);
+    // O papel escrito agora (#443) vai para a lista do escritório, depois que a pessoa entrou.
+    if (desfazer) incluirOEscrito(papel);
+    return desfazer;
   } })),
   tarefas: comPessoas('tarefas', (id: string) => SD.tarefaObter(id), t => t.titulo),
   compromissos: comPessoas('compromissos', (id: string) => SD.compromissoObter(id), nomeDoCompromisso),

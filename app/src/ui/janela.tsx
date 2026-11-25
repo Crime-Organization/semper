@@ -2,7 +2,7 @@
 // então qualquer tela pergunta com: const ok = await confirmar('Título', 'Texto').
 // A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Campo } from './base';
+import { Campo, Nota } from './base';
 import { CampoData } from './base/CampoData';
 import { criarLoja } from './loja';
 import { estiloBotao } from './base/botao';
@@ -48,16 +48,20 @@ export const confirmar = (titulo: string, texto: ReactNode, rotulo = 'Confirmar'
   janela<boolean>({ titulo, corpo: <p>{texto}</p>, acoes: [{ rotulo: 'Cancelar', valor: false }, { rotulo, valor: true, tipo: perigo ? 'perigo' : 'pri' }] });
 
 /** Pede um texto (uma linha ou várias). Devolve o texto sem espaços nas pontas, ou null se cancelar. */
-export function pedirTexto(titulo: string, valor = '', { multilinha = false, maximo = 60 } = {}) {
+/** Com `nota`, uma explicação curta embaixo do campo (um exemplo, o que acontece com o texto); `acao` é o nome do botão que confirma. */
+export function pedirTexto(titulo: string, valor = '', { multilinha = false, maximo = 60, nota, acao = 'Salvar' }: { multilinha?: boolean; maximo?: number; nota?: ReactNode; acao?: string } = {}) {
+  const campo = multilinha
+    ? <textarea name="texto" className="campo" rows={6} defaultValue={valor} aria-label={titulo} />
+    : <input name="texto" className="campo" maxLength={maximo} defaultValue={valor} aria-label={titulo} aria-describedby={nota ? NOTA_DO_TEXTO : undefined} />;
   return janela<string>({
     titulo,
-    corpo: multilinha
-      ? <textarea name="texto" className="campo" rows={6} defaultValue={valor} aria-label={titulo} />
-      : <input name="texto" className="campo" maxLength={maximo} defaultValue={valor} aria-label={titulo} />,
+    corpo: nota ? <>{campo}<Nota id={NOTA_DO_TEXTO}>{nota}</Nota></> : campo,
     acoes: [{ rotulo: 'Cancelar', valor: null },
-      { rotulo: 'Salvar', tipo: 'pri', valor: campos => String(campos.get('texto') ?? '').trim() }]
+      { rotulo: acao, tipo: 'pri', valor: campos => String(campos.get('texto') ?? '').trim() }]
   });
 }
+/** O id da nota de pedirTexto (só uma janela dessas fica aberta por vez). */
+const NOTA_DO_TEXTO = 'janela-nota-do-texto';
 
 /** O id do campo de escolha da janela de escolherNaJanela (só uma janela dessas fica aberta por vez). */
 const ESCOLHA = 'janela-escolha';

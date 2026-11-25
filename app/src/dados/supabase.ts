@@ -612,7 +612,7 @@ const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colab
   + 'deferimento, '
   + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** As pessoas com papel no processo (#316). */
-const CAMPOS_PARTE = `id, processo_id, papel, papel_escrito, pessoa:pessoas(${PESSOA_RESUMIDA})`;
+const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;
 /** O processo ligado a outro (#316), com o que diz como ele se liga. */
 const CAMPOS_PROCESSO_RELACIONADO = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, origem_id, ligacao';
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
@@ -2023,7 +2023,7 @@ export const SD: Dados = {
     // Os processos em que ela é cliente ou da equipe e, à parte, os em que tem um papel (#316): a regra de leitura do processo vale nos dois.
     const [{ data }, { data: partes }] = await Promise.all([
       rodar(sb.from('processos').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(PROCESSOS_LIGADOS)),
-      rodar(sb.from('processo_partes').select(`papel, papel_escrito, processo:processos!inner(${campos})`).eq('pessoa_id', pessoaId).limit(PROCESSOS_LIGADOS))
+      rodar(sb.from('processo_partes').select(`papel, processo:processos!inner(${campos})`).eq('pessoa_id', pessoaId).limit(PROCESSOS_LIGADOS))
     ]);
     return processosComPartes(data, partes, pessoaId, perfilId);
   },
@@ -2031,10 +2031,8 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('processo_partes').select(CAMPOS_PARTE).eq('processo_id', processoId).order('criado_em').order('id'));
     return data;
   },
-  async processoParteIncluir(processoId, pessoaId, papel, escrito = null) {
-    // O nome escrito (#443) só vai quando há: o gatilho preparar_papel_escrito o limpa e o põe na lista do escritório.
-    const { data } = await rodar(sb.from('processo_partes').insert({ processo_id: processoId, pessoa_id: pessoaId, papel, ...(escrito ? { papel_escrito: escrito } : {}),
-      criado_por: uid() }).select(CAMPOS_PARTE).single());
+  async processoParteIncluir(processoId, pessoaId, papel) {
+    const { data } = await rodar(sb.from('processo_partes').insert({ processo_id: processoId, pessoa_id: pessoaId, papel, criado_por: uid() }).select(CAMPOS_PARTE).single());
     return data;
   },
   async processoParteRetirar(id) {
@@ -2090,16 +2088,17 @@ export const SD: Dados = {
   },
   // ---------- os papéis escritos pela equipe (supabase/migrations/20261125144809_papel_escrito.sql, #443) ----------
   async processoPapeisEscritos() {
-    const { data } = await rodar(sb.from('processo_papeis').select('id, nome').order('nome'));
-    return data;
+    // Em ordem alfabética do português, aqui, como no fictício: a ordem do banco separa as maiúsculas e os acentos de outro jeito.
+    const { data } = await rodar(sb.from('processo_papeis').select('id, nome'));
+    return (data as { id: string; nome: string }[]).toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   },
   async processoPapelEscritoTirar(id) {
     // A regra do banco não apaga o papel para quem não é administrador: nenhuma linha sai, e a tela precisa saber.
     conferirQueMudou((await rodar(sb.from('processo_papeis').delete().eq('id', id).select('id').maybeSingle())).data);
   },
-  async processoPapelEscritoDevolver(nome) {
-    const { data } = await rodar(sb.from('processo_papeis').insert({ nome: nome.trim() }).select('id, nome').single());
-    return data;
+  async processoPapeisIncluir(nomes) {
+    // A função do banco limpa cada nome e deixa como está o que já está na lista.
+    if (nomes.length) await rpc('processo_papeis_incluir', { p_nomes: nomes });
   },
   async processoCampos() {
     const { data } = await rodar(sb.from('processo_campos').select(CAMPOS_DO_CAMPO).order('criado_em'));

@@ -9,7 +9,7 @@ import { listaDoItemCheia, motivoDaListaCheia, PESSOA_NO_ITEM, type ItemComPesso
 import type { PapeisDosClientes, PapeisEscritos } from '../dados';
 import { nomeDoProcesso, PAPEIS_DO_CLIENTE } from '../regras/processo';
 import { valorSugeridoDoCliente, type PapelEscolhido } from '../regras/papelEscrito';
-import { lojaDePapeisEscritos, recarregarPapeisEscritos } from '../ui/papeisEscritos';
+import { incluirOEscrito, lojaDePapeisEscritos, recarregarPapeisEscritos } from '../ui/papeisEscritos';
 import { opcoesDoPapelNaJanela, papelDaEscolha } from './processo/EscolhaDoPapel';
 import { AcoesDosLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo, type AchadoDe, type FiltroDe } from '../ui/LigarDoModulo';
@@ -52,8 +52,9 @@ export async function pedirPapelDoCliente(papeis?: PapeisDosClientes, escritos?:
   const lida = lojaDePapeisEscritos.ler();
   if (lida === null) void recarregarPapeisEscritos();
   const lista = (lida ?? []).map(x => x.nome);
+  // Os nomes escritos do processo ficam entre as opções mesmo fora da lista: a pergunta pode já trazê-los escolhidos.
   const escolhido = await escolherNaJanela({ titulo: 'Papel do cliente no processo', rotulo: 'Papel do cliente', acao: 'Ligar',
-    opcoes: opcoesDoPapelNaJanela(PAPEIS_DO_CLIENTE, lista), atual: valorSugeridoDoCliente(papeis, escritos) });
+    opcoes: opcoesDoPapelNaJanela(PAPEIS_DO_CLIENTE, lista, Object.values(escritos ?? {})), atual: valorSugeridoDoCliente(papeis, escritos) });
   return escolhido ? (await papelDaEscolha(escolhido, lista)) ?? null : null;
 }
 
@@ -69,9 +70,12 @@ async function perguntarEPor(modulo: ItemComPessoas, itemId: string, pessoaId: s
   textos: TextosDaLigacao, depois: () => void) {
   const antes = await ANTES_DE_POR[modulo](doItem);
   if (!antes) return;
-  await ligarEAvisar(() => porAPessoa(modulo, itemId, pessoaId, antes.papel?.papel, antes.papel?.escrito), textos, depois);
-  // O papel escrito (#443) entrou na lista do escritório.
-  if (antes.papel?.escrito) void recarregarPapeisEscritos();
+  await ligarEAvisar(async () => {
+    const desfazer = await porAPessoa(modulo, itemId, pessoaId, antes.papel?.papel, antes.papel?.escrito);
+    // O papel escrito agora (#443) vai para a lista do escritório, depois que a pessoa entrou.
+    if (desfazer) incluirOEscrito(antes.papel);
+    return desfazer;
+  }, textos, depois);
 }
 
 /** No cartão da pessoa: a busca "Ligar … existente", com os itens que ainda não a têm (e o motivo, nos que já estão cheios). */

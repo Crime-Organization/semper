@@ -1053,11 +1053,7 @@ export interface Processo {
   especificacao?: string | null; variacoes?: number | null; linguagem?: string | null;
 }
 /** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
-export interface ParteDoProcesso {
-  id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida;
-  /** O nome escrito pela equipe (#443), só com o papel 'outro'. */
-  papel_escrito?: string | null;
-}
+export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
 /**
  * Como um processo ligado se relaciona com o aberto: é a origem dele (o administrativo, quando o aberto é o judicial que nasceu dele,
  * #425), nasceu dele como recurso, incidental ou judicial, ou foi ligado a ele depois, de qualquer tipo ("relacionado", #440).
@@ -1135,8 +1131,6 @@ export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' 
   papeis: PapelNoProcesso[];
   /** No cartão da pessoa: os papéis dela no processo, além de cliente e equipe (#316). */
   partes?: PapelDaParte[];
-  /** O nome escrito do papel 'outro' dela no processo (#443), quando há. */
-  papel_escrito?: string | null;
 }
 /** Opção acrescentada pelo administrador a uma das listas. */
 export interface OpcaoDeProcesso { id: string; campo: CampoDeOpcao; valor: string }
@@ -1171,8 +1165,7 @@ export interface DadosProcessos {
   /** As pessoas com papel no processo (#316), na ordem em que entraram. */
   processoPartes(processoId: string): Promise<ParteDoProcesso[]>;
   /** Põe a pessoa no processo com o papel (#316): quem altera o processo, com ele ativo. O mesmo papel de novo é recusado. */
-  /** Com o papel 'outro', `escrito` é o nome escrito pela equipe (#443), que entra na lista do escritório; com outro papel, é recusado. */
-  processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte, escrito?: string | null): Promise<ParteDoProcesso>;
+  processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte): Promise<ParteDoProcesso>;
   processoParteRetirar(id: string): Promise<void>;
   /**
    * Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê; e, desde
@@ -1200,14 +1193,17 @@ export interface DadosProcessos {
   /** Só administradores. Os processos que já usam a opção continuam com o valor. */
   processoOpcaoExcluir(id: string): Promise<void>;
   /**
-   * Os papéis escritos pela equipe (#443; supabase/migrations/20261125144809_papel_escrito.sql), a lista do escritório, por nome. Ela
-   * cresce sozinha: o nome novo entra ao gravar o processo (ou a pessoa do processo).
+   * Os papéis do cliente escritos pela equipe (#443; supabase/migrations/20261125144809_papel_escrito.sql), a lista do escritório,
+   * em ordem alfabética (pt-BR).
    */
   processoPapeisEscritos(): Promise<PapelEscrito[]>;
   /** Só administradores. Os processos que já usam o papel continuam com o nome. */
   processoPapelEscritoTirar(id: string): Promise<void>;
-  /** Só administradores: devolve à lista o papel tirado (o Desfazer). O nome que já está na lista é recusado. */
-  processoPapelEscritoDevolver(nome: string): Promise<PapelEscrito>;
+  /**
+   * Põe na lista do escritório os nomes que a pessoa escreveu agora (depois de gravar o processo) ou que o administrador devolve (o
+   * Desfazer de tirar). Gravar o processo não põe nada na lista. O nome que já está nela, com qualquer grafia, fica como está.
+   */
+  processoPapeisIncluir(nomes: string[]): Promise<void>;
   processoSugestoes(tipo: TipoProcesso): Promise<SugestoesDeProcesso>;
   /** Os campos do escritório, inclusive os apagados (o histórico precisa do nome deles). */
   processoCampos(): Promise<CampoDeProcesso[]>;

@@ -5,7 +5,7 @@ import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
   semSairDoProcesso, validarProcesso, CAMPOS_DA_SECAO_DE_DADOS, errosDosDadosDoProcesso, soOsDadosDaSecao, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso,
   clienteNoCartao, comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, PAPEL_DO_CLIENTE_OBRIGATORIO, papeisAoGravar, papelSugeridoDoCliente, papeisAoTrocarCliente, papeisDosClientesPorExtenso,
-  selosDoProcesso, escritosAoTrocarCliente, nomeDoPapel, papeisPorExtenso, processoDoProcesso, processosComPartes
+  selosDoProcesso, escritosAoTrocarCliente, nomeDoPapel, processoDoProcesso
 } from './processo';
 
 const NUMERO_VALIDO = '0001234-97.2026.8.13.0024';
@@ -495,20 +495,8 @@ describe('O papel escrito pela equipe (#443)', () => {
     expect(processoDoProcesso(origem, ['eu'], 'eu').papeisEscritos).toEqual({ p1: 'Inventariante' });
   });
 
-  it('quando o histórico mostra o nome escrito e a pessoa do processo com nome escrito, então aparecem os nomes', () => {
+  it('quando o histórico mostra o nome escrito, então aparecem os nomes', () => {
     // Então
     expect(valorLegivelProcesso('papeis_escritos', 'Curador, Inventariante')).toBe('Curador, Inventariante');
-    expect(valorLegivelProcesso('partes', { nome: 'Fulana', papel: 'outro', papel_escrito: 'Herdeira' })).toBe('Fulana (Herdeira)');
-    expect(valorLegivelProcesso('partes', { nome: 'Fulana', papel: 'outro' })).toBe('Fulana (Outro papel)');
-  });
-
-  it('dada uma pessoa com o papel outro escrito num processo, quando o cartão dela mostra os processos, então diz o nome escrito', () => {
-    // Dado
-    const proc = { id: 'b', codigo: 'P2', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: 'X', etapa_id: null, arquivado_em: null, criado_em: '2026-02-01',
-      responsavel_id: 'u1', colaboradores: [], clientes: ['p9'] };
-    // Quando
-    const [p] = processosComPartes([], [{ papel: 'outro', papel_escrito: 'Herdeira', processo: proc }, { papel: 'perito', processo: proc }], 'p1', null);
-    // Então
-    expect(papeisPorExtenso(p)).toBe('Perito, Herdeira');
   });
 });

@@ -1,10 +1,11 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O papel escrito pela equipe no processo (#443): a limpeza e a comparação dos nomes, o texto que vira papel, os valores do select,
-// as opções do grupo "Do escritório" e o que o banco faz ao gravar (o fictício usa as mesmas regras).
+// O papel do cliente escrito pela equipe no processo (#443): a limpeza e a comparação dos nomes, o texto que vira papel, os valores
+// do select, as opções do grupo "Do escritório", o que vai para a lista do escritório e o que o banco faz ao gravar (o fictício usa
+// as mesmas regras).
 import { describe, expect, it } from 'vitest';
 import {
-  chaveDoPapel, ESCREVER_PAPEL, escritosAoGravar, limparPapelEscrito, nomesNovosDoProcesso, opcoesDoPapel, papelDoTexto, papelDoValor, papelNaLista,
-  valorDoPapel, valorSugeridoDoCliente
+  chaveDoPapel, ESCREVER_O_PAPEL, ESCREVER_PAPEL, escreverOPapelDe, escritosAoGravar, limparPapelEscrito, nomesParaALista, opcoesDoPapel, papelDoTexto,
+  papelDoValor, papelNaLista, valorDoPapel, valorSugeridoDoCliente
 } from './papelEscrito';
 
 describe('Limpar e comparar os nomes', () => {
@@ -35,16 +36,24 @@ describe('O texto escrito vira um papel', () => {
     expect(papelDoTexto('testemunha', lista)).toEqual({ papel: 'testemunha' });
   });
 
+  it('dado o nome de um papel de propriedade intelectual, quando escreve, então fica com o papel fixo, e não com um nome escrito', () => {
+    expect(papelDoTexto('inventor', lista)).toEqual({ papel: 'inventor' });
+    expect(papelDoTexto('AUTOR DA CRIACAO', lista)).toEqual({ papel: 'autor_da_criacao' });
+  });
+
   it('dado um nome que já está na lista do escritório, quando escreve com outra grafia, então usa o da lista, sem repetir', () => {
-    expect(papelDoTexto(' INVENTARIANTE', lista)).toEqual({ papel: 'outro', escrito: 'Inventariante' });
+    expect(papelDoTexto(' INVENTARIANTE', lista)).toEqual({ papel: 'outro', escrito: 'Inventariante', escritoAgora: true });
   });
 
-  it('dado um nome novo, quando escreve, então é o papel outro com o nome limpo', () => {
-    expect(papelDoTexto('  Curador   especial ', lista)).toEqual({ papel: 'outro', escrito: 'Curador especial' });
+  it('dado um nome novo, quando escreve, então é o papel outro com o nome limpo, escrito agora', () => {
+    expect(papelDoTexto('  Curador   especial ', lista)).toEqual({ papel: 'outro', escrito: 'Curador especial', escritoAgora: true });
   });
+});
 
-  it('dados só os papéis fixos de um processo fora da propriedade intelectual, quando escreve Titular, então vira um nome escrito', () => {
-    expect(papelDoTexto('Titular', [], ['autor', 'reu', 'outro'])).toEqual({ papel: 'outro', escrito: 'Titular' });
+describe('A janela de escrever', () => {
+  it('dado um processo com mais de um cliente, quando abre, então o título diz de quem é o papel; com um só, não', () => {
+    expect(escreverOPapelDe('CLIENTE UM')).toBe('Escrever o nome do papel de CLIENTE UM');
+    expect(escreverOPapelDe(null)).toBe(ESCREVER_O_PAPEL);
   });
 });
 
@@ -78,15 +87,23 @@ describe('O grupo "Do escritório" do select', () => {
   });
 });
 
-describe('Ao gravar o processo (como o gatilho do banco)', () => {
-  it('dados nomes escritos, quando grava, então só o cliente com o papel outro guarda o nome, limpo', () => {
-    const r = escritosAoGravar({ a: '  Inventariante ', b: 'Herdeiro', c: 'Curador', d: '   ' }, { a: 'outro', b: 'autor', d: 'outro' }, ['a', 'b', 'd']);
-    expect(r).toEqual({ a: 'Inventariante' });
+describe('O que vai para a lista do escritório', () => {
+  it('dados os nomes escritos agora, quando o processo é gravado, então vão os que ele ainda usa, cada um uma vez', () => {
+    // Dado: escreveu Curador e depois trocou por Inventariante; escreveu Herdeiro duas vezes
+    const agora = ['Curador', 'Inventariante', 'Herdeiro', 'herdeiro'];
+    // Quando / Então
+    expect(nomesParaALista(agora, { a: 'Inventariante', b: 'Herdeiro' })).toEqual(['Inventariante', 'Herdeiro']);
   });
 
-  it('dado o que o processo já tinha, quando grava de novo, então só os nomes novos para ele entram na lista', () => {
-    expect(nomesNovosDoProcesso({ a: 'Inventariante' }, { a: 'Inventariante', b: 'Curador', c: 'curador' })).toEqual(['Curador']);
-    expect(nomesNovosDoProcesso({}, { a: 'Inventariante' })).toEqual(['Inventariante']);
+  it('dado um nome copiado de outro processo ou devolvido, quando ninguém o escreveu agora, então nada vai para a lista', () => {
+    expect(nomesParaALista([], { a: 'Inventariante' })).toEqual([]);
+  });
+});
+
+describe('Ao gravar o processo (como o gatilho do banco)', () => {
+  it('dados nomes escritos, quando grava, então só o cliente com o papel outro guarda o nome, limpo', () => {
+    const r = escritosAoGravar({ a: '  Inventariante   do  espólio ', b: 'Herdeiro', c: 'Curador', d: '   ' }, { a: 'outro', b: 'autor', d: 'outro' }, ['a', 'b', 'd']);
+    expect(r).toEqual({ a: 'Inventariante do espólio' });
   });
 
   it('dado um processo com clientes, quando a pergunta do papel abre, então já traz o papel do primeiro (com o nome escrito)', () => {

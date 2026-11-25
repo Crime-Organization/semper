@@ -1,4 +1,4 @@
--- O papel escrito pela equipe no processo (#443). Roda num banco local: supabase db start && supabase test db.
+-- O papel do cliente escrito pela equipe no processo (#443). Roda num banco local: supabase db start && supabase test db.
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -60,7 +60,12 @@ select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_i
   'Dado um cliente com o papel outro e um nome escrito, quando a Ana grava o processo, então grava');
 select is(pg_temp.escritos('A1'), '{"14430000-0000-0000-0000-000000000001": "Inventariante"}'::jsonb, 'E o nome fica limpo');
 reset role;
-select is(pg_temp.lista_da_ana(), '{Inventariante}'::text[], 'E a lista do escritório ganha o nome');
+select is(pg_temp.lista_da_ana(), '{}'::text[], 'E gravar o processo não põe o nome na lista: quem põe é a tela, com o que a pessoa escreveu');
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ select public.processo_papeis_incluir(array['  Inventariante  ']) $$,
+  'Quando a tela põe na lista o nome que a Ana escreveu, então aceita');
+reset role;
+select is(pg_temp.lista_da_ana(), '{Inventariante}'::text[], 'E a lista do escritório ganha o nome, limpo');
 select pg_temp.entrar(1); set local role authenticated;
 
 -- Quando outro processo escreve o mesmo nome com outras maiúsculas e espaços, então usa o da lista, sem repetir.
@@ -69,6 +74,7 @@ select lives_ok($$ insert into public.processos (tipo, numero, responsavel_id, c
    '{"14430000-0000-0000-0000-000000000001": "outro"}', '{"14430000-0000-0000-0000-000000000001": " INVENTARIANTE "}', auth.uid()) $$,
   'Dado Inventariante na lista, quando outro processo grava INVENTARIANTE, então grava');
 select is(pg_temp.escritos('A2'), '{"14430000-0000-0000-0000-000000000001": "Inventariante"}'::jsonb, 'E guarda na grafia da lista');
+select lives_ok($$ select public.processo_papeis_incluir(array[' INVENTARIANTE ']) $$, 'Quando a tela põe o nome escrito de novo na lista, então aceita');
 reset role;
 select is(pg_temp.lista_da_ana(), '{Inventariante}'::text[], 'E a lista continua com uma linha só');
 select pg_temp.entrar(1); set local role authenticated;
@@ -79,9 +85,6 @@ select lives_ok($$ insert into public.processos (tipo, numero, responsavel_id, c
    '{"14430000-0000-0000-0000-000000000001": "Herdeiro", "14430000-0000-0000-0000-000000000002": "Curador"}', auth.uid()) $$,
   'Dado um nome escrito de um autor e de quem não é cliente, quando grava, então grava o processo');
 select is(pg_temp.escritos('A3'), '{}'::jsonb, 'E nenhum dos dois nomes fica');
-reset role;
-select is(pg_temp.lista_da_ana(), '{Inventariante}'::text[], 'E a lista não ganha os nomes que não ficaram');
-select pg_temp.entrar(1); set local role authenticated;
 
 -- Quando o nome passa de 60 letras, ou não é texto, então o banco recusa.
 select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, papeis_clientes, papeis_escritos, criado_por) values
@@ -92,6 +95,8 @@ select throws_ok($$ insert into public.processos (tipo, numero, responsavel_id, 
   ('judicial', 'A5', auth.uid(), '{14430000-0000-0000-0000-000000000001}', '{"14430000-0000-0000-0000-000000000001": "outro"}',
    '{"14430000-0000-0000-0000-000000000001": 1}', auth.uid()) $$,
   '23514', null, 'Dado um nome que não é texto, quando grava, então recusa');
+select throws_ok($$ select public.processo_papeis_incluir(array[repeat('x', 61)]) $$, '23514', null,
+  'Quando a tela põe na lista um nome com mais de 60 letras, então recusa');
 
 -- A mudança do nome escrito fica no histórico do processo, como texto.
 select is(pg_temp.mudados($$ update public.processos set papeis_escritos = '{"14430000-0000-0000-0000-000000000001": "Curador"}'
@@ -99,6 +104,7 @@ select is(pg_temp.mudados($$ update public.processos set papeis_escritos = '{"14
 select is((select alteracoes -> 'papeis_escritos' from public.processo_historico where processo_id = '74430000-0000-0000-0000-000000000001'
   and alteracoes ? 'papeis_escritos' order by em desc limit 1), '{"de": "Inventariante", "para": "Curador"}'::jsonb,
   'E o histórico guarda os nomes como texto');
+select lives_ok($$ select public.processo_papeis_incluir(array['Curador']) $$, 'E a tela põe o nome novo na lista');
 reset role;
 select is(pg_temp.lista_da_ana(), '{Curador,Inventariante}'::text[], 'E o nome novo entra na lista');
 select pg_temp.entrar(1); set local role authenticated;
@@ -124,57 +130,70 @@ select is(pg_temp.mudados($$ update public.processos set papeis_escritos = '{"14
   where numero = 'A2' and escritorio_id = 'e4430000-0000-0000-0000-000000000001' $$), 0::bigint,
   'Dado um processo em que a Bia não está, quando ela muda o nome escrito, então nada muda');
 select throws_ok($$ insert into public.processo_papeis (nome) values ('Tutor') $$, '42501', null,
-  'Dado a Bia, que não é administradora, quando põe um papel direto na lista, então recusa');
+  'Dado a Bia, quando põe um papel direto na lista, sem a função, então recusa');
 select is(pg_temp.mudados($$ delete from public.processo_papeis where nome = 'Inventariante' $$), 0::bigint,
-  'Quando a Bia tenta tirar um papel da lista, então nada sai');
+  'Quando a Bia, que não é administradora, tenta tirar um papel da lista, então nada sai');
 select is((select count(*) from public.processo_papeis), 2::bigint, 'E ela lê a lista do escritório');
+select throws_ok($$ select privado.papel_na_lista('e4430000-0000-0000-0000-000000000001', 'Tutor') $$, '42501', null,
+  'E a função que acha o nome na lista não abre para ela');
 
--- ---------- tirar da lista ----------
+-- ---------- tirar da lista: o nome não volta sem alguém escrevê-lo ----------
 reset role;
 select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ insert into public.processos (id, tipo, numero, responsavel_id, clientes, papeis_clientes, papeis_escritos, criado_por) values
+  ('74430000-0000-0000-0000-000000000002', 'judicial', 'B1', auth.uid(), '{14430000-0000-0000-0000-000000000001,14430000-0000-0000-0000-000000000002}',
+   '{"14430000-0000-0000-0000-000000000001": "outro", "14430000-0000-0000-0000-000000000002": "autor"}',
+   '{"14430000-0000-0000-0000-000000000001": "Inventariante"}', auth.uid()) $$,
+  'Dado o processo B1, com dois clientes, um deles Inventariante, quando a Ana grava, então grava');
 select is(pg_temp.mudados($$ delete from public.processo_papeis where nome = 'Inventariante' $$), 1::bigint,
   'Dado a Ana, administradora, quando tira Inventariante da lista, então sai');
 select is(pg_temp.escritos('A2'), '{"14430000-0000-0000-0000-000000000001": "Inventariante"}'::jsonb, 'E o processo que o usa continua com o nome');
 select lives_ok($$ update public.processos set papeis_escritos = '{"14430000-0000-0000-0000-000000000001": "Inventariante"}', titulo = 'De novo'
   where numero = 'A2' and escritorio_id = 'e4430000-0000-0000-0000-000000000001' $$, 'Quando o processo é salvo de novo com o mesmo nome, então grava');
+select lives_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, papeis_clientes, papeis_escritos, origem_id, ligacao, criado_por) values
+  ('judicial', 'R1', auth.uid(), '{14430000-0000-0000-0000-000000000001}', '{"14430000-0000-0000-0000-000000000001": "outro"}',
+   '{"14430000-0000-0000-0000-000000000001": "Inventariante"}', '74430000-0000-0000-0000-000000000002', 'recurso', auth.uid()) $$,
+  'Quando nasce um recurso do B1, com o nome copiado, então grava');
+select is(pg_temp.escritos('R1'), '{"14430000-0000-0000-0000-000000000001": "Inventariante"}'::jsonb, 'E o recurso tem o nome');
+select lives_ok($$ update public.processos set clientes = '{14430000-0000-0000-0000-000000000002}', papeis_clientes = '{"14430000-0000-0000-0000-000000000002": "autor"}'
+  where id = '74430000-0000-0000-0000-000000000002' $$, 'Quando tira do B1 o cliente Inventariante, então grava');
+select is(pg_temp.escritos('B1'), '{}'::jsonb, 'E o nome dele sai do processo');
+select lives_ok($$ update public.processos set clientes = '{14430000-0000-0000-0000-000000000002,14430000-0000-0000-0000-000000000001}',
+  papeis_clientes = '{"14430000-0000-0000-0000-000000000001": "outro", "14430000-0000-0000-0000-000000000002": "autor"}',
+  papeis_escritos = '{"14430000-0000-0000-0000-000000000001": "Inventariante"}' where id = '74430000-0000-0000-0000-000000000002' $$,
+  'Quando o Desfazer devolve o cliente com o nome, então grava');
+select is(pg_temp.escritos('B1'), '{"14430000-0000-0000-0000-000000000001": "Inventariante"}'::jsonb, 'E o nome volta ao processo');
 reset role;
-select is(pg_temp.lista_da_ana(), '{Curador}'::text[], 'E o nome não volta à lista');
+select is(pg_temp.lista_da_ana(), '{Curador}'::text[], 'E em nenhum desses casos o nome volta à lista');
 select pg_temp.entrar(1); set local role authenticated;
-select lives_ok($$ insert into public.processo_papeis (nome) values ('Inventariante') $$, 'Quando a Ana devolve o papel à lista (o Desfazer), então volta');
-select throws_ok($$ insert into public.processo_papeis (nome) values (' inventariante ') $$, '23505', null,
-  'Quando devolve de novo, com outra grafia, então recusa o repetido');
-
--- ---------- um escritório não vê os papéis do outro ----------
+select lives_ok($$ select public.processo_papeis_incluir(array['Inventariante']) $$, 'Quando a Ana devolve o papel à lista (o Desfazer), então volta');
+select lives_ok($$ select public.processo_papeis_incluir(array[' inventariante ']) $$, 'Quando devolve de novo, com outra grafia, então nada muda');
 reset role;
+select is(pg_temp.lista_da_ana(), '{Curador,Inventariante}'::text[], 'E a lista tem o nome uma vez só');
+select is((select criado_por from public.processo_papeis where escritorio_id = 'e4430000-0000-0000-0000-000000000001' and nome = 'Inventariante'),
+  'a4430000-0000-0000-0000-000000000001'::uuid, 'E quem pôs o nome é quem está logado');
+
+-- ---------- um escritório não vê nem escreve nos papéis do outro ----------
 select pg_temp.entrar(4); set local role authenticated;
 select is((select count(*) from public.processo_papeis where escritorio_id = 'e4430000-0000-0000-0000-000000000001'), 0::bigint,
-  'Dado o Davi, de outro escritório, quando lê a lista, então não vê os papéis da Ana');
+  'Dado o Davi, master de outro escritório, quando lê a lista, então não vê os papéis da Ana');
+select throws_ok($$ insert into public.processo_papeis (escritorio_id, nome) values ('e4430000-0000-0000-0000-000000000001', 'Tutor') $$, '42501', null,
+  'Quando ele põe um papel direto na lista da Ana, então recusa');
+select is(pg_temp.mudados($$ delete from public.processo_papeis where escritorio_id = 'e4430000-0000-0000-0000-000000000001' $$), 0::bigint,
+  'Quando ele tenta apagar a lista da Ana, então nada sai');
+select throws_ok($$ insert into public.processos (escritorio_id, tipo, numero, responsavel_id, clientes, papeis_clientes, papeis_escritos, criado_por) values
+  ('e4430000-0000-0000-0000-000000000001', 'judicial', 'D0', auth.uid(), '{14430000-0000-0000-0000-000000000001}',
+   '{"14430000-0000-0000-0000-000000000001": "outro"}', '{"14430000-0000-0000-0000-000000000001": "Tutor"}', auth.uid()) $$, null, null,
+  'Quando ele grava um processo com o escritório da Ana, então recusa');
 select lives_ok($$ insert into public.processos (tipo, numero, responsavel_id, clientes, papeis_clientes, papeis_escritos, criado_por) values
   ('judicial', 'D1', auth.uid(), '{14430000-0000-0000-0000-000000000004}', '{"14430000-0000-0000-0000-000000000004": "outro"}',
    '{"14430000-0000-0000-0000-000000000004": "inventariante"}', auth.uid()) $$, 'Quando o Davi escreve inventariante num processo dele, então grava');
-select is((select array_agg(nome) from public.processo_papeis), '{inventariante}'::text[], 'E ele ganha a sua própria linha, na grafia dele');
+select is((select papeis_escritos from public.processos where numero = 'D1'), '{"14430000-0000-0000-0000-000000000004": "inventariante"}'::jsonb,
+  'E o nome fica na grafia dele, e não na da lista da Ana');
+select lives_ok($$ select public.processo_papeis_incluir(array['inventariante', 'Tutor']) $$, 'Quando a tela põe os nomes dele na lista, então aceita');
+select is((select array_agg(nome order by nome) from public.processo_papeis), '{inventariante,Tutor}'::text[], 'E eles vão para a lista do escritório dele');
 reset role;
 select is(pg_temp.lista_da_ana(), '{Curador,Inventariante}'::text[], 'E a lista da Ana não muda');
-
--- ---------- as pessoas do processo ----------
-select pg_temp.entrar(1); set local role authenticated;
-select lives_ok($$ insert into public.processo_partes (processo_id, pessoa_id, papel, papel_escrito, criado_por) values
-  ('74430000-0000-0000-0000-000000000001', '14430000-0000-0000-0000-000000000002', 'outro', '  Herdeiro ', auth.uid()) $$,
-  'Dado o processo A1, quando a Ana põe uma pessoa com o papel escrito Herdeiro, então grava');
-select is((select papel_escrito from public.processo_partes where processo_id = '74430000-0000-0000-0000-000000000001'), 'Herdeiro', 'E o nome fica limpo');
-reset role;
-select is(pg_temp.lista_da_ana(), '{Curador,Herdeiro,Inventariante}'::text[], 'E entra na lista do escritório');
-select is((select alteracoes -> 'partes' -> 'para' ->> 'papel_escrito' from public.processo_historico
-  where processo_id = '74430000-0000-0000-0000-000000000001' and alteracoes ? 'partes' order by em desc limit 1), 'Herdeiro',
-  'E o histórico da pessoa do processo traz o nome escrito');
-select pg_temp.entrar(1); set local role authenticated;
-select throws_ok($$ insert into public.processo_partes (processo_id, pessoa_id, papel, papel_escrito, criado_por) values
-  ('74430000-0000-0000-0000-000000000001', '14430000-0000-0000-0000-000000000002', 'autor', 'Herdeiro', auth.uid()) $$,
-  '23514', null, 'Dado um nome escrito com o papel autor, quando põe a pessoa, então recusa');
-select lives_ok($$ insert into public.processo_partes (processo_id, pessoa_id, papel, criado_por) values
-  ('74430000-0000-0000-0000-000000000001', '14430000-0000-0000-0000-000000000001', 'perito', auth.uid()) $$,
-  'Quando a versão anterior põe uma pessoa sem nome escrito, então grava');
-reset role;
 
 select * from finish();
 rollback;

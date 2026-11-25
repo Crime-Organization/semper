@@ -1,24 +1,22 @@
 -- =====================================================================
--- O papel escrito pela equipe no processo (#443)
---   No "Papel do cliente" (e no papel das pessoas do processo, que usa a mesma lista), a equipe pode escrever um papel que não
---   está na lista (ex.: "Inventariante"). O nome escrito fica guardado no processo e entra na lista do escritório, que aparece
---   nos próximos cadastros. O administrador tira um papel da lista nas Configurações; os processos que já o usam continuam com
---   o nome, porque o nome está gravado neles.
+-- O papel do cliente escrito pela equipe no processo (#443)
+--   No "Papel do cliente", a equipe pode escrever um papel que não está na lista (ex.: "Inventariante"). O nome escrito fica
+--   guardado no processo e entra na lista do escritório, que aparece nos próximos cadastros. O administrador tira um papel da
+--   lista nas Configurações; os processos que já o usam continuam com o nome, porque o nome está gravado neles.
 --   1. processo_papeis: a lista do escritório. Um nome aparece uma vez só, sem contar maiúsculas, acentos e espaços repetidos
 --      (privado.chave_do_papel, a mesma comparação de chaveDoPapel, em app/src/regras/papelEscrito.ts). Cada escritório tem a sua.
---      Quem a alimenta é o banco, ao gravar o processo (ou a pessoa do processo): só cria papel quem pode alterar o processo.
---      Só o administrador tira da lista (e devolve, no Desfazer).
+--      Só entra nela o que a pessoa ESCREVEU agora, pela função processo_papeis_incluir, que a tela chama depois de gravar: o
+--      nome copiado (o recurso que nasce do processo), devolvido (o Desfazer de tirar o cliente) ou escolhido da lista não entra,
+--      e o que o administrador tirou não volta sozinho. Só o administrador tira da lista.
 --   2. processos.papeis_escritos: o nome escrito de cada cliente, pelo id da pessoa ({"<id>": "Inventariante"}). O cliente
 --      continua com o papel fixo 'outro' em papeis_clientes: a lista fixa e a regra processos_papeis_clientes_validos (#426)
---      não mudam. O gatilho preparar_papeis_escritos só guarda o nome de quem é cliente com o papel 'outro', limpa o texto,
---      usa a grafia da lista e põe na lista só os nomes novos para o processo (salvar de novo não devolve à lista o que o
---      administrador tirou).
---   3. processo_partes.papel_escrito: o mesmo para as pessoas do processo (só com o papel 'outro'), com o gatilho
---      preparar_papel_escrito, e o histórico da pessoa do processo leva o nome escrito.
---   4. O histórico do processo grava os nomes escritos como texto ("Inventariante").
---   Só acrescenta (tabela, colunas, funções, gatilhos e regras). A versão anterior do site continua funcionando: ela não lê nem
---   manda as colunas novas, que têm valor padrão; o papel continua 'outro', que ela conhece e mostra como "Outro papel"; quando
---   ela grava o processo, o nome escrito fica enquanto o papel continuar 'outro'. Nada é apagado nem renomeado.
+--      não mudam. O gatilho preparar_papeis_escritos só guarda o nome de quem é cliente com o papel 'outro', limpa o texto e
+--      usa a grafia da lista, quando o nome está nela.
+--   3. O histórico do processo grava os nomes escritos como texto ("Inventariante").
+--   Só acrescenta (tabela, coluna, funções, gatilho e regras). A versão anterior do site continua funcionando: ela não lê nem
+--   manda a coluna nova, que tem valor padrão; o papel continua 'outro', que ela conhece e mostra como "Outro papel"; quando
+--   ela grava o processo, o nome escrito fica enquanto o papel continuar 'outro'. No histórico, ela mostra a chave nova sem
+--   rótulo ("papeis_escritos: Inventariante → Curador") até o site novo ser publicado. Nada é apagado nem renomeado.
 -- =====================================================================
 
 -- ---------- 1. A lista do escritório ----------
@@ -40,16 +38,15 @@ create table public.processo_papeis (
 );
 create unique index processo_papeis_unico on public.processo_papeis (escritorio_id, privado.chave_do_papel(nome));
 comment on table public.processo_papeis is
-  'Os papéis escritos pela equipe nos processos (#443), a lista de cada escritório. O banco a alimenta ao gravar o processo.';
+  'Os papéis do cliente escritos pela equipe nos processos (#443), a lista de cada escritório. Entra por processo_papeis_incluir.';
 
 alter table public.processo_papeis enable row level security;
 revoke all on public.processo_papeis from anon;
-revoke update on public.processo_papeis from authenticated;
--- Todos do escritório leem; só o administrador põe (o Desfazer das Configurações) e tira. A equipe cria pelo processo (os gatilhos).
+-- Ninguém põe nem muda direto: o nome entra só por processo_papeis_incluir, que o limpa e marca quem e quando.
+revoke insert, update, truncate, references, trigger on public.processo_papeis from authenticated;
+-- Todos do escritório leem; só o administrador tira.
 create policy leitura on public.processo_papeis for select to authenticated
   using (escritorio_id = (select privado.meu_escritorio()));
-create policy incluir on public.processo_papeis for insert to authenticated
-  with check (escritorio_id = (select privado.meu_escritorio()) and (select privado.sou_admin()));
 create policy apagar on public.processo_papeis for delete to authenticated
   using (escritorio_id = (select privado.meu_escritorio()) and (select privado.sou_admin()));
 create trigger auditoria after insert or delete on public.processo_papeis for each row execute function privado.auditar();
@@ -66,20 +63,31 @@ begin
 end $$;
 revoke execute on function privado.papel_escrito_limpo(text) from public, anon;
 
--- O nome na grafia da lista do escritório, se ele já está lá; senão, o próprio nome. Com p_incluir, o nome novo entra na lista.
-create function privado.papel_na_lista(p_escritorio uuid, p_nome text, p_incluir boolean) returns text
+-- O nome na grafia da lista do escritório, se ele já está lá; senão, o próprio nome. Não põe nada na lista.
+create function privado.papel_na_lista(p_escritorio uuid, p_nome text) returns text
+language sql stable security definer set search_path = '' as $$
+  select coalesce((select p.nome from public.processo_papeis p
+    where p.escritorio_id = p_escritorio and privado.chave_do_papel(p.nome) = privado.chave_do_papel(p_nome)), p_nome)
+$$;
+revoke execute on function privado.papel_na_lista(uuid, text) from public, anon, authenticated;
+
+-- Põe na lista do escritório de quem está logado os nomes que a pessoa escreveu agora (e o Desfazer de tirar da lista). O nome
+-- que já está na lista, com qualquer grafia, fica como está. Qualquer pessoa ativa do escritório pode: é ela quem escreve.
+create function public.processo_papeis_incluir(p_nomes text[]) returns void
 language plpgsql security definer set search_path = '' as $$
-declare v text;
+declare v_escritorio uuid := privado.meu_escritorio(); n text; v text;
 begin
-  select p.nome into v from public.processo_papeis p
-  where p.escritorio_id = p_escritorio and privado.chave_do_papel(p.nome) = privado.chave_do_papel(p_nome);
-  if v is not null then return v; end if;
-  if p_incluir then
-    insert into public.processo_papeis (escritorio_id, nome, criado_por) values (p_escritorio, p_nome, auth.uid()) on conflict do nothing;
+  if v_escritorio is null then
+    raise exception 'Você não tem permissão para fazer isso.' using errcode = '42501';
   end if;
-  return p_nome;
+  foreach n in array coalesce(p_nomes, '{}') loop
+    v := privado.papel_escrito_limpo(n);
+    continue when v is null;
+    insert into public.processo_papeis (escritorio_id, nome, criado_por) values (v_escritorio, v, auth.uid()) on conflict do nothing;
+  end loop;
 end $$;
-revoke execute on function privado.papel_na_lista(uuid, text, boolean) from public, anon, authenticated;
+revoke execute on function public.processo_papeis_incluir(text[]) from public, anon;
+grant execute on function public.processo_papeis_incluir(text[]) to authenticated;
 
 -- ---------- 2. O papel escrito de cada cliente ----------
 alter table public.processos add column papeis_escritos jsonb not null default '{}'
@@ -90,13 +98,11 @@ comment on column public.processos.papeis_escritos is
 -- Quem altera o processo muda o nome escrito (a lista do que se altera é por coluna, desde 20261101155218_processos.sql).
 grant update (papeis_escritos) on public.processos to authenticated;
 
--- Só o cliente do processo com o papel 'outro' guarda o nome escrito, limpo e na grafia da lista. Os nomes novos para este processo
--- entram na lista do escritório. Pelo nome, roda depois de preparar e de preparar_papeis (#426), que já acertaram os clientes e os papéis.
+-- Só o cliente do processo com o papel 'outro' guarda o nome escrito, limpo e na grafia da lista (quando está nela). A lista
+-- não muda aqui. Pelo nome, roda depois de preparar e de preparar_papeis (#426), que já acertaram os clientes e os papéis.
 create function privado.preparar_papeis_escritos() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare
-  v jsonb := '{}'; x record; nome text;
-  antes jsonb := case when tg_op = 'UPDATE' then old.papeis_escritos else '{}' end;
+declare v jsonb := '{}'; x record; nome text;
 begin
   if jsonb_typeof(new.papeis_escritos) is distinct from 'object'
      or jsonb_path_exists(new.papeis_escritos, '$.* ? (@.type() != "string")') then
@@ -107,9 +113,7 @@ begin
     continue when new.papeis_clientes ->> x.key is distinct from 'outro';
     nome := privado.papel_escrito_limpo(x.value);
     continue when nome is null;
-    nome := privado.papel_na_lista(new.escritorio_id, nome,
-      not exists (select 1 from jsonb_each_text(antes) a where privado.chave_do_papel(a.value) = privado.chave_do_papel(nome)));
-    v := v || jsonb_build_object(x.key, nome);
+    v := v || jsonb_build_object(x.key, privado.papel_na_lista(new.escritorio_id, nome));
   end loop;
   new.papeis_escritos := v;
   return new;
@@ -118,41 +122,7 @@ revoke execute on function privado.preparar_papeis_escritos() from public, anon;
 create trigger preparar_papeis_escritos before insert or update of clientes, papeis_clientes, papeis_escritos, polo on public.processos
   for each row execute function privado.preparar_papeis_escritos();
 
--- ---------- 3. O papel escrito das pessoas do processo ----------
-alter table public.processo_partes add column papel_escrito text
-  constraint processo_partes_papel_escrito_valido check (
-    papel_escrito is null or (papel = 'outro' and btrim(papel_escrito) <> '' and length(papel_escrito) <= 60));
-comment on column public.processo_partes.papel_escrito is 'O nome escrito do papel (#443), só com o papel ''outro''.';
-
--- O nome limpo, na grafia da lista, e o nome novo entra na lista do escritório. Com outro papel que não 'outro', a regra recusa.
-create function privado.preparar_papel_escrito() returns trigger
-language plpgsql security definer set search_path = '' as $$
-begin
-  new.papel_escrito := privado.papel_escrito_limpo(new.papel_escrito);
-  if new.papel_escrito is not null and new.papel = 'outro' then
-    new.papel_escrito := privado.papel_na_lista(new.escritorio_id, new.papel_escrito, true);
-  end if;
-  return new;
-end $$;
-revoke execute on function privado.preparar_papel_escrito() from public, anon;
-create trigger preparar_papel_escrito before insert on public.processo_partes
-  for each row execute function privado.preparar_papel_escrito();
-
--- O histórico da pessoa do processo leva o nome escrito, quando há. A função é a de 20261122130109_processo_partes_recursos_e_tipos.sql.
-create or replace function privado.historico_parte_do_processo() returns trigger
-language plpgsql security definer set search_path = '' as $$
-declare v public.processo_partes := case when tg_op = 'DELETE' then old else new end; v_parte jsonb;
-begin
-  if not exists (select 1 from public.processos p where p.id = v.processo_id) then return null; end if;
-  v_parte := jsonb_build_object('pessoa_id', v.pessoa_id, 'nome', (select nome from public.pessoas where id = v.pessoa_id), 'papel', v.papel);
-  if v.papel_escrito is not null then v_parte := v_parte || jsonb_build_object('papel_escrito', v.papel_escrito); end if;
-  insert into public.processo_historico (escritorio_id, processo_id, alteracoes, feito_por)
-  values (v.escritorio_id, v.processo_id, jsonb_build_object('partes', case when tg_op = 'DELETE'
-    then jsonb_build_object('de', v_parte, 'para', null) else jsonb_build_object('de', null, 'para', v_parte) end), auth.uid());
-  return null;
-end $$;
-
--- ---------- 4. O histórico do processo ----------
+-- ---------- 3. O histórico do processo ----------
 -- Os nomes escritos, cada um uma vez, em ordem e separados por vírgula (nulo quando não há).
 create function privado.nomes_dos_papeis_escritos(p jsonb) returns text
 language sql immutable set search_path = '' as $$

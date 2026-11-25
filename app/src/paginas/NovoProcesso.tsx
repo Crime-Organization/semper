@@ -26,8 +26,8 @@ import { ligarContratoNoProcesso, ligarNoItem } from './ligarNoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { CamposDaProtecao } from './processo/CamposDaProtecao';
 import { OpcoesDoPapel, papelDaEscolha } from './processo/EscolhaDoPapel';
-import { valorDoPapel } from '../regras/papelEscrito';
-import { recarregarPapeisEscritos, usePapeisEscritos } from '../ui/papeisEscritos';
+import { nomesParaALista, valorDoPapel } from '../regras/papelEscrito';
+import { incluirNaListaDoEscritorio, usePapeisEscritos } from '../ui/papeisEscritos';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -192,6 +192,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [camposDoEscritorio, setCamposDoEscritorio] = useState<CampoDeProcesso[]>([]);
   // Os papéis escritos pela equipe (#443), a lista do escritório.
   const papeisDoEscritorio = usePapeisEscritos();
+  // Os nomes que a pessoa escreveu agora na janela: só eles vão para a lista ao gravar (o copiado da origem do recurso não vai).
+  const [escritosAgora, setEscritosAgora] = useState<string[]>([]);
   // O órgão que o número indicou: troca se o número mudar, mas nunca o que a pessoa digitou.
   const orgaoIndicado = useRef('');
   useTitulo(edicao ? null : alvo ? 'Atualizar processo' : 'Novo processo');
@@ -303,12 +305,15 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       papeisEscritos: escritosAoTrocarCliente(atual.papeisClientes, atual.papeisEscritos, atual.clientes[i], p?.id ?? '') }));
   };
   // O papel de uma linha (#426): um da lista, um escrito pela equipe ou, pela última opção, um que a pessoa escreve agora (#443).
-  // Se ela desiste de escrever, nada muda, e o select volta ao que estava.
-  async function escolherPapel(clienteId: string, valor: string) {
-    const escolha = await papelDaEscolha(valor, papeisDoEscritorio);
+  // Se ela desiste de escrever, nada muda, e o select volta ao que estava. Com mais de um cliente, a janela diz de quem é o papel.
+  async function escolherPapel(i: number, clienteId: string, valor: string) {
+    const escolha = await papelDaEscolha(valor, papeisDoEscritorio, c.clientes.length > 1 ? clientes[i]?.nome : null);
     if (escolha === undefined) return;
     setC(atual => ({ ...atual, papeisClientes: comPapelDoCliente(atual.papeisClientes, clienteId, escolha?.papel ?? ''),
       papeisEscritos: { ...atual.papeisEscritos, [clienteId]: escolha?.escrito } }));
+    // O nome escrito agora vai para a lista do escritório depois de gravar o processo (nomesParaALista).
+    const escrito = escolha?.escritoAgora && escolha.escrito;
+    if (escrito) setEscritosAgora(atual => [...atual, escrito]);
   }
   // Os nomes já escritos no formulário aparecem no grupo "Do escritório" das outras linhas.
   const escritosNoFormulario = c.clientes.map(id => c.papeisClientes[id] === 'outro' ? c.papeisEscritos[id] : undefined);
@@ -402,8 +407,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         const eu = ctx.perfil.id, { dados: gravar, ficou } = soOsDados ? { dados, ficou: false }
           : semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.processoAtualizar(alvo.id, gravar);
-        // O papel escrito (#443) entrou na lista do escritório: os próximos cadastros já o oferecem.
-        if (Object.keys(gravar.papeis_escritos ?? {}).length) void recarregarPapeisEscritos();
+        // O papel escrito agora (#443) entra na lista do escritório: os próximos cadastros já o oferecem.
+        incluirNaListaDoEscritorio(nomesParaALista(escritosAgora, gravar.papeis_escritos ?? {}));
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
           await sairDoCartao('processos', alvo.id, 'Processo atualizado. Você saiu dele, e a saída ficou no histórico.');
@@ -424,7 +429,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         const coluna = (c.tipo === tipoInicial && etapaInicial) || await colunaInicial(quadro);
         // A origem do recurso ou incidental vai junto (#316): ela não muda depois.
         const r = await SD.processoCriar({ ...dados, ...(lida?.recusa ? {} : origemAoCriar(c)), tipo: c.tipo, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
-        if (Object.keys(dados.papeis_escritos ?? {}).length) void recarregarPapeisEscritos();
+        incluirNaListaDoEscritorio(nomesParaALista(escritosAgora, dados.papeis_escritos ?? {}));
         feito(`Processo ${r.codigo} cadastrado.`, 'cadastro do processo', async () => {
           await SD.processosArquivar([r.id], true);
           const x = await SD.processosExcluir([r.id]);
@@ -510,7 +515,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`}
             value={id ? valorDoPapel(c.papeisClientes[id], c.papeisEscritos[id]) : ''} disabled={!id}
             aria-invalid={papelFaltando(id) || undefined} aria-describedby={descricaoDoPapel(id)}
-            onChange={e => void escolherPapel(id, e.target.value)}>
+            onChange={e => void escolherPapel(i, id, e.target.value)}>
             <OpcoesDoPapel vazio="Papel do cliente…" fixos={PAPEIS_DO_CLIENTE} lista={papeisDoEscritorio} usados={escritosNoFormulario} />
           </select>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>

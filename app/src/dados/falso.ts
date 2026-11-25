@@ -80,7 +80,7 @@ import { CONTRATOS_POR_TAREFA, DEMANDAS_POR_TAREFA, DIAS_PARADO, PARCELAS_DA_PES
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { PARTES_MAXIMAS, TAMANHO_PROCESSO } from './limites';
-import { escritosAoGravar, limparPapelEscrito, nomesNovosDoProcesso, PAPEL_JA_NA_LISTA, papelNaLista } from '../regras/papelEscrito';
+import { escritosAoGravar, limparPapelEscrito, papelNaLista } from '../regras/papelEscrito';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, ITENS_DO_COMPROMISSO, PROCESSOS_PARA_LIGAR, TAMANHO_FUNCAO_NA_TAREFA, TAMANHO_SALA, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
@@ -241,7 +241,7 @@ interface Banco {
   etiquetasAplicadas?: { modulo: ModuloComEtiquetas; cartao_id: string; etiqueta_id: string }[];
   processos?: ProcessoGuardado[];
   /** As pessoas com papel nos processos (processo_partes, #316). */
-  processoPartes?: { id: string; processo_id: string; pessoa_id: string; papel: PapelDaParte; papel_escrito?: string | null; criado_em: string }[];
+  processoPartes?: { id: string; processo_id: string; pessoa_id: string; papel: PapelDaParte; criado_em: string }[];
   /** Os papéis escritos pela equipe nos processos (processo_papeis no banco, #443), a lista do escritório. */
   papeisEscritos?: PapelEscrito[];
   historicoProcessos?: (Historico & { processo_id: string })[];
@@ -2727,12 +2727,10 @@ function conferirPrazo(p: PrazoGuardado) {
 // ---------- processos ----------
 type ParteGuardada = NonNullable<Banco['processoPartes']>[number];
 /** A pessoa com papel como o cartão a mostra (#316). */
-const parteNoCartao = (x: ParteGuardada): ParteDoProcesso => ({ id: x.id, processo_id: x.processo_id, papel: x.papel, papel_escrito: x.papel_escrito ?? null,
-  pessoa: resumoDe(x.pessoa_id)! });
+const parteNoCartao = (x: ParteGuardada): ParteDoProcesso => ({ id: x.id, processo_id: x.processo_id, papel: x.papel, pessoa: resumoDe(x.pessoa_id)! });
 /** Como o gatilho historico de processo_partes: quem entrou (para) ou saiu (de), com o nome e o papel. */
 function historicoDaParte(x: ParteGuardada, lado: 'de' | 'para') {
-  // O nome escrito vai junto quando há (#443), como no gatilho.
-  const parte = { pessoa_id: x.pessoa_id, nome: resumoDe(x.pessoa_id)?.nome ?? null, papel: x.papel, ...(x.papel_escrito ? { papel_escrito: x.papel_escrito } : {}) };
+  const parte = { pessoa_id: x.pessoa_id, nome: resumoDe(x.pessoa_id)?.nome ?? null, papel: x.papel };
   bd.historicoProcessos!.unshift({ id: Date.now() + Math.random(), processo_id: x.processo_id, feito_por: eu, em: agora(),
     alteracoes: { partes: lado === 'para' ? { de: null, para: parte } : { de: parte, para: null } } });
 }
@@ -2824,8 +2822,8 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
     d.papeis_clientes = papeis;
   }
   // Como o gatilho preparar_papeis_escritos e a regra processos_papeis_escritos_validos (#443): só o cliente com o papel 'outro' guarda o
-  // nome escrito, limpo e na grafia da lista do escritório; o que não é texto, ou passa do tamanho, é recusado. A lista ganha os nomes
-  // depois de gravar (incluirNaListaDePapeis).
+  // nome escrito, limpo e na grafia da lista do escritório; o que não é texto, ou passa do tamanho, é recusado. A lista não muda aqui:
+  // quem põe nela é a tela, com o que a pessoa escreveu (processoPapeisIncluir).
   if (d.papeis_escritos !== undefined || d.papeis_clientes !== undefined || d.clientes !== undefined) {
     // O que vai como undefined não chega ao banco (o JSON o deixa de fora).
     const brutos = d.papeis_escritos ?? atual?.papeis_escritos ?? {};
@@ -2847,10 +2845,6 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
 }
 /** O nome na grafia da lista do escritório (#443), se ele está lá; senão, o próprio nome. */
 const papelNaListaDoEscritorio = (nome: string) => papelNaLista(bd.papeisEscritos!.map(x => x.nome), nome) ?? nome;
-/** Como o gatilho do banco: o nome que ainda não está na lista do escritório entra nela (#443). */
-function incluirNaListaDePapeis(nomes: readonly string[]) {
-  for (const nome of nomes) if (!papelNaLista(bd.papeisEscritos!.map(x => x.nome), nome)) bd.papeisEscritos!.push({ id: novoId(), nome });
-}
 /** Os nomes escritos como o histórico do banco os guarda: cada um uma vez, em ordem, separados por vírgula; nenhum, null. */
 const nomesDosPapeisEscritos = (v: unknown) => {
   const nomes = [...new Set(Object.values((v ?? {}) as PapeisEscritos).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -5609,8 +5603,7 @@ export const SD: Dados = {
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
       origem_id: null, ligacao: null, papeis_clientes: {}, papeis_escritos: {}, ...PI_VAZIA,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
-    bd.processos!.push(p); incluirNaListaDePapeis(nomesNovosDoProcesso({}, p.papeis_escritos ?? {}));
-    avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
+    bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
   },
   async processoAtualizar(id, dados) {
@@ -5624,7 +5617,6 @@ export const SD: Dados = {
     if (novos.area !== undefined && !areaPodeMudar(p.area, novos.area, papeis)) return erro(PAPEIS_DA_PI_NA_TROCA_DE_AREA);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
-    if (novos.papeis_escritos !== undefined) incluirNaListaDePapeis(nomesNovosDoProcesso(p.papeis_escritos ?? {}, novos.papeis_escritos));
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
     avisarInclusao('processos', id, antes);
     auditar('processos', 'alteracao', p); gravar();
@@ -5697,15 +5689,15 @@ export const SD: Dados = {
   processosDaPessoa: (pessoaId, perfilId = null) => {
     const vistos = bd.processos!.filter(p => vejoNoModulo('processos', p.id)).map(p => ({ ...p, cliente_nome: nomesDosClientes(p.clientes) }));
     const daEquipe = vistos.filter(p => papeisNoProcesso(p, pessoaId, perfilId).length);
-    const partes = bd.processoPartes!.filter(x => x.pessoa_id === pessoaId).flatMap(x => vistos.filter(p => p.id === x.processo_id).map(processo => ({ papel: x.papel, papel_escrito: x.papel_escrito, processo })));
+    const partes = bd.processoPartes!.filter(x => x.pessoa_id === pessoaId).flatMap(x => vistos.filter(p => p.id === x.processo_id).map(processo => ({ papel: x.papel, processo })));
     return espera(processosComPartes(daEquipe, partes, pessoaId, perfilId).map((p): ProcessoLigado => ({
       id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: p.cliente_nome, etapa_id: p.etapa_id, arquivado_em: p.arquivado_em,
-      criado_em: p.criado_em, papeis: p.papeis, partes: p.partes, papel_escrito: p.papel_escrito
+      criado_em: p.criado_em, papeis: p.papeis, partes: p.partes
     })));
   },
   // ---------- pessoas com papel e processos ligados (#316, como a migração processo_partes_recursos_e_tipos) ----------
   processoPartes: processoId => espera(bd.processoPartes!.filter(x => x.processo_id === processoId && vejoNoModulo('processos', processoId)).map(parteNoCartao)),
-  async processoParteIncluir(processoId, pessoaId, papel, escrito = null) {
+  async processoParteIncluir(processoId, pessoaId, papel) {
     const p = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
     if (!p || p.arquivado_em || soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     if (!(papel in PAPEIS_DA_PARTE)) return erro(FORMATO_INVALIDO);
@@ -5714,13 +5706,7 @@ export const SD: Dados = {
     if (!bd.pessoas.some(x => x.id === pessoaId)) return erro('Pessoa não encontrada neste escritório.');
     if (bd.processoPartes!.some(x => x.processo_id === processoId && x.pessoa_id === pessoaId && x.papel === papel)) return erro(PAPEL_REPETIDO);
     if (bd.processoPartes!.filter(x => x.processo_id === processoId).length >= PARTES_MAXIMAS) return erro(`Um processo pode ter até ${PARTES_MAXIMAS} pessoas com papel.`);
-    // Como o gatilho preparar_papel_escrito e a regra processo_partes_papel_escrito_valido (#443): o nome limpo, só com o papel 'outro',
-    // na grafia da lista do escritório; o nome novo entra na lista.
-    const limpo = limparPapelEscrito(escrito ?? '') || null;
-    if (limpo && (papel !== 'outro' || limpo.length > TAMANHO_PROCESSO.papelEscrito)) return erro(FORMATO_INVALIDO);
-    const papel_escrito = limpo && papelNaListaDoEscritorio(limpo);
-    if (papel_escrito) incluirNaListaDePapeis([papel_escrito]);
-    const x = { id: novoId(), processo_id: processoId, pessoa_id: pessoaId, papel, papel_escrito, criado_em: agora() };
+    const x = { id: novoId(), processo_id: processoId, pessoa_id: pessoaId, papel, criado_em: agora() };
     bd.processoPartes!.push(x);
     historicoDaParte(x, 'para');
     auditar('processo_partes', 'inclusao', x); gravar();
@@ -5794,14 +5780,12 @@ export const SD: Dados = {
     if (!souAdmin() || !bd.papeisEscritos!.some(x => x.id === id)) return erro(SEM_PERMISSAO);
     bd.papeisEscritos = bd.papeisEscritos!.filter(x => x.id !== id); gravar();
   },
-  async processoPapelEscritoDevolver(nome) {
-    if (!souAdmin()) return erro(SEM_PERMISSAO);
-    const limpo = nome.trim();
-    if (!limpo || limpo.length > TAMANHO_PROCESSO.papelEscrito) return erro(FORMATO_INVALIDO);
-    if (papelNaLista(bd.papeisEscritos!.map(x => x.nome), limpo)) return erro(PAPEL_JA_NA_LISTA);
-    const x: PapelEscrito = { id: novoId(), nome: limpo };
-    bd.papeisEscritos!.push(x); gravar();
-    return espera({ ...x });
+  async processoPapeisIncluir(nomes) {
+    // Como a função processo_papeis_incluir: cada nome limpo; o que passa do tamanho é recusado; o que já está na lista fica como está.
+    const limpos = nomes.map(limparPapelEscrito).filter(Boolean);
+    if (limpos.some(nome => nome.length > TAMANHO_PROCESSO.papelEscrito)) return erro(FORMATO_INVALIDO);
+    for (const nome of limpos) if (!papelNaLista(bd.papeisEscritos!.map(x => x.nome), nome)) bd.papeisEscritos!.push({ id: novoId(), nome });
+    gravar();
   },
   async processoOpcaoCriar(campo, valor) {
     const limpo = valor.trim();

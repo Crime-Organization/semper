@@ -111,13 +111,30 @@ describe('A pergunta do papel com os papéis escritos pela equipe (#443)', () =>
     const papel = within(janela).getByLabelText('Papel do cliente') as HTMLSelectElement;
     // Então: já vem com o papel escrito do outro cliente
     expect(papel.selectedOptions[0].text).toBe('Inventariante');
-    expect([...papel.options].at(-1)?.text).toBe('+ Escrever outro papel…');
+    expect([...papel.options].at(-1)?.text).toBe('+ Escrever o nome do papel…');
     // Quando
-    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
+    await userEvent.selectOptions(papel, '+ Escrever o nome do papel…');
     await userEvent.click(within(janela).getByRole('button', { name: 'Ligar' }));
-    const escrever = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
-    await userEvent.type(within(escrever).getByRole('textbox', { name: 'Escrever outro papel' }), 'Curador{Enter}');
+    const escrever = await screen.findByRole('dialog', { name: 'Escrever o nome do papel' });
+    await userEvent.type(within(escrever).getByRole('textbox', { name: 'Escrever o nome do papel' }), 'Curador{Enter}');
     // Então
+    await expect(resposta).resolves.toEqual({ papel: 'outro', escrito: 'Curador', escritoAgora: true });
+  });
+
+  it('dado um processo cujo cliente tem um papel escrito que saiu da lista, quando a pergunta abre, então ela traz esse papel escolhido', async () => {
+    // Dado: a lista do escritório já não tem Curador
+    lojaDePapeisEscritos.mudar([{ id: 'x1', nome: 'Inventariante' }]);
+    render(<Janelas />);
+    let resposta!: Promise<PapelEscolhido | null>;
+    // Quando
+    act(() => { resposta = pedirPapelDoCliente({ c1: 'outro' }, { c1: 'Curador' }); });
+    const janela = screen.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    const papel = within(janela).getByLabelText('Papel do cliente') as HTMLSelectElement;
+    // Então: o papel do outro cliente vem escolhido, e não o primeiro da lista
+    expect(papel.selectedOptions[0].text).toBe('Curador');
+    // Quando
+    await userEvent.click(within(janela).getByRole('button', { name: 'Ligar' }));
+    // Então: escolhido da lista, e não escrito agora (não volta à lista do escritório)
     await expect(resposta).resolves.toEqual({ papel: 'outro', escrito: 'Curador' });
   });
 });

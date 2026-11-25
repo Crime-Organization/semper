@@ -1,11 +1,12 @@
-// A escolha do papel no processo (#443), a mesma no "Papel do cliente" do cadastro, nas pessoas do processo e na pergunta do papel
-// ao pôr um cliente pelo cartão: os papéis fixos, o grupo "Do escritório" (os papéis escritos pela equipe) e, por último,
-// "+ Escrever outro papel…", que abre a janela de texto (Enter confirma, Esc desiste), no padrão do "+ Novo tipo de vínculo…".
+// A escolha do papel do cliente no processo (#443), a mesma no "Papel do cliente" do cadastro e na pergunta do papel ao pôr um
+// cliente pelo cartão: os papéis fixos, o grupo "Do escritório" (os papéis escritos pela equipe) e, por último,
+// "+ Escrever o nome do papel…", que abre a janela de texto (Enter confirma, Esc desiste), no padrão do "+ Novo tipo de vínculo…".
 // As regras (o texto que vira papel fixo, o nome que já está na lista) ficam em regras/papelEscrito.ts.
 import type { PapelDaParte } from '../../dados';
 import { TAMANHO_PROCESSO } from '../../dados/limites';
 import {
-  ESCREVER_OUTRO_PAPEL, ESCREVER_PAPEL, GRUPO_DO_ESCRITORIO, OPCAO_ESCREVER, opcoesDoPapel, papelDoTexto, papelDoValor, type PapelEscolhido
+  ESCREVER_PAPEL, escreverOPapelDe, GRUPO_DO_ESCRITORIO, NOTA_DA_ESCRITA, OPCAO_ESCREVER, opcoesDoPapel, papelDoTexto, papelDoValor, USAR_ESTE_PAPEL,
+  type PapelEscolhido
 } from '../../regras/papelEscrito';
 import { PAPEIS_DA_PARTE } from '../../regras/processo';
 import { pedirTexto, type OpcaoDaJanela } from '../../ui/janela';
@@ -17,7 +18,7 @@ interface Opcoes {
   fixos: readonly PapelDaParte[];
   /** A lista do escritório (ui/papeisEscritos.ts). */
   lista: readonly string[];
-  /** Os nomes já escritos no próprio formulário: aparecem no grupo mesmo fora da lista (o atual que saiu dela). */
+  /** Os nomes já escritos no próprio processo: aparecem no grupo mesmo fora da lista (o atual que saiu dela). */
   usados?: readonly (string | null | undefined)[];
 }
 
@@ -34,22 +35,28 @@ export function OpcoesDoPapel({ vazio, fixos, lista, usados = [] }: Opcoes) {
   </>;
 }
 
-/** As mesmas opções numa lista só, para a janela de escolher (escolherNaJanela), sem a vazia. */
-export const opcoesDoPapelNaJanela = (fixos: readonly PapelDaParte[], lista: readonly string[]): OpcaoDaJanela[] => [
-  ...fixos.map(x => ({ valor: x, nome: PAPEIS_DA_PARTE[x] })), ...opcoesDoPapel(lista), { valor: ESCREVER_PAPEL, nome: OPCAO_ESCREVER }
+/**
+ * As mesmas opções numa lista só, para a janela de escolher (escolherNaJanela), sem a vazia. `usados` são os nomes escritos do
+ * processo: o que já saiu da lista do escritório continua entre as opções, e a pergunta pode trazê-lo escolhido.
+ */
+export const opcoesDoPapelNaJanela = (fixos: readonly PapelDaParte[], lista: readonly string[], usados: readonly (string | null | undefined)[] = []): OpcaoDaJanela[] => [
+  ...fixos.map(x => ({ valor: x, nome: PAPEIS_DA_PARTE[x] })), ...opcoesDoPapel(lista, usados), { valor: ESCREVER_PAPEL, nome: OPCAO_ESCREVER }
 ];
 
-/** Abre a janela de escrever e devolve o papel do texto; null quando a pessoa desistiu ou deixou vazio. */
-export async function escreverPapel(lista: readonly string[], fixos?: readonly PapelDaParte[]): Promise<PapelEscolhido | null> {
-  const texto = await pedirTexto(ESCREVER_OUTRO_PAPEL, '', { maximo: TAMANHO_PROCESSO.papelEscrito });
-  return texto ? papelDoTexto(texto, lista, fixos) : null;
+/**
+ * Abre a janela de escrever e devolve o papel do texto; null quando a pessoa desistiu ou deixou vazio. Com `cliente`, o título diz
+ * de quem é o papel (o processo com mais de um cliente).
+ */
+export async function escreverPapel(lista: readonly string[], cliente?: string | null): Promise<PapelEscolhido | null> {
+  const texto = await pedirTexto(escreverOPapelDe(cliente), '', { maximo: TAMANHO_PROCESSO.papelEscrito, nota: NOTA_DA_ESCRITA, acao: USAR_ESTE_PAPEL });
+  return texto ? papelDoTexto(texto, lista) : null;
 }
 
 /**
  * O que a escolha no select quer dizer: a de escrever abre a janela (undefined: a pessoa desistiu, nada muda); as outras dão o
  * papel (null: a opção vazia, sem papel).
  */
-export async function papelDaEscolha(valor: string, lista: readonly string[], fixos?: readonly PapelDaParte[]): Promise<PapelEscolhido | null | undefined> {
+export async function papelDaEscolha(valor: string, lista: readonly string[], cliente?: string | null): Promise<PapelEscolhido | null | undefined> {
   if (valor !== ESCREVER_PAPEL) return papelDoValor(valor);
-  return (await escreverPapel(lista, fixos)) ?? undefined;
+  return (await escreverPapel(lista, cliente)) ?? undefined;
 }
