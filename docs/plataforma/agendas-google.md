@@ -76,9 +76,20 @@ tentativas com espera e o aviso ao administrador a partir da 3ª falha.
    404. Antes disso, ou se a conferência não responder com clareza, a falha é temporária e a tentativa se repete. Um 404
    do evento com a agenda existindo é falha do evento (temporária), e um 404 do compartilhamento com a agenda existindo é
    recusa daquele e-mail.
+12. **Agendas sobrando.** Criar uma agenda no Google (`calendars.insert`) não tem como ser repetido sem criar outra. Se
+   o Google cria e o banco não guarda, o SEMPER apaga a recém-criada no Google (`calendars.delete`, que a permissão
+   `calendar.app.created` cobre) antes de tentar de novo; se nem isso der, a falha guardada na fila diz o id da agenda
+   que ficou lá. O caso que sobra: o Google cria, mas a resposta se perde no caminho (tempo esgotado). Aí o SEMPER não
+   sabe o id e a próxima tentativa cria outra com o mesmo nome. Procurar a perdida antes de criar exigiria ler a lista
+   de agendas da conta (`calendarList`), que pede uma permissão mais larga (`calendar.calendarlist.readonly`, que vê
+   todas as agendas da conta), e por isso não é feito. **Como limpar à mão:** no Google Agenda da conta do escritório,
+   em **Minhas agendas**, uma agenda repetida (mesmo nome, com a descrição "Agenda criada e mantida pelo SEMPER…" e sem ninguém
+   no compartilhamento) é a que sobrou: em **Configurações e compartilhamento** dela, **Remover agenda**. A que o
+   SEMPER guarda é a compartilhada com a equipe.
 
 O que **não** acontece (ainda): conferir no Google se alguém mexeu à mão nos compartilhamentos (o SEMPER guarda o que ele
-mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é desfeito); apagar agendas no Google.
+mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é desfeito); apagar agendas no Google (só a recém-criada
+que o banco não guardou, veja o item 12).
 
 ## Os eventos
 

@@ -357,6 +357,33 @@ describe('A execução, com o Google simulado', () => {
     expect(p.concluir).not.toHaveBeenCalled();
   });
 
+  it('dada uma agenda que o Google criou e o banco não guardou, quando a fila é feita, então ela é apagada no Google (não fica órfã) e o pedido espera', async () => {
+    // Dado
+    const g = google();
+    const { passos: p, banco } = passos(estado({ equipe: [membro('ana')] }), [pedidoDaFila()], g.buscar);
+    p.agendaCriada.mockRejectedValueOnce(new Error('banco fora'));
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(r).toMatchObject({ falhas: 1, feitas: { criar: 0 } });
+    expect(banco.agendas).toEqual([]);
+    const apagadas = g.daAgenda().filter(x => x.metodo === 'DELETE').map(x => decodeURIComponent(x.url.split('/calendars/')[1]));
+    expect(apagadas).toEqual([`nova${criadas}@group.calendar.google.com`]);
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'temporario', 'erro: banco fora', expect.any(Number));
+  });
+
+  it('dada uma agenda que o banco não guardou e que nem o Google deixa apagar, quando a fila é feita, então a falha diz qual agenda ficou lá', async () => {
+    // Dado
+    const g = google((x, padrao) => (x.metodo === 'DELETE' ? erroDaAgenda(503, 'backendError') : padrao(x)));
+    const { passos: p } = passos(estado({ equipe: [membro('ana')] }), [pedidoDaFila()], g.buscar);
+    p.agendaCriada.mockRejectedValueOnce(new Error('banco fora'));
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'temporario',
+      `o banco não guardou a agenda nova${criadas}@group.calendar.google.com, que ficou no Google`, expect.any(Number));
+  });
+
   it('dada a autorização retirada no Google, quando o token é renovado, então a falha é de autorização e nada vai à agenda', async () => {
     // Dado
     const g = google((x, padrao) => (x.url.startsWith('https://oauth2') ? resposta(400, { error: 'invalid_grant' }) : padrao(x)));

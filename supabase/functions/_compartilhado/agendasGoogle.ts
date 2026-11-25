@@ -226,7 +226,14 @@ const FAZER: Fazer = {
   },
   async criar(x, e, { agenda: d }) {
     const googleId = await x.api.criarAgenda({ summary: d.nome, description: DESCRICAO_DA_AGENDA, timeZone: FUSO_DAS_AGENDAS });
-    const id = await x.passos.agendaCriada(x.pedido, d, googleId);
+    let id: string;
+    // O Google criou, mas o banco não guardou: a próxima tentativa criaria outra. A recém-criada (vazia, sem ninguém) é
+    // apagada no Google antes de a falha seguir, para não ficar órfã na conta do escritório. Se nem isso der, a falha diz
+    // qual agenda ficou lá (veja "Agendas sobrando" em docs/plataforma/agendas-google.md).
+    try { id = await x.passos.agendaCriada(x.pedido, d, googleId); } catch (err) {
+      if (await x.api.apagarAgenda(googleId).then(() => true, () => false)) throw err;
+      throw temporaria(`o banco não guardou a agenda ${googleId}, que ficou no Google`);
+    }
     const criada_em = new Date(x.agora).toISOString();
     return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: googleId, nome: d.nome, criada_em }] };
   },

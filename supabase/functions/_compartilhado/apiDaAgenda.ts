@@ -93,6 +93,8 @@ export function apiDaAgenda(buscar: typeof fetch, acesso: string) {
       if (!id) throw new FalhaDaAgenda('temporario', 'o Google não devolveu a agenda');
       return id;
     },
+    /** Apaga uma agenda criada pelo SEMPER (calendars.delete; a permissão calendar.app.created cobre as que o SEMPER criou). */
+    apagarAgenda: (id: string) => pedir<unknown>(buscar, daAgenda(id), com('DELETE')).then(() => undefined),
     /** Confere se a agenda ainda existe no Google (calendars.get), antes de o SEMPER esquecê-la. */
     async conferirAgenda(id: string): Promise<ConferenciaDaAgenda> {
       try { await pedir<unknown>(buscar, daAgenda(id), com('GET')); return 'existe'; } catch (e) {
