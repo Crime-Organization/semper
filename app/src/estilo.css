@@ -153,6 +153,10 @@
   --largura-do-calendario: 300px;
   --dia-do-calendario: 36px;
   --botao-do-calendario: 32px;
+  /* A visão das salas na Agenda (#438): a altura de cada meia hora da grade (o horário livre fica com o alvo de toque, --alvo-de-toque,
+     dentro da folga da célula), a largura mínima de cada sala e a da coluna dos horários (com muitas salas, a grade rola na horizontal,
+     com os horários parados à esquerda) */
+  --linha-da-sala: calc(var(--alvo-de-toque) + 2 * var(--folga-da-sala)); --folga-da-sala: 2px; --coluna-da-sala: 150px; --coluna-do-horario: 72px;
   /* O botão do calendário fica a esta distância da borda direita do campo; o texto da data para antes dele, com a mesma folga */
   --recuo-do-botao-do-calendario: 6px;
   /* O botão "⋯" de cada linha de uma lista dentro do cartão (cada item de um checklist, #358): um pouco menor que o .icone-btn */

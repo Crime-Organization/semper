@@ -67,6 +67,28 @@ test.describe('Salas do escritório (#308)', () => {
     await expect(page.getByText(/Compromisso \w+ cadastrado\./)).toBeVisible();
   });
 
+  test('dado um horário ocupado na visão das salas (#438), quando a pessoa tenta marcar a mesma sala nele, então o SEMPER mostra que está ocupada e não salva', async ({ page }) => {
+    // Dado
+    await cadastrarSala(page, 'Sala Verde', '6');
+    await reuniaoAte(page, 'Reunião com o perito', '14:00', '15:00');
+    await page.getByLabel('Sala').selectOption({ label: 'Sala Verde (6 pessoas)' });
+    await salvarDaqui(page);
+    await page.getByRole('group', { name: 'Período' }).getByRole('button', { name: 'Salas' }).click();
+    const grade = page.getByRole('table', { name: 'Salas por horário' });
+    // Então: o horário ocupado não se marca pela visão
+    await expect(grade.getByRole('link', { name: 'Marcar em Sala Verde às 14:30' })).toHaveCount(0);
+    // Quando: abre o horário livre das 15h e muda a hora para 14h30, dentro do ocupado
+    await grade.getByRole('link', { name: 'Marcar em Sala Verde às 15:00' }).click();
+    await page.getByLabel('Título').fill('Conversa com o cliente');
+    await page.getByLabel('Hora').fill('14:30');
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await expect(page.getByLabel('Sala', { exact: true }).locator('option:checked')).toHaveText('Sala Verde (6 pessoas)');
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então: o aviso diz que a sala está ocupada, e o cadastro não segue
+    await expect(page.getByText(/A sala Sala Verde já está ocupada das 14:00 às 15:00 por "Reunião com o perito" \(\w+\)\./)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Onde e de qual processo' })).toBeVisible();
+  });
+
   test('dado o calendário, quando a pessoa filtra por sala, então vê só os compromissos daquela sala', async ({ page }) => {
     // Dado
     await cadastrarSala(page, 'Sala Amarela', '4');

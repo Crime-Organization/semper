@@ -1,14 +1,17 @@
 // A visão por data da agenda: dia, semana ou mês, com os compromissos e os prazos de demandas e tarefas de cada dia, no
-// horário de Brasília. A escolha de dia, semana ou mês fica guardada para cada pessoa. As contas de data ficam em regras/agenda.ts.
-import { useEffect, useState } from 'react';
+// horário de Brasília; com salas ativas no escritório, também as salas lado a lado, num dia (#438, VisaoDasSalas). A escolha fica
+// guardada para cada pessoa. As contas de data ficam em regras/agenda.ts.
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { SD, type FiltroCompromissos } from '../../dados';
+import { SD, type FiltroCompromissos, type Sala } from '../../dados';
 import { diaDaSemana, fmtDiaMes } from '../../regras/calendario';
-import { DIAS_NA_SEMANA, diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, ORIGENS_DE_PRAZO, VISOES, VISOES_DE_DATA, type ItemDaAgenda, type VisaoDeData } from '../../regras/agenda';
+import { DIAS_NA_SEMANA, diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, ORIGENS_DE_PRAZO, VISOES, VISOES_DE_DATA, visoesDaAgenda, type ItemDaAgenda, type VisaoDeData } from '../../regras/agenda';
+import { salasDaVisao } from '../../regras/salasDoDia';
 import { fmtHora, horarioDoCompromisso, TIPOS_COMPROMISSO } from '../../regras/compromisso';
 import { cliquesQueAbrem } from '../../ui/abrirItem';
 import { Aviso, Carregando, estiloBotao, Selo, Vazio } from '../../ui/base';
 import { lerPreferencia, salvarPreferencia } from '../../ui/preferencias';
+import { VisaoDasSalas } from './VisaoDasSalas';
 
 /** Quantos itens cada dia mostra na grade do mês; os outros aparecem como "+N", que abre o dia. */
 const ITENS_POR_DIA_NO_MES = 3;
@@ -22,16 +25,24 @@ interface Props {
   situacao: (etapa: string | null) => string;
   endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
+  /** As salas do escritório (#308): com alguma ativa, aparece a visão das salas. */
+  salas: Sala[];
 }
 
-export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir }: Props) {
-  const [visao, setVisao] = useState<VisaoDeData>(() => { const v = lerPreferencia<VisaoDeData>(PREFERENCIA, 'semana'); return VISOES.includes(v) ? v : 'semana'; });
+export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir, salas }: Props) {
+  const [escolhida, setVisao] = useState<VisaoDeData>(() => { const v = lerPreferencia<VisaoDeData>(PREFERENCIA, 'semana'); return VISOES.includes(v) ? v : 'semana'; });
+  const visoes = visoesDaAgenda(salas.some(s => s.ativa));
+  // A visão das salas guardada, enquanto as salas não chegam (ou se não há mais nenhuma ativa), mostra o dia.
+  const visao: VisaoDeData = visoes.includes(escolhida) ? escolhida : 'dia';
   const [data, setData] = useState(hojeNaAgenda);
   const [itens, setItens] = useState<ItemDaAgenda[] | string | null>(null);
   const { de, ate } = VISOES_DE_DATA[visao].periodo(data);
   const { termo, pessoa, tipo, sala, etiqueta } = filtro;
+  const naSalas = visao === 'salas';
 
   useEffect(() => {
+    // A visão das salas lê a ocupação delas, e não a lista da agenda.
+    if (naSalas) return;
     let vivo = true;
     // Filtrando por tipo, sala ou etiqueta, os prazos saem: eles não têm nenhum dos três.
     const comPrazos = !tipo && !sala && !etiqueta;
@@ -39,7 +50,7 @@ export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir }: P
       .then(([compromissos, prazos]) => { if (vivo) setItens(itensDaAgenda(compromissos, prazos)); })
       .catch(e => { if (vivo) setItens((e as Error).message); });
     return () => { vivo = false; };
-  }, [de, ate, termo, pessoa, tipo, sala, etiqueta, recarga]);
+  }, [naSalas, de, ate, termo, pessoa, tipo, sala, etiqueta, recarga]);
 
   function trocarVisao(v: VisaoDeData) {
     setVisao(v);
@@ -50,7 +61,6 @@ export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir }: P
     trocarVisao('dia');
   }
   const andar = (passos: number) => setData(VISOES_DE_DATA[visao].andar(data, passos));
-  const VISAO = { dia: DiaInteiro, semana: Semana, mes: Mes }[visao];
 
   return <section className="agenda" aria-label="Agenda por data">
     <div className="agenda-barra">
@@ -61,12 +71,13 @@ export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir }: P
       </div>
       <h2 className="agenda-titulo" aria-live="polite">{VISOES_DE_DATA[visao].titulo(data)}</h2>
       <div className="abas" role="group" aria-label="Período">
-        {VISOES.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => trocarVisao(v)}>{VISOES_DE_DATA[v].nome}</button>)}
+        {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => trocarVisao(v)}>{VISOES_DE_DATA[v].nome}</button>)}
       </div>
     </div>
-    {itens === null ? <Carregando />
+    {visao === 'salas' ? <VisaoDasSalas data={data} salas={salasDaVisao(salas, sala)} recarga={recarga} endereco={endereco} aoAbrir={aoAbrir} />
+      : itens === null ? <Carregando />
       : typeof itens === 'string' ? <Aviso tipo="erro">{itens}</Aviso>
-      : <VISAO itens={itens} data={data} dias={diasDoPeriodo({ de, ate })} abrirDia={abrirDia} situacao={situacao} endereco={endereco} aoAbrir={aoAbrir} />}
+      : <VisaoDosItens visao={visao} itens={itens} data={data} dias={diasDoPeriodo({ de, ate })} abrirDia={abrirDia} situacao={situacao} endereco={endereco} aoAbrir={aoAbrir} />}
   </section>;
 }
 
@@ -76,6 +87,13 @@ interface PropsVisao extends Pick<Props, 'situacao' | 'endereco' | 'aoAbrir'> {
   data: string;
   dias: string[];
   abrirDia: (dia: string) => void;
+}
+
+/** Como cada visão de data desenha os itens (a das salas desenha a ocupação delas, à parte, em VisaoDasSalas). */
+const VISOES_DOS_ITENS: Record<Exclude<VisaoDeData, 'salas'>, (p: PropsVisao) => ReactNode> = { dia: DiaInteiro, semana: Semana, mes: Mes };
+function VisaoDosItens({ visao, ...p }: PropsVisao & { visao: Exclude<VisaoDeData, 'salas'> }) {
+  const Visao = VISOES_DOS_ITENS[visao];
+  return <Visao {...p} />;
 }
 
 /** Um dia só, em lista: cada item com o horário, o tipo, o local e a situação. */

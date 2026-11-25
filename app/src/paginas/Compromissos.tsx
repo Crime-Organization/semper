@@ -176,7 +176,7 @@ export default function Compromissos() {
         ...(visao === 'tabela' ? [{ id: 'ordem', rotulo: 'Ordenar', valor: ordem, aoMudar: (o: string) => mudarOrdem(o as OrdemCompromisso), opcoes: ORDENS_DA_TABELA }] : [])
       ]}
       visoes={VISOES_DA_AGENDA} visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
-      {visao === 'agenda' && <VisaoPorData filtro={f} recarga={chaveDaLista} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} />}
+      {visao === 'agenda' && <VisaoPorData filtro={f} recarga={chaveDaLista} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} salas={salas} />}
       {visao === 'kanban' && <Kanban<CompromissoLista> quadro={quadro}
         recarga={chaveDaLista}
         carregar={(colunaId, deslocamento, ordemDaColuna) => SD.compromissosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos', soAProxima: true }, deslocamento, POR_COLUNA)}
