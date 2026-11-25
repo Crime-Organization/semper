@@ -216,8 +216,16 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
 5. **No cartão.** Em "Dados do compromisso", a linha **Google Meet**: o link (abre o Meet numa aba nova) e a gravação; ou "O
    link está sendo criado…"; ou, arquivado ou cancelado, que a reunião é cancelada. Quem vê o compromisso vê o link
    (`agenda_google_reunioes`, com a regra de leitura dos compromissos).
-6. **Escritórios separados.** A reunião é guardada com o escritório e a conta que a criou; cada escritório só usa a própria
-   conta ligada, e a reunião de outra conta (de antes de trocar a conta) não é usada.
+6. **Escritórios separados.** A reunião é guardada com o escritório e a conta que a criou (a chave é o compromisso e a
+   conta); cada escritório só usa a própria conta ligada.
+7. **Trocar a conta.** Quando o administrador liga **outra** conta Google, a função `google-concluir`, antes de revogar o
+   token da conta antiga, cancela no Google (com `sendUpdates=all`: cada convidado recebe o cancelamento) as reuniões dela
+   que ainda vão acontecer (de hoje em diante, e as de compromissos já excluídos) e as esquece. A conta nova cria as dela
+   pela fila, com link novo (os convidados recebem o convite novo), depois de o Meet ser autorizado nela. Se o Google não
+   deixar cancelar alguma (fora do ar, ou o token antigo já recusado), ela continua valendo no Google: o erro fica no
+   registro da função (`google-concluir: reuniões da conta antiga não canceladas`), a linha continua em
+   `agenda_google_reunioes` com a conta antiga, e é preciso cancelá-la no Google Agenda da conta antiga. Desligar a conta
+   (sem ligar outra) não cancela as reuniões: elas continuam no Google até alguém cancelá-las lá.
 
 **Ainda não:** a opção não passa às datas seguintes de um compromisso que se repete (cada data marca a sua); quem está
 no compromisso só por um **grupo da equipe** não é convidado (como nas cópias: o responsável e os participantes postos um a

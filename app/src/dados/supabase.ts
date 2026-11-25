@@ -1290,9 +1290,11 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO).eq('id', id).maybeSingle());
     if (!data) return null;
     // A reunião do Google Meet (#437) vem à parte: ela é guardada sem chave para o compromisso (a do excluído fica até ser
-    // cancelada no Google), e quem vê o compromisso a vê.
+    // cancelada no Google), e quem vê o compromisso a vê. Ela é guardada por conta: logo depois de trocar a conta do escritório,
+    // pode haver a da conta antiga (até ser cancelada) e a da nova; vale a mais recente.
     const reuniao = data.reuniao_google
-      ? (await rodar(sb.from('agenda_google_reunioes').select('link, gravacao').eq('compromisso_id', id).maybeSingle())).data as ReuniaoDoCompromisso | null
+      ? (await rodar(sb.from('agenda_google_reunioes').select('link, gravacao').eq('compromisso_id', id)
+        .order('atualizada_em', { ascending: false }).limit(1).maybeSingle())).data as ReuniaoDoCompromisso | null
       : null;
     return { ...compromissoComPessoas(data), reuniao };
   },

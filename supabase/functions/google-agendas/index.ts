@@ -43,7 +43,7 @@ const passos = (): PassosDasAgendas => ({
     p_escritorio: p.escritorio_id, p_compromisso: p.item_id, p_conta: p.conta_email, p_evento: r.evento_id, p_link: r.link, p_espaco: r.espaco,
     p_gravacao: r.gravacao, p_gravacao_detalhe: r.gravacao_detalhe, p_assinatura: r.assinatura
   }),
-  reuniaoCancelada: p => rpc<void>('agendas_google_reuniao_cancelada', { p_escritorio: p.escritorio_id, p_compromisso: p.item_id }),
+  reuniaoCancelada: p => rpc<void>('agendas_google_reuniao_cancelada', { p_escritorio: p.escritorio_id, p_compromisso: p.item_id, p_conta: p.conta_email }),
   tokenDeRenovacao: escritorio => rpc<string | null>('ligacao_token', { p_escritorio: escritorio, p_perfil: null, p_provedor: 'google' }),
   buscar: fetch,
   clienteId: segredo('GOOGLE_CLIENT_ID'),

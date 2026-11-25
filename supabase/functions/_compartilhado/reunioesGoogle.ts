@@ -12,8 +12,9 @@
 //   - o link fica guardado (agenda_google_reunioes), aparece no cartão do compromisso e vai na descrição das cópias.
 // O que fazer é decidido por funções puras (reuniaoDesejada, planejarReuniao, linkDaResposta); os pedidos ao Google ficam
 // no adaptador (apiDaAgenda.ts). Sem Deno: testado no app (app/src/regras/reunioesGoogle.test.ts).
-import { emailParaCompartilhar, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type EventoDaReuniao, type RespostaDaReuniao } from './apiDaAgenda.ts';
+import { apiDaAgenda, emailParaCompartilhar, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type EventoDaReuniao, type RespostaDaReuniao } from './apiDaAgenda.ts';
 import type { PedidoDaFila } from './agendasGoogle.ts';
+import { tokenDeAcesso, type PassosDaSincronizacao } from './contatosGoogle.ts';
 import { assinaturaDoEvento, corpoParaMudar, MARCA_DO_ESCRITORIO, MARCA_DO_ITEM, quandoDoCompromissoNaAgenda, type CompromissoNaAgenda } from './eventosGoogle.ts';
 
 /** Como ficou a gravação e a transcrição automáticas: ligadas, ou recusadas pelo Google (quem grava é a conta do escritório). */
@@ -258,4 +259,44 @@ export async function levarReuniao(x: ExecucaoDaReuniao, item: CompromissoNaAgen
     }
   } catch (e) { erro = falhaDaReuniao(e); }
   return { link: desejada ? estado.guardada?.link ?? null : null, feitas, restam: estado.restam, ...(erro === undefined ? {} : { erro }) };
+}
+
+// ---------------------------------------------------------------------
+// A troca da conta Google do escritório
+// ---------------------------------------------------------------------
+
+/** Uma reunião guardada de uma conta: o compromisso e o id do evento na agenda principal dela. */
+export interface ReuniaoDaConta { compromisso_id: string; evento_id: string }
+/** O que a troca de conta usa: o Google (fetch e o cliente OAuth) e, no banco, as reuniões da conta que saiu. */
+export interface PassosDaTrocaDeConta extends Pick<PassosDaSincronizacao, 'buscar' | 'clienteId' | 'clienteSegredo'> {
+  /** As reuniões da conta que saiu que ainda vão acontecer (public.agendas_google_reunioes_da_conta). */
+  reunioes(): Promise<ReuniaoDaConta[]>;
+  /** A reunião foi cancelada no Google: esquece-a (só a daquela conta). */
+  esquecida(compromissoId: string): Promise<void>;
+}
+/** O que a troca fez: as reuniões canceladas e as que o Google não deixou cancelar (ficam valendo lá, com o registro aqui). */
+export interface ResultadoDaTroca { canceladas: number; falhas: number }
+
+/**
+ * O escritório ligou outra conta Google: as reuniões da conta que saiu são canceladas no Google, com o token dela (ainda
+ * válido: a função google-concluir só o revoga depois), e cada convidado recebe o cancelamento. A conta nova cria as dela
+ * pela fila, com link novo. Uma falha não para as outras; a reunião que não deu para cancelar continua registrada.
+ */
+export async function cancelarReunioesDaConta(passos: PassosDaTrocaDeConta, renovacao: string): Promise<ResultadoDaTroca> {
+  const reunioes = await passos.reunioes();
+  if (!reunioes.length) return { canceladas: 0, falhas: 0 };
+  let acesso: string;
+  try { acesso = await tokenDeAcesso({ ...passos, tokenDeRenovacao: async () => renovacao }, ''); } catch {
+    return { canceladas: 0, falhas: reunioes.length };
+  }
+  const api = apiDaAgenda(passos.buscar, acesso);
+  let canceladas = 0;
+  for (const r of reunioes) {
+    try {
+      await api.cancelarReuniao(r.evento_id);
+      await passos.esquecida(r.compromisso_id);
+      canceladas++;
+    } catch { /* fica registrada: veja "Trocar a conta" em docs/plataforma/agendas-google.md */ }
+  }
+  return { canceladas, falhas: reunioes.length - canceladas };
 }

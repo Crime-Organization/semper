@@ -3,14 +3,28 @@
 // administradora ativa do escritório, com a verificação em duas etapas se ela a ativou (ligacao_pedido_consumir), troca o
 // código pelo token de renovação com o verificador do PKCE, confere as permissões da finalidade do pedido (os contatos ao
 // ligar a conta; a agenda ao somá-la, #166) e o e-mail da conta, e guarda a ligação (o token vai para o cofre). Se a
-// ligação trocou de conta, o token da conta antiga é revogado no Google. Somar a agenda vale só para a conta já ligada:
-// com outra conta, nada muda e a autorização nova é revogada.
+// ligação trocou de conta, as reuniões do Google Meet da conta antiga que ainda vão acontecer são canceladas (#437, com o
+// token dela, ainda válido) e só então o token da conta antiga é revogado no Google. Somar a agenda vale só para a conta já
+// ligada: com outra conta, nada muda e a autorização nova é revogada.
 // O login é conferido aqui mesmo (verify_jwt = false no config.toml), para responder também ao pedido prévio do CORS.
 import {
   cabecalhosCors, contaServe, escoposDados, FALTA_NA_AUTORIZACAO, FORMATO_ESTADO, lerSitesPermitidos, nivelDaSessao, RESULTADO_DO_PEDIDO,
   type FinalidadeDoPedido, type ResultadoLigacao
 } from '../_compartilhado/ligacao.ts';
+import { cancelarReunioesDaConta, type ReuniaoDaConta } from '../_compartilhado/reunioesGoogle.ts';
 import { json, revogarNoGoogle, rpc, segredo, usuarioLogado, voltaDoGoogle } from '../_compartilhado/servidor.ts';
+
+/** As reuniões do Meet da conta que saiu do escritório são canceladas no Google; a falha só fica no registro do servidor. */
+async function cancelarAsDaContaAntiga(escritorio: string, conta: string, renovacao: string) {
+  try {
+    const r = await cancelarReunioesDaConta({
+      buscar: fetch, clienteId: segredo('GOOGLE_CLIENT_ID'), clienteSegredo: segredo('GOOGLE_CLIENT_SECRET'),
+      reunioes: () => rpc<ReuniaoDaConta[]>('agendas_google_reunioes_da_conta', { p_escritorio: escritorio, p_conta: conta }),
+      esquecida: compromisso => rpc<void>('agendas_google_reuniao_cancelada', { p_escritorio: escritorio, p_compromisso: compromisso, p_conta: conta })
+    }, renovacao);
+    if (r.falhas) console.error('google-concluir: reuniões da conta antiga não canceladas', r.falhas);
+  } catch (e) { console.error('google-concluir: reuniões da conta antiga', (e as Error).message); }
+}
 
 interface Pedido { escritorio_id: string; perfil_id: string | null; provedor: string; verificador: string; finalidade: FinalidadeDoPedido; conta_email: string | null }
 interface Tokens { access_token?: string; refresh_token?: string; scope?: string }
@@ -60,7 +74,10 @@ Deno.serve(async req => {
       p_escopos: escopos, p_token: tokens.refresh_token, p_ligado_por: usuario
     });
     // Só a conta que saiu: revogar o token antigo da mesma conta derrubaria também o novo (a autorização é a mesma).
-    if (antiga?.token_antigo && antiga.email_antigo !== email.toLowerCase()) await revogarNoGoogle(antiga.token_antigo);
+    if (antiga?.token_antigo && antiga.email_antigo !== email.toLowerCase()) {
+      if (pedido.perfil_id === null && antiga.email_antigo) await cancelarAsDaContaAntiga(pedido.escritorio_id, antiga.email_antigo, antiga.token_antigo);
+      await revogarNoGoogle(antiga.token_antigo);
+    }
     return responder(RESULTADO_DO_PEDIDO[finalidade], 200, { email: email.toLowerCase() });
   } catch (e) {
     console.error('google-concluir', (e as Error).message);

@@ -6,7 +6,7 @@ import { sincronizarAgendas, type PassosDasAgendas, type PedidoDaFila } from '..
 import { CONFIG_DA_GRAVACAO, MASCARA_DA_GRAVACAO } from '../../../supabase/functions/_compartilhado/apiDaAgenda';
 import { copiasDoItem, LINHA_DO_MEET, type AgendaDoEvento, type CompromissoNaAgenda, type ItemDaFila } from '../../../supabase/functions/_compartilhado/eventosGoogle';
 import {
-  codigoDoMeet, convidadosDaReuniao, DESCRICAO_DA_REUNIAO, idDaReuniao, linkDaResposta, planejarReuniao, reuniaoDesejada, type ReuniaoGuardada
+  cancelarReunioesDaConta, codigoDoMeet, convidadosDaReuniao, DESCRICAO_DA_REUNIAO, idDaReuniao, linkDaResposta, planejarReuniao, reuniaoDesejada, type ReuniaoGuardada
 } from '../../../supabase/functions/_compartilhado/reunioesGoogle';
 import { SITE } from '../../../supabase/functions/_compartilhado/emailsDePrazo';
 
@@ -403,5 +403,62 @@ describe('A execução da reunião, com o Google simulado', () => {
     // Então
     expect(g.reuniao()).toEqual([]);
     expect(g.copias()[0].corpo).not.toContain('Google Meet');
+  });
+});
+
+describe('A troca da conta Google do escritório', () => {
+  const ANTIGA = [{ compromisso_id: COMPROMISSO, evento_id: ID }, { compromisso_id: '72000000-0000-0000-0000-000000000002', evento_id: 'r72000000000000000000000000000002' }];
+  function troca(reunioes: typeof ANTIGA, buscar: typeof fetch) {
+    const esquecidas: string[] = [];
+    return {
+      esquecidas,
+      passos: { buscar, clienteId: 'cliente', clienteSegredo: 'segredo', reunioes: vi.fn(async () => reunioes), esquecida: vi.fn(async (c: string) => { esquecidas.push(c); }) }
+    };
+  }
+
+  it('dada a conta antiga com reuniões que ainda vão acontecer, quando o escritório liga outra conta, então cada uma é cancelada no Google com o token da antiga (com aviso aos convidados) e esquecida', async () => {
+    // Dado
+    const g = google();
+    const t = troca(ANTIGA, g.buscar);
+    // Quando
+    const r = await cancelarReunioesDaConta(t.passos, 'renovacao-antiga');
+    // Então
+    expect(r).toEqual({ canceladas: 2, falhas: 0 });
+    expect(g.pedidos[0]).toMatchObject({ url: 'https://oauth2.googleapis.com/token', metodo: 'POST' });
+    expect(g.pedidos[0].corpo).toContain('refresh_token=renovacao-antiga');
+    expect(g.reuniao()).toEqual([`DELETE principal/${ID}?sendUpdates=all`, 'DELETE principal/r72000000000000000000000000000002?sendUpdates=all']);
+    expect(t.esquecidas).toEqual([COMPROMISSO, '72000000-0000-0000-0000-000000000002']);
+  });
+
+  it('dada uma reunião que o Google não deixa cancelar, quando a conta é trocada, então as outras são canceladas e ela continua registrada', async () => {
+    // Dado
+    const g = google(x => (x.metodo === 'DELETE' && x.url.includes(ID) ? resposta(503, { error: { code: 503 } }) : null));
+    const t = troca(ANTIGA, g.buscar);
+    // Quando
+    const r = await cancelarReunioesDaConta(t.passos, 'renovacao-antiga');
+    // Então
+    expect(r).toEqual({ canceladas: 1, falhas: 1 });
+    expect(t.esquecidas).toEqual(['72000000-0000-0000-0000-000000000002']);
+  });
+
+  it('dada a conta antiga sem reuniões, quando a conta é trocada, então nada vai ao Google', async () => {
+    // Dado
+    const g = google();
+    // Quando
+    const r = await cancelarReunioesDaConta(troca([], g.buscar).passos, 'renovacao-antiga');
+    // Então
+    expect(r).toEqual({ canceladas: 0, falhas: 0 });
+    expect(g.pedidos).toEqual([]);
+  });
+
+  it('dado o token da conta antiga já recusado pelo Google, quando a conta é trocada, então nenhuma é cancelada (e nenhuma é esquecida)', async () => {
+    // Dado
+    const g = google(x => (x.url.startsWith('https://oauth2.googleapis.com/token') ? resposta(400, { error: 'invalid_grant' }) : null));
+    const t = troca(ANTIGA, g.buscar);
+    // Quando
+    const r = await cancelarReunioesDaConta(t.passos, 'renovacao-antiga');
+    // Então
+    expect(r).toEqual({ canceladas: 0, falhas: 2 });
+    expect(t.esquecidas).toEqual([]);
   });
 });
