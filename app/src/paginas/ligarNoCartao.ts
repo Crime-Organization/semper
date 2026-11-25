@@ -3,7 +3,8 @@
 // e nada foi gravado (a tela então avisa sem Desfazer, que apagaria a ligação feita por outra pessoa). O Desfazer também lê antes
 // e tira só o que esta ligação pôs. As regras de cada passo estão em regras/ligarExistente.ts. O que as regras recusam vem como
 // RecusaDaLigacao: tentar de novo pelo cartão daria a mesma recusa (#376).
-import { SD, type DadosTarefa, type ModuloDoCompromisso, type PapeisDosClientes, type PapelDaParte, type Tarefa } from '../dados';
+import { SD, type DadosTarefa, type ModuloDoCompromisso, type PapeisDosClientes, type PapeisEscritos, type PapelDaParte, type Tarefa } from '../dados';
+import type { PapelEscolhido } from '../regras/papelEscrito';
 import {
   acrescentar, desfazerTarefaEmMaisUmaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, RecusaDaLigacao, semOId,
   TAREFA_DE_OUTRO_PROCESSO, tarefaEmMaisUmaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
@@ -22,26 +23,33 @@ export const ITEM_SUMIU = 'Este item não foi encontrado. Ele pode ter sido excl
 const ids = (lista: { id: string }[] | undefined) => lista?.map(x => x.id);
 
 // ---------- uma pessoa do cadastro na lista do item ----------
-/** A lista de pessoas do item, lida agora, e (no processo) o papel de cada cliente. */
-interface PessoasLidas { lista: string[]; papeis?: PapeisDosClientes }
+/** A lista de pessoas do item, lida agora, e (no processo) o papel de cada cliente e o nome escrito dele (#443). */
+interface PessoasLidas { lista: string[]; papeis?: PapeisDosClientes; escritos?: PapeisEscritos }
+/** O papel de cada cliente e o nome escrito (#443), para gravar junto com a lista. */
+interface PapeisParaGravar { papeis: PapeisDosClientes; escritos: PapeisEscritos }
 interface ListaDoItem {
   ler: (id: string) => Promise<PessoasLidas | undefined>;
-  /** Grava a lista; com `papeis`, grava junto o papel de cada cliente (o banco tira o de quem saiu da lista). */
-  gravar: (id: string, lista: string[], papeis?: PapeisDosClientes) => Promise<unknown>;
+  /** Grava a lista; com `papeis`, grava junto o papel de cada cliente e o nome escrito (o banco tira o de quem saiu da lista). */
+  gravar: (id: string, lista: string[], papeis?: PapeisParaGravar) => Promise<unknown>;
   /** Cada pessoa entra com um papel (o cliente do processo, #426): sem ele, a ligação é recusada. */
   comPapel?: true;
 }
-const lidas = (lista: { id: string }[] | undefined, papeis?: PapeisDosClientes): PessoasLidas | undefined => lista && { lista: lista.map(x => x.id), papeis };
+const lidas = (lista: { id: string }[] | undefined, papeis?: PapeisDosClientes, escritos?: PapeisEscritos): PessoasLidas | undefined =>
+  lista && { lista: lista.map(x => x.id), papeis, escritos };
+/** O papel do cliente que entra (ou volta) junto com os dos outros, como estavam gravados. */
+const comOPapel = (atual: PessoasLidas | undefined, pessoaId: string, p: PapelEscolhido): PapeisParaGravar => ({
+  papeis: { ...atual?.papeis, [pessoaId]: p.papel }, escritos: { ...atual?.escritos, ...(p.escrito ? { [pessoaId]: p.escrito } : {}) }
+});
 /** Onde fica a lista de pessoas de cada item (os clientes da demanda e do processo, as pessoas da tarefa e do compromisso). O banco troca a lista inteira. */
 const PESSOAS_DO_ITEM: Record<ItemComPessoas, ListaDoItem> = {
   demandas: { ler: async id => lidas((await SD.demandaObter(id))?.clientes), gravar: (id, clientes) => SD.demandaAtualizar(id, { clientes }) },
-  processos: { ler: async id => { const p = await SD.processoObter(id); return lidas(p?.clientes, p?.papeis_clientes); },
-    gravar: (id, clientes, papeis) => SD.processoAtualizar(id, papeis ? { clientes, papeis_clientes: papeis } : { clientes }), comPapel: true },
+  processos: { ler: async id => { const p = await SD.processoObter(id); return lidas(p?.clientes, p?.papeis_clientes, p?.papeis_escritos); },
+    gravar: (id, clientes, p) => SD.processoAtualizar(id, p ? { clientes, papeis_clientes: p.papeis, papeis_escritos: p.escritos } : { clientes }), comPapel: true },
   tarefas: { ler: async id => lidas((await SD.tarefaObter(id))?.pessoas), gravar: (id, pessoas) => SD.tarefaAtualizar(id, { pessoas }) },
   compromissos: { ler: async id => lidas((await SD.compromissoObter(id))?.pessoas), gravar: (id, pessoas) => SD.compromissoAtualizar(id, { pessoas }) }
 };
-/** Põe a pessoa no fim da lista do item. No processo, ela entra como cliente com o `papel` dado (#426), que é obrigatório. */
-export async function porAPessoa(modulo: ItemComPessoas, itemId: string, pessoaId: string, papel?: PapelDaParte): Promise<Desfazer | null> {
+/** Põe a pessoa no fim da lista do item. No processo, ela entra como cliente com o `papel` dado (#426; e o nome escrito, #443), que é obrigatório. */
+export async function porAPessoa(modulo: ItemComPessoas, itemId: string, pessoaId: string, papel?: PapelDaParte, escrito?: string): Promise<Desfazer | null> {
   const l = PESSOAS_DO_ITEM[modulo];
   if (l.comPapel && !papel) throw new RecusaDaLigacao(PAPEL_DO_CLIENTE_OBRIGATORIO);
   const atual = await l.ler(itemId);
@@ -51,7 +59,7 @@ export async function porAPessoa(modulo: ItemComPessoas, itemId: string, pessoaI
     if (r.recusa === 'ja') return null;
     throw new RecusaDaLigacao(LISTA_CHEIA);
   }
-  await l.gravar(itemId, r.lista, l.comPapel && papel ? { ...atual.papeis, [pessoaId]: papel } : undefined);
+  await l.gravar(itemId, r.lista, l.comPapel && papel ? comOPapel(atual, pessoaId, { papel, escrito }) : undefined);
   return async () => {
     const agora = await l.ler(itemId);
     if (agora?.lista.includes(pessoaId)) await l.gravar(itemId, semOId(agora.lista, pessoaId));
@@ -219,13 +227,13 @@ export async function tirarAPessoa(modulo: ItemComPessoas, itemId: string, pesso
   if (!atual.lista.includes(pessoaId)) return null;
   if (!podeTirarAPessoa(modulo, atual.lista.length)) throw new RecusaDaLigacao(ULTIMO_CLIENTE_DO_PROCESSO);
   const posicao = atual.lista.indexOf(pessoaId);
-  // O papel do cliente que sai (#426): o Desfazer o devolve com ele.
-  const papel = atual.papeis?.[pessoaId];
+  // O papel do cliente que sai (#426) e o nome escrito (#443): o Desfazer os devolve com ele.
+  const papel = atual.papeis?.[pessoaId], escrito = atual.escritos?.[pessoaId];
   await l.gravar(itemId, semOId(atual.lista, pessoaId));
   return async () => {
     const agora = await l.ler(itemId);
     const volta = devolverNaLista(agora?.lista ?? [], pessoaId, posicao, CLIENTES_MAXIMOS);
-    if (volta) await l.gravar(itemId, volta, l.comPapel && papel ? { ...agora?.papeis, [pessoaId]: papel } : undefined);
+    if (volta) await l.gravar(itemId, volta, l.comPapel && papel ? comOPapel(agora, pessoaId, { papel, escrito }) : undefined);
   };
 }
 

@@ -40,9 +40,9 @@ const LER_A_ORIGEM: Record<OrigemDaPessoa, (o: Origem) => Promise<Lido>> = {
   demandas: comPessoas('demandas', (id: string) => SD.demandaObter(id), d => `${d.codigo} (${d.titulo})`),
   // No processo, a pessoa entra como cliente com o papel dela (#426), perguntado ao ligar; sem ele, não entra.
   processos: async o => lido(await SD.processoObter(o.id), p => ({ nome: nomeDoProcesso(p), endereco: cartaoDeOrigem(o, p.tipo), ligar: async pessoa => {
-    const papel = await pedirPapelDoCliente(p.papeis_clientes);
+    const papel = await pedirPapelDoCliente(p.papeis_clientes, p.papeis_escritos);
     if (!papel) throw new RecusaDaLigacao(SEM_PAPEL_NAO_LIGA);
-    return porAPessoa('processos', o.id, pessoa, papel);
+    return porAPessoa('processos', o.id, pessoa, papel.papel, papel.escrito);
   } })),
   tarefas: comPessoas('tarefas', (id: string) => SD.tarefaObter(id), t => t.titulo),
   compromissos: comPessoas('compromissos', (id: string) => SD.compromissoObter(id), nomeDoCompromisso),

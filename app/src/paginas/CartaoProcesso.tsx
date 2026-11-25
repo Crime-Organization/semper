@@ -40,6 +40,7 @@ import { ligarProcessoNaSecao, novoDerivado, ProcessosRelacionados } from './Pro
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
+import { usePapeisEscritos } from '../ui/papeisEscritos';
 import { dataCurta, hojeISO, relativo } from '../ui/util';
 import {
   ACOMPANHAR_DEFERIMENTO, ACOMPANHAR_PRAZO_EXTRA, ACOMPANHAR_PROTECAO, acompanhamentoDaProtecao, anosDosPrazosEmDiasUteis, PARAMETRO_ACOMPANHAR, prazoAposODeferimentoNaAgenda,
@@ -81,6 +82,8 @@ const ENTRADA_NO_PROCESSO: Record<ComoEntrarNoProcesso, string> = {
 
 export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const ctx = useCtx();
+  // A lista dos papéis escritos (#443) fica lida: a pergunta do papel de quem entra como cliente abre já com ela.
+  usePapeisEscritos();
   const eu = ctx.perfil.id;
   const [p, setP] = useState<Processo | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
@@ -169,7 +172,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
   // Embaixo do nome, o papel do cliente no processo (#426), ou que ele ainda falta.
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
-    detalhe: clienteNoCartao(p!.papeis_clientes?.[c.id]), selo: c.arquivado_em ? 'Arquivada' : undefined,
+    detalhe: clienteNoCartao(p!.papeis_clientes?.[c.id], p!.papeis_escritos?.[c.id]), selo: c.arquivado_em ? 'Arquivada' : undefined,
     // O "x" de cada cliente (#424): nunca no último (o processo precisa de um cliente).
     tirar: podeLigar ? tirarPessoaDoItem('processos', p.id, c, p.clientes.length, depoisDeLigar) : undefined });
 
@@ -302,7 +305,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length}
       ligar={ligarPessoaNoItem('processos', p.clientes, podeLigar)} novo={novaPessoaNoItem('processos', p.id, p.clientes, podeLigar)} atalho="ligacao">
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} papeis={p.papeis_clientes} depois={depoisDeLigar} />}
+      {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} papeis={p.papeis_clientes} escritos={p.papeis_escritos}
+        depois={depoisDeLigar} />}
     </Recolhivel>
 
     {/* Propriedade intelectual (#317): a validade e os prazos do INPI, calculados das datas do processo, só no administrativo (#425).

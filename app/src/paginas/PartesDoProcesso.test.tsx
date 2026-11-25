@@ -12,6 +12,7 @@ import { CriarNoCartao } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { LIGAR_PARTE, LIGAR_PARTE_NO_TITULO, ligarParte, PartesDoProcesso } from './PartesDoProcesso';
 import { novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
+import { lojaDePapeisEscritos } from '../ui/papeisEscritos';
 
 const PESSOA = { id: 'p1', codigo: 'P1', nome: 'TESTEMUNHA TESTE', arquivado_em: null } as PessoaResumida;
 const PARTE: ParteDoProcesso = { id: 'x1', processo_id: 'pr1', papel: 'testemunha', pessoa: PESSOA };
@@ -127,5 +128,37 @@ describe('Processos relacionados no cartão do processo (recursos e incidentais)
     render(<MemoryRouter><CriarNoCartao pode={false}>{secao([])}</CriarNoCartao></MemoryRouter>);
     // Então
     expect(screen.queryByRole('button', { name: 'Novo recurso ou incidental deste processo' })).not.toBeInTheDocument();
+  });
+});
+
+describe('O papel escrito pela equipe nas pessoas do processo (#443)', () => {
+  beforeEach(() => { lojaDePapeisEscritos.reiniciar(); vi.spyOn(SD, 'processoPapeisEscritos').mockResolvedValue([]); });
+
+  it('dado o formulário aberto, quando escreve Herdeira no papel e liga a pessoa, então ela entra com o nome escrito', async () => {
+    // Dado
+    const incluir = vi.spyOn(SD, 'processoParteIncluir').mockResolvedValue({ ...PARTE, id: 'x2', papel: 'outro', papel_escrito: 'Herdeira' });
+    vi.spyOn(SD, 'pessoasListar').mockResolvedValue({ linhas: [{ ...PESSOA, tipo: 'pf' } as never], total: 1 });
+    const aoMudar = mostrarPartes([]);
+    render(<Janelas />);
+    await userEvent.click(screen.getByRole('button', { name: LIGAR_PARTE }));
+    // Quando
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Papel no processo/ }), '+ Escrever outro papel…');
+    const janela = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever outro papel' }), 'Herdeira{Enter}');
+    expect(await screen.findByRole('option', { name: 'Herdeira', selected: true })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pessoa' }), 'teste');
+    await userEvent.click(await screen.findByRole('button', { name: /TESTEMUNHA TESTE/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar ao processo' }));
+    // Então
+    expect(incluir).toHaveBeenCalledWith('pr1', 'p1', 'outro', 'Herdeira');
+    expect(aoMudar).toHaveBeenCalled();
+  });
+
+  it('dada uma pessoa com o papel escrito, quando a seção abre, então a linha mostra o nome escrito', () => {
+    // Quando
+    mostrarPartes([{ ...PARTE, papel: 'outro', papel_escrito: 'Herdeira' }]);
+    // Então
+    expect(screen.getByRole('link', { name: /TESTEMUNHA TESTE/ })).toHaveTextContent('Herdeira');
+    expect(screen.getByRole('button', { name: 'Tirar TESTEMUNHA TESTE (Herdeira) do processo' })).toBeInTheDocument();
   });
 });

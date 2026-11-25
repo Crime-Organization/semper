@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício sempre entra como administrador; aqui o processo é aberto também como quem não é.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Contrato, type Processo, type Tarefa, type TipoProcesso } from '../dados';
 import { avisar } from '../ui/avisos';
+import { Janelas } from '../ui/janela';
+import { lojaDePapeisEscritos } from '../ui/papeisEscritos';
 import NovoProcesso from './NovoProcesso';
 
 vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('../ui/avisos')>(), avisar: vi.fn(), feito: vi.fn() }));
@@ -105,7 +107,9 @@ describe('Formulário de processo', () => {
     const papel = screen.getByLabelText('Papel do cliente') as HTMLSelectElement;
     expect(papel.value).toBe('reu');
     expect([...papel.options].map(o => o.text)).toContain('Apenado');
-    expect([...papel.options].at(-1)?.text).toBe('Outro papel');
+    // O Outro papel fecha a lista fixa; por último, a opção de escrever um papel (#443).
+    expect([...papel.options].at(-2)?.text).toBe('Outro papel');
+    expect([...papel.options].at(-1)?.text).toBe('+ Escrever outro papel…');
     expect(screen.queryByLabelText('Polo do cliente')).toBeNull();
   });
 
@@ -239,5 +243,77 @@ describe('Processo que nasce do "+ Novo processo" de um contrato ou de uma taref
     expect(await screen.findByText('Foi para /processos/judicial/?id=p9')).toBeInTheDocument();
     expect(ligar).not.toHaveBeenCalled();
     expect(criarProcesso).toHaveBeenCalledWith(expect.objectContaining({ clientes: ['c1'] }));
+  });
+});
+
+describe('O papel do cliente escrito pela equipe (#443)', () => {
+  const gravar = vi.fn<typeof SD.processoAtualizar>();
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    vi.spyOn(SD, 'processoOpcoes').mockResolvedValue([]);
+    vi.spyOn(SD, 'processoSugestoes').mockResolvedValue({ orgaos: [], comarcas: [], varas: [] });
+    vi.spyOn(SD, 'processoPapeisEscritos').mockResolvedValue([]);
+    gravar.mockReset().mockResolvedValue({ id: 'p1', codigo: 'ABCD1234' });
+    vi.spyOn(SD, 'processoAtualizar').mockImplementation(gravar);
+    lojaDePapeisEscritos.reiniciar();
+  });
+  /** Abre o processo para editar, com as janelas (a de escrever o papel) na tela. */
+  async function abrirComJanelas(extra: Partial<Processo> = {}) {
+    vi.spyOn(SD, 'processoObter').mockResolvedValue({ ...processo('judicial', '0001234-97.2026.8.13.0024'), papeis_clientes: { c1: 'reu' }, ...extra });
+    render(<><RouterProvider router={createMemoryRouter([{ path: '/', element: <NovoProcesso edicao={{ id: 'p1', aoTerminar: () => undefined }} /> }])} /><Janelas /></>);
+    await screen.findByLabelText(/Número do processo/);
+    return screen.getByLabelText('Papel do cliente') as HTMLSelectElement;
+  }
+  const escolhido = (select: HTMLSelectElement) => select.selectedOptions[0]?.text;
+
+  it('dado um cliente escolhido, quando escolhe "+ Escrever outro papel…" e escreve Inventariante com Enter, então o papel fica Inventariante e o processo o grava', async () => {
+    // Dado
+    const papel = await abrirComJanelas();
+    // Quando
+    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
+    const janela = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever outro papel' }), '  Inventariante {Enter}');
+    // Então
+    expect(await screen.findByRole('option', { name: 'Inventariante', selected: true })).toBeInTheDocument();
+    expect(escolhido(papel)).toBe('Inventariante');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    // Então
+    expect(gravar).toHaveBeenCalledWith('p1', expect.objectContaining({ papeis_clientes: { c1: 'outro' }, papeis_escritos: { c1: 'Inventariante' } }));
+  });
+
+  it('dada a janela de escrever aberta, quando a pessoa desiste com Esc, então o papel de antes continua', async () => {
+    // Dado
+    const papel = await abrirComJanelas();
+    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
+    await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('dialog', { name: 'Escrever outro papel' })).toBeNull();
+    expect(escolhido(papel)).toBe('Réu');
+  });
+
+  it('dado Inventariante na lista do escritório, quando escreve inventariante, então escolhe o que já existe, sem criar outro', async () => {
+    // Dado
+    vi.spyOn(SD, 'processoPapeisEscritos').mockResolvedValue([{ id: 'x1', nome: 'Inventariante' }]);
+    const papel = await abrirComJanelas();
+    const grupo = await screen.findByRole('group', { name: 'Do escritório' });
+    expect(within(grupo).getByRole('option', { name: 'Inventariante' })).toBeInTheDocument();
+    // Quando
+    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
+    const janela = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    await userEvent.type(within(janela).getByRole('textbox', { name: 'Escrever outro papel' }), 'inventariante{Enter}');
+    // Então
+    expect(await screen.findByRole('option', { name: 'Inventariante', selected: true })).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: 'Inventariante' })).toHaveLength(1);
+  });
+
+  it('dado um processo com papel escrito que saiu da lista, quando abre para editar, então o nome continua escolhido', async () => {
+    // Quando
+    const papel = await abrirComJanelas({ papeis_clientes: { c1: 'outro' }, papeis_escritos: { c1: 'Curador' } });
+    // Então
+    expect(escolhido(papel)).toBe('Curador');
   });
 });

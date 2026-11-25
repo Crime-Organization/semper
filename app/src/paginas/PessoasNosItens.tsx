@@ -3,11 +3,14 @@
 // compromisso) e no cartão do item (as seções Clientes e Pessoas: entra uma pessoa que já está no cadastro). As duas gravam a lista
 // do item, lida logo antes (veja porAPessoa). No título da seção ficam a corrente, que abre a busca daqui (#427), e o "+ Nova pessoa",
 // que abre o cadastro já ligado ao item (#376). Quem entra como cliente de um processo entra com o papel dele, perguntado numa janela
-// antes de gravar (#426).
+// antes de gravar (#426); a pergunta também oferece os papéis escritos pela equipe e o de escrever um agora (#443).
 import { nomeDoCompromisso } from '../regras/compromisso';
 import { listaDoItemCheia, motivoDaListaCheia, PESSOA_NO_ITEM, type ItemComPessoas } from '../regras/ligarExistente';
-import type { PapeisDosClientes, PapelDaParte } from '../dados';
-import { ehPapelDaParte, nomeDoProcesso, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papelSugeridoDoCliente } from '../regras/processo';
+import type { PapeisDosClientes, PapeisEscritos } from '../dados';
+import { nomeDoProcesso, PAPEIS_DO_CLIENTE } from '../regras/processo';
+import { valorSugeridoDoCliente, type PapelEscolhido } from '../regras/papelEscrito';
+import { lojaDePapeisEscritos, recarregarPapeisEscritos } from '../ui/papeisEscritos';
+import { opcoesDoPapelNaJanela, papelDaEscolha } from './processo/EscolhaDoPapel';
 import { AcoesDosLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarDoModulo, ligarDoModulo, type AchadoDe, type FiltroDe } from '../ui/LigarDoModulo';
 import type { LigarNaSecao } from '../ui/Recolhivel';
@@ -37,28 +40,38 @@ export const ligarAPessoa = (modulo: ItemComPessoas, pode: boolean): LigarNaSeca
 
 /** A pessoa que entra como cliente de um processo sem escolher o papel (#426) não é posta nele. */
 export const SEM_PAPEL_NAO_LIGA = 'Sem o papel do cliente, a pessoa não foi posta no processo.';
+/** Os papéis dos clientes que o processo já tem: o papel (#426) e o nome escrito (#443). */
+interface PapeisDoItem { papeis?: PapeisDosClientes; escritos?: PapeisEscritos }
 /**
- * Pergunta o papel de quem entra como cliente do processo pelo cartão (#426): a lista do "Papel do cliente", já com o papel dos
- * outros clientes escolhido (veja papelSugeridoDoCliente). Devolve o papel, ou null se a pessoa desistiu.
+ * Pergunta o papel de quem entra como cliente do processo pelo cartão (#426): a lista do "Papel do cliente", com os papéis escritos
+ * pela equipe e o de escrever um agora (#443), já com o papel dos outros clientes escolhido (veja valorSugeridoDoCliente). Devolve o
+ * papel, ou null se a pessoa desistiu (da escolha ou de escrever).
  */
-export async function pedirPapelDoCliente(papeis?: PapeisDosClientes): Promise<PapelDaParte | null> {
+export async function pedirPapelDoCliente(papeis?: PapeisDosClientes, escritos?: PapeisEscritos): Promise<PapelEscolhido | null> {
+  // A lista do escritório já lida (o cartão do processo a lê ao abrir): a pergunta abre na hora. Ainda sem ela, só os papéis fixos.
+  const lida = lojaDePapeisEscritos.ler();
+  if (lida === null) void recarregarPapeisEscritos();
+  const lista = (lida ?? []).map(x => x.nome);
   const escolhido = await escolherNaJanela({ titulo: 'Papel do cliente no processo', rotulo: 'Papel do cliente', acao: 'Ligar',
-    opcoes: PAPEIS_DO_CLIENTE.map(x => ({ valor: x, nome: PAPEIS_DA_PARTE[x] })), atual: papelSugeridoDoCliente(papeis) });
-  return ehPapelDaParte(escolhido) ? escolhido : null;
+    opcoes: opcoesDoPapelNaJanela(PAPEIS_DO_CLIENTE, lista), atual: valorSugeridoDoCliente(papeis, escritos) });
+  return escolhido ? (await papelDaEscolha(escolhido, lista)) ?? null : null;
 }
 
 /** O que se pergunta antes de pôr a pessoa no item, recebendo o papel dos clientes que ele já tem: no processo, o papel dela. null: desistiu. */
-type AntesDePor = (papeis?: PapeisDosClientes) => Promise<{ papel?: PapelDaParte } | null>;
+type AntesDePor = (doItem: PapeisDoItem) => Promise<{ papel?: PapelEscolhido } | null>;
 const nadaAPerguntar: AntesDePor = async () => ({});
 const ANTES_DE_POR: Record<ItemComPessoas, AntesDePor> = {
   demandas: nadaAPerguntar, tarefas: nadaAPerguntar, compromissos: nadaAPerguntar,
-  processos: async papeis => { const papel = await pedirPapelDoCliente(papeis); return papel ? { papel } : null; }
+  processos: async doItem => { const papel = await pedirPapelDoCliente(doItem.papeis, doItem.escritos); return papel ? { papel } : null; }
 };
 /** Pergunta o que falta (veja ANTES_DE_POR), põe a pessoa e avisa; se a pessoa desistiu da pergunta, nada muda. */
-async function perguntarEPor(modulo: ItemComPessoas, itemId: string, pessoaId: string, papeis: PapeisDosClientes | undefined,
+async function perguntarEPor(modulo: ItemComPessoas, itemId: string, pessoaId: string, doItem: PapeisDoItem,
   textos: TextosDaLigacao, depois: () => void) {
-  const antes = await ANTES_DE_POR[modulo](papeis);
-  if (antes) await ligarEAvisar(() => porAPessoa(modulo, itemId, pessoaId, antes.papel), textos, depois);
+  const antes = await ANTES_DE_POR[modulo](doItem);
+  if (!antes) return;
+  await ligarEAvisar(() => porAPessoa(modulo, itemId, pessoaId, antes.papel?.papel, antes.papel?.escrito), textos, depois);
+  // O papel escrito (#443) entrou na lista do escritório.
+  if (antes.papel?.escrito) void recarregarPapeisEscritos();
 }
 
 /** No cartão da pessoa: a busca "Ligar … existente", com os itens que ainda não a têm (e o motivo, nos que já estão cheios). */
@@ -66,7 +79,7 @@ export function LigarAPessoa<M extends ItemComPessoas>({ modulo, pessoaId, depoi
   const t = PESSOA_NO_ITEM[modulo], achado = DO_ACHADO[modulo] as (typeof DO_ACHADO)[M];
   return <AcoesDosLigados>
     <LigarDoModulo modulo={modulo} filtro={{ semAPessoa: pessoaId } as FiltroDe<M>} motivo={x => motivoDaListaCheia(achado.pessoas(x), t.quem)}
-      aoEscolher={x => perguntarEPor(modulo, x.id, pessoaId, undefined, { feito: t.noCartaoDaPessoa(achado.nome(x)), oQue: 'ligação da pessoa', ja: t.ja }, depois)} />
+      aoEscolher={x => perguntarEPor(modulo, x.id, pessoaId, {}, { feito: t.noCartaoDaPessoa(achado.nome(x)), oQue: 'ligação da pessoa', ja: t.ja }, depois)} />
   </AcoesDosLigados>;
 }
 
@@ -80,6 +93,8 @@ interface NoCartaoDoItem {
   aviso?: string;
   /** No processo, o papel dos clientes que ele já tem: a pergunta do papel de quem entra já vem com ele (#426). */
   papeis?: PapeisDosClientes;
+  /** E o nome escrito do papel deles (#443). */
+  escritos?: PapeisEscritos;
 }
 
 /**
@@ -92,11 +107,11 @@ export function ligarPessoaNoItem(modulo: ItemComPessoas, ligadas: readonly unkn
 }
 
 /** No cartão do item: a busca "Ligar cliente existente" (ou pessoa), com as pessoas do cadastro que ainda não estão nele. */
-export function LigarPessoaNoItem({ modulo, itemId, ligadas, depois, aviso, papeis }: NoCartaoDoItem) {
+export function LigarPessoaNoItem({ modulo, itemId, ligadas, depois, aviso, papeis, escritos }: NoCartaoDoItem) {
   const t = PESSOA_NO_ITEM[modulo];
   return <AcoesDosLigados>
     <LigarDoModulo modulo="pessoas" rotulo={t.rotulo} filtro={{ fora: ligadas.map(p => p.id) }} indisponivel={listaDoItemCheia(modulo, ligadas)} aviso={aviso}
-      aoEscolher={p => perguntarEPor(modulo, itemId, p.id, papeis, { feito: t.noCartaoDoItem(p.nome), oQue: 'ligação da pessoa', ja: t.ja }, depois)} />
+      aoEscolher={p => perguntarEPor(modulo, itemId, p.id, { papeis, escritos }, { feito: t.noCartaoDoItem(p.nome), oQue: 'ligação da pessoa', ja: t.ja }, depois)} />
   </AcoesDosLigados>;
 }
 

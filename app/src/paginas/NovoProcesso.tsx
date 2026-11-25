@@ -13,7 +13,7 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso,
-  comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, errosDosDadosDoProcesso, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso,
+  comPapelDoCliente, escritosAoTrocarCliente, PAPEIS_DO_CLIENTE, papeisAoTrocarCliente, errosDosDadosDoProcesso, LIGACOES, ligacaoDaOrigem, ligacaoDoEndereco, ligacoesDaOrigem, origemAoCriar, primeiraEtapaComErroProcesso,
   CAMPOS_PROCESSO, processoDoProcesso, processoVazio, semSairDoProcesso, soOsDadosDaSecao, tipoDoDerivado, tipoDoEndereco, TIPOS,
   TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
@@ -25,6 +25,9 @@ import {
 import { ligarContratoNoProcesso, ligarNoItem } from './ligarNoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { CamposDaProtecao } from './processo/CamposDaProtecao';
+import { OpcoesDoPapel, papelDaEscolha } from './processo/EscolhaDoPapel';
+import { valorDoPapel } from '../regras/papelEscrito';
+import { recarregarPapeisEscritos, usePapeisEscritos } from '../ui/papeisEscritos';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -187,6 +190,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [sugestoes, setSugestoes] = useState<SugestoesDeProcesso>(NADA_SUGERIDO);
   // Os campos que o escritório criou.
   const [camposDoEscritorio, setCamposDoEscritorio] = useState<CampoDeProcesso[]>([]);
+  // Os papéis escritos pela equipe (#443), a lista do escritório.
+  const papeisDoEscritorio = usePapeisEscritos();
   // O órgão que o número indicou: troca se o número mudar, mas nunca o que a pessoa digitou.
   const orgaoIndicado = useRef('');
   useTitulo(edicao ? null : alvo ? 'Atualizar processo' : 'Novo processo');
@@ -294,8 +299,19 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const escolherCliente = (i: number) => (p: PessoaLista | null) => {
     setClientes(atual => atual.map((x, j) => j === i ? p : x));
     setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x),
-      papeisClientes: papeisAoTrocarCliente(atual.papeisClientes, atual.clientes[i], p?.id ?? '') }));
+      papeisClientes: papeisAoTrocarCliente(atual.papeisClientes, atual.clientes[i], p?.id ?? ''),
+      papeisEscritos: escritosAoTrocarCliente(atual.papeisClientes, atual.papeisEscritos, atual.clientes[i], p?.id ?? '') }));
   };
+  // O papel de uma linha (#426): um da lista, um escrito pela equipe ou, pela última opção, um que a pessoa escreve agora (#443).
+  // Se ela desiste de escrever, nada muda, e o select volta ao que estava.
+  async function escolherPapel(clienteId: string, valor: string) {
+    const escolha = await papelDaEscolha(valor, papeisDoEscritorio);
+    if (escolha === undefined) return;
+    setC(atual => ({ ...atual, papeisClientes: comPapelDoCliente(atual.papeisClientes, clienteId, escolha?.papel ?? ''),
+      papeisEscritos: { ...atual.papeisEscritos, [clienteId]: escolha?.escrito } }));
+  }
+  // Os nomes já escritos no formulário aparecem no grupo "Do escritório" das outras linhas.
+  const escritosNoFormulario = c.clientes.map(id => c.papeisClientes[id] === 'outro' ? c.papeisEscritos[id] : undefined);
   function acrescentarCliente() {
     const chave = proximaChave.current++;
     setClientes(atual => [...atual, null]);
@@ -386,6 +402,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         const eu = ctx.perfil.id, { dados: gravar, ficou } = soOsDados ? { dados, ficou: false }
           : semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.processoAtualizar(alvo.id, gravar);
+        // O papel escrito (#443) entrou na lista do escritório: os próximos cadastros já o oferecem.
+        if (Object.keys(gravar.papeis_escritos ?? {}).length) void recarregarPapeisEscritos();
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
           await sairDoCartao('processos', alvo.id, 'Processo atualizado. Você saiu dele, e a saída ficou no histórico.');
@@ -406,6 +424,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         const coluna = (c.tipo === tipoInicial && etapaInicial) || await colunaInicial(quadro);
         // A origem do recurso ou incidental vai junto (#316): ela não muda depois.
         const r = await SD.processoCriar({ ...dados, ...(lida?.recusa ? {} : origemAoCriar(c)), tipo: c.tipo, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        if (Object.keys(dados.papeis_escritos ?? {}).length) void recarregarPapeisEscritos();
         feito(`Processo ${r.codigo} cadastrado.`, 'cadastro do processo', async () => {
           await SD.processosArquivar([r.id], true);
           const x = await SD.processosExcluir([r.id]);
@@ -488,11 +507,11 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           </div>
           {/* O papel do cliente (#426): a mesma lista das pessoas com papel; escolhe-se depois da pessoa. Ele aponta para a dica e,
               sem papel, para o erro do grupo: o leitor de tela diz por que está inválido. */}
-          <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`} value={(id && c.papeisClientes[id]) || ''} disabled={!id}
+          <select aria-label={c.clientes.length === 1 ? 'Papel do cliente' : `Papel do cliente ${i + 1}`}
+            value={id ? valorDoPapel(c.papeisClientes[id], c.papeisEscritos[id]) : ''} disabled={!id}
             aria-invalid={papelFaltando(id) || undefined} aria-describedby={descricaoDoPapel(id)}
-            onChange={e => mudar({ papeisClientes: comPapelDoCliente(c.papeisClientes, id, e.target.value) })}>
-            <option value="">Papel do cliente…</option>
-            {PAPEIS_DO_CLIENTE.map(x => <option key={x} value={x}>{PAPEIS_DA_PARTE[x]}</option>)}
+            onChange={e => void escolherPapel(id, e.target.value)}>
+            <OpcoesDoPapel vazio="Papel do cliente…" fixos={PAPEIS_DO_CLIENTE} lista={papeisDoEscritorio} usados={escritosNoFormulario} />
           </select>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
             <Icone nome="fechar" tam={15} />

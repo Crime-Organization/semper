@@ -9,9 +9,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { CLIENTES_MAXIMOS } from '../dados/limites';
 import { Janelas } from '../ui/janela';
 import { Recolhivel } from '../ui/Recolhivel';
+import type { PapelEscolhido } from '../regras/papelEscrito';
+import { lojaDePapeisEscritos } from '../ui/papeisEscritos';
 import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, pedirPapelDoCliente } from './PessoasNosItens';
 
-vi.mock('../dados', () => ({ SD: { pessoasListar: async () => ({ linhas: [], total: 0 }) } }));
+vi.mock('../dados', () => ({ SD: { pessoasListar: async () => ({ linhas: [], total: 0 }), processoPapeisEscritos: async () => [] } }));
 
 const pessoas = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'p' + i }));
 
@@ -69,7 +71,7 @@ describe('O papel de quem entra como cliente do processo pelo cartão (#426)', (
   it('dado um processo com clientes réus, quando a pergunta abre, então ela já traz Réu, e a pessoa troca e liga', async () => {
     // Dado
     render(<Janelas />);
-    let resposta!: Promise<string | null>;
+    let resposta!: Promise<PapelEscolhido | null>;
     // Quando
     act(() => { resposta = pedirPapelDoCliente({ c1: 'reu' }); });
     const janela = screen.getByRole('dialog', { name: 'Papel do cliente no processo' });
@@ -81,18 +83,41 @@ describe('O papel de quem entra como cliente do processo pelo cartão (#426)', (
     await userEvent.selectOptions(papel, 'testemunha');
     await userEvent.click(within(janela).getByRole('button', { name: 'Ligar' }));
     // Então
-    await expect(resposta).resolves.toBe('testemunha');
+    await expect(resposta).resolves.toEqual({ papel: 'testemunha' });
   });
 
   it('dada a pergunta aberta, quando a pessoa cancela, então não há papel (e ninguém é ligado)', async () => {
     // Dado
     render(<Janelas />);
-    let resposta!: Promise<string | null>;
+    let resposta!: Promise<PapelEscolhido | null>;
     act(() => { resposta = pedirPapelDoCliente(undefined); });
     expect((screen.getByLabelText('Papel do cliente') as HTMLSelectElement).value).toBe('autor');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     // Então
     await expect(resposta).resolves.toBeNull();
+  });
+});
+
+describe('A pergunta do papel com os papéis escritos pela equipe (#443)', () => {
+  it('dada a lista do escritório, quando a pergunta abre, então oferece os escritos e o de escrever; escrevendo, devolve o nome', async () => {
+    // Dado
+    lojaDePapeisEscritos.mudar([{ id: 'x1', nome: 'Inventariante' }]);
+    render(<Janelas />);
+    let resposta!: Promise<PapelEscolhido | null>;
+    // Quando
+    act(() => { resposta = pedirPapelDoCliente({ c1: 'outro' }, { c1: 'Inventariante' }); });
+    const janela = screen.getByRole('dialog', { name: 'Papel do cliente no processo' });
+    const papel = within(janela).getByLabelText('Papel do cliente') as HTMLSelectElement;
+    // Então: já vem com o papel escrito do outro cliente
+    expect(papel.selectedOptions[0].text).toBe('Inventariante');
+    expect([...papel.options].at(-1)?.text).toBe('+ Escrever outro papel…');
+    // Quando
+    await userEvent.selectOptions(papel, '+ Escrever outro papel…');
+    await userEvent.click(within(janela).getByRole('button', { name: 'Ligar' }));
+    const escrever = await screen.findByRole('dialog', { name: 'Escrever outro papel' });
+    await userEvent.type(within(escrever).getByRole('textbox', { name: 'Escrever outro papel' }), 'Curador{Enter}');
+    // Então
+    await expect(resposta).resolves.toEqual({ papel: 'outro', escrito: 'Curador' });
   });
 });
