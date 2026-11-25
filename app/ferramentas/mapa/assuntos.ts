@@ -300,12 +300,13 @@ export const ASSUNTOS: Assunto[] = [
     id: 'calendario',
     titulo: 'Calendário e prazos',
     resumo: 'O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.',
-    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos'],
+    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos', 'diaUtilAnterior'],
     tabelas: ['dias_sem_expediente', 'orgaos'],
     dados: ['DadosCalendario'],
     rotas: ['calendario'],
     armadilhas: [
       'Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.',
+      'O dia útil do escritório e o dia útil anterior a uma data (a despesa na agenda Administrativo, #439) ficam no servidor (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), para a função de borda usar; `regras/demandaDoCompromisso.ts` usa a mesma conta, e o teste fica em `regras/diaUtilAnterior.test.ts`.',
       '`regras/prazos.ts` não depende de nenhum módulo (Agenda e Propriedade intelectual importam dele `somarDias`, `diasEntre` e `DIAS_NA_SEMANA`): não importe um módulo dali, para não criar importação circular.'
     ],
     testes: ['agenda', 'repeticao', 'propriedadeIntelectualNaAgenda']
@@ -341,12 +342,15 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
-    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
-    dados: ['DadosFinanceiro'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos',
+      'despesas', 'despesas_do_escritorio', 'despesas-do-escritorio', 'enderecoDaDespesa'],
+    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos',
+      'financeiro_despesas', 'financeiro_despesa_repeticoes', 'financeiro_despesas_historico'],
+    dados: ['DadosFinanceiro', 'DadosDespesas'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],
     armadilhas: [
       'Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.',
+      'As despesas do escritório a pagar (#439, aba Obrigações, só administradores) se repetem como os compromissos (`regras/repeticao.ts`, a mesma conta de `privado.data_da_vez`): cada data é uma linha, e a rotina `estender-despesas` acrescenta as seguintes. Marcar como paga não cria lançamento no caixa. Na agenda Administrativo do Google (#166), a despesa vai no dia útil anterior ao vencimento (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), com o link que a abre (`supabase/functions/_compartilhado/enderecoDaDespesa.ts`: a aba Obrigações no mês do vencimento, `?mes=…&despesa=…`; o Hub lê uma vez e tira do endereço).',
       'O Hub e as abas (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx` e `TELAS_DO_FINANCEIRO` de `e2e/ajudantes.ts`) abrem Parcelas, Lucros, Meus valores e Conferência: mexeu no Hub ou nos endereços, rode os testes dessas telas (já no comando abaixo) e veja [Rotas e endereços](#rotas).'
     ],
     testes: ['parcelas', 'lucros', 'meus-valores', 'conferencia', 'contrato-exclui-em-cascata', 'topo-do-cartao', 'mais-no-titulo-das-secoes']

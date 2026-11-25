@@ -5,7 +5,7 @@
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas nem o caixa.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
-import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { SD, type ContaFinanceira, type DespesaDoEscritorio, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { dicaComAtalho, ATALHOS } from '../../regras/atalhos';
 import { diasDoMes, fmtCentavos, mesPedido, PARAMETROS_DO_LANCAMENTO } from '../../regras/caixa';
 import {
@@ -29,6 +29,8 @@ import { hojeISO, useTitulo } from '../../ui/util';
 import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
 import { ValoresAPassar } from './APassar';
 import { Repasses } from './Repasses';
+import { DespesasDoEscritorio } from './Despesas';
+import { PARAMETROS_DA_DESPESA } from '../../../../supabase/functions/_compartilhado/enderecoDaDespesa';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
 import { LUGAR_DAS_LISTAS, PainelDoFinanceiro, type CaixaDoPainel, type DadosDoPainel } from './Graficos';
@@ -101,6 +103,9 @@ export default function Hub() {
   // O "Mudar em Entradas/Saídas" da página das contas pede o mês do lançamento e qual linha mostrar (#419); sem pedido, o mês de hoje.
   const mesDoEndereco = mesPedido(useParametroLido(PARAMETROS_DO_LANCAMENTO.mes));
   const lancamentoPedido = useParametroLido(PARAMETROS_DO_LANCAMENTO.lancamento);
+  // O endereço da despesa (enderecoDaDespesa, #439: o link da agenda Administrativo do Google) abre a despesa uma vez só.
+  const despesaNoEndereco = useParametroLido(PARAMETROS_DA_DESPESA.despesa);
+  const [despesaPedida, setDespesaPedida] = useState(despesaNoEndereco);
   const [ano, setAno] = useState(Number((mesDoEndereco ?? hoje).slice(0, 4)));
   const [mes, setMes] = useState<string | null>(mesDoEndereco ?? hoje.slice(0, 7));
   // De quem são os números e as listas: o escritório todo (vazio) ou um advogado. Só o administrador escolhe.
@@ -190,7 +195,8 @@ export default function Hub() {
       entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} destaque={lancamentoPedido} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
       saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} destaque={lancamentoPedido} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
       direitos: () => <Direitos parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} aoAbrir={id => setAberto({ o: 'contrato', contratoId: id })} />,
-      obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
+      obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar}
+        despesaPedida={despesaPedida} aoAbrirPedida={() => setDespesaPedida(null)} />
     };
     const deQuemFor = (p: { responsavel_id: string | null }) => !quem || p.responsavel_id === quem;
     const semNada = !atual.parcelas.some(deQuemFor) && !atual.recebimentos.some(deQuemFor) && (deQuem !== 'escritorio' || !caixa?.contas.length);
@@ -329,11 +335,17 @@ function Direitos({ parcelas, usuario, aoReceber, aoAbrir }: { parcelas: Parcela
   </section>;
 }
 
-type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[] } | { chave: string; erro: string };
+type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[]; despesas: DespesaDoEscritorio[] } | { chave: string; erro: string };
 
-/** Obrigações: o que ainda vai sair. Os repasses que o escritório paga e o que o responsável passa a participantes e indicadores. */
-function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void }) {
+/**
+ * Obrigações: o que ainda vai sair. As despesas do escritório (só o administrador, #439), os repasses que o escritório paga e o que o
+ * responsável passa a participantes e indicadores.
+ */
+function Obrigacoes({ periodo, contas, versao, aoMudar, despesaPedida, aoAbrirPedida }: {
+  periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void; despesaPedida: string | null; aoAbrirPedida: () => void;
+}) {
   const ctx = useCtx();
+  const admin = ctx.ehAdmin;
   const hoje = hojeISO();
   const [lido, setLido] = useState<Pagar | null>(null);
   const { de, ate } = periodo.length === 4 ? { de: `${periodo}-01-01`, ate: `${periodo}-12-31` } : diasDoMes(periodo);
@@ -341,15 +353,19 @@ function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; con
   useEffect(() => {
     let vivo = true;
     const esta = de + '/' + versao;
-    Promise.all([SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate)])
-      .then(([repasses, aPassar]) => { if (vivo) setLido({ chave: esta, repasses, aPassar }); })
+    Promise.all([SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate), admin ? SD.financeiroDespesas(de, ate) : []])
+      .then(([repasses, aPassar, despesas]) => { if (vivo) setLido({ chave: esta, repasses, aPassar, despesas }); })
       .catch(e => { if (vivo) setLido({ chave: esta, erro: (e as Error).message }); });
     return () => { vivo = false; };
-  }, [de, ate, versao]);
+  }, [de, ate, versao, admin]);
   const atual = lido?.chave === chave ? lido : null;
   if (!atual) return <Carregando />;
   if ('erro' in atual) return <Aviso tipo="erro">{atual.erro}</Aviso>;
   return <section className="painel-secao" aria-label="Obrigações">
+    {admin && <section aria-label="Despesas do escritório">
+      <TituloSecao>Despesas do escritório</TituloSecao>
+      <DespesasDoEscritorio lista={atual.despesas} periodo={periodo} hoje={hoje} aoMudar={aoMudar} pedida={despesaPedida} aoAbrirPedida={aoAbrirPedida} />
+    </section>}
     <section aria-label="Repasses">
       <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
       <Repasses lista={atual.repasses} periodo={periodo} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />

@@ -40,7 +40,7 @@ const TABELAS: Record<string, string> = {
   pessoas: 'cadastro de pessoa', pessoa_responsaveis: 'responsáveis de', pessoa_sigilos: 'informação sigilosa de',
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
   pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato', comentarios: 'um comentário', perfil_profissional: 'o perfil profissional de', ligacoes: 'a conta Google do escritório',
-  financeiro_terceiros_pagos: 'a marcação de pago de um valor do contrato'
+  financeiro_terceiros_pagos: 'a marcação de pago de um valor do contrato', financeiro_despesas: 'uma despesa do escritório'
 };
 /** O que a ação diz além do alvo, nas tabelas em que só ele não basta. */
 const DETALHES: Partial<Record<string, (resumo: NonNullable<RegistroAuditoria['resumo']>) => string>> = {

@@ -2381,6 +2381,43 @@ export interface DadosFinanceiro {
   financeiroExcluidos(): Promise<RecebimentoExcluido[]>;
 }
 
+/** Uma despesa do escritório a pagar (#439): uma data de vencimento, com a repetição de que faz parte (null: não se repete). */
+export interface DespesaDoEscritorio {
+  id: string;
+  descricao: string;
+  /** Em centavos. */
+  valor: number;
+  /** aaaa-mm-dd. */
+  vencimento: string;
+  /** O dia em que foi paga (aaaa-mm-dd); null: a pagar. */
+  paga_em: string | null;
+  /** A regra da repetição (a que parou termina na véspera do ponto em que parou); null: não se repete. */
+  repeticao: RegraDeRepeticao | null;
+}
+/** O que o cadastro da despesa grava. */
+export interface DadosDespesa { descricao: string; valor: number; vencimento: string }
+
+/**
+ * As despesas do escritório a pagar (supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439): só os administradores veem
+ * e mexem; quem não é administrador recebe a lista vazia e tem as mudanças recusadas.
+ */
+export interface DadosDespesas {
+  /** As que vencem no período (pagas ou não) e as ainda a pagar que venceram antes dele, sem as excluídas, por vencimento. */
+  financeiroDespesas(de: string, ate: string): Promise<DespesaDoEscritorio[]>;
+  /** Cadastra a despesa e, com a repetição, as datas seguintes até 12 meses adiante (e sempre a próxima). Devolve o id e os das datas que nasceram. */
+  financeiroDespesaCriar(dados: DadosDespesa, repeticao: RegraDeRepeticao | null): Promise<{ id: string; ids: string[] }>;
+  /** Muda esta data; com `seguintes`, a descrição e o valor vão também às seguintes ainda a pagar. Devolve quantas mudaram. */
+  financeiroDespesaMudar(id: string, dados: DadosDespesa, seguintes: boolean): Promise<number>;
+  /** Só registra que foi paga, no dia informado (não cria lançamento no caixa). */
+  financeiroDespesaPagar(id: string, data: string): Promise<void>;
+  financeiroDespesaDesfazerPagamento(id: string): Promise<void>;
+  /** Excluir só esconde; com `seguintes`, também as seguintes a pagar, e a repetição para. Devolve os ids excluídos, para restaurar. */
+  financeiroDespesaExcluir(id: string, seguintes: boolean): Promise<string[]>;
+  /** Devolve as excluídas; a repetição que parou nelas volta a andar. */
+  financeiroDespesaRestaurar(ids: string[]): Promise<void>;
+  financeiroDespesaHistorico(id: string): Promise<Historico[]>;
+}
+
 /** As parcelas, os recebimentos e os repasses (supabase/migrations/20261102192042_financeiro_parcelas.sql). */
 export interface DadosParcelas {
   /** Sem as excluídas, na ordem do número. */
@@ -2556,4 +2593,4 @@ export interface DadosGrupos {
   itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
-export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosDespesas, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}
