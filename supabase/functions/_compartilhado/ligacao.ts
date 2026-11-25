@@ -11,7 +11,7 @@ export const FORMATO_ESTADO = /^[0-9a-f]{64}$/;
 /**
  * As permissões da agenda (#166), as mais estreitas que bastam: criar as agendas do SEMPER e escrever nelas
  * (calendar.app.created) e compartilhá-las (calendar.acls: sem ela o Google recusa o compartilhamento). São as mesmas que
- * privado.agenda_autorizada confere no banco (supabase/migrations/20261125102621_agendas_google.sql): mudou aqui, muda lá.
+ * privado.agenda_autorizada confere no banco (supabase/migrations/20261125105000_agendas_google.sql): mudou aqui, muda lá.
  */
 export const ESCOPOS_DA_AGENDA = ['https://www.googleapis.com/auth/calendar.app.created', 'https://www.googleapis.com/auth/calendar.acls'];
 /** A conta Google deu as duas permissões da agenda. */

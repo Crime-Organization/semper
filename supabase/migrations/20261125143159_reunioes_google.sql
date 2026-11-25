@@ -55,7 +55,7 @@ end $$;
 revoke execute on function public.ligacao_google_iniciar_meet(text) from public, anon;
 grant execute on function public.ligacao_google_iniciar_meet(text) to authenticated;
 
--- Como antes (20261125102621_agendas_google.sql); e o pedido do Meet também manda a conta ligada (o Google já abre nela).
+-- Como antes (20261125105000_agendas_google.sql); e o pedido do Meet também manda a conta ligada (o Google já abre nela).
 create or replace function public.ligacao_pedido_conferir_finalidade(p_estado text) returns table (voltar_para text, desafio text, finalidade text, conta_email text)
 language sql stable security definer set search_path = '' as $$
   select p.voltar_para, privado.base64url(extensions.digest(p.verificador, 'sha256')), p.finalidade,
@@ -65,7 +65,7 @@ language sql stable security definer set search_path = '' as $$
   where p.estado = p_estado and p.pedido_em >= now() - interval '10 minutes'
 $$;
 
--- Como antes (20261125102621_agendas_google.sql); e o pedido do Meet, como o da agenda, só serve com a conta ainda ligada.
+-- Como antes (20261125105000_agendas_google.sql); e o pedido do Meet, como o da agenda, só serve com a conta ainda ligada.
 create or replace function public.ligacao_pedido_consumir(p_estado text, p_usuario uuid, p_nivel text)
 returns table (escritorio_id uuid, perfil_id uuid, provedor text, verificador text, finalidade text, conta_email text)
 language plpgsql security definer set search_path = '' as $$

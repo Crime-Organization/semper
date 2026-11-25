@@ -1383,7 +1383,7 @@ export type DecisaoDoContato = { acao: 'ligar'; pessoa_id: string } | { acao: 'o
 
 /** O que impede as agendas no Google (public.agendas_google_situacao): autorização vencida, Google fora ou dados recusados. */
 export type ProblemaDasAgendas = 'autorizacao' | 'google-fora' | 'recusado';
-/** Como estão as agendas do escritório no Google Agenda (#166; supabase/migrations/20261125102621_agendas_google.sql). */
+/** Como estão as agendas do escritório no Google Agenda (#166; supabase/migrations/20261125105000_agendas_google.sql). */
 export interface AgendasGoogle {
   /** O administrador ligou as agendas (começam desligadas). */
   ativa: boolean;
@@ -2406,7 +2406,7 @@ export interface DespesaDoEscritorio {
 export interface DadosDespesa { descricao: string; valor: number; vencimento: string }
 
 /**
- * As despesas do escritório a pagar (supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439): só os administradores veem
+ * As despesas do escritório a pagar (supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439): só os administradores veem
  * e mexem; quem não é administrador recebe a lista vazia e tem as mudanças recusadas.
  */
 export interface DadosDespesas {

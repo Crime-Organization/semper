@@ -1,6 +1,6 @@
 -- =====================================================================
 -- Agendas do escritório no Google Agenda (tarefa #166, parte 2 de 2: os eventos)
---   Depois das agendas e dos compartilhamentos (20261125102621_agendas_google.sql), o SEMPER leva a elas, só no sentido
+--   Depois das agendas e dos compartilhamentos (20261125105000_agendas_google.sql), o SEMPER leva a elas, só no sentido
 --   SEMPER → Google, os eventos (o que vai para qual agenda é decidido pelas funções puras de
 --   supabase/functions/_compartilhado/eventosGoogle.ts; o banco só entrega o item como está):
 --   - compromisso: uma cópia na agenda do responsável e de cada participante, na Geral se "Agenda geral", na da sala se tem

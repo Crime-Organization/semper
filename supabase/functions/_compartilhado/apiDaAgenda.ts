@@ -15,7 +15,7 @@ export type TipoDoErroDaAgenda = 'autorizacao' | 'temporario' | 'recusado' | 'su
 
 /**
  * O tamanho máximo do detalhe da falha guardado no banco (check length(erro_detalhe) <= 200 em agendas_google_fila, na
- * migração 20261125102621_agendas_google.sql): mudou aqui, muda a migração também.
+ * migração 20261125105000_agendas_google.sql): mudou aqui, muda a migração também.
  */
 export const TAMANHO_DO_DETALHE = 200;
 

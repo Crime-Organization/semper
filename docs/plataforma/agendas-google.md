@@ -281,14 +281,14 @@ agendas desligadas, ela fica como estava, como no Google).
 | Adaptador fino da API do Google Agenda (agendas, compartilhamentos e, para a parte 2, eventos) | `supabase/functions/_compartilhado/apiDaAgenda.ts` |
 | As permissões e a finalidade do pedido de ligação | `supabase/functions/_compartilhado/ligacao.ts` |
 | A função do servidor | `supabase/functions/google-agendas/index.ts` (e `google-conectar`, `google-concluir`, alteradas) |
-| Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125102621_agendas_google.sql` |
+| Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125105000_agendas_google.sql` |
 | Banco: as cópias gravadas, os gatilhos dos itens, o item como o servidor o lê | `supabase/migrations/20261125110831_agendas_google_eventos.sql` |
 | Banco: as correções da revisão (compartilhamentos recusados, a fila ao religar e ao excluir, as colunas do quadro, o e-mail do Google só pelos administradores) | `supabase/migrations/20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`, `20261125122303_email_do_google_so_administradores.sql` |
 | A reunião do Google Meet (#437): a que deve existir, os convidados, o plano e a execução | `supabase/functions/_compartilhado/reunioesGoogle.ts` |
 | Banco: a opção no compromisso, as permissões do Meet, a reunião guardada, os convidados | `supabase/migrations/20261125143159_reunioes_google.sql` |
 | Banco: as correções da revisão do Meet (a gravação de novo, a troca de conta, os convidados em dia e o religar) | `supabase/migrations/20261125153836_reunioes_google_gravacao_de_novo.sql`, `20261125154843_reunioes_google_troca_de_conta.sql`, `20261125155832_reunioes_google_convidados_em_dia.sql` |
 | As despesas na Administrativo (#439): o dia útil anterior, o link da despesa | `supabase/functions/_compartilhado/diaUtilAnterior.ts`, `enderecoDaDespesa.ts` e o assunto `despesa` em `eventosGoogle.ts` |
-| Banco: as despesas na fila, os gatilhos, a despesa como o servidor a lê | `supabase/migrations/20261125162557_agendas_google_despesas.sql` (as despesas em si: `20261125102117_despesas_do_escritorio.sql`) |
+| Banco: as despesas na fila, os gatilhos, a despesa como o servidor a lê | `supabase/migrations/20261125162557_agendas_google_despesas.sql` (as despesas em si: `20261125104500_despesas_do_escritorio.sql`) |
 | Testes das despesas na agenda | `app/src/regras/eventosGoogle.test.ts` (a parte da #439), `diaUtilAnterior.test.ts`, `supabase/tests/agendas_google_despesas.test.sql` |
 | Tela do Meet: a opção, o cartão e Configurações | `app/src/paginas/NovoCompromisso.tsx`, `app/src/paginas/agenda/ReuniaoNoCartao.tsx`, `app/src/paginas/AgendasNoGoogle.tsx`; os textos em `app/src/regras/reuniaoGoogle.ts` |
 | Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `reunioes_google_correcoes.test.sql`, `app/e2e/google-meet.spec.ts` |
@@ -316,8 +316,8 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
 4. **Banco.** Aplicar as onze migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code: a das despesas do
-   escritório (#439), `20261125102117_despesas_do_escritorio.sql`, que vem antes (as despesas na agenda dependem dela), e
-   `20261125102621_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
+   escritório (#439), `20261125104500_despesas_do_escritorio.sql`, que vem antes (as despesas na agenda dependem dela), e
+   `20261125105000_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
    `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`,
    `20261125122303_email_do_google_so_administradores.sql` e, do Google Meet, `20261125143159_reunioes_google.sql` (a
    coluna `reuniao_google` com valor padrão, a tabela `agenda_google_reunioes`, a finalidade 'meet' do pedido de ligação
@@ -326,6 +326,8 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    `20261125155832_reunioes_google_convidados_em_dia.sql` e, por último, a das despesas na Administrativo,
    `20261125162557_agendas_google_despesas.sql` (o assunto `despesa` na fila e nas cópias, os gatilhos das despesas e dos
    dias sem expediente, e `agendas_google_item` e `agendas_google_enfileirar_abertos` refeitas com a mesma assinatura).
+   Todas têm horário depois da `20261125104145_processos_relacionados.sql` (#440, que veio antes pelo main), então o
+   `db push` as aceita sem `--include-all`, aplicada ela antes ou junto.
    Elas só acrescentam: a versão anterior do site continua funcionando (as funções antigas da ligação ficam como eram; as
    seguintes alargam a regra do assunto da fila, criam a tabela das recusas e refazem funções das anteriores com a mesma
    assinatura).

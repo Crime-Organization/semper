@@ -2,7 +2,7 @@
 // Cada uma tem descrição, valor, vencimento e, se quiser, a repetição (as próximas datas nascem sozinhas). Marcar como paga só registra
 // o pagamento (a saída no caixa se lança à parte); a próxima da repetição continua a pagar. Clicar na descrição abre a despesa: mudar,
 // excluir e o histórico; o endereço da despesa (enderecoDaDespesa, em supabase/functions/_compartilhado) também a abre. As regras ficam
-// em regras/despesas.ts; o banco, em 20261125102117_despesas_do_escritorio.sql.
+// em regras/despesas.ts; o banco, em 20261125104500_despesas_do_escritorio.sql.
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { SD, type DespesaDoEscritorio } from '../../dados';
 import { REPETICAO, TAMANHO_FINANCEIRO } from '../../dados/limites';

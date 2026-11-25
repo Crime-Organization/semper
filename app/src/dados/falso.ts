@@ -2723,7 +2723,7 @@ const NAO_DEU = 'Não foi possível concluir agora. Tente de novo.';
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
 const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos', 'correcao_recebimento'];
 /** Como as regras check e o gatilho do banco. */
-// ---------- despesas do escritório (como supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439) ----------
+// ---------- despesas do escritório (como supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439) ----------
 /** A repetição da despesa como fica guardada: a regra, o primeiro vencimento, o ponto em que parou e o último que já virou despesa. */
 interface RepeticaoDaDespesa extends RegraDeRepeticao { id: string; inicio: string; parada_em: string | null; gerada_ate: string; criado_por: string | null }
 /** A despesa como fica guardada: a da lista, a data que a regra deu, a exclusão e quem a criou. */
@@ -5273,7 +5273,7 @@ export const SD: Dados = {
     return espera(undefined);
   },
   financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
-  // ---------- despesas do escritório (como supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439) ----------
+  // ---------- despesas do escritório (como supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439) ----------
   // Como a regra RLS: quem não é administrador recebe a lista vazia, sem erro.
   financeiroDespesas: (de, ate) => espera(souAdmin() ? bd.despesas!.filter(d => !d.excluida_em && despesaNoPeriodo(d, de, ate))
     .toSorted((a, b) => porVencimento(a, b) || a.criado_em.localeCompare(b.criado_em) || a.id.localeCompare(b.id)).map(despesaNaLista) : []),

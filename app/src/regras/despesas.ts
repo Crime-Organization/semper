@@ -11,7 +11,7 @@ import { centavosNoCampo, fmtCentavos, lerValor } from './caixa';
 import { fmtData } from './pessoa';
 import { FREQUENCIAS, type FimDaRepeticao } from './repeticao';
 
-// ---------- as mensagens (as mesmas do banco, 20261125102117_despesas_do_escritorio.sql, e do banco fictício) ----------
+// ---------- as mensagens (as mesmas do banco, 20261125104500_despesas_do_escritorio.sql, e do banco fictício) ----------
 export const SO_ADMINISTRADOR_NAS_DESPESAS = 'Só um administrador mexe nas despesas do escritório.';
 export const DESPESA_NAO_ENCONTRADA = 'Despesa não encontrada neste escritório.';
 export const DESPESA_JA_PAGA = 'Esta despesa já foi paga.';
