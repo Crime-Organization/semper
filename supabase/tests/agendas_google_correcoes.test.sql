@@ -92,5 +92,65 @@ select is((select count(*)::int from public.agenda_google_recusas where escritor
 select is((select count(*)::int from public.agenda_google_recusas where escritorio_id = 'e0000000-0000-0000-0000-000000000002'), 1,
   'e as do outro escritório ficam');
 
+-- ---------------------------------------------------------------------
+-- Nada que muda no SEMPER fica para trás no Google
+-- ---------------------------------------------------------------------
+create function pg_temp.hoje() returns date language sql as $$ select (now() at time zone 'America/Sao_Paulo')::date $$;
+-- A versão do pedido do item na fila (null: não está na fila).
+create function pg_temp.na_fila(p_assunto text, p_item uuid) returns integer language sql as $$
+  select versao from public.agendas_google_fila where assunto = p_assunto and item_id = p_item
+$$;
+-- Dados: uma coluna dos compromissos e uma das tarefas; um compromisso de amanhã (C1) com cópia na agenda do Beto, outro de
+-- amanhã (C2) e um de ontem (C3), sem cópia, todos na coluna; e duas tarefas com prazo, na coluna das tarefas.
+set local session_replication_role = replica;
+insert into public.quadro_colunas (id, escritorio_id, modulo, nome) values
+  ('c1000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'compromissos', 'Agendado (teste)'),
+  ('c1000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'tarefas', 'Fazendo (teste)');
+insert into public.compromissos (id, escritorio_id, codigo, tipo, titulo, data, hora, responsavel_id, participantes, pessoas, pessoa_nome, etapa_id, criado_por)
+select ('72000000-0000-0000-0000-00000000000' || n)::uuid, 'e0000000-0000-0000-0000-000000000001', 'C' || n, 'reuniao', 'Reunião ' || n, pg_temp.hoje() + d, '14:00',
+       pg_temp.id(2), '{}', '{}', '', 'c1000000-0000-0000-0000-000000000001', pg_temp.id(1)
+from (values (1, 1), (2, 1), (3, -1)) as x(n, d);
+insert into public.tarefas (id, escritorio_id, codigo, titulo, prazo, responsavel_id, participantes, etapa_id, criado_por)
+select ('70000000-0000-0000-0000-00000000000' || n)::uuid, 'e0000000-0000-0000-0000-000000000001', 'T' || n, 'Tarefa ' || n, pg_temp.hoje() + 5,
+       pg_temp.id(2), '{}', 'c1000000-0000-0000-0000-000000000002', pg_temp.id(1)
+from generate_series(1, 2) n;
+set local session_replication_role = origin;
+select public.agendas_google_evento_gravado('ac000000-0000-0000-0000-000000000002', 'compromisso', '72000000-0000-0000-0000-000000000001',
+  'c72000000000000000000000000000001', 'assinatura');
+
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$select public.agendas_google_ligar(false)$$, 'dado C1 com cópia no Google, quando Ana desliga as agendas');
+reset role;
+update public.compromissos set arquivado_em = now() where id = '72000000-0000-0000-0000-000000000001';
+select is(pg_temp.na_fila('compromisso', '72000000-0000-0000-0000-000000000001'), null, 'e arquiva C1 com elas desligadas, então nada entra na fila');
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$select public.agendas_google_ligar(true)$$, 'quando Ana liga as agendas de novo');
+reset role;
+select is(pg_temp.na_fila('compromisso', '72000000-0000-0000-0000-000000000001'), 1,
+  'então C1, arquivado mas com cópia no Google, entra na fila (para a cópia sair de lá)');
+select is(pg_temp.na_fila('compromisso', '72000000-0000-0000-0000-000000000003'), null, 'e o compromisso de ontem, sem cópia, não entra');
+
+delete from public.agendas_google_fila;
+update public.tarefas set titulo = 'Tarefa 1 mudada' where id = '70000000-0000-0000-0000-000000000001';
+select is(pg_temp.na_fila('tarefa', '70000000-0000-0000-0000-000000000001'), 1,
+  'dada a tarefa T1 na fila e ainda sem cópia (a função do servidor pode estar gravando a primeira agora)');
+delete from public.tarefas where id = '70000000-0000-0000-0000-000000000001';
+select is(pg_temp.na_fila('tarefa', '70000000-0000-0000-0000-000000000001'), 2,
+  'quando T1 é excluída, então a versão do pedido sobe (o concluir da versão antiga não o apaga, e a próxima passada tira a cópia)');
+
+delete from public.agendas_google_fila;
+update public.quadro_colunas set nome = 'Cancelado (teste)' where id = 'c1000000-0000-0000-0000-000000000001';
+select is((select array_agg(item_id::text order by item_id) from public.agendas_google_fila where assunto = 'compromisso'),
+  array['72000000-0000-0000-0000-000000000001', '72000000-0000-0000-0000-000000000002'],
+  'quando a coluna dos compromissos vira "Cancelado", então entram na fila o de amanhã e o que tem cópia (o de ontem, sem cópia, não)');
+update public.quadro_colunas set ordem = 5 where id = 'c1000000-0000-0000-0000-000000000001';
+select is(pg_temp.na_fila('compromisso', '72000000-0000-0000-0000-000000000002'), 1, 'e só mudar a ordem da coluna não põe nada de novo na fila');
+-- (o marco é um por quadro: a coluna que o tinha o perde antes)
+update public.quadro_colunas set marco = null
+where escritorio_id = 'e0000000-0000-0000-0000-000000000001' and modulo = 'tarefas' and marco = 'concluido';
+select is(pg_temp.na_fila('tarefa', '70000000-0000-0000-0000-000000000002'), null, 'dada a tarefa T2 fora da fila');
+update public.quadro_colunas set marco = 'concluido' where id = 'c1000000-0000-0000-0000-000000000002';
+select is(pg_temp.na_fila('tarefa', '70000000-0000-0000-0000-000000000002'), 1, 'quando a coluna das tarefas ganha o marco "concluido", então a tarefa nela entra na fila');
+
 select * from finish();
 rollback;

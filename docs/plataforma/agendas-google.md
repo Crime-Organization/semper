@@ -104,8 +104,11 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
   muda um campo que vai ao Google (título, datas, horas, local, equipe, clientes, sala, coluna, arquivo, recebimento…),
   não a cada mudança qualquer (observações, início da tarefa…). Também entram: o contrato que muda de responsável, de
   código ou de clientes (as parcelas dele), a sala renomeada (os compromissos nela), o número do processo mudado (as
-  tarefas dele) e a sigla do órgão (os dias dele). O item que muda várias vezes antes de a fila rodar é um pedido só e
-  vai com o estado final.
+  tarefas dele), a sigla do órgão (os dias dele) e a coluna do quadro renomeada (para "Cancelado", por exemplo) ou com o
+  marco mudado (para "concluído"): os compromissos, tarefas e demandas dela que ainda vão ou já foram ao Google. O item
+  que muda várias vezes antes de a fila rodar é um pedido só e vai com o estado final. O item excluído entra na fila se
+  tem cópia no Google **ou** se já tem um pedido na fila (a função pode estar gravando a primeira cópia naquela hora: a
+  versão do pedido sobe, e a próxima passada tira a cópia).
 - **A cópia em dia não vai de novo.** Cada cópia gravada fica em `agenda_google_eventos`, com uma assinatura do conteúdo;
   se nada mudou, nada vai ao Google. Por isso, o que alguém mudar à mão no Google (só a conta do escritório consegue) é
   desfeito na próxima vez que o item mudar no SEMPER. Um evento apagado à mão no Google é criado de novo nessa hora.
@@ -114,7 +117,9 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
   tarefas e demandas não concluídas nem arquivadas com prazo de hoje para a frente; dias sem expediente de hoje para a
   frente; parcelas não recebidas nem excluídas que vencem de hoje para a frente. **O passado não vai** (nem as parcelas
   vencidas e não recebidas, nem os prazos atrasados). Um item do passado que mude depois vai, como qualquer mudança.
-  Enquanto as agendas estão desligadas, nada entra na fila; ao ligar de novo, vale o mesmo recorte.
+  Enquanto as agendas estão desligadas, nada entra na fila. Ao ligar de novo, vale o mesmo recorte **e** entra cada item
+  que já tem cópia no Google, qualquer que seja a data ou o estado dele: o que foi excluído, arquivado, cancelado,
+  concluído ou recebido nesse meio-tempo sai do Google na próxima passada.
 - **Execução.** A mesma função `google-agendas`, a mesma rotina e o mesmo "Sincronizar agora": cada execução pega até 40
   pedidos (`PEDIDOS_POR_EXECUCAO`) e faz até 40 ações no Google (`ACOES_POR_EXECUCAO`); a cópia em dia não gasta ação.
   Para cada item: primeiro tira as cópias que não devem mais existir, depois grava as novas e as mudadas. A falha fica na

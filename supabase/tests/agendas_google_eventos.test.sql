@@ -192,8 +192,8 @@ select is((select public.agendas_google_item('e0000000-0000-0000-0000-0000000000
 delete from public.tarefas where id = '70000000-0000-0000-0000-000000000002';
 delete from public.agendas_google_fila where assunto = 'tarefa' and item_id = '70000000-0000-0000-0000-000000000002';
 delete from public.demandas where id = '71000000-0000-0000-0000-000000000001';
-select is(pg_temp.na_fila('demanda', '71000000-0000-0000-0000-000000000001'), 1,
-  'quando uma demanda sem cópia no Google é excluída, então o pedido que já havia fica como estava (não entra outro)');
+select is(pg_temp.na_fila('demanda', '71000000-0000-0000-0000-000000000001'), 2,
+  'quando uma demanda sem cópia no Google, mas com pedido na fila, é excluída, então a versão do pedido sobe (um pedido só, que a próxima passada leva)');
 
 select public.agendas_google_evento_apagado('ac000000-0000-0000-0000-000000000001', 'c72000000000000000000000000000001');
 select is((select count(*)::int from public.agenda_google_eventos), 0, 'quando a cópia sai do Google, então ela é esquecida');

@@ -583,7 +583,7 @@ export const ASSUNTOS: Assunto[] = [
       + 'e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, os compartilhamentos e os eventos: compromissos, prazos, dias sem expediente e parcelas). Veja docs/plataforma/agendas-google.md.',
     arquivos: ['LigacaoGoogle', 'SincronizacaoDosContatos', 'ContatosParaConferir', 'contatosGoogle', 'correspondenciaDeContatos', 'ligacaoGoogle',
       'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira',
-      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'eventosGoogle', 'agendas_google', 'agendas_google_eventos', 'agendas_google_recusas', 'agendas_google_correcoes', 'agendas-google'],
+      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'eventosGoogle', 'agendas_google', 'agendas_google_eventos', 'agendas_google_recusas', 'agendas_google_correcoes', 'agendas_google_fila_completa', 'agendas-google'],
     tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos',
       'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google', 'agenda_google_eventos', 'agenda_google_recusas'],
     dados: ['DadosLigacoes'],
