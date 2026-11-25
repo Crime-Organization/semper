@@ -58,6 +58,7 @@ test.describe('Google Meet no compromisso', () => {
     await expect(page.getByText('Google Meet autorizado. Os compromissos', { exact: false })).toBeVisible();
     await expect(page).toHaveURL(/\/configuracoes\/$/);
     await expect(agendas).toContainText('Google Meet autorizado: o SEMPER cria nesta conta a reunião');
+    await expect(agendas).toContainText('Desligar as agendas não cancela as reuniões do Google Meet já criadas');
     await expect(agendas.getByRole('button', { name: 'Autorizar o Google Meet' })).toHaveCount(0);
   });
 

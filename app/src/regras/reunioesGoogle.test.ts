@@ -100,6 +100,8 @@ describe('O plano da reunião', () => {
   const d = reuniaoDesejada(compromisso(), ESCRITORIO, CONTA)!;
   it.each([
     ['sem as permissões do Meet', d, null, false, null],
+    ['sem as permissões do Meet, a reunião que não deve mais existir', null, guardada(), false, 'cancelar'],
+    ['sem as permissões do Meet, a reunião que mudou', d, guardada({ assinatura: 'antiga' }), false, null],
     ['sem reunião e sem a opção', null, null, true, null],
     ['a reunião que não deve mais existir', null, guardada(), true, 'cancelar'],
     ['a reunião que falta', d, null, true, 'criar'],
@@ -392,6 +394,17 @@ describe('A execução da reunião, com o Google simulado', () => {
     expect(g.copias()[0].corpo).toContain(LINHA_DO_MEET(LINK));
     expect(r).toMatchObject({ falhas: 1, feitas: { gravar_evento: 1 } });
     expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'recusado', '400 invalid', expect.any(Number));
+  });
+
+  it('dada a conta que perdeu as permissões do Meet, quando o compromisso com reunião é arquivado, então a reunião é cancelada mesmo assim', async () => {
+    // Dado
+    const g = google();
+    const { passos: p, banco } = passos(compromisso({ arquivado: true }), guardada({ gravacao: 'ligada' }), g.buscar, false);
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(g.reuniao()).toEqual([`DELETE principal/${ID}?sendUpdates=all`]);
+    expect(banco.reuniao).toBeNull();
   });
 
   it('dada a conta sem as permissões do Meet, quando a fila é feita, então nada vai à agenda principal e as cópias vão sem link', async () => {

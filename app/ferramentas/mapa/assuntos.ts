@@ -585,7 +585,7 @@ export const ASSUNTOS: Assunto[] = [
     arquivos: ['LigacaoGoogle', 'SincronizacaoDosContatos', 'ContatosParaConferir', 'contatosGoogle', 'correspondenciaDeContatos', 'ligacaoGoogle',
       'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira',
       'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'eventosGoogle', 'agendas_google', 'agendas_google_eventos', 'agendas_google_recusas', 'agendas_google_correcoes', 'agendas_google_fila_completa', 'email_do_google_so_administradores', 'agendas-google',
-      'reunioesGoogle', 'reuniaoGoogle', 'reunioes_google', 'google-meet', 'reunioes_google_gravacao_de_novo', 'reunioes_google_correcoes', 'reunioes_google_troca_de_conta'],
+      'reunioesGoogle', 'reuniaoGoogle', 'reunioes_google', 'google-meet', 'reunioes_google_gravacao_de_novo', 'reunioes_google_correcoes', 'reunioes_google_troca_de_conta', 'reunioes_google_convidados_em_dia'],
     tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos',
       'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google', 'agenda_google_eventos', 'agenda_google_recusas', 'agenda_google_reunioes'],
     dados: ['DadosLigacoes'],

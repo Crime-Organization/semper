@@ -6,7 +6,7 @@
 // marcados com "Criar link do Google Meet" é criada pela conta do escritório.
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type AgendasGoogle, type RecusaDasAgendas, type SituacaoDasReunioes } from '../dados';
-import { MEET_NAS_AGENDAS } from '../regras/reuniaoGoogle';
+import { MEET_NAS_AGENDAS, REUNIOES_JA_CRIADAS } from '../regras/reuniaoGoogle';
 import {
   AGENDAS_QUE_O_SEMPER_CRIA, AO_MUDAR_AS_AGENDAS, COMPARTILHAMENTOS_FICAM, FALTA_AUTORIZAR_A_AGENDA, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS,
   situacaoDasAgendas
@@ -87,6 +87,7 @@ export function AgendasNoGoogle({ versao, aoAutorizar, aoAutorizarMeet, indo }: 
     {s.compartilhamentos > 0 && <Nota>{COMPARTILHAMENTOS_FICAM}</Nota>}
     {s.autorizada && <>
       <Nota>{MEET_NAS_AGENDAS[meet?.autorizado ? 'autorizado' : 'falta']}</Nota>
+      {meet?.autorizado && <Nota>{REUNIOES_JA_CRIADAS}</Nota>}
       {!meet?.autorizado && <div className="acoes">
         <button type="button" className={estiloBotao()} disabled={indo} onClick={aoAutorizarMeet}>{indo ? 'Abrindo o Google…' : 'Autorizar o Google Meet'}</button>
       </div>}

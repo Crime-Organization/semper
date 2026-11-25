@@ -2,7 +2,7 @@
 // O Google Meet no compromisso (#437): a opção no cadastro, o que o cartão mostra da reunião e os textos de Configurações.
 import { describe, expect, it } from 'vitest';
 import {
-  DICA_DO_MEET, dicaDoMeet, estadoDaReuniao, GRAVACAO_DA_REUNIAO, MEET_NAS_AGENDAS, mostraOpcaoDoMeet, OPCAO_DO_MEET, reuniaoNoCartao, TEXTO_DA_REUNIAO
+  DICA_DO_MEET, dicaDoMeet, estadoDaReuniao, GRAVACAO_DA_REUNIAO, MEET_NAS_AGENDAS, mostraOpcaoDoMeet, OPCAO_DO_MEET, REUNIOES_JA_CRIADAS, reuniaoNoCartao, TEXTO_DA_REUNIAO
 } from './reuniaoGoogle';
 import { camposDoCompromisso, compromissoVazio, dadosDoCompromisso, valorLegivelCompromisso, CAMPOS_COMPROMISSO } from './compromisso';
 import type { Compromisso } from '../dados/tipos';
@@ -81,5 +81,12 @@ describe('A reunião no cartão', () => {
     // Quando / Então
     expect(MEET_NAS_AGENDAS.falta).toContain('autorize o Meet');
     expect(MEET_NAS_AGENDAS.autorizado).toContain('Google Meet autorizado');
+  });
+
+  it('dado o Meet autorizado, então Configurações avisa que desligar as agendas ou a conta não cancela as reuniões já criadas, e trocar a conta cancela', () => {
+    // Quando / Então
+    expect(REUNIOES_JA_CRIADAS).toContain('Desligar as agendas não cancela as reuniões do Google Meet já criadas');
+    expect(REUNIOES_JA_CRIADAS).toContain('Ligar outra conta Google cancela as reuniões da conta antiga');
+    expect(REUNIOES_JA_CRIADAS).toContain('Desligar a conta não as cancela');
   });
 });

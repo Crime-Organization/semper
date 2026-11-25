@@ -111,15 +111,16 @@ export function mesmoConvite(r: RespostaDaReuniao, d: ReuniaoDesejada, contaDoEs
     && quandoComparavel(r.end) === quandoComparavel(e.end) && convidados(r.attendees) === convidados(e.attendees);
 }
 
-export type AcaoNaReuniao ='cancelar' | 'criar' | 'conferir' | 'mudar' | 'gravar';
+export type AcaoNaReuniao = 'cancelar' | 'criar' | 'conferir' | 'mudar' | 'gravar';
 /**
- * O próximo passo para a reunião ficar como deve, ou null: nada a fazer. Sem as permissões do Meet na conta, nada (a reunião
- * nem se cria, nem se cancela). Primeiro cancela a que não deve mais existir; cria a que falta; confere o link que ainda
+ * O próximo passo para a reunião ficar como deve, ou null: nada a fazer. Primeiro cancela a que não deve mais existir (mesmo
+ * sem as permissões do Meet na conta: o cancelamento só pede a agenda principal, e o convidado não pode ficar com o convite
+ * de uma reunião que não existe mais no SEMPER); sem elas, nada mais. Depois cria a que falta; confere o link que ainda
  * estava sendo criado; atualiza o convite que mudou; e, por último, liga a gravação e a transcrição.
  */
 export function planejarReuniao(desejada: ReuniaoDesejada | null, guardada: ReuniaoGuardada | null, meet: boolean): AcaoNaReuniao | null {
-  if (!meet) return null;
   if (!desejada) return guardada ? 'cancelar' : null;
+  if (!meet) return null;
   if (!guardada) return 'criar';
   if (!guardada.link) return 'conferir';
   if (guardada.assinatura !== desejada.assinatura) return 'mudar';

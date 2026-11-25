@@ -108,5 +108,56 @@ select throws_ok($$select public.agendas_google_reuniao_cancelada('e0000000-0000
 reset role;
 update privado.ligacoes set conta_email = 'contato@exemplo.test' where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
 
+-- ---------------------------------------------------------------------
+-- Religar as agendas: os compromissos com reunião na conta ligada voltam à fila
+-- ---------------------------------------------------------------------
+delete from public.agendas_google_fila;
+select privado.agendas_google_enfileirar_copias('e0000000-0000-0000-0000-000000000001');
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000002'), null,
+  'dado um compromisso com reunião na conta ligada (e sem cópia nas agendas), quando as agendas são religadas, então ele volta à fila');
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000077'), null, 'e o já excluído também (para a reunião dele ser cancelada)');
+select is(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null, 'e o que só tem reunião de outra conta, não');
+select is(pg_temp.na_fila('72000000-0000-0000-0000-000000000009'), null, 'nem o do outro escritório');
+
+-- ---------------------------------------------------------------------
+-- Os convidados em dia: quem sai da equipe, o e-mail do Google e o e-mail da pessoa ligada
+-- ---------------------------------------------------------------------
+insert into public.pessoas (id, escritorio_id, codigo, tipo, nome, emails, criado_por) values
+  ('10000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'P1', 'contato', 'CLIENTE', '{cliente@exemplo.test}', 'a0000000-0000-0000-0000-000000000001');
+set local session_replication_role = replica;
+update public.compromissos set pessoas = '{10000000-0000-0000-0000-000000000001}' where id = '72000000-0000-0000-0000-000000000001';
+set local session_replication_role = origin;
+
+delete from public.agendas_google_fila;
+update public.perfis set ativo = false where id = 'a0000000-0000-0000-0000-000000000002';
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null,
+  'quando Beto é desativado, então o compromisso com o Meet de amanhã em que ele participa vai para a fila (o convite sai sem ele)');
+select is(pg_temp.na_fila('72000000-0000-0000-0000-000000000002'), null, 'e o de ontem, sem ele, não');
+select is((select count(*)::int from public.agendas_google_fila where escritorio_id = 'e0000000-0000-0000-0000-000000000002'), 0, 'e nada do outro escritório');
+delete from public.agendas_google_fila;
+update public.perfis set ativo = true where id = 'a0000000-0000-0000-0000-000000000002';
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null, 'e, reativado, o compromisso volta à fila (o convite volta para ele)');
+
+delete from public.agendas_google_fila;
+insert into public.emails_do_google (perfil_id, escritorio_id, email) values
+  ('a0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'beto.pessoal@exemplo.test');
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null, 'quando o e-mail do Google do Beto é informado, então o compromisso vai para a fila');
+delete from public.agendas_google_fila;
+update auth.users set email = 'ana.nova@exemplo.test' where id = 'a0000000-0000-0000-0000-000000000001';
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null, 'e quando o e-mail de entrada da Ana muda, também');
+
+delete from public.agendas_google_fila;
+update public.pessoas set emails = '{cliente@exemplo.test,segundo@exemplo.test}' where id = '10000000-0000-0000-0000-000000000001';
+select is(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null,
+  'dada a pessoa ligada, quando ela ganha um segundo e-mail (o convite vai para o primeiro), então o compromisso não vai para a fila');
+update public.pessoas set emails = '{cliente.novo@exemplo.test}' where id = '10000000-0000-0000-0000-000000000001';
+select isnt(pg_temp.na_fila('72000000-0000-0000-0000-000000000001'), null, 'e quando o e-mail dela muda, então vai (o e-mail novo recebe o convite)');
+
+-- Com as agendas desligadas, nada vai para a fila.
+delete from public.agendas_google_fila;
+update privado.ligacoes set agendas_ativas = false where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
+update public.perfis set ativo = false where id = 'a0000000-0000-0000-0000-000000000002';
+select is((select count(*)::int from public.agendas_google_fila), 0, 'dadas as agendas desligadas, quando alguém sai da equipe, então nada vai para a fila');
+
 select * from finish();
 rollback;

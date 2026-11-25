@@ -227,11 +227,19 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
    `agenda_google_reunioes` com a conta antiga, e é preciso cancelá-la no Google Agenda da conta antiga. Desligar a conta
    (sem ligar outra) não cancela as reuniões: elas continuam no Google até alguém cancelá-las lá.
 
+8. **Os convidados em dia.** Quem sai da equipe (desativado ou excluído) deixa de ser convidado: os compromissos com o
+   Meet de hoje em diante em que a pessoa está vão para a fila, e o convite atualizado sai sem ela (o Google manda o
+   cancelamento para ela); reativar a devolve. O mesmo quando muda o e-mail do Google de alguém da equipe (ou o de
+   entrada, para quem não informou outro) e quando muda o primeiro e-mail de uma pessoa ligada no cadastro dela.
+9. **Desligar.** Desligar as agendas não cancela as reuniões já criadas: os convites continuam valendo, e o que mudar no
+   SEMPER enquanto isso só chega aos convidados quando as agendas forem ligadas de novo (religar põe na fila também os
+   compromissos que já têm reunião, mesmo sem cópia nas agendas). Configurações avisa isso, com o Meet autorizado. A
+   reunião que não deve mais existir é cancelada mesmo se a conta perdeu as permissões do Meet (o cancelamento só pede a
+   agenda principal; se nem isso der, o pedido falha como recusado e o administrador vê o erro).
+
 **Ainda não:** a opção não passa às datas seguintes de um compromisso que se repete (cada data marca a sua); quem está
 no compromisso só por um **grupo da equipe** não é convidado (como nas cópias: o responsável e os participantes postos um a
-um); mudar só o
-e-mail de uma pessoa ligada (no cadastro dela) não atualiza o convite até o compromisso mudar; o banco fictício
-(`npm run teste`) faz a reunião na hora, com um link de exemplo.
+um); o banco fictício (`npm run teste`) faz a reunião na hora, com um link de exemplo.
 
 ## Onde está cada parte
 

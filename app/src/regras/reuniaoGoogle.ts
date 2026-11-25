@@ -52,3 +52,12 @@ export const MEET_NAS_AGENDAS: Record<'falta' | 'autorizado', string> = {
     + 'A conta do escritório fica sendo a organizadora: o convite sai pelo e-mail dela, e ela grava e transcreve (o SEMPER liga a gravação automática quando o Google deixa).',
   autorizado: 'Google Meet autorizado: o SEMPER cria nesta conta a reunião dos compromissos marcados com "Criar link do Google Meet" e convida a equipe e as pessoas ligadas.'
 };
+
+/**
+ * Em Configurações, com o Meet autorizado: o que acontece com as reuniões já criadas quando o SEMPER para de cuidar delas
+ * (as agendas desligadas, a conta desligada) ou troca de conta.
+ */
+export const REUNIOES_JA_CRIADAS = 'Desligar as agendas não cancela as reuniões do Google Meet já criadas: os convites continuam valendo, e o que mudar no SEMPER enquanto isso '
+  + '(um compromisso cancelado, arquivado ou com outra hora) só chega aos convidados quando as agendas forem ligadas de novo. Ligar outra conta Google cancela as '
+  + 'reuniões da conta antiga (cada convidado recebe o aviso) e a conta nova cria outras, com link novo. Desligar a conta não as cancela: para isso, cancele-as no '
+  + 'Google Agenda da conta do escritório.';
