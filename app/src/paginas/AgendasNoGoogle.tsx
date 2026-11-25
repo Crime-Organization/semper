@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type AgendasGoogle, type RecusaDasAgendas } from '../dados';
 import {
-  AGENDAS_QUE_O_SEMPER_CRIA, AO_MUDAR_AS_AGENDAS, FALTA_AUTORIZAR_A_AGENDA, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS,
+  AGENDAS_QUE_O_SEMPER_CRIA, AO_MUDAR_AS_AGENDAS, COMPARTILHAMENTOS_FICAM, FALTA_AUTORIZAR_A_AGENDA, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS,
   situacaoDasAgendas
 } from '../regras/sincronizacaoDasAgendas';
 import { avisar, falha } from '../ui/avisos';
@@ -78,5 +78,6 @@ export function AgendasNoGoogle({ versao, aoAutorizar, indo }: Props) {
       </button>}
       {s.ativa && s.autorizada && <Botao forma="botao" ocupadoTexto="Sincronizando…" onClick={agora}>Sincronizar agora</Botao>}
     </div>}
+    {s.compartilhamentos > 0 && <Nota>{COMPARTILHAMENTOS_FICAM}</Nota>}
   </div>;
 }

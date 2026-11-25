@@ -25,6 +25,12 @@ tentativas com espera e o aviso ao administrador a partir da 3ª falha.
    **outra** conta, a conta do escritório não muda e a autorização da outra conta é revogada.
 3. **Ligar as agendas.** Depois de autorizar, aparece *Criar e manter no Google as agendas do escritório*. Começa
    desligada em cada escritório; só administradores ligam. Desligar esvazia a fila e **não apaga nada no Google**.
+   **Os compartilhamentos já feitos também ficam**: desligar as agendas, desligar a conta Google ou ligar outra conta
+   não os retira (com a conta desligada ou trocada, o SEMPER não tem mais como; com as agendas desligadas, ele não
+   mexe). Quem os recebeu continua vendo as agendas antigas e os eventos delas, inclusive quem for desativado nesse
+   meio-tempo. Para tirar, entre no Google Agenda com a conta do escritório e, em **Configurações e compartilhamento**
+   de cada agenda, retire o compartilhamento (ou apague a agenda). Configurações diz isso, logo abaixo das agendas,
+   enquanto há compartilhamentos.
 4. **As agendas.** Na conta do escritório, como agendas secundárias, no fuso de Brasília:
    - **Agenda – Nome** para cada pessoa ativa da equipe (advogado, administrativo, estagiário: todos);
    - **Geral**;

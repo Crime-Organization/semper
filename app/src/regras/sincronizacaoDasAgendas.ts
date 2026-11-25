@@ -78,6 +78,15 @@ export const RECUSAS_DAS_AGENDAS = {
 export const linhaDaRecusa = (r: Pick<RecusaDasAgendas, 'email' | 'agenda' | 'detalhe'>) =>
   `${r.email}, na agenda "${r.agenda}"${r.detalhe ? ` (${r.detalhe})` : ''}`;
 
+/**
+ * O que fica no Google quando o SEMPER deixa de cuidar das agendas: os compartilhamentos já feitos não saem sozinhos ao
+ * desligar as agendas, desligar a conta ou ligar outra (o SEMPER não tem mais como retirá-los, ou não mexe enquanto está
+ * desligado). Quem for desativado nesse meio-tempo continua vendo as agendas antigas até alguém retirar no Google.
+ */
+export const COMPARTILHAMENTOS_FICAM = 'Desligar as agendas, desligar a conta ou ligar outra conta não retira os compartilhamentos já feitos: quem os recebeu '
+  + 'continua vendo as agendas antigas (e quem for desativado enquanto isso também). Para tirar, entre no Google Agenda com a conta do escritório e retire o '
+  + 'compartilhamento (ou apague a agenda), em Configurações e compartilhamento de cada uma.';
+
 /** O que a tela confirma depois de ligar ou desligar. */
 export const AO_MUDAR_AS_AGENDAS: Record<'ligadas' | 'desligadas', string> = {
   ligadas: 'Agendas ligadas: em alguns minutos o SEMPER cria as agendas do escritório no Google e as compartilha com a equipe.',

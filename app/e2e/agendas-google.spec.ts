@@ -43,11 +43,14 @@ test.describe('Agendas no Google, em Configurações', () => {
     await agendas.getByRole('checkbox', { name: CHAVE }).check();
     await expect(page.getByText('Agendas ligadas:', { exact: false })).toBeVisible();
     await expect(agendas).toContainText('Há mudanças esperando para ir ao Google.');
+    // Sem compartilhamento feito, não há o que avisar que fica no Google.
+    await expect(agendas).not.toContainText('não retira os compartilhamentos já feitos');
     await agendas.getByRole('button', { name: 'Sincronizar agora' }).click();
     // Então
     await expect(page.getByText(/\d+ agendas criadas, \d+ compartilhamentos feitos\./)).toBeVisible();
     await expect(agendas).toContainText(/Tudo em dia: \d+ agendas criadas, \d+ compartilhamentos\./);
     await expect(agendas).toContainText('Última sincronização:');
+    await expect(agendas).toContainText('não retira os compartilhamentos já feitos');
     await expect(page.getByRole('group', { name: 'Contatos no Google' }).getByRole('checkbox')).not.toBeChecked();
   });
 
