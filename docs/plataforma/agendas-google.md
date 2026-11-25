@@ -177,7 +177,9 @@ contas), cadastradas pelos administradores no Financeiro, aba Obrigações, seç
    datas da repetição que nascem sozinhas, inclusive pela rotina diária `estender-despesas`) e quando mudam a descrição, o
    valor, o vencimento, o pagamento ou a exclusão. Um dia sem expediente para todos os órgãos lançado, mudado ou apagado
    põe na fila as despesas a pagar que vencem depois dele, até o primeiro dia útil seguinte (inclusive): são as únicas
-   cujo dia útil anterior pode ter mudado. Ligar as agendas põe na fila as despesas a pagar de hoje em diante (e, ao
+   cujo dia útil anterior pode ter mudado. Como ao ligar, o passado não vai: só entram as que vencem de hoje em diante ou
+   as que já têm cópia no Google (um feriado lançado num dia que passou não leva ao Google a despesa vencida que nunca
+   esteve lá). Ligar as agendas põe na fila as despesas a pagar de hoje em diante (e, ao
    religar, as que já têm cópia no Google, para a paga ou excluída nesse meio-tempo sair).
 6. **Repasses e indicações a pagar** (o que o escritório deve ao responsável e ao sócio que indicou) **não vão**: eles não
    têm data de vencimento no SEMPER (só o dia em que foram pagos), e o dono pediu "se tiverem data".

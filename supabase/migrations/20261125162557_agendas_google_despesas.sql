@@ -9,7 +9,8 @@
 --   - A fila e as cópias gravadas ganham o assunto 'despesa' (a regra fica mais larga).
 --   - Gatilhos: a despesa criada (também as datas da repetição que nascem sozinhas), mudada na descrição, no valor, no
 --     vencimento, paga, desfeita, excluída ou restaurada entra na fila. Um dia sem expediente lançado, mudado ou apagado
---     para todos os órgãos põe na fila as despesas a pagar cujo dia útil anterior pode ter mudado com ele.
+--     para todos os órgãos põe na fila as despesas a pagar cujo dia útil anterior pode ter mudado com ele (as que vencem de
+--     hoje em diante, ou as que já têm cópia no Google).
 --   - Ligar as agendas e nascer a Administrativo põem na fila as despesas a pagar de hoje em diante (o passado não vai).
 --   Os repasses e as indicações a pagar (financeiro_repasses) não têm data de vencimento (só o dia em que foram pagos):
 --   ficam de fora, como o dono deixou ("se tiverem data").
@@ -139,16 +140,19 @@ create trigger agendas_google_excluido after delete on public.financeiro_despesa
 
 -- As despesas a pagar cujo dia útil anterior pode depender do dia p_dia: as que vencem depois dele, até o primeiro dia útil
 -- seguinte (inclusive). Mais adiante, a procura para trás para antes de chegar a p_dia (o dia útil do meio basta). Procura
--- no máximo 366 dias adiante (DIAS_PARA_TRAS em diaUtilAnterior.ts).
+-- no máximo 366 dias adiante (DIAS_PARA_TRAS em diaUtilAnterior.ts). Como ao ligar, o passado não vai: só as que vencem de
+-- hoje em diante, ou as que já têm cópia no Google (para a cópia ficar em dia).
 create function privado.agendas_google_despesas_perto_do_dia(p_escritorio uuid, p_dia date) returns void
 language plpgsql security definer set search_path = '' as $$
-declare v_ate date := p_dia + 1; v uuid;
+declare v_ate date := p_dia + 1; v_hoje date := (now() at time zone 'America/Sao_Paulo')::date; v uuid;
 begin
   while not privado.dia_util_do_escritorio(p_escritorio, v_ate) and v_ate < p_dia + 366 loop
     v_ate := v_ate + 1;
   end loop;
   for v in select g.id from public.financeiro_despesas g
-           where g.escritorio_id = p_escritorio and g.vencimento > p_dia and g.vencimento <= v_ate and g.paga_em is null and g.excluida_em is null loop
+           where g.escritorio_id = p_escritorio and g.vencimento > p_dia and g.vencimento <= v_ate and g.paga_em is null and g.excluida_em is null
+             and (g.vencimento >= v_hoje or exists (select 1 from public.agenda_google_eventos e
+                                                    where e.escritorio_id = p_escritorio and e.assunto = 'despesa' and e.item_id = g.id)) loop
     perform privado.agendas_google_enfileirar(p_escritorio, 'despesa', v);
   end loop;
 end $$;

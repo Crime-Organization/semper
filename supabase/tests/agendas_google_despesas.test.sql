@@ -153,6 +153,19 @@ select public.agendas_google_ligar(true) from (select pg_temp.entrar(1)) x;
 select ok(pg_temp.na_fila('e9000000-0000-0000-0000-000000000003') is not null,
   'quando as agendas são ligadas de novo, então a despesa paga que tem cópia no Google vai à fila (para sair de lá)');
 
+-- Um feriado lançado no passado: a despesa vencida que nunca foi ao Google fica de fora (o passado não vai); a que já
+-- tem cópia na Administrativo vai de novo (para o Google ficar em dia).
+delete from public.agendas_google_fila;
+insert into public.dias_sem_expediente (id, escritorio_id, data, motivo, tipo) values
+  ('f0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000001', pg_temp.hoje() - 11, 'Feriado passado', 'feriado');
+select is(pg_temp.despesas_na_fila(), '{}'::uuid[],
+  'dada a despesa vencida e sem cópia no Google, quando um feriado é lançado no dia antes dela, então ela não vai à fila');
+select public.agendas_google_evento_gravado((select id from public.agendas_google where tipo = 'administrativo'), 'despesa',
+  'e9000000-0000-0000-0000-000000000002', 'ee9000000000000000000000000000002', 'x');
+delete from public.dias_sem_expediente where id = 'f0000000-0000-0000-0000-000000000004';
+select is(pg_temp.despesas_na_fila(), array['e9000000-0000-0000-0000-000000000002']::uuid[],
+  'dada a despesa vencida com cópia na Administrativo, quando o feriado antes dela é apagado, então ela vai de novo');
+
 -- ---------------------------------------------------------------------
 -- Escritório isolado e quem chama
 -- ---------------------------------------------------------------------
