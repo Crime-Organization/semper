@@ -10,7 +10,8 @@
 // seguintes ainda em aberto (arquivar as seguintes faz a repetição parar). Desde a #417, mudar o título (aqui ou no lápis), o local, a
 // equipe ou as pessoas (só no lápis) também pergunta; os outros campos mudam só nesta data. A equipe mudada nas bolinhas do topo e as
 // pessoas ligadas ou tiradas na seção Pessoas mudam só nesta data, sem perguntar. O lápis também dá repetição ao compromisso que
-// ainda não se repete e liga, muda ou desliga a demanda de cada data do que já se repete, como o cadastro.
+// ainda não se repete e liga, muda ou desliga a demanda de cada data do que já se repete, como o cadastro. Com "Criar link do
+// Google Meet" (#437), os dados mostram o link da reunião (ou que ele está sendo criado, ou que a reunião foi cancelada).
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type FrequenciaRepeticao, type PessoaResumida } from '../dados';
 import { TAMANHO_COMPROMISSO } from '../dados/limites';
@@ -50,6 +51,9 @@ import { ItensDoCompromisso } from './ItensDoCompromisso';
 import { useSalas } from './agenda/useSalas';
 import { nomeDaSala, salaDoCompromisso } from '../regras/sala';
 import NovoCompromisso from './NovoCompromisso';
+import { reuniaoNoCartao } from '../regras/reuniaoGoogle';
+import { colunaCancelada } from '../regras/mensagens';
+import { ReuniaoNoCartao } from './agenda/ReuniaoNoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { LigarPessoaNoItem, ligarPessoaNoItem, novaPessoaNoItem, tirarPessoaDoItem } from './PessoasNosItens';
@@ -96,6 +100,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
   const sala = salaDoCompromisso(salas, c), linhas = linhasDoCompromisso(c, sala ? nomeDaSala(sala) : '');
+  const reuniao = reuniaoNoCartao(c, colunaCancelada(c.etapa_id ? quadro.nomeDe(c.etapa_id) : null));
   const depoisDeMudar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   // O "x" de cada pessoa (#424): quem muda o compromisso, com ele ativo.
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome, detalhe: 'Ligada', selo: p.arquivado_em ? 'Arquivada' : undefined,
@@ -243,8 +248,11 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {c.arquivado_em && <FaixaDoArquivado modulo="compromissos" podeExcluir={podeExcluir} aoDesarquivar={podeMudar ? arquivar : undefined} />}
 
-    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhas.map(([, v]) => v))}>
-      <dl className="dados">{linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhas.map(([, v]) => v)) + (reuniao ? 1 : 0)}>
+      <dl className="dados">
+        {linhas.map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}
+        <ReuniaoNoCartao reuniao={reuniao} />
+      </dl>
     </Recolhivel>
 
     {doProcesso && <Recolhivel titulo="Resultado" icone="check" preferencia="compromissos.cartao.resultado" contador={c.resultado ? 1 : 0}>

@@ -23,7 +23,7 @@ import {
   ACOES_POR_EXECUCAO, CONTAGEM_ZERADA, planejarAgendas, type AcaoNasAgendas, type AgendaGuardada, type CompartilhamentoFeito, type CompartilhamentoRecusado, type Contagem,
   type EstadoDasAgendas, type TipoDaAcao
 } from '../../../supabase/functions/_compartilhado/agendasGoogle';
-import { agendaAutorizada, ESCOPOS_DA_AGENDA } from '../../../supabase/functions/_compartilhado/ligacao';
+import { agendaAutorizada, ESCOPOS_DA_AGENDA, ESCOPOS_DO_MEET, meetAutorizado, RESULTADO_DO_PEDIDO } from '../../../supabase/functions/_compartilhado/ligacao';
 import { emailDoGoogleParaGravar, erroDoEmailDoGoogle, RECUSA_DO_EMAIL_DO_GOOGLE, recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
 import type { AgendasGoogle, ProblemaDasAgendas } from './tipos';
 import { CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
@@ -304,7 +304,7 @@ interface Banco {
   /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
   ligacaoGoogle?: LigacaoGoogle | null;
   /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco); a finalidade: ligar a conta ou somar a agenda (#166). */
-  pedidosGoogle?: { estado: string; pedido_em: number; finalidade?: 'contatos' | 'agendas' }[];
+  pedidosGoogle?: { estado: string; pedido_em: number; finalidade?: 'contatos' | 'agendas' | 'meet' }[];
   /** O e-mail do Google informado de cada um da equipe (emails_do_google no banco); sem ele, vale o de entrada. */
   emailsDoGoogle?: Record<string, string>;
   /**
@@ -1037,6 +1037,24 @@ const FAZER_NO_FALSO: { [K in TipoDaAcao]: (e: EstadoDasAgendas, a: Extract<Acao
     ? { ...e, recusas: [...(e.recusas ?? []), { agenda_id: agenda.id, email: leitor.email }] }
     : { ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra: `user:${leitor.email}` }] })
 };
+/** As permissões que cada pedido soma à conta já ligada (ESCOPOS_DO_PEDIDO, sem o e-mail). */
+const ESCOPOS_SOMADOS: Record<'agendas' | 'meet', string[]> = { agendas: ESCOPOS_DA_AGENDA, meet: ESCOPOS_DO_MEET };
+/** Como public.reunioes_google_situacao: o Meet autorizado na conta e, com as agendas ligadas, disponível. */
+const situacaoDasReunioesNoFalso = () => bd.ligacaoGoogle
+  ? { autorizado: meetAutorizado(bd.ligacaoGoogle.escopos), disponivel: meetAutorizado(bd.ligacaoGoogle.escopos) && !!bd.agendasGoogle?.ativas }
+  : null;
+/** Um link do Meet de exemplo, sempre o mesmo para o compromisso ("abc-defg-hij", com letras tiradas do id). */
+function linkDoMeetNoFalso(id: string) {
+  const letras = id.replace(/[^0-9a-f]/gi, '').toLowerCase().slice(0, 10).split('').map(x => String.fromCharCode('a'.charCodeAt(0) + parseInt(x, 16))).join('');
+  return `https://meet.google.com/${letras.slice(0, 3)}-${letras.slice(3, 7)}-${letras.slice(7)}`;
+}
+/**
+ * A reunião do Google Meet (#437), como a função google-agendas a deixaria, já feita: com a opção marcada e o Meet disponível,
+ * o compromisso ativo e não cancelado tem o link (e a gravação ligada); arquivado, cancelado ou sem a opção, não tem.
+ */
+const reuniaoNoFalso = (c: CompromissoGuardado): Compromisso['reuniao'] =>
+  c.reuniao_google && situacaoDasReunioesNoFalso()?.disponivel && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id))
+    ? { link: linkDoMeetNoFalso(c.id), gravacao: 'ligada' } : null;
 /** Como uma execução da função google-agendas: no máximo ACOES_POR_EXECUCAO ações; devolve o que fez e se restou o que fazer. */
 function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas: Contagem; restam: boolean } {
   const feitas = { ...CONTAGEM_ZERADA };
@@ -1916,6 +1934,7 @@ const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
   const serie = serieDoFalso(c.repeticao_id);
   return { ...c, sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null, repeticao_data: c.repeticao_data ?? null,
+    reuniao_google: c.reuniao_google ?? false, reuniao: reuniaoNoFalso(c),
     repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes,
       demanda_dias_antes: serie.demanda_dias_antes ?? null }, demanda_gerada_id: c.demanda_gerada_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
@@ -2046,6 +2065,8 @@ function prepararFuncaoNaTarefa(dados: Partial<DadosFuncaoNaTarefa>, id?: string
   return d;
 }
 
+/** O valor padrão das colunas que os compromissos antigos do banco fictício não têm (como o default da coluna no banco). */
+const PADRAO_DO_COMPROMISSO: Record<string, unknown> = { reuniao_google: false };
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico. */
 function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unknown>) {
   const atual = c as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
@@ -2057,7 +2078,8 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
     participantes: ['participantes', v => (v as string[]).map(nomeNaEquipe).join(', ')], grupos: ['grupos', nomesDosGrupos], pessoas: ['pessoas', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
   Object.entries(dados).forEach(([campo, v]) => {
-    if (['etapa_ordem', 'arquivado_por', 'processo_codigo', 'processo_numero'].includes(campo) || JSON.stringify(atual[campo] ?? null) === JSON.stringify(v ?? null)) return;
+    if (['etapa_ordem', 'arquivado_por', 'processo_codigo', 'processo_numero'].includes(campo)
+      || JSON.stringify(atual[campo] ?? PADRAO_DO_COMPROMISSO[campo] ?? null) === JSON.stringify(v ?? null)) return;
     const [chave, conv] = CONVERTE[campo] ?? [campo, (x: unknown) => x];
     alt[chave] = { de: conv(atual[campo] ?? null), para: conv(v ?? null) };
   });
@@ -4519,7 +4541,7 @@ export const SD: Dados = {
   compromissoObter: id => { const c = bd.compromissos!.find(x => x.id === id && vejoNoModulo('compromissos', x.id)); return espera(c ? compromissoCompleto(c) : null); },
   async compromissoCriar(dados) {
     const pronto = prepararCompromisso({ participantes: [], pessoas: [], processo_id: null, ...dados });
-    const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
+    const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, reuniao_google: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
       arquivado_em: null, arquivado_por: null, grupos: [], ...pronto, id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as CompromissoGuardado;
     bd.compromissos!.push(c); avisarInclusao('compromissos', c.id, null); auditar('compromissos', 'inclusao', { id: c.id, codigo: c.codigo }); gravar();
     return espera({ id: c.id, codigo: c.codigo });
@@ -6168,15 +6190,16 @@ export const SD: Dados = {
     const pedido = (bd.pedidosGoogle ?? []).find(p => p.estado === estado);
     bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
     if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
-    // Somar a agenda (#166), como ligacao_pedido_consumir e google-concluir: só com a conta ainda ligada; o token novo cobre os
-    // contatos e a agenda, e a autorização nova tira o problema (como privado.ligacao_renovada_agendas).
-    if (pedido.finalidade === 'agendas') {
+    // Somar a agenda (#166) ou o Google Meet (#437), como ligacao_pedido_consumir e google-concluir: só com a conta ainda ligada;
+    // o token novo cobre tudo o que já foi dado, e a autorização nova tira o problema (como privado.ligacao_renovada_agendas).
+    const somar = pedido.finalidade && pedido.finalidade !== 'contatos' ? pedido.finalidade : null;
+    if (somar) {
       if (!bd.ligacaoGoogle) { gravar(); return espera('expirado' as const); }
-      bd.ligacaoGoogle = { ...bd.ligacaoGoogle, escopos: [...new Set([...bd.ligacaoGoogle.escopos, ...ESCOPOS_DA_AGENDA])], ligado_em: agora() };
+      bd.ligacaoGoogle = { ...bd.ligacaoGoogle, escopos: [...new Set([...bd.ligacaoGoogle.escopos, ...ESCOPOS_SOMADOS[somar]])], ligado_em: agora() };
       if (bd.agendasGoogle) Object.assign(bd.agendasGoogle, { problema: null, problema_em: null });
       enfileirarAgendas();
       auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
-      gravar(); return espera('agenda-ligada' as const);
+      gravar(); return espera(RESULTADO_DO_PEDIDO[somar]);
     }
     bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
     // Autorização nova: o problema de autorização some (como o gatilho privado.ligacao_renovada).
@@ -6305,6 +6328,22 @@ export const SD: Dados = {
     return espera((a.recusas ?? []).map(r => ({ email: r.email, agenda: a.agendas.find(x => x.id === r.agenda_id)?.nome ?? '', detalhe: r.detalhe, recusada_em: r.recusada_em }))
       .toSorted((x, y) => x.email.localeCompare(y.email) || x.agenda.localeCompare(y.agenda)));
   },
+
+  // ---------- Google Meet no compromisso (#437; sem Google: a reunião é simulada) ----------
+  // Como public.ligacao_google_iniciar_meet: só administradores, com a conta ligada.
+  async ligacaoGoogleAutorizarMeet(voltarPara) {
+    if (!souAdmin()) return erro('Apenas administradores autorizam o Google Meet na conta Google do escritório');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de autorizar o Google Meet');
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now(), finalidade: 'meet' }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  // Como public.reunioes_google_situacao: para qualquer um da equipe.
+  reunioesGoogle: () => espera(situacaoDasReunioesNoFalso()),
 
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;

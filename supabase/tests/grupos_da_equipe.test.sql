@@ -195,12 +195,13 @@ select is((select array_agg(p.oid::regprocedure::text) from pg_proc p join pg_na
 --     contrato_definir_grupos (exige ser parte por conta própria), por_no_item e processo_me_incluir (põem a pessoa por conta própria),
 --     preparar_* (conferem só quem é posto um a um), preparar_comentario (quem está só pelo grupo não é parte do contrato; quem é
 --     mencionado estando num grupo do contrato não ganha os valores pela menção), agendas_google_enfileirar_abertos (a cópia do
---     item nas agendas do Google vai ao responsável e aos participantes postos um a um, #166) e as antigas vejo_*.
+--     item nas agendas do Google vai ao responsável e aos participantes postos um a um, #166), convidados_da_reuniao (o
+--     convite da reunião do Google Meet vai, como as cópias, ao responsável e aos participantes postos um a um, #437) e as antigas vejo_*.
 -- Função nova com esse padrão faz este teste falhar até alguém decidir.
 select results_eq($$ select p.proname::text collate "default" from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                      where n.nspname in ('public', 'privado') and p.prosrc ~* '(= *any *\(.*(colaboradores|participantes)\)|participantes *@>)' order by 1 $$,
   $$ values ('agendas_google_enfileirar_abertos'), ('altero_a_anotacao'), ('altero_o_contrato'), ('anotacoes_pelos_itens'), ('conferir_mencoes'), ('contrato_definir_grupos'), ('contrato_participantes'),
-            ('contratos_em_que_estou'), ('estou_na_demanda'), ('estou_na_tarefa'), ('estou_no_compromisso'), ('estou_no_processo'), ('mencao_na_anotacao'),
+            ('contratos_em_que_estou'), ('convidados_da_reuniao'), ('estou_na_demanda'), ('estou_na_tarefa'), ('estou_no_compromisso'), ('estou_no_processo'), ('mencao_na_anotacao'),
             ('mencao_no_compromisso'), ('mencao_no_processo'), ('painel_de_processos'), ('participo_do_compromisso'), ('perfil_no_contrato'), ('por_no_item'),
             ('preparar_anotacao'), ('preparar_comentario'), ('preparar_compromisso'), ('preparar_demanda'), ('preparar_processo'), ('preparar_tarefa'),
             ('processo_me_incluir'), ('vejo_demanda'), ('vejo_processo'), ('vejo_tarefa') $$,

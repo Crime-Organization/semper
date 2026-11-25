@@ -21,7 +21,9 @@ const RESULTADOS: Record<ResultadoDaLigacao, { ok: boolean; texto: string }> = {
   erro: { ok: false, texto: 'Não foi possível ligar a conta Google. Tente de novo em alguns minutos.' },
   'agenda-ligada': { ok: true, texto: 'Agenda autorizada. Os contatos continuam como estavam; agora dá para ligar as agendas no Google, logo abaixo.' },
   'sem-permissao-agenda': { ok: false, texto: 'Faltou permitir a agenda na tela do Google. Clique de novo em "Autorizar a agenda" e deixe a agenda marcada.' },
-  'outra-conta': { ok: false, texto: 'Você entrou no Google com outra conta. Clique de novo em "Autorizar a agenda" e escolha a conta do escritório, a que está ligada aqui. Nada mudou.' }
+  'outra-conta': { ok: false, texto: 'Você entrou no Google com outra conta. Clique de novo para autorizar e escolha a conta do escritório, a que está ligada aqui. Nada mudou.' },
+  'meet-ligado': { ok: true, texto: 'Google Meet autorizado. Os compromissos marcados com "Criar link do Google Meet" ganham a reunião, criada pela conta do escritório.' },
+  'sem-permissao-meet': { ok: false, texto: 'Faltou permitir o Google Meet na tela do Google. Clique de novo em "Autorizar o Google Meet" e deixe as duas permissões marcadas.' }
 };
 
 export function LigacaoGoogle() {
@@ -63,6 +65,7 @@ export function LigacaoGoogle() {
   }
   const conectar = () => irAoGoogle(v => SD.ligacaoGoogleIniciar(v));
   const autorizarAgenda = () => irAoGoogle(v => SD.ligacaoGoogleAutorizarAgendas(v));
+  const autorizarMeet = () => irAoGoogle(v => SD.ligacaoGoogleAutorizarMeet(v));
   async function desligar() {
     try { await SD.ligacaoGoogleDesligar(); avisar('Conta Google desligada. O SEMPER deixou de usar essa conta, e a autorização foi cancelada no Google.'); await carregar(); }
     catch (e) { falha(e); }
@@ -80,7 +83,7 @@ export function LigacaoGoogle() {
           <BotaoDuplo variante="perigo" confirmar="Confirmar: desligar" aoConfirmar={desligar}>Desligar</BotaoDuplo>
         </div>
         <SincronizacaoDosContatos versao={ligacao.ligado_em} />
-        <AgendasNoGoogle versao={ligacao.ligado_em} indo={indo} aoAutorizar={() => void autorizarAgenda()} />
+        <AgendasNoGoogle versao={ligacao.ligado_em} indo={indo} aoAutorizar={() => void autorizarAgenda()} aoAutorizarMeet={() => void autorizarMeet()} />
       </div>
       : <div className="acoes">
         <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={indo} onClick={conectar}>{indo ? 'Abrindo o Google…' : 'Conectar conta Google'}</button>

@@ -8,7 +8,7 @@ import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
 import { lerResultadoDasAgendas } from '../regras/sincronizacaoDasAgendas';
-import type { AgendasGoogle, EmailDoGoogle, RecusaDasAgendas } from './tipos';
+import type { AgendasGoogle, EmailDoGoogle, RecusaDasAgendas, ReuniaoDoCompromisso, SituacaoDasReunioes } from './tipos';
 import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -441,6 +441,8 @@ const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, moda
   + 'repeticao_id, repeticao_data, repeticao:compromisso_repeticoes(id, frequencia, intervalo, inicio, ate, vezes, demanda_dias_antes), '
   // A demanda que nasceu desta data (#307, parte B; supabase/migrations/20261123000750_demandas_dos_compromissos.sql).
   + 'demanda_gerada_id, '
+  // "Criar link do Google Meet" (#437; supabase/migrations/20261125143159_reunioes_google.sql).
+  + 'reuniao_google, '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_FUNCAO_NA_TAREFA = 'id, nome, executa, ordem';
@@ -1286,7 +1288,13 @@ export const SD: Dados = {
   },
   async compromissoObter(id) {
     const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO).eq('id', id).maybeSingle());
-    return data ? compromissoComPessoas(data) : null;
+    if (!data) return null;
+    // A reunião do Google Meet (#437) vem à parte: ela é guardada sem chave para o compromisso (a do excluído fica até ser
+    // cancelada no Google), e quem vê o compromisso a vê.
+    const reuniao = data.reuniao_google
+      ? (await rodar(sb.from('agenda_google_reunioes').select('link, gravacao').eq('compromisso_id', id).maybeSingle())).data as ReuniaoDoCompromisso | null
+      : null;
+    return { ...compromissoComPessoas(data), reuniao };
   },
   async compromissoCriar(dados) {
     const { data } = await rodar(sb.from('compromissos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
@@ -2573,6 +2581,16 @@ export const SD: Dados = {
   },
   async agendasGoogleLigar(ligar) { await rpc('agendas_google_ligar', { p_ligar: ligar }); },
   async agendasGoogleRecusas() { return (await rpc('agendas_google_recusas') as RecusaDasAgendas[] | null) ?? []; },
+  // ---------- Google Meet no compromisso (#437) ----------
+  // Como ligacaoGoogleAutorizarAgendas: o banco cria o pedido das permissões do Meet e o navegador vai à função do servidor.
+  async ligacaoGoogleAutorizarMeet(voltarPara) {
+    const estado = await rpc('ligacao_google_iniciar_meet', { p_voltar_para: voltarPara }) as string;
+    return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  async reunioesGoogle() {
+    const linhas = await rpc('reunioes_google_situacao') as SituacaoDasReunioes[];
+    return linhas[0] ?? null;
+  },
   // A função do servidor confere se é administrador e arruma as agendas do escritório na hora.
   async sincronizarAgendasAgora() {
     const r = await comSessao(`${URL_BASE}/functions/v1/google-agendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

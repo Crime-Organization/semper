@@ -7,9 +7,13 @@
 // O que fazer é decidido por funções puras (agendasDesejadas, planejarAgendas); os pedidos ao Google ficam no adaptador
 // (apiDaAgenda.ts) e o banco entra pelos "passos". Sem Deno: testado no app (app/src/regras/agendasGoogle.test.ts).
 // Só no sentido SEMPER → Google: o que alguém mudar no Google (o nome da agenda, por exemplo) é desfeito na próxima vez.
+// O compromisso com "Criar link do Google Meet" (#437) leva também a reunião, antes das cópias (reunioesGoogle.ts).
 import { apiDaAgenda, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type TipoDoErroDaAgenda } from './apiDaAgenda.ts';
 import { esperaDaTentativa, FalhaDoGoogle, tokenDeAcesso, type PassosDaSincronizacao, type TipoDaFalha } from './contatosGoogle.ts';
-import { copiasDoItem, corpoParaMudar, planejarEventos, type AcaoNoEvento, type AssuntoDoEvento, type CopiaDesejada, type ItemDaFila } from './eventosGoogle.ts';
+import {
+  copiasDoItem, corpoParaMudar, planejarEventos, type AcaoNoEvento, type AssuntoDoEvento, type CompromissoNaAgenda, type CopiaDesejada, type ItemDaFila
+} from './eventosGoogle.ts';
+import { levarReuniao, type PassosDaReuniao } from './reunioesGoogle.ts';
 
 /** Os tipos de agenda do escritório (o mesmo check de agendas_google.tipo no banco). */
 export type TipoDeAgenda = 'pessoa' | 'geral' | 'sala' | 'administrativo';
@@ -142,7 +146,7 @@ export type AssuntoDaFila = 'agendas' | AssuntoDoEvento;
 /** Um pedido da fila, como o banco entrega (public.agendas_google_pendentes), já reservado para esta execução. */
 export interface PedidoDaFila { id: string; escritorio_id: string; assunto: AssuntoDaFila; item_id: string | null; versao: number; tentativas: number; conta_email: string }
 
-export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'> {
+export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'>, PassosDaReuniao {
   /** Os pedidos a fazer agora (de um escritório, ou de todos com null), já reservados. */
   pendentes(escritorio: string | null, limite: number): Promise<PedidoDaFila[]>;
   /** A equipe, as salas, as agendas já criadas na conta ligada e os compartilhamentos feitos. */
@@ -165,6 +169,8 @@ export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRe
   eventoGravado(p: PedidoDaFila, agendaId: string, eventoId: string, assinatura: string): Promise<void>;
   /** A cópia saiu do Google: esquece-a. */
   eventoApagado(agendaId: string, eventoId: string): Promise<void>;
+  /** Um id novo para cada pedido do link do Meet (#437); sem ele, crypto.randomUUID. */
+  novoPedido?: () => string;
 }
 
 /**
@@ -175,10 +181,13 @@ export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRe
 export const PEDIDOS_POR_EXECUCAO = 40;
 export const ACOES_POR_EXECUCAO = 40;
 
-/** O que cada execução conta: as ações nas agendas e, nos eventos, as cópias gravadas (novas ou mudadas) e as apagadas. */
+/**
+ * O que cada execução conta: as ações nas agendas; nos eventos, as cópias gravadas (novas ou mudadas) e as apagadas; e as
+ * reuniões do Google Meet (#437) criadas, mudadas ou canceladas.
+ */
 export type TipoDaAcaoNoEvento = 'gravar_evento' | 'apagar_evento';
-export type Contagem = Record<TipoDaAcao | TipoDaAcaoNoEvento, number>;
-export const CONTAGEM_ZERADA: Contagem = { retirar: 0, criar: 0, renomear: 0, compartilhar: 0, gravar_evento: 0, apagar_evento: 0 };
+export type Contagem = Record<TipoDaAcao | TipoDaAcaoNoEvento | 'reuniao', number>;
+export const CONTAGEM_ZERADA: Contagem = { retirar: 0, criar: 0, renomear: 0, compartilhar: 0, gravar_evento: 0, apagar_evento: 0, reuniao: 0 };
 export interface ResultadoDasAgendas { feitas: Contagem; falhas: number; restam: boolean }
 
 interface Execucao { passos: PassosDasAgendas; api: ApiDaAgenda; pedido: PedidoDaFila; feitas: Contagem; orcamento: { restante: number }; agora: number }
@@ -328,15 +337,35 @@ const FAZER_NO_EVENTO: { [K in AcaoNoEvento['acao']]: (x: Execucao, a: Extract<A
  */
 async function levarItem(x: Execucao) {
   const assunto = x.pedido.assunto as AssuntoDoEvento;
-  const { item, agendas, eventos } = await x.passos.item(x.pedido);
-  for (const acao of planejarEventos(copiasDoItem(assunto, item, agendas, x.pedido.escritorio_id), eventos)) {
+  const dados = await x.passos.item(x.pedido);
+  const antes = await (ANTES_DAS_COPIAS[assunto] ?? NADA_ANTES)(x, dados);
+  if (antes.parar) return true;
+  for (const acao of planejarEventos(copiasDoItem(assunto, antes.item, dados.agendas, x.pedido.escritorio_id), dados.eventos)) {
     if (x.orcamento.restante <= 0) return true;
     x.orcamento.restante--;
     const feito = await (FAZER_NO_EVENTO[acao.acao] as (x: Execucao, a: AcaoNoEvento) => Promise<TipoDaAcaoNoEvento | null>)(x, acao);
     if (feito) x.feitas[feito]++;
   }
-  return false;
+  return antes.restam;
 }
+
+/**
+ * O que vem antes das cópias de um assunto: o item com o que as cópias levam a mais, se restou o que fazer (o pedido volta à
+ * fila) e se é para parar já (o orçamento acabou).
+ */
+type AntesDasCopias = (x: Execucao, dados: ItemDaFila) => Promise<{ item: ItemDaFila['item']; restam: boolean; parar?: boolean }>;
+const NADA_ANTES: AntesDasCopias = async (_x, dados) => ({ item: dados.item, restam: false });
+const ANTES_DAS_COPIAS: Partial<Record<AssuntoDoEvento, AntesDasCopias>> = {
+  // A reunião do Google Meet (#437), antes das cópias: o link criado agora já vai na descrição delas. O link ainda sendo
+  // criado faz o pedido voltar (as cópias vão já, e ganham o link na próxima vez).
+  async compromisso(x, dados) {
+    const c = dados.item as CompromissoNaAgenda | null;
+    const r = await levarReuniao({ api: x.api, passos: x.passos, pedido: x.pedido, orcamento: x.orcamento, novoPedido: x.passos.novoPedido ?? (() => crypto.randomUUID()) },
+      c, dados.reuniao ?? null, !!dados.meet);
+    x.feitas.reuniao += r.feitas;
+    return { item: c && { ...c, reuniao_link: r.link }, restam: r.restam, parar: r.restam && x.orcamento.restante <= 0 };
+  }
+};
 
 /** O que fazer com cada assunto da fila. Devolve se restou o que fazer. */
 const PROCESSAR: Record<AssuntoDaFila, (x: Execucao) => Promise<boolean>> = {

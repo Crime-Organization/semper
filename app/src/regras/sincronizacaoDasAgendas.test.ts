@@ -6,7 +6,7 @@ import {
   lerResultadoDasAgendas, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS, resumoDasAgendas, situacaoDasAgendas
 } from './sincronizacaoDasAgendas';
 
-const NADA = { criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0 };
+const NADA = { criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0, reuniao: 0 };
 const resultado = (campos: Partial<ResultadoDasAgendas> = {}): ResultadoDasAgendas => ({ resultado: 'ok', feitas: NADA, falhas: 0, restam: false, ...campos });
 
 describe('Textos das agendas no Google', () => {

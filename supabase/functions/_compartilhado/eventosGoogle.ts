@@ -12,6 +12,7 @@
 // Quem sai do item (um participante tirado, um responsável trocado) perde a cópia na agenda dele.
 import type { AgendaGuardada } from './agendasGoogle.ts';
 import type { EventoDoGoogle } from './apiDaAgenda.ts';
+import type { ReuniaoGuardada } from './reunioesGoogle.ts';
 import { SITE } from './emailsDePrazo.ts';
 
 /** Os itens que viram eventos (o mesmo check de agendas_google_fila.assunto no banco, além de 'agendas'). */
@@ -36,6 +37,12 @@ export interface CompromissoNaAgenda {
   id: string; titulo: string; data: string; hora: string | null; hora_fim: string | null; local: string | null;
   geral: boolean; responsavel_id: string; participantes: string[]; sala_id: string | null; sala_nome: string | null;
   clientes: string | null; processo_numero: string | null; arquivado: boolean; cancelado: boolean;
+  /**
+   * O Google Meet (#437, reunioesGoogle.ts): reuniao, se marcaram "Criar link do Google Meet"; convidados, os e-mails da equipe
+   * do compromisso (o e-mail do Google de cada um) e das pessoas ligadas que têm e-mail; reuniao_link, o link já criado, que
+   * vai também na descrição de cada cópia. Ausentes: sem reunião (o banco antes da #437 não os manda).
+   */
+  reuniao?: boolean; convidados?: string[]; reuniao_link?: string | null;
 }
 /** Tarefa ou demanda: os participantes da demanda são os colaboradores. */
 export interface PrazoNaAgenda {
@@ -55,8 +62,13 @@ export interface ItensNaAgenda { compromisso: CompromissoNaAgenda; tarefa: Prazo
 export type AgendaDoEvento = Pick<AgendaGuardada, 'id' | 'tipo' | 'perfil_id' | 'sala_id' | 'google_id' | 'criada_em'>;
 /** Uma cópia já gravada no Google: em que agenda, com que id e com que conteúdo (a assinatura). */
 export interface EventoGuardado { agenda_id: string; agenda_google_id: string; evento_id: string; assinatura: string }
-/** Tudo o que o banco entrega para um pedido da fila: o item (null se foi excluído), as agendas da conta e as cópias gravadas. */
-export interface ItemDaFila<A extends AssuntoDoEvento = AssuntoDoEvento> { item: ItensNaAgenda[A] | null; agendas: AgendaDoEvento[]; eventos: EventoGuardado[] }
+/**
+ * Tudo o que o banco entrega para um pedido da fila: o item (null se foi excluído), as agendas da conta e as cópias gravadas;
+ * no compromisso, também a reunião do Google Meet já criada na conta ligada (#437) e se a conta deu as permissões do Meet.
+ */
+export interface ItemDaFila<A extends AssuntoDoEvento = AssuntoDoEvento> {
+  item: ItensNaAgenda[A] | null; agendas: AgendaDoEvento[]; eventos: EventoGuardado[]; reuniao?: ReuniaoGuardada | null; meet?: boolean;
+}
 
 /** Uma cópia que deve existir: a agenda, o evento como deve estar e a assinatura dele (para saber se mudou). */
 export interface CopiaDesejada { agenda: AgendaDoEvento; evento: EventoDoGoogle & { id: string }; assinatura: string }
@@ -106,6 +118,11 @@ const comHora = (data: string, hora: string, minutos: number): Quando => ({
 /** Quanto o compromisso dura: até a hora de fim, ou DURACAO_SEM_FIM sem ela. */
 const duracaoDoCompromisso = (c: Pick<CompromissoNaAgenda, 'hora' | 'hora_fim'>) =>
   c.hora && c.hora_fim && minutosDa(c.hora_fim) > minutosDa(c.hora) ? minutosDa(c.hora_fim) - minutosDa(c.hora) : DURACAO_SEM_FIM;
+/** Quando o compromisso acontece, no formato do Google: com hora (até a hora de fim, ou DURACAO_SEM_FIM) ou o dia inteiro. */
+export const quandoDoCompromissoNaAgenda = (c: Pick<CompromissoNaAgenda, 'data' | 'hora' | 'hora_fim'>): Quando =>
+  c.hora ? comHora(c.data, c.hora, duracaoDoCompromisso(c)) : diaInteiro(c.data);
+/** A linha do link do Google Meet (#437) na descrição das cópias do compromisso. */
+export const LINHA_DO_MEET = (link: string) => `Google Meet: ${link}`;
 
 // ---------------------------------------------------------------------
 // O texto do evento
@@ -147,9 +164,10 @@ const EVENTO_DO_ITEM: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => Omit<Ev
     const local = limpo(c.local) || limpo(c.sala_nome);
     return {
       summary: limpo(c.titulo),
-      ...(c.hora ? comHora(c.data, c.hora, duracaoDoCompromisso(c)) : diaInteiro(c.data)),
+      ...quandoDoCompromissoNaAgenda(c),
       ...(local ? { location: local } : {}),
-      description: descricao([limpo(c.sala_nome) && `Sala: ${limpo(c.sala_nome)}`, limpo(c.local) && `Local ou link: ${limpo(c.local)}`, ...clientesEProcesso(c)], LINK_DO_ITEM.compromisso(c))
+      description: descricao([limpo(c.sala_nome) && `Sala: ${limpo(c.sala_nome)}`, limpo(c.local) && `Local ou link: ${limpo(c.local)}`,
+        limpo(c.reuniao_link) && LINHA_DO_MEET(limpo(c.reuniao_link)), ...clientesEProcesso(c)], LINK_DO_ITEM.compromisso(c))
     };
   },
   tarefa: t => prazoNaAgenda(t, 'Prazo da tarefa', LINK_DO_ITEM.tarefa(t)),

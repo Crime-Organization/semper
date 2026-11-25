@@ -288,6 +288,7 @@ function passos(item: ItemDaFila['item'], eventos: EventoGuardado[], buscar: typ
         { agenda_id, agenda_google_id: banco.agendas.find(a => a.id === agenda_id)!.google_id, evento_id, assinatura }];
     }),
     eventoApagado: vi.fn(async (agenda_id: string, evento_id: string) => { banco.eventos = banco.eventos.filter(e => !(e.agenda_id === agenda_id && e.evento_id === evento_id)); }),
+    reuniaoGravada: vi.fn(async () => {}), reuniaoCancelada: vi.fn(async () => {}),
     tokenDeRenovacao: vi.fn(async () => 'renovacao'), buscar, clienteId: 'cliente', clienteSegredo: 'segredo'
   } satisfies PassosDasAgendas;
   return { passos: p, banco };

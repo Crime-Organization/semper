@@ -206,6 +206,8 @@ function passos(inicial: EstadoDasAgendas, fila: PedidoDaFila[], buscar: typeof 
     item: vi.fn<PassosDasAgendas['item']>(async () => ({ item: null, agendas: [], eventos: [] })),
     eventoGravado: vi.fn<PassosDasAgendas['eventoGravado']>(async () => {}),
     eventoApagado: vi.fn<PassosDasAgendas['eventoApagado']>(async () => {}),
+    reuniaoGravada: vi.fn<PassosDasAgendas['reuniaoGravada']>(async () => {}),
+    reuniaoCancelada: vi.fn<PassosDasAgendas['reuniaoCancelada']>(async () => {}),
     tokenDeRenovacao: vi.fn<PassosDasAgendas['tokenDeRenovacao']>(async e => `renovacao-${e}`),
     buscar, clienteId: 'cliente', clienteSegredo: 'segredo'
   };
@@ -220,7 +222,7 @@ describe('A execução, com o Google simulado', () => {
     // Quando
     const r = await sincronizarAgendas(p, null);
     // Então
-    expect(r).toEqual({ feitas: { criar: 4, renomear: 0, compartilhar: 5, retirar: 0, gravar_evento: 0, apagar_evento: 0 }, falhas: 0, restam: false });
+    expect(r).toEqual({ feitas: { criar: 4, renomear: 0, compartilhar: 5, retirar: 0, gravar_evento: 0, apagar_evento: 0, reuniao: 0 }, falhas: 0, restam: false });
     expect(banco.agendas.map(a => a.nome).toSorted()).toEqual(['Administrativo', 'Agenda – ANA', 'Agenda – BETO', 'Geral']);
     expect(planejarAgendas(banco)).toEqual([]);
     const criacao = g.daAgenda().find(x => x.metodo === 'POST' && x.url.endsWith('/calendars'))!;

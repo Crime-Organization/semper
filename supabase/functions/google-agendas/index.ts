@@ -2,7 +2,8 @@
 // agendas ligadas, cria as agendas que faltam (de cada pessoa ativa da equipe, a Geral, uma por sala ativa e a
 // Administrativo), compartilha só para ver com o e-mail do Google de cada um e retira o compartilhamento de quem saiu; e
 // leva às agendas os eventos de cada item que mudou (compromissos, prazos de tarefas e demandas, dias sem expediente e
-// parcelas a receber), um pedido por item.
+// parcelas a receber), um pedido por item; no compromisso com "Criar link do Google Meet" (#437), também a reunião, criada
+// pela conta do escritório, com os convites (_compartilhado/reunioesGoogle.ts).
 // As regras ficam em _compartilhado/agendasGoogle.ts e _compartilhado/eventosGoogle.ts; os pedidos ao Google, em
 // _compartilhado/apiDaAgenda.ts.
 // Quem chama:
@@ -37,6 +38,12 @@ const passos = (): PassosDasAgendas => ({
     p_agenda: agenda, p_assunto: p.assunto, p_item: p.item_id, p_evento: evento, p_assinatura: assinatura
   }),
   eventoApagado: (agenda, evento) => rpc<void>('agendas_google_evento_apagado', { p_agenda: agenda, p_evento: evento }),
+  // A reunião do Google Meet do compromisso (#437).
+  reuniaoGravada: (p, r) => rpc<void>('agendas_google_reuniao_gravada', {
+    p_escritorio: p.escritorio_id, p_compromisso: p.item_id, p_conta: p.conta_email, p_evento: r.evento_id, p_link: r.link, p_espaco: r.espaco,
+    p_gravacao: r.gravacao, p_gravacao_detalhe: r.gravacao_detalhe, p_assinatura: r.assinatura
+  }),
+  reuniaoCancelada: p => rpc<void>('agendas_google_reuniao_cancelada', { p_escritorio: p.escritorio_id, p_compromisso: p.item_id }),
   tokenDeRenovacao: escritorio => rpc<string | null>('ligacao_token', { p_escritorio: escritorio, p_perfil: null, p_provedor: 'google' }),
   buscar: fetch,
   clienteId: segredo('GOOGLE_CLIENT_ID'),

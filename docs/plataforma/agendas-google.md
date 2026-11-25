@@ -3,6 +3,7 @@
 Como o SEMPER cria e mantém as agendas do escritório no Google Agenda (tarefa #166), o que configurar na produção e como
 testar com a conta de verdade. A **parte 1** são as agendas e os compartilhamentos; a **parte 2**, os eventos
 (compromissos, prazos de tarefas e demandas, dias sem expediente e parcelas a receber; veja [Os eventos](#os-eventos)).
+A **parte 3** é o Google Meet no compromisso (tarefa #437; veja [O Google Meet no compromisso](#o-google-meet-no-compromisso)).
 As despesas a pagar (#439) entram depois, na Administrativo.
 
 A estrutura é a mesma dos contatos (veja [contatos-google.md](contatos-google.md)): a ligação em `privado.ligacoes`, com o
@@ -151,6 +152,69 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
 - **No banco fictício** (`npm run teste`) só as agendas e os compartilhamentos são simulados; os eventos não (o
   "Sincronizar agora" de lá conta zero eventos).
 
+## O Google Meet no compromisso
+
+Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Google, pela mesma fila dos eventos.
+
+1. **A opção.** No cadastro do compromisso (etapa "Onde e de qual processo") e no lápis do cartão, a caixa **Criar link do
+   Google Meet**. Não é automática: só quem marca ganha a reunião. A opção aparece quando o Meet está **disponível** no
+   escritório (autorizado e com as agendas no Google ligadas); com ela já marcada, aparece sempre, para poder desmarcar.
+2. **Autorizar o Meet.** Aos poucos, como a agenda: em Configurações, cartão **Conta Google**, em **Agendas no Google**, o
+   administrador clica em **Autorizar o Google Meet** (aparece depois de a agenda ser autorizada). O Google abre na conta do
+   escritório e pede só:
+   - `https://www.googleapis.com/auth/calendar.events.owned`: criar a reunião na **agenda principal** da conta do
+     escritório (a `calendar.app.created` da agenda só chega às agendas que o SEMPER criou, e a reunião precisa estar na
+     principal para a conta ser a organizadora e o convite sair pelo e-mail dela);
+   - `https://www.googleapis.com/auth/meetings.space.settings` (Meet REST API, "não sensível"): ligar a gravação e a
+     transcrição automáticas da reunião.
+
+   Os contatos e a agenda continuam (o token novo cobre tudo, com `include_granted_scopes`). Ao autorizar, os
+   compromissos de hoje em diante com a opção marcada voltam à fila e ganham a reunião.
+3. **A reunião.** A função `google-agendas`, ao levar o compromisso às agendas, primeiro cuida da reunião
+   (`_compartilhado/reunioesGoogle.ts`), depois das cópias:
+   - **criar**: `events.insert` na agenda `primary` da conta do escritório, com `conferenceDataVersion=1`,
+     `sendUpdates=all` e `conferenceData.createRequest` (`hangoutsMeet`, um `requestId` novo a cada pedido). O id do evento
+     é do SEMPER (`r` e o uuid do compromisso): uma nova tentativa nunca cria outra reunião (o 409 do id repetido faz o SEMPER
+     ler a que já existe; se ela foi cancelada antes, volta com um link novo);
+   - **os convidados** (`attendees`): a equipe do compromisso (o responsável e os participantes ativos, pelo e-mail do Google
+     de cada um; a conta reservada não) e as pessoas ligadas que têm e-mail (o primeiro e-mail de cada uma). A própria conta
+     do escritório não vai como convidada (é a organizadora). Cada um recebe o convite pelo e-mail do escritório e entra com
+     a conta que quiser;
+   - **a descrição do convite** não traz nada da ficha (nem os nomes dos clientes, nem o processo, nem o link do SEMPER, que
+     só a equipe abre): só "Reunião marcada pelo escritório…". O título, o horário e o local são os do compromisso;
+   - **o link**: `conferenceData.entryPoints[video].uri` (ou `hangoutLink`). Se o Google responde que ainda está criando
+     (`pending`), a reunião fica guardada sem link e o pedido volta à fila (as cópias vão já, e ganham o link na próxima
+     vez); se o Google não conseguir (`failure`), o pedido falha como recusado e o SEMPER pede o link de novo na próxima vez;
+   - **mudou** a data, a hora, o título, o local ou os convidados: `events.patch` **sem** `conferenceData` e com
+     `sendUpdates=all`: o link fica o mesmo e cada convidado recebe o convite atualizado;
+   - **arquivado, cancelado (coluna "Cancelado"), excluído ou com a opção desmarcada**: `events.delete` com
+     `sendUpdates=all` (cada convidado recebe o cancelamento), e a reunião é esquecida. Marcar de novo cria outra, com outro
+     link;
+   - **o link nas agendas**: a descrição de cada cópia do compromisso ganha a linha "Google Meet: <link>".
+4. **Gravação e transcrição automáticas.** A documentação do Google diz que dá (Meet REST API v2, GA em 29/04/2025:
+   `Space.config.artifactConfig.recordingConfig.autoRecordingGeneration` e
+   `transcriptionConfig.autoTranscriptionGeneration` = `ON`), para reuniões criadas pela Agenda, desde que quem pede seja o
+   **organizador** (a conta do escritório, com `meetings.space.settings`). O SEMPER tira o código do link, acha o espaço
+   (`GET https://meet.googleapis.com/v2/spaces/{código}`) e o muda (`PATCH .../v2/spaces/{id}?updateMask=…`). A gravação
+   começa sozinha quando entra alguém que pode gravar, e os arquivos ficam no Google Drive da conta do escritório.
+   **Depende da edição do Workspace** (Business Plus, Enterprise e outras; veja a ajuda do administrador do Google) e de o
+   administrador do Workspace não ter desligado a gravação. Se o Google recusar, a reunião fica sem ela, o cartão diz
+   "quem grava é a conta do escritório, na própria reunião", e nada falha. A máscara exata do `updateMask` não aparece em
+   exemplo na documentação (é a dos nomes dos campos): **confira no teste com a conta de verdade** (passo 12 abaixo).
+   Alternativa sem a API: no console do administrador do Workspace, em Meet, deixar "gravar por padrão" e "transcrever por
+   padrão" ligados (vale para todas as reuniões novas).
+5. **No cartão.** Em "Dados do compromisso", a linha **Google Meet**: o link (abre o Meet numa aba nova) e a gravação; ou "O
+   link está sendo criado…"; ou, arquivado ou cancelado, que a reunião é cancelada. Quem vê o compromisso vê o link
+   (`agenda_google_reunioes`, com a regra de leitura dos compromissos).
+6. **Escritórios separados.** A reunião é guardada com o escritório e a conta que a criou; cada escritório só usa a própria
+   conta ligada, e a reunião de outra conta (de antes de trocar a conta) não é usada.
+
+**Ainda não:** a opção não passa às datas seguintes de um compromisso que se repete (cada data marca a sua); quem está
+no compromisso só por um **grupo da equipe** não é convidado (como nas cópias: o responsável e os participantes postos um a
+um); mudar só o
+e-mail de uma pessoa ligada (no cadastro dela) não atualiza o convite até o compromisso mudar; o banco fictício
+(`npm run teste`) faz a reunião na hora, com um link de exemplo.
+
 ## Onde está cada parte
 
 | O quê | Onde |
@@ -163,6 +227,10 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
 | Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125102621_agendas_google.sql` |
 | Banco: as cópias gravadas, os gatilhos dos itens, o item como o servidor o lê | `supabase/migrations/20261125110831_agendas_google_eventos.sql` |
 | Banco: as correções da revisão (compartilhamentos recusados, a fila ao religar e ao excluir, as colunas do quadro, o e-mail do Google só pelos administradores) | `supabase/migrations/20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`, `20261125122303_email_do_google_so_administradores.sql` |
+| A reunião do Google Meet (#437): a que deve existir, os convidados, o plano e a execução | `supabase/functions/_compartilhado/reunioesGoogle.ts` |
+| Banco: a opção no compromisso, as permissões do Meet, a reunião guardada, os convidados | `supabase/migrations/20261125143159_reunioes_google.sql` |
+| Tela do Meet: a opção, o cartão e Configurações | `app/src/paginas/NovoCompromisso.tsx`, `app/src/paginas/agenda/ReuniaoNoCartao.tsx`, `app/src/paginas/AgendasNoGoogle.tsx`; os textos em `app/src/regras/reuniaoGoogle.ts` |
+| Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `app/e2e/google-meet.spec.ts` |
 | Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `agendas_google_correcoes.test.sql`, `app/e2e/agendas-google.spec.ts` |
 | Tela | `app/src/paginas/AgendasNoGoogle.tsx` (Configurações) e `EmailDoGoogle.tsx` (Equipe e Minha conta) |
 
@@ -170,11 +238,14 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
 
 Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta ordem**, antes de publicar o site:
 
-1. **Google Cloud: ativar a API.** No projeto do Google Cloud do SEMPER (o mesmo do `GOOGLE_CLIENT_ID`), em
-   https://console.cloud.google.com/apis/library, procure **Google Calendar API** e clique em **Ativar**.
+1. **Google Cloud: ativar as APIs.** No projeto do Google Cloud do SEMPER (o mesmo do `GOOGLE_CLIENT_ID`), em
+   https://console.cloud.google.com/apis/library, procure **Google Calendar API** e clique em **Ativar**; para o Google Meet
+   (#437), procure também **Google Meet REST API** e clique em **Ativar**.
 2. **Google Cloud: as permissões na tela de consentimento.** Em https://console.cloud.google.com/auth/scopes (Google Auth
    Platform > Data Access), clique em **Add or Remove Scopes**, acrescente
-   `https://www.googleapis.com/auth/calendar.app.created` e `https://www.googleapis.com/auth/calendar.acls` e salve. Se o
+   `https://www.googleapis.com/auth/calendar.app.created` e `https://www.googleapis.com/auth/calendar.acls` e, para o
+   Google Meet (#437), `https://www.googleapis.com/auth/calendar.events.owned` e
+   `https://www.googleapis.com/auth/meetings.space.settings`, e salve. Se o
    app for **Internal** (só contas do Workspace do escritório), não há revisão do Google; se for **External**, pode ser
    preciso verificar o app antes de outros escritórios usarem.
 3. **Workspace: compartilhar com contas de fora.** Quem tem Gmail pessoal só vê os detalhes dos eventos se o
@@ -183,10 +254,12 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
-4. **Banco.** Aplicar as cinco migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
+4. **Banco.** Aplicar as seis migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
    `20261125102621_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
-   `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql` e
-   `20261125122303_email_do_google_so_administradores.sql`. Elas só acrescentam: a versão anterior do site continua
+   `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`,
+   `20261125122303_email_do_google_so_administradores.sql` e, do Google Meet, `20261125143159_reunioes_google.sql` (a
+   coluna `reuniao_google` com valor padrão, a tabela `agenda_google_reunioes`, a finalidade 'meet' do pedido de ligação
+   e funções refeitas com a mesma assinatura). Elas só acrescentam: a versão anterior do site continua
    funcionando (as funções antigas da ligação ficam como eram; as seguintes alargam a regra do assunto da fila, criam a
    tabela das recusas e refazem funções das anteriores com a mesma assinatura).
 5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas
@@ -201,7 +274,8 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    ```
 
    O `deploy` leva junto os arquivos de `supabase/functions/_compartilhado/` que elas usam (`agendasGoogle.ts`,
-   `eventosGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts`...). O `emailsDePrazo.ts`
+   `eventosGoogle.ts`, `reunioesGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts`...). O
+   Google Meet (#437) não tem função nova: as mesmas três levam o pedido das permissões do Meet e a reunião. O `emailsDePrazo.ts`
    só passou a exportar o endereço do site (o valor é o mesmo): `prazos-enviar-emails` não precisa ser publicada de novo. Se publicar pelo painel, mande o `index.ts` de cada uma e
    os arquivos de `_compartilhado` que ele importa, e deixe **Verify JWT desligado**. Publique as funções **depois** da
    migração: as novas chamam funções do banco que só existem com ela.
@@ -249,3 +323,20 @@ receber e-mails de compartilhamento do Google.
    Conclua a tarefa e mova o compromisso para "Cancelado"; sincronize: os eventos saem. Apague o feriado de teste.
 10. Se algo der errado, desmarque *Criar e manter no Google…*: a fila para na hora e nada mais muda no Google (os eventos
    já gravados ficam lá; dá para apagá-los à mão com a conta do escritório).
+11. **O Google Meet.** Em **Agendas no Google**, clique em **Autorizar o Google Meet**, entre com a conta do escritório e
+   deixe as duas permissões marcadas; de volta, o aviso diz "Google Meet autorizado". Crie um compromisso de teste para
+   amanhã, com você de responsável, um participante de teste e uma pessoa de teste com um e-mail seu (nada de cliente de
+   verdade), e marque **Criar link do Google Meet**. Clique em **Sincronizar agora** e confira: a reunião na agenda
+   **principal** da conta do escritório (organizadora: a conta do escritório); o convite chegou, **pelo e-mail do
+   escritório**, ao seu e-mail do Google, ao do participante e ao da pessoa de teste; o link aparece no cartão do
+   compromisso e na descrição das cópias (a sua agenda e a do participante). Anote de que endereço saiu o convite (a
+   documentação do Google não diz com todas as letras).
+12. **A gravação.** No cartão, a linha do Google Meet diz se a gravação automática foi ligada. Entre na reunião com a conta do
+   escritório e confira que a gravação e a transcrição começam sozinhas (e, depois, que os arquivos estão no Drive dela). Se
+   o cartão disser que o Google não deixou, confira a edição do Workspace e, no console do administrador
+   (https://admin.google.com), em **Apps > Google Workspace > Google Meet > Configurações de vídeo do Meet**, se a
+   gravação e a transcrição estão permitidas; o `gravacao_detalhe` da reunião (em `agenda_google_reunioes`) diz o que o
+   Google respondeu.
+13. Mude a hora do compromisso e sincronize: o link no cartão é o mesmo e cada convidado recebe o convite atualizado. Mova o
+   compromisso para "Cancelado" (ou arquive) e sincronize: cada convidado recebe o cancelamento e a reunião sai da agenda
+   principal da conta do escritório.

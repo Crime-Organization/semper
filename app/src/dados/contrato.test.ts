@@ -7078,7 +7078,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const s = await SD.agendasGoogle();
         expect(s).toMatchObject({ pendentes: 0, agendas: r.feitas.criar, compartilhamentos: r.feitas.compartilhar });
         expect(s?.sincronizado_em).toBeTruthy();
-        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0 });
+        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0, reuniao: 0 });
       });
 
       it('dadas as agendas criadas, quando alguém da equipe é desativado e reativado, então o escritório volta à fila e o compartilhamento sai e volta', async () => {
@@ -7116,6 +7116,72 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, pendentes: 0, agendas: feitas.criar });
         expect((await SD.sincronizarAgendasAgora()).resultado).toBe('desligada');
+      });
+    });
+
+    describe('Google Meet no compromisso (#437)', () => {
+      // Como nas agendas: a volta do Google é concluída direto, e a reunião é criada pela conta simulada.
+      const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+      const VOLTA = 'http://localhost:8091/configuracoes/';
+      const concluir = async (iniciar: (v: string) => Promise<string>) => SD.ligacaoGoogleConcluir(estadoDe(await iniciar(VOLTA)), 'codigo');
+      async function meetDisponivel() {
+        expect(await concluir(v => SD.ligacaoGoogleIniciar(v))).toBe('ligado');
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarAgendas(v))).toBe('agenda-ligada');
+        await SD.agendasGoogleLigar(true);
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarMeet(v))).toBe('meet-ligado');
+      }
+      const reuniao = (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) =>
+        SD.compromissoCriar({ tipo: 'reuniao', titulo: marca(), data: '2031-03-10', hora: '14:30', responsavel_id: 'u-ana', ...extra });
+
+      it('quando não há conta ligada, então não há Meet, e autorizá-lo é recusado', async () => {
+        // Quando / Então
+        expect(await SD.reunioesGoogle()).toBeNull();
+        await expect(SD.ligacaoGoogleAutorizarMeet(VOLTA)).rejects.toThrow('Ligue a conta Google do escritório antes de autorizar o Google Meet');
+      });
+
+      it('dada a agenda autorizada e as agendas ligadas, quando o administrador autoriza o Meet, então ele fica autorizado e disponível, sem tirar a agenda', async () => {
+        // Dado
+        expect(await concluir(v => SD.ligacaoGoogleIniciar(v))).toBe('ligado');
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarAgendas(v))).toBe('agenda-ligada');
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: false, disponivel: false });
+        // Quando
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarMeet(v))).toBe('meet-ligado');
+        // Então
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: true, disponivel: false });
+        await SD.agendasGoogleLigar(true);
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: true, disponivel: true });
+        const ligacao = await SD.ligacaoGoogle();
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.events.owned');
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.acls');
+      });
+
+      it('dado o Meet disponível, quando um compromisso é cadastrado com a opção, então ele ganha a reunião com o link; sem a opção, não', async () => {
+        // Dado
+        await meetDisponivel();
+        // Quando
+        const com = await reuniao({ reuniao_google: true }), sem = await reuniao();
+        // Então
+        const lido = await SD.compromissoObter(com.id);
+        expect(lido?.reuniao_google).toBe(true);
+        expect(lido?.reuniao?.link).toMatch(/^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}$/);
+        expect(await SD.compromissoObter(sem.id)).toMatchObject({ reuniao_google: false, reuniao: null });
+      });
+
+      it('dado o compromisso com a reunião, quando muda de hora, então o link continua o mesmo; arquivado ou com a opção desmarcada, a reunião sai', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true });
+        const link = (await SD.compromissoObter(id))?.reuniao?.link;
+        // Quando
+        await SD.compromissoAtualizar(id, { hora: '16:00' });
+        // Então
+        expect((await SD.compromissoObter(id))?.reuniao?.link).toBe(link);
+        await SD.compromissosArquivar([id]);
+        expect((await SD.compromissoObter(id))?.reuniao).toBeNull();
+        await SD.compromissosArquivar([id], false);
+        await SD.compromissoAtualizar(id, { reuniao_google: false });
+        expect(await SD.compromissoObter(id)).toMatchObject({ reuniao_google: false, reuniao: null });
+        expect((await SD.compromissoHistorico(id))[0].alteracoes).toHaveProperty('reuniao_google');
       });
     });
 

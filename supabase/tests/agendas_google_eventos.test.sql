@@ -149,7 +149,9 @@ select is((select public.agendas_google_item('e0000000-0000-0000-0000-0000000000
   jsonb_build_object('id', '72000000-0000-0000-0000-000000000001', 'titulo', 'Reunião de novo', 'data', to_char(pg_temp.hoje() + 1, 'YYYY-MM-DD'),
     'hora', '15:00', 'hora_fim', '16:00', 'local', 'Rua A, 10', 'geral', false, 'responsavel_id', 'a0000000-0000-0000-0000-000000000001',
     'participantes', jsonb_build_array('a0000000-0000-0000-0000-000000000002'), 'sala_id', '5a000000-0000-0000-0000-000000000001', 'sala_nome', 'Sala Azul',
-    'clientes', 'CLIENTE', 'processo_numero', null, 'arquivado', false, 'cancelado', false),
+    'clientes', 'CLIENTE', 'processo_numero', null, 'arquivado', false, 'cancelado', false,
+    -- O Google Meet (#437, 20261125143159_reunioes_google.sql): sem a opção, sem convidados e sem link.
+    'reuniao', false, 'convidados', '[]'::jsonb, 'reuniao_link', null),
   'dado o compromisso, quando o servidor o lê, então vem como está, com os nomes dos clientes, a sala e se está cancelado');
 select is((select jsonb_array_length(public.agendas_google_item('e0000000-0000-0000-0000-000000000001', 'compromisso', '72000000-0000-0000-0000-000000000001') -> 'agendas')), 2,
   'e vêm só as agendas da conta ligada agora (não a de outra conta, de antes)');

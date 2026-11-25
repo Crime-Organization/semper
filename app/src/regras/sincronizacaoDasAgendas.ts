@@ -45,7 +45,8 @@ const FEITO: Record<keyof ResultadoDasAgendas['feitas'], (n: number) => string> 
   compartilhar: n => plural(n, 'compartilhamento feito', 'compartilhamentos feitos'),
   retirar: n => plural(n, 'compartilhamento retirado', 'compartilhamentos retirados'),
   gravar_evento: n => plural(n, 'evento levado à agenda', 'eventos levados às agendas'),
-  apagar_evento: n => plural(n, 'evento tirado da agenda', 'eventos tirados das agendas')
+  apagar_evento: n => plural(n, 'evento tirado da agenda', 'eventos tirados das agendas'),
+  reuniao: n => plural(n, 'reunião do Google Meet criada, mudada ou cancelada', 'reuniões do Google Meet criadas, mudadas ou canceladas')
 };
 
 /** O resumo do que foi feito, só com o que aconteceu ("2 agendas criadas, 5 compartilhamentos feitos"). */
@@ -102,7 +103,7 @@ export function lerResultadoDasAgendas(corpo: unknown): ResultadoDasAgendas {
   return {
     resultado,
     feitas: { criar: contar(f.criar), renomear: contar(f.renomear), compartilhar: contar(f.compartilhar), retirar: contar(f.retirar),
-      gravar_evento: contar(f.gravar_evento), apagar_evento: contar(f.apagar_evento) },
+      gravar_evento: contar(f.gravar_evento), apagar_evento: contar(f.apagar_evento), reuniao: contar(f.reuniao) },
     falhas: contar(c.falhas), restam: c.restam === true
   };
 }

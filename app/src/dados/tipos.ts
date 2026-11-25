@@ -1308,7 +1308,8 @@ export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_
  * Como terminou a tentativa de ligar a conta Google, ou de somar a ela a permissão da agenda (#166): 'agenda-ligada',
  * 'sem-permissao-agenda' (faltou marcar a agenda no Google) e 'outra-conta' (entrou-se no Google com outra conta).
  */
-export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro' | 'agenda-ligada' | 'sem-permissao-agenda' | 'outra-conta';
+export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro' | 'agenda-ligada' | 'sem-permissao-agenda' | 'outra-conta'
+  | 'meet-ligado' | 'sem-permissao-meet';
 
 /**
  * O que impede a sincronização dos contatos (public.sincronizacao_google e public.primeira_sincronizacao_google): autorização
@@ -1395,12 +1396,17 @@ export interface AgendasGoogle {
 export interface ResultadoDasAgendas {
   resultado: 'ok' | 'desligada' | 'erro';
   /** As ações nas agendas e, nos eventos (#166, parte 2), as cópias gravadas (novas ou mudadas) e as tiradas. */
-  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number; gravar_evento: number; apagar_evento: number };
+  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number; gravar_evento: number; apagar_evento: number; reuniao: number };
   falhas: number;
   /** Faltou tempo: o resto vai sozinho na próxima vez. */
   restam: boolean;
 }
 
+/**
+ * O Google Meet no escritório (#437; public.reunioes_google_situacao): a conta Google do escritório deu as permissões do Meet
+ * (autorizado) e, além disso, as agendas no Google estão ligadas (disponivel: a reunião vai pela fila delas).
+ */
+export interface SituacaoDasReunioes { autorizado: boolean; disponivel: boolean }
 /** Um compartilhamento que o Google recusou (public.agendas_google_recusas): o e-mail, a agenda, o que o Google respondeu e quando. */
 export interface RecusaDasAgendas { email: string; agenda: string; detalhe: string | null; recusada_em: string }
 
@@ -1440,6 +1446,10 @@ export interface DadosLigacoes {
    * resto continua indo, e o "Sincronizar agora" tenta cada um de novo. Só administradores; os outros recebem a lista vazia.
    */
   agendasGoogleRecusas(): Promise<RecusaDasAgendas[]>;
+  /** Começa o pedido das permissões do Google Meet (#437) na conta já ligada: devolve o endereço para onde o navegador vai. Só administradores. */
+  ligacaoGoogleAutorizarMeet(voltarPara: string): Promise<string>;
+  /** O Google Meet no escritório, para qualquer um da equipe (o cadastro do compromisso mostra a opção), ou null sem conta ligada. */
+  reunioesGoogle(): Promise<SituacaoDasReunioes | null>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */
@@ -1749,7 +1759,16 @@ export interface Compromisso {
   repeticao?: RepeticaoCompromisso | null;
   /** A demanda que nasceu desta data (#307, parte B); ausente ou null: nenhuma (ou foi excluída). */
   demanda_gerada_id?: string | null;
+  /** Marcaram "Criar link do Google Meet" (#437): a conta Google do escritório cria a reunião e convida a equipe e as pessoas ligadas. Ausente: não. */
+  reuniao_google?: boolean;
+  /** A reunião já criada no Google (o link e a gravação), ou null: ainda não (ou sem a opção). */
+  reuniao?: ReuniaoDoCompromisso | null;
 }
+/**
+ * A reunião do Google Meet do compromisso (#437; public.agenda_google_reunioes): o link (null enquanto o Google o cria) e a
+ * gravação e a transcrição automáticas: ligadas, recusadas pelo Google (quem grava é a conta do escritório) ou ainda não vistas.
+ */
+export interface ReuniaoDoCompromisso { link: string | null; gravacao: 'ligada' | 'recusada' | null }
 /** Como o compromisso se repete (#307): por semana, mês ou ano. */
 export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
 /**
@@ -1768,7 +1787,7 @@ export interface RepeticaoCompromisso extends RegraDeRepeticao {
 export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
-  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por' | 'reuniao_google'>>;
 /**
  * Os campos que o lápis muda "nesta e nas seguintes" do compromisso que se repete (#417): o título, o local, a equipe e as pessoas.
  * Ausente: não muda. A lista fica em CAMPOS_DAS_SEGUINTES (regras/repeticao.ts), a mesma que o banco aceita.

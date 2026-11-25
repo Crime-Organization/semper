@@ -1,9 +1,12 @@
 // Agendas no Google (#166), em Configurações, dentro da Conta Google: o administrador autoriza a agenda na conta já ligada
 // (autorização aos poucos: os contatos continuam), liga as agendas (começam desligadas), vê a situação, o problema que as
 // impede (com o que fazer), os compartilhamentos que o Google recusou e pode pedir "Sincronizar agora". Quem cria e compartilha as agendas é o servidor (a rotina do
-// banco e a função google-agendas); as regras ficam em supabase/functions/_compartilhado/agendasGoogle.ts.
+// banco e a função google-agendas); as regras ficam em supabase/functions/_compartilhado/agendasGoogle.ts. Com a agenda
+// autorizada, o administrador também autoriza o Google Meet (#437), aos poucos como a agenda: a reunião dos compromissos
+// marcados com "Criar link do Google Meet" é criada pela conta do escritório.
 import { useCallback, useEffect, useState } from 'react';
-import { SD, type AgendasGoogle, type RecusaDasAgendas } from '../dados';
+import { SD, type AgendasGoogle, type RecusaDasAgendas, type SituacaoDasReunioes } from '../dados';
+import { MEET_NAS_AGENDAS } from '../regras/reuniaoGoogle';
 import {
   AGENDAS_QUE_O_SEMPER_CRIA, AO_MUDAR_AS_AGENDAS, COMPARTILHAMENTOS_FICAM, FALTA_AUTORIZAR_A_AGENDA, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS,
   situacaoDasAgendas
@@ -18,16 +21,19 @@ interface Props {
   versao: string;
   /** Vai ao Google pedir a permissão da agenda (a mesma ida da ligação da conta). */
   aoAutorizar: () => void;
+  /** Vai ao Google pedir as permissões do Google Meet (#437), do mesmo jeito. */
+  aoAutorizarMeet: () => void;
   /** A ida ao Google já começou. */
   indo: boolean;
 }
 
-export function AgendasNoGoogle({ versao, aoAutorizar, indo }: Props) {
+export function AgendasNoGoogle({ versao, aoAutorizar, aoAutorizarMeet, indo }: Props) {
   const [s, setS] = useState<AgendasGoogle | null | undefined>(undefined);
   const [recusas, setRecusas] = useState<RecusaDasAgendas[]>([]);
+  const [meet, setMeet] = useState<SituacaoDasReunioes | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const carregar = useCallback(() => Promise.all([SD.agendasGoogle(), SD.agendasGoogleRecusas()])
-    .then(([situacao, lista]) => { setS(situacao); setRecusas(lista); }).catch(e => { falha(e); setS(null); }), []);
+  const carregar = useCallback(() => Promise.all([SD.agendasGoogle(), SD.agendasGoogleRecusas(), SD.reunioesGoogle()])
+    .then(([situacao, lista, reunioes]) => { setS(situacao); setRecusas(lista); setMeet(reunioes); }).catch(e => { falha(e); setS(null); }), []);
   useEffect(() => { void carregar(); }, [carregar, versao]);
 
   async function mudar(ligar: boolean) {
@@ -79,5 +85,11 @@ export function AgendasNoGoogle({ versao, aoAutorizar, indo }: Props) {
       {s.ativa && s.autorizada && <Botao forma="botao" ocupadoTexto="Sincronizando…" onClick={agora}>Sincronizar agora</Botao>}
     </div>}
     {s.compartilhamentos > 0 && <Nota>{COMPARTILHAMENTOS_FICAM}</Nota>}
+    {s.autorizada && <>
+      <Nota>{MEET_NAS_AGENDAS[meet?.autorizado ? 'autorizado' : 'falta']}</Nota>
+      {!meet?.autorizado && <div className="acoes">
+        <button type="button" className={estiloBotao()} disabled={indo} onClick={aoAutorizarMeet}>{indo ? 'Abrindo o Google…' : 'Autorizar o Google Meet'}</button>
+      </div>}
+    </>}
   </div>;
 }

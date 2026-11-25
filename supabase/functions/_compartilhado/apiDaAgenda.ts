@@ -1,7 +1,9 @@
 // O adaptador fino da API do Google Agenda (Calendar API v3), usado pela função do servidor google-agendas (#166). Só faz
 // os pedidos HTTP e traduz os erros do Google; o que criar, compartilhar ou retirar é decidido em agendasGoogle.ts (puro).
 // Sem Deno: o fetch entra de fora, e os testes passam um simulado (app/src/regras/agendasGoogle.test.ts).
-// Referência: https://developers.google.com/workspace/calendar/api/v3/reference (calendars, acl, events).
+// Referência: https://developers.google.com/workspace/calendar/api/v3/reference (calendars, acl, events). Para o Google Meet
+// (#437, reunioesGoogle.ts): a reunião na agenda principal da conta e a Meet REST API v2
+// (https://developers.google.com/workspace/meet/api/reference/rest/v2/spaces).
 
 /**
  * Como o erro do Google é tratado: autorização vencida ou sem a permissão da agenda, Google fora (ou ocupado, ou com a cota
@@ -82,6 +84,34 @@ export type ConferenciaDaAgenda = 'existe' | 'sumiu' | 'incerto';
 /** O papel do compartilhamento: só ver (decisão do dono: tudo se muda no SEMPER). */
 export const PAPEL_DO_COMPARTILHAMENTO = 'reader';
 
+/** A agenda principal da conta do escritório, onde fica a reunião do Meet (#437): a conta é a organizadora. */
+const REUNIOES = `${AGENDA}/calendars/primary/events`;
+/** A Meet REST API (v2), para ligar a gravação e a transcrição automáticas. */
+const MEET = 'https://meet.googleapis.com/v2';
+/**
+ * Os campos que o patch do espaço muda: a gravação e a transcrição automáticas (Space.config.artifactConfig). A documentação
+ * do Google mostra os campos, mas não um exemplo de máscara para eles: o caminho é o dos nomes dos campos (testar com a conta
+ * de verdade, veja docs/plataforma/agendas-google.md).
+ */
+export const MASCARA_DA_GRAVACAO = 'config.artifactConfig.recordingConfig.autoRecordingGeneration,config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration';
+export const CONFIG_DA_GRAVACAO = {
+  config: { artifactConfig: { recordingConfig: { autoRecordingGeneration: 'ON' }, transcriptionConfig: { autoTranscriptionGeneration: 'ON' } } }
+};
+
+/** A reunião, no formato do Google: o evento, com os convidados e, ao criar, o pedido do link do Meet. */
+export interface EventoDaReuniao extends EventoDoGoogle {
+  attendees: { email: string }[];
+  conferenceData?: { createRequest: { requestId: string; conferenceSolutionKey: { type: 'hangoutsMeet' } } };
+}
+/** O que o Google devolve da reunião: o estado do pedido do link ('pending', 'success' ou 'failure') e os pontos de entrada. */
+export interface RespostaDaReuniao {
+  id?: string; status?: string; hangoutLink?: string;
+  conferenceData?: {
+    createRequest?: { status?: { statusCode?: string } };
+    entryPoints?: { entryPointType?: string; uri?: string }[];
+  };
+}
+
 /** Os pedidos à API do Google Agenda, com o token de acesso da conta do escritório. */
 export function apiDaAgenda(buscar: typeof fetch, acesso: string) {
   const cabecalhos = { Authorization: `Bearer ${acesso}`, 'Content-Type': 'application/json' };
@@ -127,7 +157,45 @@ export function apiDaAgenda(buscar: typeof fetch, acesso: string) {
       try { await pedir<unknown>(buscar, `${daAgenda(agenda)}/events/${encodeURIComponent(eventoId)}`, com('DELETE')); } catch (e) {
         if (!(e instanceof FalhaDaAgenda && e.tipo === 'sumiu')) throw e;
       }
-    }
+    },
+    // ---- A reunião do Google Meet (#437: reunioesGoogle.ts) ----
+    // Na agenda principal da conta do escritório (a organizadora, que manda os convites pelo e-mail dela), com a permissão
+    // calendar.events.owned. sendUpdates=all: cada convidado recebe o convite, a mudança e o cancelamento por e-mail.
+    /**
+     * Cria a reunião com o id escolhido pelo SEMPER e pede o link do Meet (conferenceDataVersion=1: sem ele, o Google ignora o
+     * pedido do link). Devolve o evento como o Google o gravou (o link pode ainda estar sendo criado).
+     */
+    criarReuniao: (evento: EventoDaReuniao) =>
+      pedir<RespostaDaReuniao>(buscar, `${REUNIOES}?conferenceDataVersion=1&sendUpdates=all`, com('POST', evento)),
+    /** A reunião como está no Google (para ler o link que ainda estava sendo criado). */
+    lerReuniao: (eventoId: string) => pedir<RespostaDaReuniao>(buscar, `${REUNIOES}/${encodeURIComponent(eventoId)}`, com('GET')),
+    /**
+     * Muda a reunião (data, hora, título, convidados): o Google manda o convite atualizado a cada convidado. Sem o pedido do
+     * link no corpo, o link do Meet fica o mesmo (só os campos enviados mudam); com ele, conferenceDataVersion=1.
+     */
+    mudarReuniao: (eventoId: string, corpo: Record<string, unknown>) =>
+      pedir<RespostaDaReuniao>(buscar, `${REUNIOES}/${encodeURIComponent(eventoId)}?conferenceDataVersion=1&sendUpdates=all`, com('PATCH', corpo)),
+    /** Cancela a reunião (cada convidado recebe o cancelamento); a que já não existe no Google conta como cancelada. */
+    async cancelarReuniao(eventoId: string) {
+      try { await pedir<unknown>(buscar, `${REUNIOES}/${encodeURIComponent(eventoId)}?sendUpdates=all`, com('DELETE')); } catch (e) {
+        if (!(e instanceof FalhaDaAgenda && e.tipo === 'sumiu')) throw e;
+      }
+    },
+    /**
+     * O espaço do Meet pelo código da reunião (spaces.get da Meet REST API aceita o código no lugar do id): devolve o nome
+     * do espaço ("spaces/…"), o único que o patch aceita.
+     */
+    async espacoDoMeet(codigo: string) {
+      const { name } = await pedir<{ name?: string }>(buscar, `${MEET}/spaces/${encodeURIComponent(codigo)}`, com('GET'));
+      if (!name) throw new FalhaDaAgenda('temporario', 'o Google não devolveu o espaço do Meet');
+      return name;
+    },
+    /**
+     * Liga a gravação e a transcrição automáticas do espaço (spaces.patch, só o organizador consegue): elas começam sozinhas
+     * quando entra na reunião alguém que pode gravar.
+     */
+    ligarGravacao: (espaco: string) => pedir<unknown>(buscar, `${MEET}/${espaco}?updateMask=${encodeURIComponent(MASCARA_DA_GRAVACAO)}`,
+      com('PATCH', CONFIG_DA_GRAVACAO)).then(() => undefined)
   };
 }
 export type ApiDaAgenda = ReturnType<typeof apiDaAgenda>;
