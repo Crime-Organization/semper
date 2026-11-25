@@ -2,7 +2,7 @@
 // livre. A ocupação é a mesma do cadastro de compromisso (#308, regras/sala.ts): o compromisso sem hora de fim ocupa 1 hora, e o sem
 // hora, o dia inteiro. Quem não participa do compromisso vê só que a sala está ocupada, sem o título (o banco já manda sem ele).
 // Tudo puro, sem tela nem banco: a tela (paginas/agenda/VisaoDasSalas.tsx) só desenha o que sai daqui.
-import type { OcupacaoDaSala, OcupacaoNaSala, Sala } from '../dados/tipos';
+import type { FiltroCompromissos, OcupacaoDaSala, OcupacaoNaSala, Sala } from '../dados/tipos';
 import { comoHora, minutosNaSala, MINUTOS_NO_DIA, MINUTOS_SEM_FIM } from './sala';
 
 const MINUTOS_NA_HORA = 60;
@@ -14,6 +14,28 @@ export const GRADE_DAS_SALAS = { inicio: 7 * MINUTOS_NA_HORA, fim: 21 * MINUTOS_
 
 /** O que a visão diz do horário de quem não participa: só que a sala está ocupada. */
 export const OCUPADO = 'Ocupado';
+
+/** O que a visão diz quando não sobra sala para mostrar: o escritório não tem sala ativa. */
+export const SEM_SALAS_ATIVAS = 'Nenhuma sala ativa para mostrar. As salas são cadastradas nas Configurações.';
+/** Ou: há salas ativas, mas o filtro da agenda está numa sala desativada (o filtro também oferece as desativadas). */
+export const SALA_DO_FILTRO_DESATIVADA = 'A sala escolhida no filtro está desativada. Tire o filtro de sala para ver as salas ativas.';
+/** Por que a visão das salas ficou vazia: com o filtro de sala ligado, foi ele (a visão só aparece com alguma sala ativa). */
+export const semSalasNaVisao = (filtroDeSala?: string) => filtroDeSala ? SALA_DO_FILTRO_DESATIVADA : SEM_SALAS_ATIVAS;
+
+/** Os filtros da agenda que a visão das salas não usa (ela mostra toda a ocupação do dia), como a nota os chama. */
+const FILTROS_FORA_DAS_SALAS: Record<'termo' | 'pessoa' | 'tipo' | 'etiqueta', string> = {
+  termo: 'a busca', pessoa: 'o filtro de pessoa', tipo: 'o filtro de tipo', etiqueta: 'o filtro de etiqueta'
+};
+/**
+ * A nota da visão das salas quando a agenda tem busca, pessoa, tipo ou etiqueta escolhidos: eles não valem ali (a sala está ocupada
+ * por quem quer que seja). Sem nenhum deles, null.
+ */
+export function notaDosFiltrosNasSalas(filtro: Pick<FiltroCompromissos, keyof typeof FILTROS_FORA_DAS_SALAS>): string | null {
+  const nomes = (Object.keys(FILTROS_FORA_DAS_SALAS) as (keyof typeof FILTROS_FORA_DAS_SALAS)[]).filter(k => filtro[k]?.trim()).map(k => FILTROS_FORA_DAS_SALAS[k]);
+  if (!nomes.length) return null;
+  const lista = nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`;
+  return `A visão das salas mostra toda a ocupação do dia: ${lista} não ${nomes.length === 1 ? 'vale' : 'valem'} aqui.`;
+}
 
 /** Os horários da grade, do primeiro ao último, em minutos do dia: estica para caber os compromissos do dia. */
 export function horariosDaGrade(ocupacoes: readonly Pick<OcupacaoDaSala, 'hora' | 'hora_fim'>[]): number[] {

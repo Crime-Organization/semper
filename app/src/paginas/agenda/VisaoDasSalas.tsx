@@ -3,20 +3,23 @@
 // (o título, só de quem a pessoa vê; dos outros, só "Ocupado") e não deixa marcar ali. As contas ficam em regras/salasDoDia.ts.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
-import { SD, type OcupacaoNaSala, type Sala } from '../../dados';
+import { SD, type FiltroCompromissos, type OcupacaoNaSala, type Sala } from '../../dados';
 import { TIPOS_COMPROMISSO } from '../../regras/compromisso';
 import { capacidadeDaSala, comoHora } from '../../regras/sala';
 import {
-  enderecoParaMarcar, faixasDaSala, horarioDaFaixa, horariosDaGrade, marcarNoHorario, ocupacoesPorSala, rotuloDaOcupacao, type FaixaDaSala
+  enderecoParaMarcar, faixasDaSala, horarioDaFaixa, horariosDaGrade, marcarNoHorario, notaDosFiltrosNasSalas, ocupacoesPorSala, rotuloDaOcupacao,
+  salasDaVisao, semSalasNaVisao, type FaixaDaSala
 } from '../../regras/salasDoDia';
 import { cliquesQueAbrem } from '../../ui/abrirItem';
-import { Aviso, Carregando, Vazio } from '../../ui/base';
+import { Aviso, Carregando, Nota, Vazio } from '../../ui/base';
 
 interface Props {
   /** O dia, aaaa-mm-dd. */
   data: string;
-  /** As salas da visão (as ativas, por nome; regras/salasDoDia.ts, salasDaVisao). */
+  /** As salas do escritório: a visão mostra as ativas, por nome (regras/salasDoDia.ts, salasDaVisao). */
   salas: Sala[];
+  /** Os filtros da agenda: o de sala deixa só ela; os outros não valem aqui, e a nota diz isso. */
+  filtro: FiltroCompromissos;
   /** Muda quando algo mudou na página: relê a ocupação. */
   recarga: number | string;
   endereco: (id: string) => string;
@@ -25,7 +28,7 @@ interface Props {
 
 type Lida = { data: string; ocupacoes: OcupacaoNaSala[] } | { data: string; erro: string };
 
-export function VisaoDasSalas({ data, salas, recarga, endereco, aoAbrir }: Props) {
+export function VisaoDasSalas({ data, salas: doEscritorio, filtro, recarga, endereco, aoAbrir }: Props) {
   const [lida, setLida] = useState<Lida | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -35,9 +38,11 @@ export function VisaoDasSalas({ data, salas, recarga, endereco, aoAbrir }: Props
     return () => { vivo = false; };
   }, [data, recarga]);
 
-  if (!salas.length) return <Vazio>Nenhuma sala ativa para mostrar. As salas são cadastradas nas Configurações.</Vazio>;
+  const salas = salasDaVisao(doEscritorio, filtro.sala);
+  if (!salas.length) return <Vazio>{semSalasNaVisao(filtro.sala)}</Vazio>;
   if (!lida || lida.data !== data) return <Carregando />;
   if ('erro' in lida) return <Aviso tipo="erro">{lida.erro}</Aviso>;
+  const nota = notaDosFiltrosNasSalas(filtro);
 
   const porSala = ocupacoesPorSala(lida.ocupacoes);
   const horarios = horariosDaGrade(salas.flatMap(s => porSala[s.id] ?? []));
@@ -48,7 +53,7 @@ export function VisaoDasSalas({ data, salas, recarga, endereco, aoAbrir }: Props
   // A largura mínima da grade cresce com as salas (em CSS): com muitas, ela rola na horizontal, com os horários parados à esquerda.
   const estilo = { '--salas-na-grade': salas.length } as CSSProperties;
 
-  return <div className="tabela agenda-salas" style={estilo}>
+  return <>{nota && <Nota>{nota}</Nota>}<div className="tabela agenda-salas" style={estilo}>
     <table aria-label="Salas por horário">
       <thead><tr>
         <th scope="col" className="agenda-salas-hora">Horário</th>
@@ -73,7 +78,7 @@ export function VisaoDasSalas({ data, salas, recarga, endereco, aoAbrir }: Props
         })}
       </tr>)}</tbody>
     </table>
-  </div>;
+  </div></>;
 }
 
 /** O pedaço ocupado: cada compromisso com o horário; o que a pessoa vê abre o cartão dele; o dos outros diz só "Ocupado". */

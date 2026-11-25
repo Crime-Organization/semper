@@ -6,7 +6,6 @@ import { Link } from 'react-router';
 import { SD, type FiltroCompromissos, type Sala } from '../../dados';
 import { diaDaSemana, fmtDiaMes } from '../../regras/calendario';
 import { DIAS_NA_SEMANA, diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, ORIGENS_DE_PRAZO, VISOES, VISOES_DE_DATA, visoesDaAgenda, type ItemDaAgenda, type VisaoDeData } from '../../regras/agenda';
-import { salasDaVisao } from '../../regras/salasDoDia';
 import { fmtHora, horarioDoCompromisso, TIPOS_COMPROMISSO } from '../../regras/compromisso';
 import { cliquesQueAbrem } from '../../ui/abrirItem';
 import { Aviso, Carregando, estiloBotao, Selo, Vazio } from '../../ui/base';
@@ -74,7 +73,7 @@ export function VisaoPorData({ filtro, recarga, situacao, endereco, aoAbrir, sal
         {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => trocarVisao(v)}>{VISOES_DE_DATA[v].nome}</button>)}
       </div>
     </div>
-    {visao === 'salas' ? <VisaoDasSalas data={data} salas={salasDaVisao(salas, sala)} recarga={recarga} endereco={endereco} aoAbrir={aoAbrir} />
+    {visao === 'salas' ? <VisaoDasSalas data={data} salas={salas} filtro={filtro} recarga={recarga} endereco={endereco} aoAbrir={aoAbrir} />
       : itens === null ? <Carregando />
       : typeof itens === 'string' ? <Aviso tipo="erro">{itens}</Aviso>
       : <VisaoDosItens visao={visao} itens={itens} data={data} dias={diasDoPeriodo({ de, ate })} abrirDia={abrirDia} situacao={situacao} endereco={endereco} aoAbrir={aoAbrir} />}

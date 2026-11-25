@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { OcupacaoDaSala, OcupacaoNaSala, Sala } from '../dados/tipos';
 import {
   enderecoParaMarcar, faixasDaSala, fimAntesDoProximo, GRADE_DAS_SALAS, horarioDaFaixa, horarioDoEndereco, horariosDaGrade, marcarNoHorario, OCUPADO,
-  ocupacoesPorSala, rotuloDaOcupacao, salaDoEndereco, salasDaVisao
+  notaDosFiltrosNasSalas, ocupacoesPorSala, rotuloDaOcupacao, SALA_DO_FILTRO_DESATIVADA, salaDoEndereco, salasDaVisao, SEM_SALAS_ATIVAS, semSalasNaVisao
 } from './salasDoDia';
 
 const ocupacao = (id: string, hora: string | null, hora_fim: string | null = null, campos: Partial<OcupacaoDaSala> = {}): OcupacaoDaSala =>
@@ -117,6 +117,24 @@ describe('As salas e as ocupações da visão', () => {
     expect(rotuloDaOcupacao({ titulo: 'Reunião com o perito' })).toBe('Reunião com o perito');
     expect(horarioDaFaixa({ hora: '14:00:00', hora_fim: null })).toBe('14:00 às 15:00');
     expect(horarioDaFaixa({ hora: null, hora_fim: null })).toBe('O dia inteiro');
+  });
+});
+
+describe('Os filtros da agenda na visão das salas', () => {
+  it('dada a visão sem salas, quando não há filtro de sala, então diz que faltam salas ativas; com o filtro, que foi ele', () => {
+    // Dado / Quando / Então
+    expect(semSalasNaVisao()).toBe(SEM_SALAS_ATIVAS);
+    expect(semSalasNaVisao('')).toBe(SEM_SALAS_ATIVAS);
+    expect(semSalasNaVisao('s9')).toBe(SALA_DO_FILTRO_DESATIVADA);
+  });
+
+  it('dados busca, pessoa, tipo ou etiqueta escolhidos, quando a visão das salas abre, então a nota diz quais não valem ali', () => {
+    // Dado / Quando / Então
+    expect(notaDosFiltrosNasSalas({})).toBeNull();
+    expect(notaDosFiltrosNasSalas({ termo: '  ' })).toBeNull();
+    expect(notaDosFiltrosNasSalas({ tipo: 'reuniao' })).toBe('A visão das salas mostra toda a ocupação do dia: o filtro de tipo não vale aqui.');
+    expect(notaDosFiltrosNasSalas({ termo: 'perito', pessoa: 'u1', etiqueta: 'e1' }))
+      .toBe('A visão das salas mostra toda a ocupação do dia: a busca, o filtro de pessoa e o filtro de etiqueta não valem aqui.');
   });
 });
 
