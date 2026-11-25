@@ -43,7 +43,9 @@ test.describe('Copiar a tarefa para outra demanda (#312)', () => {
     await expect(copia.getByText(codigo, { exact: true })).toBeVisible();
     await expect(copia.getByRole('heading', { name: 'Emitir a GRU', level: 2 })).toBeVisible();
     await expect(copia.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante' })).toBeVisible();
-    await expect(copia.getByRole('group', { name: 'Tempo total' })).not.toContainText('2 h');
+    // O tempo não vai junto (#442: o relógio da cópia começa zerado, e não há a linha "Total da equipe")
+    await expect(copia.getByRole('timer')).toHaveText('0 min');
+    await expect(copia.getByText(/^Total da equipe/)).toHaveCount(0);
     await abrirSecao(copia, 'Demanda');
     await expect(copia.getByRole('link', { name: /Notificar o devedor/ })).toBeVisible();
     await expect(copia.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('PARA FAZER');

@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, inicioNoDia, lerDuracaoDoRegistro, NO_HISTORICO,
-  NOME_DO_TIPO, possoMexer, registroNoHistorico, registrosEmOrdem, talvezContando, tipoDoRegistro } from './registrosDeTempo';
+import { AINDA_SEM_REGISTRO, comOQueConta, ORIGEM_DO_AJUSTE, sinalDoAjuste, conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, inicioNoDia, lerDuracaoDoRegistro, NO_HISTORICO,
+  gruposDosRegistros, NOME_DO_TIPO, PARE_ANTES, possoMexer, quandoDoRegistro, registroNoHistorico, registrosEmOrdem, talvezContando, tipoDoRegistro } from './registrosDeTempo';
 
 const registro = (id: number, inicio: string, extra: Partial<{ perfil_id: string | null; segundos: number; ajuste: boolean }> = {}) =>
   ({ id, perfil_id: 'u-ana', inicio, segundos: 3600, ajuste: false, ...extra });
@@ -117,5 +117,124 @@ describe('Registros de tempo da tarefa', () => {
     expect(NO_HISTORICO.corrigido(registroNoHistorico(null, true, '2026-11-19T02:00:00.000Z'), '17/11/2026', ' Revisão '))
       .toBe('Corrigido o ajuste de tempo de usuário removido, de 18/11/2026, que passou para 17/11/2026. Motivo: Revisão');
     expect(NO_HISTORICO.devolvido(registroDaAna)).toBe('Devolvido o tempo contado de Ana, de 18/11/2026');
+  });
+});
+
+describe('Os registros por pessoa, no cartão da tarefa (#442)', () => {
+  const mauro = registro(1, '2026-11-20T13:00:00Z', { perfil_id: 'u-mauro', segundos: 4800 });
+  const meu = registro(2, '2026-11-21T13:00:00Z', { perfil_id: 'eu', segundos: 2400 });
+  const meuAntigo = registro(3, '2026-11-19T13:00:00Z', { perfil_id: 'eu', segundos: 600 });
+  const partes = [{ perfil_id: 'u-mauro', segundos: 4800, percentual: 61.5 }, { perfil_id: 'eu', segundos: 3000, percentual: 38.5 }];
+
+  it('dado o administrador com o tempo de duas pessoas, quando os registros se agrupam, então um grupo por pessoa, da maior parte à menor, cada um com os seus do mais novo ao mais antigo', () => {
+    // Quando
+    const grupos = gruposDosRegistros([meuAntigo, mauro, meu], partes, 'eu', true);
+    // Então
+    expect(grupos.map(g => [g.perfil_id, g.segundos, g.percentual, g.registros.map(r => r.id)])).toEqual([
+      ['u-mauro', 4800, 61.5, [1]],
+      ['eu', 3000, 38.5, [2, 3]]
+    ]);
+  });
+
+  it('dado o meu relógio contando, quando os registros se agrupam, então o meu total é o de agora (o da parte ao vivo), e não só o gravado', () => {
+    // Dado: gravados 40 min + 10 min; o relógio já contou mais
+    const aoVivo = [{ perfil_id: 'eu', segundos: 3600, percentual: 100 }];
+    // Quando
+    const [grupo] = gruposDosRegistros([meu, meuAntigo], aoVivo, 'eu', false);
+    // Então
+    expect(grupo.segundos).toBe(3600);
+    expect(grupo.percentual).toBeNull();
+  });
+
+  it('dado quem só tirou tempo (a soma dele é zero ou menos), quando os registros se agrupam, então ele vem no fim, com zero', () => {
+    // Dado
+    const tirou = registro(4, '2026-11-21T10:00:00Z', { perfil_id: 'u-bia', segundos: -600, ajuste: true });
+    // Quando
+    const grupos = gruposDosRegistros([tirou, mauro, meu, meuAntigo], partes, 'eu', true);
+    // Então
+    expect(grupos.map(g => [g.perfil_id, g.segundos])).toEqual([['u-mauro', 4800], ['eu', 3000], ['u-bia', 0]]);
+  });
+
+  it('dado quem não é administrador, com a tarefa aberta, quando os registros se agrupam, então só o próprio grupo, sem a %', () => {
+    // Dado: o banco só devolve os meus registros
+    // Quando
+    const grupos = gruposDosRegistros([meu, meuAntigo], partes, 'eu', false);
+    // Então
+    expect(grupos.map(g => [g.perfil_id, g.percentual])).toEqual([['eu', null]]);
+  });
+
+  it('dado quem não é administrador, com a tarefa concluída, quando os registros se agrupam, então vê o grupo dos outros, com a %, sem os registros deles', () => {
+    // Quando
+    const grupos = gruposDosRegistros([meu, meuAntigo], partes, 'eu', true);
+    // Então
+    expect(grupos.map(g => [g.perfil_id, g.percentual, g.registros.length])).toEqual([['u-mauro', 61.5, 0], ['eu', 38.5, 2]]);
+  });
+
+  it('dado o meu relógio que acabou de começar, sem registro gravado, quando os registros se agrupam, então não há um grupo meu vazio', () => {
+    // Quando
+    const grupos = gruposDosRegistros([mauro], [{ perfil_id: 'u-mauro', segundos: 4800, percentual: 98 }, { perfil_id: 'eu', segundos: 90, percentual: 2 }], 'eu', true);
+    // Então
+    expect(grupos.map(g => g.perfil_id)).toEqual(['u-mauro']);
+  });
+});
+
+describe('Quando foi o registro, na lista do cartão (#442)', () => {
+  it.each([
+    ['2026-11-21T17:10:00Z', false, 'Hoje'],
+    ['2026-11-20T17:10:00Z', false, 'Ontem, 20/11'],
+    ['2026-11-18T17:10:00Z', false, '18/11'],
+    ['2025-11-18T17:10:00Z', false, '18/11/2025'],
+    ['2026-11-21T17:10:00Z', true, 'Hoje, desde 14:10']
+  ])('dado o registro de %s (contando: %s), quando a lista o mostra, então diz "%s"', (inicio, contando, texto) => {
+    // Quando / Então
+    expect(quandoDoRegistro(inicio, HOJE, contando)).toBe(texto);
+  });
+
+  it('dado o registro às 22:00 de Brasília (01:00 em UTC do dia seguinte), quando a lista o mostra, então é do dia de Brasília', () => {
+    // Quando / Então
+    expect(quandoDoRegistro('2026-11-22T01:00:00Z', HOJE, false)).toBe('Hoje');
+  });
+
+  it('quando o registro que está contando não pode mudar, então a explicação diz para parar o relógio antes', () => {
+    // Então
+    expect(PARE_ANTES).toBe('Pare o relógio antes de mudar ou apagar o registro que está contando.');
+  });
+});
+
+describe('O registro que o relógio está contando, na lista (#442)', () => {
+  const extra = { motivo: null, corrigido_em: null, motivo_da_correcao: null };
+  const gravado = { ...registro(7, '2026-11-20T17:00:00Z', { perfil_id: 'eu' }), ...extra };
+  const INICIO = '2026-11-21T19:32:00Z';
+
+  it('dado o relógio que acabou de começar, sem nada gravado ainda, quando a lista é montada, então ela já traz a linha dele, minha, desde o início', () => {
+    // Quando
+    const { registros, periodoId } = comOQueConta([gravado], 'eu', null, true, INICIO);
+    // Então
+    expect(registros).toHaveLength(2);
+    expect(registros[1]).toMatchObject({ id: AINDA_SEM_REGISTRO, perfil_id: 'eu', inicio: INICIO, segundos: 0, ajuste: false });
+    expect(periodoId).toBe(AINDA_SEM_REGISTRO);
+  });
+
+  it('dado o relógio contando num registro já gravado, quando a lista é montada, então ela é a de sempre, sem linha a mais', () => {
+    // Quando
+    const { registros, periodoId } = comOQueConta([gravado], 'eu', 7, true, INICIO);
+    // Então
+    expect(registros).toEqual([gravado]);
+    expect(periodoId).toBe(7);
+  });
+
+  it('dado o relógio parado, quando a lista é montada, então não ganha linha nenhuma', () => {
+    // Quando / Então
+    expect(comOQueConta([gravado], 'eu', null, false, INICIO).registros).toEqual([gravado]);
+  });
+});
+
+describe('De onde veio o ajuste à mão (#442)', () => {
+  it.each([
+    [1800, 'À mão'],
+    [-600, 'Tirado à mão']
+  ])('dado o ajuste de %i segundos, quando a lista o mostra, então diz "%s"', (segundos, origem) => {
+    // Quando / Então
+    expect(ORIGEM_DO_AJUSTE[sinalDoAjuste(segundos)]).toBe(origem);
   });
 });

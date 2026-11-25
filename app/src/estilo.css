@@ -1282,6 +1282,12 @@ span.circulo-de-concluir { cursor: default }
 .cartao-topo-esquerda::before { content: ''; display: inline-block; height: var(--topo-primeira-linha); vertical-align: middle }
 .cartao-topo .cartao-topo-esquerda > * { display: inline-flex; vertical-align: middle;
   margin: calc(var(--botao-redondo-vao) / 2) var(--botao-redondo-vao) calc(var(--botao-redondo-vao) / 2) 0 }
+/* O código e os selos que descem juntos (a tarefa, #442): no centro largo, em linha, como os outros; ao lado e no celular (com os
+   botões na linha dos da janela), na linha de baixo, encostados à esquerda, embaixo do tipo, e a equipe, que também desce, divide a
+   linha com eles (nunca fica sozinha). */
+.cartao-topo .cartao-topo-esquerda > .cartao-topo-abaixo-do-tipo { flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao); margin-inline-end: 0 }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo .cartao-topo-esquerda > .cartao-topo-abaixo-do-tipo {
+  float: left; clear: left; min-height: var(--topo-primeira-linha); margin-block: 0 }
 /* Os selos das etiquetas, entre o topo (ou a linha da Situação) e o título (sem etiquetas, a linha não existe). */
 .cartao-topo + .etiquetas { margin-top: var(--botao-redondo-vao) }
 .cartao-situacao + .etiquetas { margin-top: var(--vao-ate-o-titulo) }
@@ -1489,13 +1495,6 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
   .acrescentar-linha { min-height: var(--alvo-de-toque) }
   .kmenu :is(button, a).acrescentar-novo::before { content: ''; position: absolute; inset: calc((var(--botao-mini) - var(--alvo-de-toque)) / 2); border-radius: 999px }
 }
-/* O tempo total da tarefa (#397), o último dado da faixa das datas, em destaque: do tamanho do relógio de "Seu tempo nesta tarefa"
-   (--texto-do-relogio, em paginas/Demandas.css, onde fica a regra do tamanho), para o total não pesar menos que a parte de quem
-   olha. Encostado à direita só quando os quatro dados cabem
-   numa linha (a faixa da janela no centro, a partir de 560px; o @container não aceita variável): no painel ao lado, ele desce para
-   o começo da linha de baixo, como qualquer dado que não cabe, em vez de ficar sozinho na ponta direita; na faixa estreita (o
-   celular), uma linha como as outras. */
-@container (min-width: 560px) { .grupo-datas-dado:has(> .grupo-datas-valor > .tempo-total) { margin-inline-start: auto } }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,

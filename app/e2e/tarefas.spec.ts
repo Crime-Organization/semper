@@ -4,7 +4,7 @@
 // e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mauro de participante e o prazo
 // vencido. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, acaoNoMenuDoCartao, alturaParada, entrarComo } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao, alturaParada, entrarComo, mudarPrazo, prazoDoCartao } from './ajudantes';
 
 /** Abre o cartão de uma tarefa pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
@@ -78,7 +78,8 @@ test.describe('Cadastro de tarefas', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'Mandar a notificação' })).toBeVisible();
-    await expect(cartao).toContainText('Prazo: 10/11/2030');
+    // (#442: o prazo fica na folhinha; o selo do topo saiu do cartão aberto)
+    await expect(prazoDoCartao(cartao)).toContainText('10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
     await expect(equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Responsável', exact: true })).toBeVisible();
     await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante', exact: true })).toBeVisible();
@@ -341,7 +342,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     // Quando: clica fora
     await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
     await campo.fill('Renovar a procuração já');
-    await cartao.getByText('Criada em', { exact: true }).click();
+    // (#442: a "Criada em" saiu do bloco das datas; clica no texto do prazo, que não é botão)
+    await prazoDoCartao(cartao).getByText(/^Venceu há/).click();
     // Então
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração já', level: 2 })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
@@ -472,7 +474,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
   test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas, e salvar não os muda', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    const prazo = await cartao.getByRole('button', { name: /^Datas: / }).textContent();
+    const prazo = await prazoDoCartao(cartao).textContent();
+    const inicio = await mudarPrazo(cartao).getAttribute('aria-description');
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
@@ -488,7 +491,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
-    await expect(cartao.getByRole('button', { name: /^Datas: / })).toHaveText(prazo!);
+    await expect(prazoDoCartao(cartao)).toHaveText(prazo!);
+    await expect(mudarPrazo(cartao)).toHaveAttribute('aria-description', inicio!);
   });
 
   test('dado o cadastro de uma tarefa nova, quando a pessoa o abre, então o título e a descrição continuam nele', async ({ page }) => {
@@ -519,8 +523,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
   });
 });
 
-/** O último botão dos dados (as faixas das datas e do tempo), o que vem logo antes da descrição na ordem do Tab. */
-const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
+/** O último botão dos dados (#442: o bloco do prazo e do tempo e a linha da equipe), o que vem logo antes da descrição na ordem do Tab. */
+const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Prazo e tempo' }).or(cartao.getByRole('group', { name: 'Tempo da equipe' }))
   .getByRole('button').last();
 
 test.describe('A descrição no topo do cartão (#385)', () => {
@@ -530,11 +534,11 @@ test.describe('A descrição no topo do cartão (#385)', () => {
     // Então
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
-    // E a descrição vem depois dos dados (#397): o vão entre a faixa do tempo, o fim dos dados (desde a #399, sem os botões rápidos),
-    // e o texto da descrição é, no mínimo, a medida da variável de estilo
+    // E a descrição vem depois dos dados (#397): o vão entre o bloco do prazo e do tempo (#442), o fim dos dados (desde a #399, sem os
+    // botões rápidos), e o texto da descrição é, no mínimo, a medida da variável de estilo
     const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
-    const dados = (await cartao.getByRole('group', { name: 'Tempo', exact: true }).boundingBox())!;
+    const dados = (await cartao.getByRole('group', { name: 'Prazo e tempo' }).boundingBox())!;
     const descricao = (await cartao.getByText('A procuração vence este mês.').boundingBox())!;
     expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
   });
@@ -542,9 +546,9 @@ test.describe('A descrição no topo do cartão (#385)', () => {
   test('dado quem usa só o teclado, quando chega à descrição com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
     // Dado: o foco no último botão dos dados (as datas e o tempo), logo acima da descrição (#397; desde a #399, sem os botões rápidos)
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    // O tempo da tarefa chega depois do cartão: enquanto ele carrega, o último botão é o do prazo e, quando chega, o "Ajustar meu tempo"
+    // O tempo da tarefa chega depois do cartão: enquanto ele carrega, o último botão é o do prazo e, quando chega, o "Adicionar tempo"
     // entra entre o prazo e a descrição. Espera o tempo chegar, como quem olha o cartão pronto antes de teclar.
-    await expect(cartao.getByRole('group', { name: 'Tempo', exact: true }).getByRole('button', { name: 'Ajustar meu tempo' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Seu tempo' }).getByRole('button', { name: 'Adicionar tempo' })).toBeVisible();
     await ultimoDosDados(cartao).focus();
     // Quando
     await page.keyboard.press('Tab');
@@ -567,30 +571,35 @@ test.describe('A descrição no topo do cartão (#385)', () => {
 });
 
 test.describe('Cronômetro da tarefa', () => {
-  test('quando a pessoa abre uma tarefa, então o cronômetro não começa sozinho; a tecla T inicia e pausa', async ({ page }) => {
+  // A regra mudou na #442 (opção 9, aprovada pelo dono): o relógio diz a duração em minutos ("0 min", "1 h 25 min"), e não mais
+  // 0:00:00; os botões são Iniciar, Parar e Continuar (antes, Pausar e Retomar); a situação fica na linha de cima ("Seu tempo,
+  // contando" / "parado" / "encerrado"), sem a pílula; o total da equipe saiu da faixa das datas e foi para a linha da equipe, embaixo.
+  const seuTempo = (cartao: Locator) => cartao.getByRole('group', { name: 'Seu tempo' });
+  const totalDaEquipe = (cartao: Locator) => cartao.getByRole('group', { name: 'Tempo da equipe' }).getByText(/^Total da equipe/);
+
+  test('quando a pessoa abre uma tarefa, então o cronômetro não começa sozinho; a tecla T inicia e para', async ({ page }) => {
     // Dado: "Renovar a procuração" não tem tempo registrado
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const relogio = cartao.getByRole('timer');
     await page.clock.runFor(30_000);
-    await expect(relogio).toHaveText('0:00:00');
-    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveAttribute('aria-keyshortcuts', 'T');
+    await expect(relogio).toHaveText('0 min');
+    await expect(seuTempo(cartao).getByRole('button', { name: 'Iniciar' })).toHaveAttribute('aria-keyshortcuts', 'T');
     // Quando
     await page.keyboard.press('t');
     await page.clock.runFor(65_000);
     // Então (o relógio de verdade também anda alguns segundos enquanto o teste roda)
-    await expect(relogio).toHaveText(/^0:01:0\d$/);
-    await expect(cartao.getByText('contando')).toBeVisible();
+    await expect(relogio).toHaveText('1 min');
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, contando');
+    await expect(seuTempo(cartao).getByRole('button', { name: 'Parar' })).toHaveAttribute('aria-keyshortcuts', 'T');
     await page.keyboard.press('t');
-    await expect(cartao.getByText('pausado')).toBeVisible();
-    const parado = await relogio.textContent();
-    await page.clock.runFor(30_000);
-    await expect(relogio).toHaveText(parado!);
-    await expect(cartao.getByText('pausado')).toBeVisible();
-    await expect(cartao.getByRole('button', { name: /Retomar/ })).toBeVisible();
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, parado');
+    await page.clock.runFor(2 * 60_000);
+    await expect(relogio).toHaveText('1 min');
+    await expect(seuTempo(cartao).getByRole('button', { name: 'Continuar' })).toBeVisible();
   });
 
-  test('dado o relógio com poucos segundos, quando a pessoa pausa, então o tempo total mostra os segundos, sem "0 min", e não há uma linha só dela repetindo o relógio (#436)', async ({ page }) => {
+  test('dado o relógio com poucos segundos, quando a pessoa para, então o relógio mostra os segundos, sem "0 min", e não há linha da equipe repetindo o relógio (#436, #442)', async ({ page }) => {
     // Dado: "Renovar a procuração" não tem tempo registrado; o Mauro (administrador) conta sozinho
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
@@ -599,68 +608,65 @@ test.describe('Cronômetro da tarefa', () => {
     await page.clock.runFor(4_000);
     // Quando
     await page.keyboard.press('t');
-    await expect(cartao.getByText('pausado')).toBeVisible();
-    // Então: o que o relógio diz (0:00:0X) é o que o total diz ("X s")
-    const segundos = Number((await relogio.textContent())!.split(':')[2]);
-    expect(segundos).toBeGreaterThan(0);
-    const total = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
-    await expect(total).toHaveText(new RegExp(`${segundos} s$`));
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, parado');
+    // Então: o relógio diz "X s"
+    await expect(relogio).toHaveText(/^\d+ s$/);
     await expect(cartao.getByText('0 min')).toHaveCount(0);
-    // E a parte de cada um não aparece. A regra mudou na revisão da #436: com uma pessoa só, que é quem está vendo, a linha dela
-    // ("100%" e "X s") só repetia o relógio e o tempo total; ela volta quando há duas pessoas ou mais
-    await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toHaveCount(0);
+    // E, só com o tempo de quem olha, não há "Total da equipe" (#442), nem o nome dele em cima dos registros (#436)
+    await expect(totalDaEquipe(cartao)).toHaveCount(0);
+    await cartao.getByRole('button', { name: 'Ver registros (1)' }).click();
+    await expect(cartao.getByRole('group', { name: 'Registros de tempo' })).not.toContainText('Você');
     await expect(cartao.getByText('Ninguém registrou tempo nesta tarefa ainda.')).toHaveCount(0);
   });
 
-  test('dado o administrador contando numa tarefa com o tempo de outra pessoa, quando o relógio anda, então a linha dele, o tempo total e o relógio dizem a mesma coisa (#436)', async ({ page }) => {
+  test('dado o administrador contando numa tarefa com o tempo de outra pessoa, quando o relógio anda, então o grupo dele, o total e o relógio dizem a mesma coisa (#436)', async ({ page }) => {
     // Dado: "Emitir a GRU" tem 1 h 20 min do Mauro e 40 min do Bruno
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Emitir a GRU');
     const relogio = cartao.getByRole('timer');
-    const total = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' });
-    const parte = cartao.getByRole('list', { name: 'Parte de cada um' });
-    const doMauro = parte.getByRole('listitem').filter({ hasText: 'Mauro Teixeira Duarte' });
-    await expect(doMauro).toContainText('66,7%');
-    await expect(doMauro).toContainText('1 h 20 min');
+    await cartao.getByRole('button', { name: 'Ver registros (2)' }).click();
+    const registros = cartao.getByRole('group', { name: 'Registros de tempo' });
+    const cabecaDoMauro = registros.getByRole('group', { name: 'Você' });
+    await expect(cabecaDoMauro).toContainText('66,7%');
+    await expect(cabecaDoMauro).toContainText('1 h 20 min');
     // Quando: o Mauro conta mais 5 min
     await apertarT(page, cartao);
     await page.clock.runFor(5 * 60_000);
-    // Então: o relógio diz 1:25, o total, 2 h 05 min (com os 40 min do Bruno), e a linha do Mauro anda junto, com a %
-    await expect(relogio).toHaveText(/^1:25:\d\d$/);
-    await expect(total).toHaveText(/2 h 05 min$/);
-    await expect(doMauro).toContainText('1 h 25 min');
-    await expect(doMauro).toContainText('68%');
-    await expect(parte.getByRole('listitem').filter({ hasText: 'Bruno Exemplo Souza' })).toContainText('32%');
+    // Então: o relógio diz 1 h 25 min, o total, 2 h 05 min (com os 40 min do Bruno), e o grupo do Mauro anda junto, com a %
+    await expect(relogio).toHaveText('1 h 25 min');
+    await expect(totalDaEquipe(cartao)).toHaveText('Total da equipe 2 h 05 min');
+    await expect(cabecaDoMauro).toContainText('1 h 25 min');
+    await expect(cabecaDoMauro).toContainText('68,0% do total');
+    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('32,0% do total');
   });
 
-  test('dada a tarefa concluída, quando a pessoa abre o cartão, então o relógio, "encerrado" e "Ajustar meu tempo" ficam numa linha só (#436)', async ({ page }) => {
-    // Quando: "Organizar a pasta" está concluída
+  test('dada a tarefa concluída, quando a pessoa abre o cartão, então "Seu tempo, encerrado", sem Iniciar nem Continuar, e com "Adicionar tempo" (#442)', async ({ page }) => {
+    // Quando: "Organizar a pasta" está concluída. A regra mudou na #442: a pílula "encerrado" ao lado do relógio (#436) saiu; a
+    // situação fica na linha de cima do relógio
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
-    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-    const [relogio, situacao, ajustar] = await Promise.all([tempo.getByRole('timer'), tempo.getByText('encerrado', { exact: true }),
-      tempo.getByRole('button', { name: 'Ajustar meu tempo' })].map(async l => (await l.boundingBox())!));
-    // Então: os três na mesma altura, da esquerda para a direita; antes, "encerrado" ficava sozinho numa linha embaixo do relógio
-    const meio = (c: { y: number; height: number }) => c.y + c.height / 2;
-    expect(Math.abs(meio(situacao) - meio(relogio))).toBeLessThanOrEqual(1);
-    expect(Math.abs(meio(ajustar) - meio(relogio))).toBeLessThanOrEqual(1);
-    expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
-    expect(ajustar.x).toBeGreaterThanOrEqual(situacao.x + situacao.width);
+    const tempo = seuTempo(cartao);
+    // Então
+    await expect(tempo).toContainText('Seu tempo, encerrado');
+    await expect(tempo.getByRole('button', { name: /^(Iniciar|Continuar|Parar)$/ })).toHaveCount(0);
+    await expect(tempo.getByRole('button', { name: 'Adicionar tempo' })).toBeVisible();
   });
 
   test('quando a pessoa digita um T num comentário, então é só a letra, e o cronômetro não começa', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
+    await expect(cartao.getByRole('timer')).toBeVisible();
     // Quando
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).pressSequentially('Tudo certo');
     // Então
-    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(seuTempo(cartao).getByRole('button', { name: 'Iniciar' })).toBeVisible();
+    await expect(seuTempo(cartao)).not.toContainText('contando');
   });
 
-  test('quando uma tarefa está contando numa aba, então as outras mostram no menu, e "Pausar todos" a pausa', async ({ page, context }) => {
+  test('quando uma tarefa está contando numa aba, então as outras mostram no menu, e "Pausar todos" a para', async ({ page, context }) => {
     // Dado: a tarefa contando nesta aba
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await cartao.getByRole('button', { name: /Iniciar/ }).click();
-    await expect(cartao.getByText('contando')).toBeVisible();
+    await seuTempo(cartao).getByRole('button', { name: 'Iniciar' }).click();
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, contando');
     // Quando: em outra aba
     const outra = await context.newPage();
     await outra.goto('/tarefas/');
@@ -668,7 +674,8 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(aviso).toBeVisible();
     await aviso.getByRole('button', { name: 'Pausar todos' }).click();
     // Então
-    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(seuTempo(cartao)).not.toContainText('contando');
+    await expect(seuTempo(cartao).getByRole('button', { name: /^(Iniciar|Continuar)$/ })).toBeVisible();
     await expect(aviso).toHaveCount(0);
   });
 
@@ -677,7 +684,7 @@ test.describe('Cronômetro da tarefa', () => {
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     await apertarT(page, cartao);
-    await expect(cartao.getByText('contando')).toBeVisible();
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, contando');
     // Quando
     await page.clock.runFor(10 * 60_000);
     const pergunta = page.getByRole('dialog', { name: 'Você ainda está aqui?' });
@@ -685,45 +692,43 @@ test.describe('Cronômetro da tarefa', () => {
     await page.clock.runFor(5 * 60_000);
     await pergunta.getByRole('button', { name: 'Não estava' }).click();
     // Então
-    await expect(cartao.getByRole('timer')).toHaveText(/^0:10:0\d$/);
+    await expect(cartao.getByRole('timer')).toHaveText('10 min');
   });
 
-  test('quando a pessoa ajusta o próprio tempo com um motivo, então o tempo muda e o ajuste fica registrado', async ({ page }) => {
+  test('quando a pessoa adiciona ou tira tempo com um motivo, então o tempo muda e fica nos registros, "À mão" (#442)', async ({ page }) => {
     // Dado: o Mauro tem 1 h 20 min em "Emitir a GRU"
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Emitir a GRU');
-    // Quando
-    await cartao.getByRole('button', { name: 'Ajustar meu tempo' }).click();
-    const janela = page.getByRole('dialog', { name: 'Ajustar meu tempo' });
+    // Quando: "Adicionar tempo" (antes, "Ajustar meu tempo"), com "-" para tirar, como antes
+    await seuTempo(cartao).getByRole('button', { name: 'Adicionar tempo' }).click();
+    const janela = page.getByRole('dialog', { name: 'Adicionar tempo' });
     await janela.getByLabel('Quanto').fill('-20min');
     await janela.getByLabel('Motivo').fill('Contei a mais');
-    await janela.getByRole('button', { name: 'Salvar ajuste' }).click();
+    await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByText('Tempo ajustado: −20 min.')).toBeVisible();
-    await expect(cartao.getByRole('timer')).toHaveText('1:00:00');
-    // E o ajuste aparece na lista dos registros (#400; antes, numa lista "Ajustes" só dos administradores), com o motivo
-    await cartao.getByRole('button', { name: /^Registros de tempo/ }).click();
-    await expect(cartao.getByRole('list', { name: 'Registros de tempo' }).getByRole('listitem').filter({ hasText: 'Contei a mais' }))
-      .toContainText(/−20 min.*Mauro Teixeira Duarte.*Ajuste/);
+    await expect(cartao.getByRole('timer')).toHaveText('1 h');
+    // E o ajuste aparece nos registros do Mauro (#400), com o motivo
+    await cartao.getByRole('button', { name: /^Ver registros/ }).click();
+    await expect(cartao.getByRole('list', { name: 'Seus registros' }).getByRole('listitem').filter({ hasText: 'Tirado à mão: Contei a mais' }))
+      .toContainText('−20 min');
   });
 
-  test('quando a tarefa está concluída, então a situação diz "encerrado" e o cartão mostra o esforço da equipe', async ({ page }) => {
+  test('quando a tarefa está concluída, então o tempo diz "encerrado" e o cartão mostra o esforço da equipe', async ({ page }) => {
     // Quando: "Organizar a pasta" está concluída, com 40 min do Bruno
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
     await apertarT(page, cartao);
-    // Então: a situação ao lado do relógio diz "encerrado", com a frase de antes na dica. A regra mudou na revisão da #434: a frase
-    // "Tarefa concluída: a contagem encerrou." ficava ao lado de "pausado", repetia (e contradizia) a situação, e saiu da faixa
-    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-    await expect(tempo.getByText('encerrado', { exact: true })).toHaveAttribute('title', 'Tarefa concluída: a contagem encerrou.');
-    await expect(tempo.getByText('pausado', { exact: true })).toHaveCount(0);
-    await expect(tempo.getByText('Tarefa concluída: a contagem encerrou.')).toHaveCount(0);
-    await expect(tempo.getByRole('button', { name: 'Ajustar meu tempo' })).toBeVisible();
-    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
+    // Então: encerrado, sem contar
+    await expect(seuTempo(cartao)).toContainText('Seu tempo, encerrado');
+    await expect(seuTempo(cartao)).not.toContainText('parado');
+    await expect(cartao.getByRole('button', { name: /^Iniciar/ })).toHaveCount(0);
     await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
-    // O total da equipe fica na faixa das datas, como o último dado (#397); o resumo traz a parte de cada um
-    await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true }).getByRole('group', { name: 'Tempo total' })).toHaveText(/40 min$/);
-    await expect(cartao.getByText(/^Da criação à conclusão:/)).toBeVisible();
-    await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toContainText('Bruno Exemplo Souza100%');
+    // O total da equipe fica na linha da equipe (#442); aberta, ela traz da criação à conclusão e a parte de cada um
+    await expect(totalDaEquipe(cartao)).toHaveText('Total da equipe 40 min');
+    await cartao.getByRole('button', { name: /^Ver registros/ }).click();
+    const registros = cartao.getByRole('group', { name: 'Registros de tempo' });
+    await expect(registros.getByText(/^Da criação à conclusão:/)).toBeVisible();
+    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('Bruno Exemplo Souza · 100,0% do total');
   });
 });
 
@@ -903,14 +908,17 @@ test.describe('Sair da tarefa (#276)', () => {
 test.describe('Concluir a tarefa', () => {
   test('dada uma tarefa com o prazo vencido, quando a pessoa clica em "Concluir", então o selo fica verde, sem "vencido", e "Reabrir" a devolve', async ({ page }) => {
     // Dado: "Renovar a procuração" venceu ontem e está em "Para fazer"
+    // A regra mudou na #442: no cartão aberto, o selo do prazo saiu do topo, e o prazo fica na folhinha ("Venceu há 1 dia"; concluída,
+    // "Concluída" e quanto depois do prazo). Na lista e no quadro, o selo continua.
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
+    await expect(prazoDoCartao(cartao)).toContainText('Venceu há 1 dia');
     // Quando
     await cartao.getByRole('button', { name: 'Concluir', exact: true }).click();
     // Então
     await expect(page.getByText('Tarefa concluída.')).toBeVisible();
-    await expect(cartao.getByText(/^Concluída · Prazo: /)).toBeVisible();
-    await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);
+    await expect(prazoDoCartao(cartao)).toContainText('Concluída');
+    await expect(prazoDoCartao(cartao)).toContainText('1 dia depois do prazo');
+    await expect(prazoDoCartao(cartao)).not.toContainText('Venceu');
     await expect(cartao.getByLabel('Situação da tarefa')).toHaveValue('t4');
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     const linha = page.getByRole('row').filter({ hasText: 'Renovar a procuração' });
@@ -925,11 +933,11 @@ test.describe('Concluir a tarefa', () => {
     await deNovo.getByRole('button', { name: 'Reabrir' }).click();
     // Então
     await expect(page.getByText('Tarefa reaberta em "Para fazer".')).toBeVisible();
-    await expect(deNovo.getByText(/^Prazo vencido: /)).toBeVisible();
+    await expect(prazoDoCartao(deNovo)).toContainText('Venceu há 1 dia');
     await expect(deNovo.getByRole('button', { name: 'Concluir', exact: true })).toBeVisible();
   });
 
-  test('dado um escritório que renomeou a coluna das concluídas, quando a tarefa vai para ela, então o selo também diz "Concluída"', async ({ page }) => {
+  test('dado um escritório que renomeou a coluna das concluídas, quando a tarefa vai para ela, então o cartão também diz "Concluída"', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/');
     await page.getByRole('button', { name: 'Kanban' }).click();
@@ -942,8 +950,8 @@ test.describe('Concluir a tarefa', () => {
     // Quando
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'FEITAS' });
-    // Então
-    await expect(cartao.getByText(/^Concluída · Prazo: /)).toBeVisible();
+    // Então (#442: na folhinha do cartão aberto, e não mais no selo do topo)
+    await expect(prazoDoCartao(cartao)).toContainText('Concluída');
     await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeVisible();
   });
 
@@ -966,8 +974,8 @@ test.describe('Concluir a tarefa', () => {
     await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeFocused();
     // Quando
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
-    // Então
-    await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
+    // Então (#442: na folhinha do cartão aberto, e não mais no selo do topo)
+    await expect(prazoDoCartao(cartao)).toContainText('Venceu há 1 dia');
     await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('PARA FAZER');
   });
 
@@ -999,8 +1007,9 @@ test.describe('Prazo de cartão concluído nas listas', () => {
   test('dada uma tarefa já concluída, quando ganha um prazo que já passou, então o cartão não mostra "Prazo vencido"', async ({ page }) => {
     // Dado: "Organizar a pasta" está concluída; dá a ela um prazo vencido
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
-    // Quando: desde a #361, o prazo muda no próprio cartão; desde a #422, na janela das datas (escrito à mão, com Enter)
-    await cartao.getByRole('button', { name: /^Datas: / }).click();
+    // Quando: desde a #361, o prazo muda no próprio cartão; desde a #422, na janela das datas (escrito à mão, com Enter); desde a #442,
+    // pelo link "Definir prazo" da folhinha
+    await mudarPrazo(cartao).click();
     const janela = cartao.page().getByRole('dialog', { name: 'Mudar as datas' });
     await janela.getByRole('checkbox', { name: 'Entrega' }).check();
     const campo = janela.getByRole('textbox', { name: 'Prazo', exact: true });
@@ -1008,7 +1017,10 @@ test.describe('Prazo de cartão concluído nas listas', () => {
     await campo.press('Enter');
     await expect(janela).toHaveCount(0);
     // Então
-    await expect(cartao.getByText(/^Concluída · Prazo: 01\/01\/2020/)).toBeVisible();
+    // (#442: no cartão aberto, a folhinha diz "Concluída" e quanto depois do prazo, sem "Venceu")
+    await expect(prazoDoCartao(cartao)).toContainText('Concluída');
+    await expect(prazoDoCartao(cartao)).toContainText(/\d+ dias depois do prazo/);
+    await expect(prazoDoCartao(cartao)).not.toContainText('Venceu');
     await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);
   });
 

@@ -19,8 +19,9 @@ export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo } from './GrupoDeDatas';
-export { DatasDoCartao, ResumoDasDatas, type DataDaJanela, type EntregaDaJanela, type RepeticaoDaJanela } from './JanelaDasDatas';
-export { InicioEPrazo, MUDAR_AS_DATAS, NOME_DAS_DATAS } from './InicioEPrazo';
+export { DatasDoCartao, ResumoDasDatas, type AbridoresDasDatas, type DataDaJanela, type EntregaDaJanela, type RepeticaoDaJanela } from './JanelaDasDatas';
+export { InicioEPrazo, janelaDoInicioEPrazo, MUDAR_AS_DATAS, NOME_DAS_DATAS, type DoInicioEPrazo } from './InicioEPrazo';
+export { DEFINIR_PRAZO, Folhinha, MUDAR_PRAZO, PrazoNaFolhinha, ROTULO_DO_PRAZO } from './PrazoNaFolhinha';
 export { BotaoDeIcone, IconeDoBotao, propsDoBotaoDeIcone, type SoIcone } from './BotaoDeIcone';
 export { BotaoTirar, CONFIRMAR_O_TIRAR, EXPLICACAO_DO_TIRAR, perguntarETirar, rotuloDoTirar, TirarNoCartao, type FormaDoTirar, type PedidoDeTirar } from './BotaoTirar';
 

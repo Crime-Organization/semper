@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, parteDeCadaUmAparece, partesAoVivo, segundosDoPeriodo, somaDoTempo, totalAoVivo,
+import { cronometro, errosDoAjuste, fmtDuracao, fmtParte, fmtRelogio, lerAjuste, outrosTemTempo, PARADO, parteDeCadaUmAparece, partesAoVivo, partesDaDuracao, segundosDoPeriodo, situacaoDoRelogio, somaDoTempo, totalAoVivo,
   totalAparece, type Evento } from './cronometro';
 
 const MIN = 60_000;
@@ -239,5 +239,61 @@ describe('Quem vê o tempo total da tarefa (#397)', () => {
   it('dado quem só lê, quando o banco não devolve o total (só vê pela equipe vendo tudo, ou não há tempo), então ele não aparece', () => {
     // Quando / Então
     expect(totalAparece(false, 0)).toBe(false);
+  });
+});
+
+describe('O relógio do cartão da tarefa (#442)', () => {
+  it.each([
+    [false, false, 0, 'zerado'],
+    [false, true, 0, 'contando'],
+    [false, false, 125, 'parado'],
+    [true, false, 125, 'encerrado'],
+    [true, false, 0, 'encerrado']
+  ] as const)('dado concluída=%s, contando=%s e %s segundos meus, quando o cartão desenha o relógio, então a situação é "%s"', (concluida, contando, segundos, situacao) => {
+    // Quando / Então
+    expect(situacaoDoRelogio(concluida, contando, segundos)).toBe(situacao);
+  });
+
+  it('dado menos de um segundo contado, quando o cartão desenha o relógio, então ainda está zerado (o relógio diz "0 min")', () => {
+    // Quando / Então
+    expect(situacaoDoRelogio(false, false, 0.6)).toBe('zerado');
+  });
+
+  it.each([0, 4, 45 * 60, 65 * 60, 12 * 3600, 4.6])('dado %s segundos, quando o relógio quebra em pedaços, então os pedaços juntos são o tempo por extenso', segundos => {
+    // Quando
+    const partes = partesDaDuracao(segundos);
+    // Então
+    expect(partes.map(p => `${p.numero} ${p.unidade}`).join(' ')).toBe(fmtDuracao(segundos));
+  });
+
+  it('dado 1 h 05 min, quando o relógio quebra em pedaços, então o número e a unidade vêm separados', () => {
+    // Quando / Então
+    expect(partesDaDuracao(65 * 60)).toEqual([{ numero: '1', unidade: 'h' }, { numero: '05', unidade: 'min' }]);
+  });
+
+  it('dado só o meu tempo, quando o cartão decide a linha da equipe, então ela não aparece', () => {
+    // Quando / Então
+    expect(outrosTemTempo([{ perfil_id: 'eu', segundos: 600, percentual: 100 }], 'eu')).toBe(false);
+  });
+
+  it('dado o meu tempo e o de outra pessoa, quando o cartão decide a linha da equipe, então ela aparece', () => {
+    // Quando / Então
+    expect(outrosTemTempo([{ perfil_id: 'eu', segundos: 600, percentual: 60 }, { perfil_id: 'ana', segundos: 400, percentual: 40 }], 'eu')).toBe(true);
+  });
+
+  it('dado outra pessoa com tempo zero, quando o cartão decide a linha da equipe, então ela não aparece', () => {
+    // Quando / Então
+    expect(outrosTemTempo([{ perfil_id: 'ana', segundos: 0, percentual: 0 }], 'eu')).toBe(false);
+  });
+});
+
+describe('A parte de cada um, escrita (#442)', () => {
+  it.each([
+    [66.7, '66,7%'],
+    [67, '67,0%'],
+    [100, '100,0%']
+  ])('dado %s%%, quando a lista mostra, então escreve "%s", sempre com uma casa', (percentual, texto) => {
+    // Quando / Então
+    expect(fmtParte(percentual)).toBe(texto);
   });
 });

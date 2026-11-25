@@ -2,7 +2,7 @@
 // Hora e lembrete nos prazos de tarefas e demandas (#286).
 import { describe, expect, it } from 'vitest';
 import {
-  CONFERENCIAS_DO_LEMBRETE, HORA_PADRAO_DO_LEMBRETE, horaCurta, horaELembreteAoGravar, horaELembreteDoCartao, instanteDoLembrete, lembreteChegou, lembreteDesligado, LEMBRETES, lerLembrete,
+  CONFERENCIAS_DO_LEMBRETE, CURTO_DO_LEMBRETE, HORA_PADRAO_DO_LEMBRETE, horaCurta, horaELembreteAoGravar, horaELembreteDoCartao, instanteDoLembrete, lembreteChegou, lembreteDesligado, LEMBRETES, lerLembrete,
   momentoDoPrazo, NOTA_CURTA_DO_LEMBRETE, NOTA_DO_LEMBRETE, OPCOES_DE_LEMBRETE, prazoComHora, rotuloDoLembrete, SEM_LEMBRETE, textoDoLembrete, TOLERANCIA_DO_LEMBRETE_EM_MINUTOS
 } from './lembrete';
 
@@ -149,5 +149,14 @@ describe('Hora e lembrete no formulário', () => {
     // Então
     expect(campos).toEqual({ hora: '', lembrete: null });
     expect(Object.values(CONFERENCIAS_DO_LEMBRETE).flat().map(c => c({ prazo: '', ...campos })).filter(Boolean)).toEqual([]);
+  });
+});
+
+describe('O lembrete curto, na linha do prazo do cartão da tarefa (#442)', () => {
+  it('dado cada lembrete que se pode marcar, quando o cartão escreve a linha do prazo, então todos têm o texto curto', () => {
+    // Quando
+    const curtos = OPCOES_DE_LEMBRETE.map(l => CURTO_DO_LEMBRETE[l]);
+    // Então
+    expect(curtos).toEqual(['na hora', '30 min antes', '1 h antes', '1 dia antes']);
   });
 });

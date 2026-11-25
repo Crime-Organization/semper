@@ -219,11 +219,13 @@ export const ASSUNTOS: Assunto[] = [
     titulo: 'Tempo nas tarefas',
     resumo: 'O cronômetro das tarefas, os registros de tempo (corrigir e apagar) e a página "Meu tempo trabalhado".',
     arquivos: ['TempoNaTarefa', 'MeuTempo', 'useCronometro', 'cronometro', 'cronometros', 'meuTempo', 'registrosDeTempo',
-      'meu-tempo', 'registros-de-tempo', 'tempo_nas_tarefas', 'meu_tempo', 'tempo_apagar_e_corrigir'],
+      'meu-tempo', 'registros-de-tempo', 'tempo_nas_tarefas', 'meu_tempo', 'tempo_apagar_e_corrigir', 'RegistrosDoTempo', 'prazo-e-tempo',
+      'PrazoNaFolhinha', 'prazoNaFolhinha'],
     tabelas: ['tarefa_tempos'],
     dados: ['DadosTempo'],
     rotas: ['tarefas/meu-tempo'],
-    armadilhas: ['O cronômetro conta em todas as abas do navegador (`ui/cronometros.ts`): teste com duas abas abertas.']
+    armadilhas: ['O cronômetro conta em todas as abas do navegador (`ui/cronometros.ts`): teste com duas abas abertas.',
+      'O cartão da tarefa mostra o prazo e o tempo num bloco só (#442: `ui/base/PrazoNaFolhinha.tsx`, `paginas/TempoNaTarefa.tsx`, `paginas/RegistrosDoTempo.tsx`), mas o cartão da demanda ainda usa `FaixaDoTempo`/`TempoDaDemanda` (`TempoNaTarefa.tsx`) e a faixa das datas: ao mexer no tempo da tarefa, rode também `e2e/demandas.spec.ts`, `e2e/datas.spec.ts` e `e2e/datas-nos-cartoes.spec.ts`.']
   },
   {
     id: 'processos',

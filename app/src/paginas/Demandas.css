@@ -91,117 +91,123 @@
   border-radius: var(--cantos-da-moldura-do-modelo); background: var(--superficie); container-type: inline-size }
 .modelo-form { display: flex; flex-direction: column; gap: 14px }
 .modelo-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto }
-/* A faixa do tempo no cartão da tarefa (TempoNaTarefa, #383, arrumada na #400, na #434 e na #436), logo abaixo da faixa das
-   datas: uma linha só, encostada à esquerda, sem vão no meio. O relógio e a situação (a pílula), lado a lado, e logo depois os
-   botões, um em cima do outro, da mesma largura (#434); o relógio e a pílula ficam no meio da altura dos dois. Na tarefa
-   concluída, só "Ajustar meu tempo" fica, na mesma linha do relógio e de "encerrado". Igual no computador e no celular; numa
-   faixa estreita demais, os botões descem. Embaixo, com folga, a parte de cada um, numa tabela pequena, e a lista dos registros. */
+/* O prazo e o tempo no cartão da tarefa (#442, opção 9; TempoNaTarefa.tsx e RegistrosDoTempo.tsx): um bloco só, entre duas linhas
+   finas, como a faixa das datas dos outros cartões. Em cima, duas colunas alinhadas pelo topo: o prazo na folhinha
+   (ui/base/PrazoNaFolhinha.css) e o relógio de quem olha ("Seu tempo, contando", a duração e os botões com nome); numa largura
+   menor que a das duas colunas com os botões inteiros, uma embaixo da outra. Embaixo, a linha da equipe e, aberta, a lista dos
+   registros por pessoa, com colunas fixas: a lixeira que vira "Confirmar" cabe sem empurrar nada. Quem decide é a largura do
+   bloco (container query), nunca uma conta em JavaScript. A soma do tempo da demanda (TempoDaDemanda) continua na faixa do tempo. */
 :root {
-  /* O tamanho do relógio: maior que as datas (é o que muda enquanto a pessoa trabalha), sem dominar o cartão */
+  /* O tamanho da soma do tempo da demanda, na faixa do tempo: maior que as datas, sem dominar o cartão */
   --texto-do-relogio: var(--texto-titulo-1);
-  /* O vão entre o relógio e a situação, ao lado dele ({spacing.sm}) */
-  --vao-relogio-e-situacao: 12px;
-  /* O vão entre os botões do tempo: Iniciar/Pausar em cima de "Ajustar meu tempo"; Mudar e Apagar, lado a lado */
+  /* O relógio da tarefa: um degrau abaixo do título do cartão (24px) e acima da frase do prazo (--texto-do-prazo) */
+  --texto-do-relogio-da-tarefa: 22px;
+  /* A altura da linha do relógio (o lugar reservado enquanto o tempo chega usa a mesma, e o bloco não pula) e a unidade ("h",
+     "min"), menor que o número */
+  --altura-da-linha-do-relogio: 1.1;
+  --unidade-do-relogio: .7em;
+  /* O vão entre o prazo e o relógio, lado a lado ({spacing.xl}), e entre eles, um embaixo do outro ({spacing.lg}) */
+  --vao-das-colunas-do-tempo: 32px;
+  --vao-das-linhas-do-tempo: 24px;
+  /* O vão entre a linha "Seu tempo, contando" e o relógio, e entre o relógio e os botões */
+  --vao-do-relogio: 4px;
+  --vao-do-relogio-aos-botoes: 8px;
+  /* O vão entre os botões do tempo, e entre o lápis e a lixeira de cada registro */
   --vao-dos-botoes-do-tempo: 8px;
-  /* O vão entre a situação e os botões ({spacing.lg}). Quando os botões descem, numa faixa estreita demais, ficam a --vao-dos-botoes-do-tempo do relógio */
-  --vao-entre-relogio-e-botoes: 24px;
-  /* O vão entre a linha do relógio e o que vem embaixo dela (a parte de cada um, a lista dos registros), no computador e no
-     celular ({spacing.lg}): maior que o vão entre a parte de cada um e a lista (--vao-do-resumo-do-tempo), que são um grupo só */
-  --vao-do-cronometro-ao-resumo: 24px;
-  /* O tamanho da bolinha verde de "contando" */
+  --vao-das-acoes-do-registro: 4px;
+  /* Os botões do tempo: a folga dos lados (o ícone à esquerda pede menos), num degrau menor que o .btn comum */
+  --folga-do-botao-do-tempo: 0 18px 0 14px;
+  /* O ponto verde de "contando", o anel claro em volta dele e o pulso, devagar */
   --bolinha-contando: 8px;
-  /* A situação é uma pílula: a altura dela, a folga dos lados e o fundo (no escuro, mais claro que a faixa, para a pílula ter a
-     mesma presença que tem no claro; --soft, lá, é mais escuro que a faixa e quase some) */
-  --altura-da-situacao: 24px;
-  --folga-da-situacao: 10px;
-  --fundo-da-situacao: var(--soft);
-  /* A largura da situação, a de "contando" com a bolinha: ao trocar de "pausado" para "contando" (o botão ou a tecla T), os botões
-     ao lado não saem do lugar, e o segundo clique cai no mesmo botão */
-  --largura-da-situacao: calc(var(--bolinha-contando) + var(--vao-do-dado) + 7.5ch + 2 * var(--folga-da-situacao));
-  /* No celular, os vãos da linha do relógio descem um degrau, para ela caber inteira numa tela de 375px: entre o relógio e a
-     situação e dos lados da pílula ({spacing.xs}), e entre a situação e os botões ({spacing.md}) */
-  --vao-relogio-e-situacao-estreito: 8px;
-  --folga-da-situacao-estreita: 8px;
-  --vao-entre-relogio-e-botoes-estreito: 16px;
-  /* A largura mínima de Iniciar/Retomar/Pausar, a do maior deles ("Retomar" com a tecla): o botão não muda de tamanho ao trocar */
-  --largura-do-alternar: 8.5em;
-  /* O vão entre o que vem embaixo do relógio: a parte de cada um e a lista dos registros */
-  --vao-do-resumo-do-tempo: 16px;
-  /* A folga em cima e embaixo de cada registro da lista, entre as linhas finas */
-  --folga-do-registro: 12px;
-  /* A coluna do dia e da duração de cada registro: cabe "1 h 20 min" e "21/11/2026", e as durações ficam alinhadas */
-  --coluna-do-quando: 7.5em;
+  --anel-da-bolinha: 3px;
+  --pulso: 1.6s;
+  /* O quanto o ponto apaga no meio do pulso */
+  --pulso-apagado: .35;
+  /* O vão entre o ponto (ou o ícone) e "Seu tempo", e entre o texto do link "Ver registros" e a seta */
+  --vao-da-marca-do-tempo: 8px;
+  --vao-da-seta-do-link: 6px;
+  /* Os registros abertos: o vão até a linha de cima, entre os grupos, entre a cabeça e a lista, a folga de cada registro e as colunas */
+  --vao-dos-registros: 16px;
+  --vao-da-cabeca-do-grupo: 4px;
+  --folga-do-registro: 6px;
+  --coluna-da-duracao: 84px;
+  /* A coluna do lápis e da lixeira: os dois redondos (--botao-mini) ou o lápis e o "Confirmar" da lixeira armada */
+  --coluna-das-acoes: 136px;
+  --vao-das-colunas-do-registro: 12px;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) { --fundo-da-situacao: var(--line2) } }
-:root[data-tema="escuro"] { --fundo-da-situacao: var(--line2) }
-.cronometro { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-dos-botoes-do-tempo) var(--vao-entre-relogio-e-botoes) }
-.cronometro-leitura { display: inline-flex; align-items: center; gap: var(--vao-relogio-e-situacao); white-space: nowrap }
-/* Os botões empilhados (#434): a coluna tem a largura do maior, e os dois a ocupam inteira, com o texto no meio. */
-.cronometro-acoes { display: inline-flex; flex-direction: column; align-items: stretch; gap: var(--vao-dos-botoes-do-tempo); white-space: nowrap }
-.cronometro-acoes > .mini { justify-content: center }
-/* O relógio, o tempo da demanda e o tempo total da tarefa, na faixa das datas (#397): os números do tempo, do mesmo tamanho. */
-.cronometro-relogio, .tempo-da-demanda, .grupo-datas-valor .tempo-total { font-size: var(--texto-do-relogio); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
-/* A situação: uma pílula discreta ao lado do relógio, no meio da altura dele; contando, verde, com a bolinha. */
-.cronometro-situacao { display: inline-flex; align-items: center; justify-content: center; gap: var(--vao-do-dado); min-width: var(--largura-da-situacao); height: var(--altura-da-situacao); padding-inline: var(--folga-da-situacao); border-radius: 999px; background: var(--fundo-da-situacao); font-size: var(--texto-apoio); font-weight: 700; color: var(--text2) }
-.cronometro-situacao.contando { background: var(--accent-tint); color: var(--accent-ink) }
-.cronometro-situacao.contando::before { content: ''; width: var(--bolinha-contando); height: var(--bolinha-contando); border-radius: 999px; background: var(--accent) }
-.cronometro-alternar { min-width: var(--largura-do-alternar); justify-content: center }
-/* A linha do relógio fica a --vao-do-cronometro-ao-resumo do que vem embaixo, no computador e no celular (a faixa estreita das
-   datas usa um vão menor entre as datas, que aqui deixava a parte de cada um grudada nos botões). */
-.grupo-datas-dados:has(.cronometro) { row-gap: var(--vao-do-cronometro-ao-resumo) }
-/* No celular, a mesma linha, com os vãos menores (a largura da situação é calculada de novo, com a folga menor) e os botões na
-   altura do dedo. Numa tela mais estreita que 375px, os botões descem para baixo do relógio, ainda um em cima do outro. */
-@container (max-width: 420px) {
-  .cronometro { --vao-relogio-e-situacao: var(--vao-relogio-e-situacao-estreito); --folga-da-situacao: var(--folga-da-situacao-estreita);
-    --vao-entre-relogio-e-botoes: var(--vao-entre-relogio-e-botoes-estreito);
-    --largura-da-situacao: calc(var(--bolinha-contando) + var(--vao-do-dado) + 7.5ch + 2 * var(--folga-da-situacao)) }
-  .cronometro-acoes > .mini { height: var(--alvo-de-toque) }
+
+/* O bloco entre as duas linhas finas, como a faixa das datas (--vao-das-faixas-dos-dados, #398), e o recipiente das consultas de largura. */
+.cartao-cabeca-dados:has(> .prazo-e-tempo) { container: prazo-e-tempo / inline-size; padding-block: var(--vao-das-faixas-dos-dados); border-block: 1px solid var(--line) }
+.prazo-e-tempo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--vao-das-linhas-do-tempo) var(--vao-das-colunas-do-tempo) }
+/* Lado a lado sempre que as duas colunas cabem (no painel ao lado, de ~490px, também: lá os botões do tempo descem um embaixo do
+   outro, dentro da coluna deles); uma coluna só na faixa estreita do celular (o @container não aceita variável: 440px são as duas
+   colunas, de ~200px cada, a folhinha com "Faltam 2 dias" e o botão "Adicionar tempo" inteiro, mais o vão). */
+@container prazo-e-tempo (max-width: 440px) { .prazo-e-tempo { grid-template-columns: minmax(0, 1fr) } }
+
+.seu-tempo { display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-relogio); min-width: 0 }
+.seu-tempo-estado { margin: 0; display: flex; align-items: center; gap: var(--vao-da-marca-do-tempo); min-height: 1lh; font-size: var(--texto-tabela); line-height: 1.5; color: var(--text2) }
+.seu-tempo-estado b { font-weight: 700; color: var(--ink) }
+.seu-tempo-pulso { flex: 0 0 auto; width: var(--bolinha-contando); height: var(--bolinha-contando); border-radius: 999px; background: var(--accent-bright);
+  box-shadow: 0 0 0 var(--anel-da-bolinha) var(--accent-tint); animation: pulso-do-relogio var(--pulso) ease-in-out infinite }
+@keyframes pulso-do-relogio { 50% { opacity: var(--pulso-apagado) } }
+@media (prefers-reduced-motion: reduce) { .seu-tempo-pulso { animation: none } }
+.seu-tempo-relogio { margin: 0; font-size: var(--texto-do-relogio-da-tarefa); font-weight: 900; line-height: var(--altura-da-linha-do-relogio); letter-spacing: -.01em;
+  color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap }
+.seu-tempo-unidade { font-size: var(--unidade-do-relogio); font-weight: 700; letter-spacing: 0; color: var(--text2) }
+.seu-tempo-relogio.zerado, .seu-tempo-relogio.zerado .seu-tempo-unidade { color: var(--muted) }
+/* Enquanto o tempo chega do banco, o lugar do relógio fica reservado, e o bloco não pula. */
+.seu-tempo-lendo { min-height: calc(var(--texto-do-relogio-da-tarefa) * var(--altura-da-linha-do-relogio)) }
+.seu-tempo-acoes { display: flex; flex-wrap: wrap; gap: var(--vao-dos-botoes-do-tempo); margin-top: var(--vao-do-relogio-aos-botoes) }
+.btn.seu-tempo-botao { padding: var(--folga-do-botao-do-tempo); font-size: var(--texto-tabela) }
+
+/* A linha da equipe: o total e o link dos registros, com o ponto entre eles. */
+.tempo-da-equipe { margin-top: var(--vao-das-linhas-do-tempo) }
+.tempo-da-equipe-linha { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-da-cabeca-do-grupo) var(--vao-das-colunas-do-registro);
+  font-size: var(--texto-tabela); line-height: 1.5; color: var(--text2) }
+.tempo-da-equipe-linha b { font-weight: 900; color: var(--ink); white-space: nowrap }
+.tempo-da-equipe-ponto { color: var(--faint) }
+.tempo-da-equipe-abrir { position: relative; display: inline-flex; align-items: center; gap: var(--vao-da-seta-do-link); border-bottom: 0;
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--folga-do-sublinhado) }
+.tempo-da-equipe-abrir::before { content: ''; position: absolute; inset: calc((1lh - var(--alvo-de-toque)) / 2) calc(-1 * var(--vao-da-seta-do-link)) }
+.tempo-da-equipe-abrir:hover, .tempo-da-equipe-abrir[aria-expanded="true"] { text-decoration-thickness: 2px }
+.tempo-da-equipe-abrir svg { transition: transform .2s }
+@media (prefers-reduced-motion: reduce) { .tempo-da-equipe-abrir svg { transition: none } }
+.tempo-da-equipe-abrir[aria-expanded="true"] svg { transform: rotate(180deg) }
+
+/* Os registros abertos, por pessoa: a cabeça (o nome, a % e o total) e uma linha por registro, nas mesmas colunas. */
+.registros-do-tempo { margin-top: var(--vao-dos-registros); border-top: 1px solid var(--line) }
+.registros-do-tempo-decorrido { margin: var(--vao-dos-registros) 0 0; font-size: var(--texto-tabela); color: var(--text) }
+.registros-do-tempo-nota { margin: var(--vao-dos-registros) 0 0; font-size: var(--texto-apoio); color: var(--muted) }
+.registros-do-tempo-decorrido b { font-weight: 900; color: var(--ink); white-space: nowrap }
+/* Cada pessoa é uma grade só (a cabeça, a lista e cada registro dividem as colunas, por subgrid): as durações ficam alinhadas. */
+.registros-da-pessoa { display: grid; grid-template-columns: minmax(0, 1fr) var(--coluna-da-duracao) var(--coluna-das-acoes); column-gap: var(--vao-das-colunas-do-registro);
+  padding-top: var(--vao-dos-registros) }
+.registros-da-pessoa-cabeca, .registros-da-pessoa-lista, .registro-do-tempo { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; font-size: var(--texto-tabela) }
+.registros-da-pessoa-cabeca { margin: 0 0 var(--vao-da-cabeca-do-grupo); font-weight: 900; color: var(--ink) }
+.registros-da-pessoa-nome { min-width: 0; overflow-wrap: anywhere }
+.registros-da-pessoa-parte { font-weight: 400; color: var(--text2); white-space: nowrap }
+.registros-da-pessoa-total { grid-column: 2; justify-self: end; white-space: nowrap }
+.registros-da-pessoa-lista { list-style: none; margin: 0; padding: 0 }
+.registro-do-tempo { min-height: var(--alvo-de-toque); border-top: 1px solid var(--line) }
+/* Sem a cabeça (só quem olha tem registros), a lista começa logo abaixo da linha do painel, sem uma segunda linha. */
+.registros-da-pessoa > .registros-da-pessoa-lista:first-child > .registro-do-tempo:first-child { border-top: 0 }
+.registro-do-tempo-quando { display: flex; flex-direction: column; min-width: 0; padding-block: var(--folga-do-registro); color: var(--text2) }
+.registro-do-tempo-motivo { font-size: var(--texto-apoio); line-height: 1.35; color: var(--muted); overflow-wrap: anywhere }
+.registro-do-tempo-duracao { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--vao-da-seta-do-link); white-space: nowrap; color: var(--ink) }
+.registro-do-tempo-acoes { display: flex; justify-content: flex-end; align-items: center; gap: var(--vao-das-acoes-do-registro) }
+/* A lixeira em repouso fica neutra, como o lápis; o vermelho é só dela armada ("Confirmar") e do mouse por cima. */
+.registro-do-tempo-acoes .mini.perigo:not(.confirmar) { border-color: var(--line2); color: var(--ink) }
+@media (hover: hover) { .registro-do-tempo-acoes .mini.perigo:not(.confirmar):hover:not(:disabled) { border-color: var(--erro-borda); color: var(--erro) } }
+/* Na faixa estreita (o celular), o lápis e a lixeira na altura do dedo, e a coluna deles na largura do que tem: o nome e o dia ficam
+   com o resto (a lixeira armada, mais larga, alarga a coluna da pessoa toda, e as durações continuam alinhadas). */
+@container prazo-e-tempo (max-width: 420px) {
+  .registros-da-pessoa { grid-template-columns: minmax(0, 1fr) var(--coluna-da-duracao) auto }
+  .registro-do-tempo-acoes > button { min-width: var(--alvo-de-toque); min-height: var(--alvo-de-toque) }
 }
+
+/* A soma do tempo da demanda, na faixa do tempo (#383). */
+.tempo-da-demanda { font-size: var(--texto-do-relogio); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
 /* A soma do tempo da demanda sem tempo (ou com erro): o texto de apoio, na altura do relógio, e a faixa não muda de tamanho. */
 .tempo-da-demanda.sem-tempo, .tempo-da-demanda.erro { display: block; font-size: var(--texto-apoio); font-weight: 400; line-height: var(--texto-do-relogio); color: var(--muted) }
-/* O que vem embaixo do relógio, na mesma faixa: a parte de cada um e a lista dos registros, com folga entre eles. Vazio, some. */
-.tempo-resumo { display: flex; flex-direction: column; gap: var(--vao-do-resumo-do-tempo) }
-.tempo-resumo:empty, .grupo-datas-linha:has(> .tempo-resumo:empty) { display: none }
-/* Uma duração ("4 s", "2 h 15 min") nunca quebra entre o número e a unidade. */
-.tempo-equipe-total .duracao { white-space: nowrap }
-/* O resumo de quem registrou tempo: o tempo da criação à conclusão e a parte de cada um (com a duração, para administradores),
-   ou "Ninguém registrou tempo nesta tarefa ainda.". Sem caixa nem linha: a faixa já o junta ao relógio. */
-.tempo-equipe { display: flex; flex-direction: column; gap: var(--vao-dos-campos) }
-.tempo-equipe-total { margin: 0; font-size: var(--texto-tabela); line-height: 1.5; color: var(--text) }
-/* A parte de cada um: uma tabela pequena, na largura do conteúdo (a % e a duração ficam perto do nome, e não na outra ponta da
-   faixa), com as colunas alinhadas de uma pessoa para a outra (subgrid): quem, a % e, para o administrador, a duração. */
-.tempo-equipe-lista { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, max-content) max-content max-content;
-  align-items: center; gap: var(--vao-dos-campos) var(--vao-do-resumo-do-tempo); max-width: 100%; font-size: var(--texto-tabela); color: var(--ink) }
-.tempo-equipe-lista li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center }
-.tempo-equipe-quem { display: inline-flex; align-items: center; gap: var(--vao-dos-campos); min-width: 0; overflow-wrap: anywhere }
-.tempo-equipe-lista .num { justify-self: end; font-variant-numeric: tabular-nums; white-space: nowrap }
-/* A lista dos registros (#400): o botão que a abre (o nome, o número e a seta, que vira para cima aberta) e, embaixo, um registro
-   por linha, entre linhas finas: o dia e a duração numa coluna fixa, de onde veio e o motivo no meio, Mudar e Apagar à direita. */
-.tempo-registros { display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-dos-campos) }
-.tempo-registros-abrir { display: inline-flex; align-items: center; gap: var(--vao-dos-campos); min-height: var(--botao-mini); border-bottom: 0 }
-@media (hover: hover) { .tempo-registros-abrir:hover { text-decoration: underline; text-underline-offset: var(--vao-do-dado) } }
-.tempo-registros-abrir svg { transition: transform .2s }
-@media (prefers-reduced-motion: reduce) { .tempo-registros-abrir svg { transition: none } }
-.tempo-registros-abrir[aria-expanded="true"] svg { transform: rotate(180deg) }
-.tempo-registros-lista { list-style: none; margin: 0; padding: 0; width: 100%; border-top: 1px solid var(--line) }
-.tempo-registro { display: grid; grid-template-columns: var(--coluna-do-quando) minmax(0, 1fr) auto; align-items: center; gap: var(--vao-dos-campos) var(--vao-do-resumo-do-tempo); padding-block: var(--folga-do-registro); border-bottom: 1px solid var(--line) }
-/* O último encosta na linha fina da faixa: sem a linha dele, as duas não ficam juntas. */
-.tempo-registro:last-child { border-bottom: 0; padding-bottom: 0 }
-.tempo-registro-quando { display: flex; flex-direction: column; gap: var(--vao-do-dado) }
-.tempo-registro-dia { font-size: var(--texto-apoio); color: var(--muted); font-variant-numeric: tabular-nums }
-.tempo-registro-duracao { font-size: var(--texto-tabela); font-weight: 900; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap }
-.tempo-registro-sobre { display: flex; flex-direction: column; gap: var(--vao-do-dado); min-width: 0; font-size: var(--texto-tabela); color: var(--text) }
-.tempo-registro-tipo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-do-dado) var(--vao-dos-campos) }
-.tempo-registro-quem { display: inline-flex; align-items: center; gap: var(--vao-dos-campos); font-weight: 700; color: var(--ink) }
-.tempo-registro-motivo { font-size: var(--texto-apoio); color: var(--muted); overflow-wrap: anywhere }
-.tempo-registro-acoes { display: inline-flex; gap: var(--vao-dos-botoes-do-tempo) }
-/* No celular: o dia e a duração à esquerda e os ícones de mudar e apagar à direita, do tamanho do dedo, na primeira linha; de onde veio e o motivo, embaixo. */
-@container (max-width: 420px) {
-  .tempo-registro { grid-template-columns: minmax(0, 1fr) auto }
-  .tempo-registro-sobre { grid-column: 1 / -1; grid-row: 2 }
-  .tempo-registro-acoes > button { min-width: var(--alvo-de-toque); min-height: var(--alvo-de-toque) }
-}
-/* A janela do ajuste e a de mudar um registro: os campos um embaixo do outro. */
+/* A janela de "Adicionar tempo" e a de mudar um registro: os campos um embaixo do outro. */
 .ajuste-tempo { display: flex; flex-direction: column; gap: 14px }
-/* A tecla do atalho, dentro do botão do cronômetro. */
-.cronometro .tecla { margin-left: var(--vao-do-dado) }

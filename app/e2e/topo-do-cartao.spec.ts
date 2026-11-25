@@ -263,9 +263,12 @@ test.describe('A equipe no topo, como na anotação', () => {
     await expect(cartao.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
     await cartao.evaluate(d => Promise.all(d.getAnimations({ subtree: true }).map(a => a.finished)));
   }
-  /** O que fica à esquerda do topo de cada cartão: o tipo e o selo ou o código que vem depois dele. */
+  /**
+   * O que fica à esquerda do topo de cada cartão: o tipo e o selo ou o código que vem depois dele. Na tarefa, desde a #442, o selo do
+   * prazo saiu do cartão aberto (o prazo está na folhinha): depois do tipo vem só o código.
+   */
   const ESQUERDA = [
-    { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', partes: (c: Locator) => [c.getByText('Tarefa', { exact: true }).first(), c.getByText(/^Prazo.*\d/).first()] },
+    { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', partes: (c: Locator) => [c.getByText('Tarefa', { exact: true }).first(), c.getByText('C0FFEE12', { exact: true }).first()] },
     { cartao: 'contrato', endereco: '/contratos/', linha: 'MARIA APARECIDA EXEMPLO',
       partes: (c: Locator) => [c.getByText('Quota litis', { exact: true }).first(), c.getByText(/^[A-Z]{2}\d{2}-\d{4}-\d{4}$/).first()] }
   ];

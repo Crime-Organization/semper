@@ -3,7 +3,7 @@
 // calendário pequeno), o quadro e a tabela ordenam e filtram pelo início, e os campos de data dos cadastros têm o calendário
 // pequeno no computador e o do aparelho no celular. Na semente, as tarefas e demandas foram criadas hoje (começam hoje).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, entrarComo } from './ajudantes';
+import { abrirSecao, entrarComo, mudarPrazo, prazoDoCartao, seuTempo, tempoDaEquipe } from './ajudantes';
 
 const FUSO = 'America/Sao_Paulo';
 /** Hoje em Brasília, como o cartão mostra (dd/mm/aaaa). */
@@ -39,22 +39,30 @@ async function abrirCartao(page: Page, modulo: 'tarefas' | 'demandas', titulo: s
 }
 const calendario = (page: Page) => page.getByRole('dialog', { name: 'Calendário' });
 
-/** O resumo das datas no cartão da tarefa e da demanda (#422), que abre a janela das datas. */
+/** O resumo das datas no cartão da demanda (#422), que abre a janela das datas. No da tarefa, desde a #442, é o link "Mudar prazo". */
 const resumoDasDatas = (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / });
 /** A janela das datas (#422): flutua sobre o cartão, e por isso é achada na página, e não dentro dele. */
 const janelaDasDatas = (page: Page) => page.getByRole('dialog', { name: 'Mudar as datas' });
 /** O calendário do mês, sempre aberto na janela das datas. */
 const calendarioDaJanela = (page: Page) => janelaDasDatas(page).getByRole('group', { name: 'Calendário' });
+/**
+ * O início da tarefa (#442: ele saiu do cartão e fica só na janela das datas). O link "Mudar prazo" leva o resumo antigo (o início, a
+ * entrega e o lembrete) como descrição, para o leitor de tela; é por ela que o teste confere o início sem abrir a janela.
+ */
+const inicioDaTarefa = (cartao: Locator, data: string) => expect(mudarPrazo(cartao)).toHaveAccessibleDescription(new RegExp(`Início ${escapar(data)}`));
+/** A criação da tarefa, no rodapé do cartão (#442: saiu do bloco das datas). */
+const criacaoNoRodape = (cartao: Locator) => cartao.getByText(/^Criada em \d{2}\/\d{2}\/\d{4} por /);
 
 test.describe('Data de criação e data de início no cartão (#357, #422)', () => {
   test('dada uma tarefa, quando a pessoa abre a janela das datas e muda o início pelo calendário, então a data fica salva ao fechar e abrir, e no histórico', async ({ page }) => {
     // Dado
+    // (#442: a criação fica no rodapé, e o início, só na janela das datas, que o link "Mudar prazo" abre)
     let cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await expect(cartao.getByText(/^Criada em \d{2}\/\d{2}\/\d{4}$/)).toHaveText(`Criada em ${hoje()}`);
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${hoje()}`);
+    await expect(criacaoNoRodape(cartao)).toContainText(`Criada em ${hoje()}`);
+    await inicioDaTarefa(cartao, hoje());
     // Quando: abre a janela, clica no início (o calendário passa a escrever nele), escreve um dia de outro mês (o calendário vai
     // para ele), escolhe outro dia nele e salva
-    await resumoDasDatas(cartao).click();
+    await mudarPrazo(cartao).click();
     await expect(calendarioDaJanela(page)).toBeVisible();
     await janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' }).click();
     await janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' }).fill('15/12/2030');
@@ -64,12 +72,15 @@ test.describe('Data de criação e data de início no cartão (#357, #422)', () 
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(janelaDasDatas(page)).toHaveCount(0);
-    await expect(resumoDasDatas(cartao)).toContainText('Início 20/12/2030');
-    await expect(cartao.getByText(/^Criada em \d{2}\/\d{2}\/\d{4}$/)).toHaveText(`Criada em ${hoje()}`);
+    await inicioDaTarefa(cartao, '20/12/2030');
+    await expect(criacaoNoRodape(cartao)).toContainText(`Criada em ${hoje()}`);
     // E ao fechar e abrir de novo
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await expect(resumoDasDatas(cartao)).toContainText('Início 20/12/2030');
+    await inicioDaTarefa(cartao, '20/12/2030');
+    await mudarPrazo(cartao).click();
+    await expect(janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' })).toHaveValue('20/12/2030');
+    await page.keyboard.press('Escape');
     await abrirSecao(cartao, 'Histórico de alterações');
     await expect(cartao.getByText('Data de início:', { exact: true })).toBeVisible();
     await expect(cartao.getByText('Data de início:', { exact: true }).locator('..')).toContainText('20/12/2030');
@@ -111,7 +122,7 @@ test.describe('Data de criação e data de início no cartão (#357, #422)', () 
     await edicao.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(edicao).toHaveCount(0);
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${hoje()}`);
+    await inicioDaTarefa(cartao, hoje());
   });
 });
 
@@ -119,11 +130,11 @@ test.describe('Ordem e filtro pela data de início (#357)', () => {
   /** Muda o início de uma tarefa pela janela das datas do cartão e o fecha. */
   async function mudarInicio(page: Page, titulo: string, data: string) {
     const cartao = await abrirCartao(page, 'tarefas', titulo);
-    await resumoDasDatas(cartao).click();
+    await mudarPrazo(cartao).click();
     const campo = janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' });
     await campo.fill(data);
     await campo.press('Enter');
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${data}`);
+    await inicioDaTarefa(cartao, data);
     await cartao.getByRole('button', { name: 'Fechar' }).click();
   }
 
@@ -193,7 +204,9 @@ test.describe('Calendário pequeno nos cadastros (#357)', () => {
     // E quando salva, então o cartão mostra o prazo com a hora
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
-    await expect(page.getByRole('dialog').getByText(new RegExp(`Prazo: ${escapar(dia.texto)}`))).toBeVisible();
+    // (#442: o prazo fica na folhinha, com a hora embaixo; o selo do topo saiu do cartão aberto)
+    await expect(prazoDoCartao(page.getByRole('dialog'))).toContainText(dia.texto);
+    await expect(prazoDoCartao(page.getByRole('dialog'))).toContainText('Às 14:30');
   });
 
   test('dado o cadastro de compromisso, quando a pessoa usa o teclado no calendário, então a seta para baixo entra nele e o Enter escolhe', async ({ page }) => {
@@ -237,15 +250,15 @@ test.describe('Dado um celular (#357)', () => {
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então o cartão mostra o prazo escolhido
-    await expect(page.getByRole('dialog').getByText(/Prazo: 10\/11\/2030/)).toBeVisible();
+    await expect(prazoDoCartao(page.getByRole('dialog'))).toContainText('10/11/2030');
   });
 
   test('dado o cartão de uma tarefa, quando a pessoa toca nas datas, então a janela abre com o calendário do mês, e o dia tocado nele é salvo', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${hoje()}`);
-    // Quando
-    await resumoDasDatas(cartao).tap();
+    await inicioDaTarefa(cartao, hoje());
+    // Quando (#442: toca em "Mudar prazo"; o início está dentro da janela)
+    await mudarPrazo(cartao).tap();
     await janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' }).tap();
     await calendarioDaJanela(page).getByRole('button', { name: 'Próximo mês' }).tap();
     const dia = dia10DoMesSeguinte();
@@ -253,7 +266,7 @@ test.describe('Dado um celular (#357)', () => {
     await janelaDasDatas(page).getByRole('button', { name: 'Salvar' }).tap();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${dia.texto}`);
+    await inicioDaTarefa(cartao, dia.texto);
   });
 });
 
@@ -273,22 +286,25 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
   const janelaDoQuando = (page: Page) => page.getByRole('dialog', { name: 'Mudar a data e o horário' });
 
   test('dada uma tarefa, quando a pessoa escolhe a entrega no calendário da janela, a hora e o lembrete, então salva, fica ao fechar e abrir e no histórico', async ({ page }) => {
-    // Dado: a criação e o resumo das datas na faixa das datas, e o tempo na faixa dele, logo abaixo (#383)
+    // Dado: o prazo na folhinha e, ao lado, o relógio (#442: sem a faixa das datas, com a criação e o resumo, nem a faixa do tempo)
     let cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    const faixa = cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
-    for (const dado of ['Criada em', 'Datas']) await expect(faixa.getByRole('group', { name: dado, exact: true })).toBeVisible();
-    await expect(cartao.getByRole('group', { name: 'Tempo', exact: true }).getByRole('group', { name: 'Seu tempo nesta tarefa', exact: true }).getByRole('timer')).toBeVisible();
-    // E no cartão, só o resumo: nenhum campo
+    const bloco = cartao.getByRole('group', { name: 'Prazo e tempo' });
+    await expect(bloco.getByRole('group', { name: 'Prazo', exact: true })).toContainText('Faltam 2 dias');
+    await expect(seuTempo(bloco).getByRole('timer')).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
+    // E no cartão, nenhum campo
     await expect(cartao.getByRole('textbox', { name: 'Prazo', exact: true })).toHaveCount(0);
-    // Quando: abre a janela; ela tem o calendário, o início, a entrega com a caixa de marcar, a hora, o lembrete, Salvar e Remover
-    await resumoDasDatas(cartao).click();
+    // Quando: abre a janela; ela tem o calendário, o início, a entrega com a caixa de marcar, a hora, o lembrete, Salvar e "Tirar o
+    // prazo" (a regra mudou na revisão da #442: na tarefa, aberta pela folhinha, a janela se chama "Prazo", e o Remover, "Tirar o prazo")
+    await mudarPrazo(cartao).click();
     const janela = janelaDasDatas(page);
     await expect(calendarioDaJanela(page)).toBeVisible();
     await expect(janela.getByRole('textbox', { name: 'Data de início' })).toBeVisible();
     await expect(janela.getByRole('checkbox', { name: 'Entrega' })).toBeChecked();
     await expect(janela.getByLabel('Hora do prazo')).toBeVisible();
     await expect(janela.getByRole('combobox', { name: 'Lembrete' })).toBeVisible();
-    await expect(janela.getByRole('button', { name: 'Remover' })).toBeVisible();
+    await expect(janela.getByText('Prazo', { exact: true })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Tirar o prazo' })).toBeVisible();
     // Quando: escreve um dia de outro mês na entrega, escolhe outro no calendário, a hora e o lembrete
     await janela.getByRole('textbox', { name: 'Prazo', exact: true }).fill('15/12/2030');
     await calendarioDaJanela(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
@@ -299,13 +315,15 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(janela).toHaveCount(0);
-    await expect(resumoDasDatas(cartao)).toContainText('Entrega 20/12/2030 às 14:30');
-    await expect(resumoDasDatas(cartao)).toContainText('Lembrete: 1 hora antes');
-    await expect(cartao).toContainText('Prazo: 20/12/2030 às 14:30');   // o selo do topo
+    await expect(prazoDoCartao(cartao)).toContainText('20/12/2030');
+    await expect(prazoDoCartao(cartao)).toContainText('Às 14:30 · lembrete 1 h antes');
+    // (#442: o selo do prazo saiu do topo do cartão aberto; ele continua no quadro e na lista)
+    await expect(cartao).not.toContainText('Prazo: 20/12/2030 às 14:30');
     // E ao fechar e abrir de novo, e no histórico
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await expect(resumoDasDatas(cartao)).toContainText('Entrega 20/12/2030 às 14:30');
+    await expect(prazoDoCartao(cartao)).toContainText('20/12/2030');
+    await expect(prazoDoCartao(cartao)).toContainText('Às 14:30 · lembrete 1 h antes');
     await abrirSecao(cartao, 'Histórico de alterações');
     const mudanca = doHistorico(cartao, 'Hora do prazo:');
     await expect(mudanca).toContainText('20/12/2030');
@@ -316,28 +334,30 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
   test('dada uma tarefa, quando a pessoa muda o prazo e clica em Desfazer, então o prazo de antes volta', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    const antes = await resumoDasDatas(cartao).textContent();
+    const antes = await prazoDoCartao(cartao).textContent();
     // Quando
-    await resumoDasDatas(cartao).click();
+    await mudarPrazo(cartao).click();
     const campo = janelaDasDatas(page).getByRole('textbox', { name: 'Prazo', exact: true });
     await campo.fill('01/02/2031');
     await campo.press('Enter');
-    await expect(resumoDasDatas(cartao)).toContainText('01/02/2031');
+    await expect(prazoDoCartao(cartao)).toContainText('01/02/2031');
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
     // Então
-    await expect(resumoDasDatas(cartao)).toHaveText(antes!);
+    await expect(prazoDoCartao(cartao)).toHaveText(antes!);
   });
 
-  test('dada uma tarefa com prazo, quando a pessoa usa o Remover, então o prazo sai e o resumo diz "Sem prazo"', async ({ page }) => {
+  test('dada uma tarefa com prazo, quando a pessoa usa "Tirar o prazo" (antes, "Remover"), então o prazo sai e o cartão diz "Sem prazo", com "Definir prazo"', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await resumoDasDatas(cartao).click();
+    await mudarPrazo(cartao).click();
     // Quando
-    await janelaDasDatas(page).getByRole('button', { name: 'Remover' }).click();
+    await janelaDasDatas(page).getByRole('button', { name: 'Tirar o prazo' }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(janelaDasDatas(page)).toHaveCount(0);
-    await expect(resumoDasDatas(cartao)).toContainText(`Início ${hoje()} · Sem prazo`);
+    await expect(prazoDoCartao(cartao)).toContainText('Sem prazo');
+    await expect(mudarPrazo(cartao)).toHaveText('Definir prazo');
+    await inicioDaTarefa(cartao, hoje());
   });
 
   test('dada uma demanda, quando a pessoa muda o prazo de entrega e a hora na janela, então fica ao fechar e abrir e no histórico; Esc não fecha o cartão', async ({ page }) => {
@@ -410,15 +430,16 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
     await entrarComo(page, 'u-bruno');
     const tarefa = await abrirCartao(page, 'tarefas', 'Renovar a procuração');
-    const faixa = tarefa.getByRole('group', { name: 'Datas do cartão', exact: true });
-    // Quando
-    await faixa.getByRole('group', { name: 'Datas', exact: true }).click();
-    // Então: as datas são texto, nenhuma janela abre, e o cronômetro não aparece (é de quem altera)
-    await expect(faixa.getByRole('button')).toHaveCount(0);
+    const prazo = prazoDoCartao(tarefa);
+    // Quando (#442: o prazo na folhinha, sem o link)
+    await prazo.getByText(/^Venceu há/).click();
+    // Então: o prazo é texto, nenhuma janela abre, e o relógio não aparece (é de quem altera)
+    await expect(prazo.getByRole('button')).toHaveCount(0);
     await expect(janelaDasDatas(page)).toHaveCount(0);
-    await expect(faixa.getByRole('group', { name: 'Datas', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+    await expect(prazo).toContainText(/\d{2}\/\d{2}\/\d{4}/);
     await expect(tarefa.getByRole('timer')).toHaveCount(0);
-    await expect(tarefa.getByRole('group', { name: 'Tempo', exact: true })).toHaveCount(0);
+    await expect(seuTempo(tarefa)).toHaveCount(0);
+    await expect(tempoDaEquipe(tarefa).getByRole('button')).toHaveCount(0);
     // E o compromisso que o Bruno só vê pela Agenda geral
     await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(false));
     const compromisso = await abrirCompromisso(page, 'Reunião de equipe');
@@ -430,18 +451,18 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
   test('dada uma tarefa, quando a pessoa muda o prazo na janela e clica fora dela, então a janela fecha sem gravar nada, e o cartão fecha sem perguntar', async ({ page }) => {
     // Dado
     let cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    const antes = await resumoDasDatas(cartao).textContent();
-    await resumoDasDatas(cartao).click();
+    const antes = await prazoDoCartao(cartao).textContent();
+    await mudarPrazo(cartao).click();
     await janelaDasDatas(page).getByRole('textbox', { name: 'Prazo', exact: true }).fill('20/12/2030');
     // Quando: clica fora da janela (no título do cartão)
     await cartao.getByRole('heading', { name: 'Emitir a GRU', level: 2 }).click({ position: { x: 1, y: 1 } });
     // Então: a janela fecha sem gravar, e o cartão fecha sem perguntar (não sobrou nada por salvar)
     await expect(janelaDasDatas(page)).toHaveCount(0);
-    await expect(resumoDasDatas(cartao)).toHaveText(antes!);
+    await expect(prazoDoCartao(cartao)).toHaveText(antes!);
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
     cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    await expect(resumoDasDatas(cartao)).toHaveText(antes!);
+    await expect(prazoDoCartao(cartao)).toHaveText(antes!);
   });
 });
 
@@ -473,116 +494,105 @@ async function dadosDaFaixa(faixa: Locator, dados: string[]) {
   }
   return medidas;
 }
-/** As datas da tarefa, na ordem da faixa. */
 type Caixa = { x: number; y: number; width: number; height: number };
-/** Os botões do tempo um em cima do outro (#434): Iniciar/Retomar/Pausar em cima, "Ajustar meu tempo" embaixo, na mesma coluna e da mesma largura. */
-function conferirOsBotoesEmpilhados(botao: Caixa, ajustar: Caixa) {
-  expect(ajustar.y).toBeGreaterThanOrEqual(botao.y + botao.height);
-  expect(ajustar.x).toBeCloseTo(botao.x, 0);
-  expect(ajustar.width).toBeCloseTo(botao.width, 0);
-}
-/**
- * O vão entre a situação e os botões (#436), o --vao-entre-relogio-e-botoes: {spacing.lg} no computador e {spacing.md} no celular,
- * onde a linha precisa caber; nada de vão maior no meio.
- */
-const VAO_DA_SITUACAO_AOS_BOTOES = { computador: 24, celular: 16 };
-/** O vão entre a linha do relógio e a parte de cada um (#436), o --vao-do-cronometro-ao-resumo: {spacing.lg}, no computador e no celular. */
-const VAO_DO_RELOGIO_AO_RESUMO = 24;
 /** A folga das medidas: as frações de pixel do navegador. */
 const UM_PIXEL = 1;
-const meioDaAltura = (c: Caixa) => c.y + c.height / 2;
-/**
- * A linha do relógio (#436): o relógio e a situação lado a lado, na mesma altura, e logo depois os botões empilhados, a um vão só
- * da situação (sem o vão grande no meio, que separava o relógio dos botões na outra ponta), com o relógio no meio da altura dos dois.
- */
-function conferirALinhaDoRelogio([relogio, situacao, botao, ajustar]: Caixa[], vao: number) {
-  conferirOsBotoesEmpilhados(botao, ajustar);
-  expect(situacao.x).toBeGreaterThanOrEqual(relogio.x + relogio.width);
-  expect(Math.abs(meioDaAltura(situacao) - meioDaAltura(relogio))).toBeLessThanOrEqual(UM_PIXEL);
-  expect(Math.abs(botao.x - (situacao.x + situacao.width) - vao)).toBeLessThanOrEqual(UM_PIXEL);
-  expect(Math.abs(meioDaAltura(relogio) - (botao.y + ajustar.y + ajustar.height) / 2)).toBeLessThanOrEqual(UM_PIXEL);
+/** O alvo mínimo do dedo nos botões do tempo (o --alvo-de-toque). */
+const ALVO = 44;
+/** O bloco do prazo e do tempo da tarefa (#442) e as partes dele que os testes medem. */
+const partesDoBloco = (cartao: Locator) => {
+  const bloco = cartao.getByRole('group', { name: 'Prazo e tempo' });
+  const tempo = seuTempo(bloco);
+  return { bloco, prazo: prazoDoCartao(bloco), tempo, botao: tempo.getByRole('button', { name: /^(Iniciar|Continuar|Parar)$/ }),
+    adicionar: tempo.getByRole('button', { name: 'Adicionar tempo' }), equipe: tempoDaEquipe(cartao) };
+};
+/** Os botões do tempo (#442): lado a lado, na mesma altura, com o alvo do dedo, e inteiros dentro do bloco. */
+function conferirOsBotoes(botao: Caixa, adicionar: Caixa, bloco: Caixa) {
+  expect(Math.abs(botao.y - adicionar.y)).toBeLessThanOrEqual(UM_PIXEL);
+  expect(adicionar.x).toBeGreaterThanOrEqual(botao.x + botao.width);
+  for (const b of [botao, adicionar]) {
+    expect(b.height).toBeGreaterThanOrEqual(ALVO - UM_PIXEL);
+    expect(b.x).toBeGreaterThanOrEqual(bloco.x - UM_PIXEL);
+    expect(b.x + b.width).toBeLessThanOrEqual(bloco.x + bloco.width + UM_PIXEL);
+  }
 }
-const DATAS_DA_TAREFA = ['Criada em', 'Datas'];
-/** As partes da faixa do tempo da tarefa (#383): o relógio e a situação, lado a lado (#436), e o botão e "Ajustar meu tempo", um em cima do outro (#434). */
-const partesDoTempo = (tempo: Locator) => [tempo.getByRole('timer'), tempo.getByText('pausado', { exact: true }),
-  tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ }), tempo.getByRole('button', { name: 'Ajustar meu tempo' })];
 
-test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)', () => {
+// A regra mudou na #442 (opção 9, aprovada pelo dono): a faixa das datas (a criação e o resumo do início e do prazo) e a faixa do
+// tempo (o relógio, a pílula e os botões empilhados, #434/#436) saíram do cartão da tarefa. No lugar, um bloco só, "Prazo e tempo":
+// o prazo na folhinha à esquerda e o relógio à direita (uma embaixo do outro, quando as duas colunas não cabem), os botões lado a
+// lado e, embaixo, a linha da equipe. A demanda continua com as duas faixas (testes logo abaixo).
+test.describe('Dado um computador, o bloco do prazo e do tempo da tarefa (#442)', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  for (const formato of ['ao lado', 'no centro']) {
-    test(`quando a pessoa abre o cartão da tarefa ${formato}, então as datas ficam lado a lado, os nomes numa linha e os valores alinhados na de baixo, e o tempo fica numa faixa própria, logo abaixo, numa linha só: o relógio, a situação e, logo depois, os botões, um em cima do outro`, async ({ page }) => {
-      // Quando
-      const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-      if (formato === 'no centro') {
-        await page.getByRole('button', { name: 'Abrir no centro da tela' }).click();
-        await expect(page.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
-      }
-      const datas = cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
-      const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-      await expect(tempo.getByRole('timer')).toBeVisible();
-      // Então: as datas da esquerda para a direita, os nomes todos na mesma altura e os valores também, cada um numa linha só
-      const medidas = await dadosDaFaixa(datas, DATAS_DA_TAREFA);
-      for (let i = 1; i < medidas.length; i++) {
-        expect(medidas[i].caixa.x).toBeGreaterThanOrEqual(medidas[i - 1].caixa.x + medidas[i - 1].caixa.width);
-        expect(medidas[i].nome.y).toBeCloseTo(medidas[0].nome.y, 0);
-        expect(medidas[i].valor.y).toBeCloseTo(medidas[0].valor.y, 0);
-      }
-      for (const m of medidas) expect(m.valor.linhas).toBe(1);
-      // E o tempo, embaixo das datas, sem nada dele na faixa das datas. Antes (#383), o relógio, a situação, o botão e o ajuste
-      // ficavam todos na mesma linha; na #434 (pedido do dono), os dois botões ficaram um em cima do outro, à direita da situação.
-      // A regra mudou na #436 (o dono achou o conjunto desajeitado, com um vão grande entre o relógio e os botões encostados na
-      // outra ponta): agora é uma linha só, igual à do celular, com o relógio e a situação lado a lado e os botões logo depois,
-      // sem o vão no meio
-      await expect(datas.getByRole('timer')).toHaveCount(0);
-      const faixaDasDatas = (await datas.boundingBox())!;
-      const caixas = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
-      expect(caixas[0].y).toBeGreaterThanOrEqual(faixaDasDatas.y + faixaDasDatas.height);
-      conferirALinhaDoRelogio(caixas, VAO_DA_SITUACAO_AOS_BOTOES.computador);
-      // E o tempo total da tarefa é o último dado da faixa das datas (#397); o resumo de quem registrou tempo fica na faixa do tempo
-      await expect(datas.getByRole('group', { name: 'Tempo total' })).toHaveText(/2 h$/);
-      await expect(tempo.getByRole('list', { name: 'Parte de cada um' })).toBeVisible();
-    });
-  }
-});
-
-test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', () => {
-  test.use({ viewport: { width: 375, height: 812 } });
-
-  test('quando a pessoa abre o cartão da tarefa, então cada data fica numa linha, com os valores começando na mesma coluna, e o tempo cabe na faixa dele, numa linha só: o relógio, a situação e os botões, um em cima do outro', async ({ page }) => {
+  test('quando a pessoa abre o cartão da tarefa no centro, então o prazo fica à esquerda e o relógio à direita, alinhados pelo topo, os botões lado a lado, e a linha da equipe embaixo', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-    await expect(tempo.getByRole('timer')).toBeVisible();
-    // Então: uma data embaixo da outra, o nome à esquerda e o valor à direita, na mesma altura
-    const medidas = await dadosDaFaixa(cartao.getByRole('group', { name: 'Datas do cartão', exact: true }), DATAS_DA_TAREFA);
-    for (let i = 1; i < medidas.length; i++) {
-      expect(medidas[i].caixa.x).toBeCloseTo(medidas[0].caixa.x, 0);
-      expect(medidas[i].caixa.y).toBeGreaterThanOrEqual(medidas[i - 1].caixa.y + medidas[i - 1].caixa.height);
-      expect(medidas[i].valor.x).toBeCloseTo(medidas[0].valor.x, 0);
-    }
-    for (const m of medidas) {
-      expect(m.valor.x).toBeGreaterThan(m.nome.x + m.nome.width);
-      expect(Math.abs(m.valor.y - m.nome.y)).toBeLessThan(m.nome.height);
-      expect(m.valor.linhas).toBe(1);
-    }
-    // E nada do tempo sai da faixa dele: o relógio, a situação, o botão e o ajuste inteiros dentro dela
-    const faixa = (await tempo.boundingBox())!;
-    for (const parte of partesDoTempo(tempo)) {
-      const caixa = (await parte.boundingBox())!;
-      expect(caixa.x).toBeGreaterThanOrEqual(faixa.x);
-      expect(caixa.x + caixa.width).toBeLessThanOrEqual(faixa.x + faixa.width);
-    }
-    const caixas = await Promise.all(partesDoTempo(tempo).map(async parte => (await parte.boundingBox())!));
-    // E os botões continuam um em cima do outro (#434), da mesma largura. A regra mudou na revisão da #434 (antes, a situação ficava
-    // ao lado do relógio e os botões desciam para baixo dele, numa linha a mais) e de novo na #436: o relógio e a situação lado a
-    // lado e os botões logo depois, na mesma linha, como no computador, com vãos menores para a linha caber
-    conferirALinhaDoRelogio(caixas, VAO_DA_SITUACAO_AOS_BOTOES.celular);
-    // E a parte de cada um fica tão longe dos botões quanto no computador (#436): antes, no celular, ela ficava grudada neles
-    const [, , , ajustar] = caixas;
-    const parte = (await tempo.getByRole('list', { name: 'Parte de cada um' }).boundingBox())!;
-    expect(parte.y - (ajustar.y + ajustar.height)).toBeGreaterThanOrEqual(VAO_DO_RELOGIO_AO_RESUMO - UM_PIXEL);
+    await page.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    await expect(page.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
+    const p = partesDoBloco(cartao);
+    await expect(p.tempo.getByRole('timer')).toBeVisible();
+    await esperarOCartao(p.bloco);
+    const [bloco, prazo, tempo, botao, adicionar, equipe] = await Promise.all([p.bloco, p.prazo, p.tempo, p.botao, p.adicionar, p.equipe]
+      .map(async l => (await l.boundingBox())!));
+    // Então
+    expect(tempo.x).toBeGreaterThanOrEqual(prazo.x + prazo.width);
+    expect(Math.abs(tempo.y - prazo.y)).toBeLessThanOrEqual(UM_PIXEL);
+    conferirOsBotoes(botao, adicionar, bloco);
+    expect(equipe.y).toBeGreaterThanOrEqual(bloco.y + bloco.height);
+    await expect(p.equipe).toContainText('Total da equipe 2 h');
   });
+
+  // A regra mudou na revisão da #442: no painel ao lado (~490 px), o prazo e o relógio ficam lado a lado, como no modelo aprovado
+  // (antes, um embaixo do outro, com os botões lado a lado); sem largura para os dois botões na coluna do relógio, eles descem um
+  // embaixo do outro, dentro dela.
+  test('quando a pessoa abre o cartão da tarefa ao lado, então o prazo e o relógio ficam lado a lado no painel, e os botões cabem na coluna do relógio', async ({ page }) => {
+    // Quando
+    const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    const p = partesDoBloco(cartao);
+    await expect(p.tempo.getByRole('timer')).toBeVisible();
+    await esperarOCartao(p.bloco);
+    const [bloco, prazo, tempo, botao, adicionar] = await Promise.all([p.bloco, p.prazo, p.tempo, p.botao, p.adicionar].map(async l => (await l.boundingBox())!));
+    // Então: o relógio ao lado do prazo, alinhado pelo topo
+    expect(tempo.x).toBeGreaterThanOrEqual(prazo.x + prazo.width);
+    expect(Math.abs(tempo.y - prazo.y)).toBeLessThanOrEqual(UM_PIXEL);
+    // E os botões, com 44 px, dentro da coluna do relógio, um embaixo do outro (sem se cruzar)
+    for (const b of [botao, adicionar]) {
+      expect(b.height).toBeGreaterThanOrEqual(ALVO - UM_PIXEL);
+      expect(b.x).toBeGreaterThanOrEqual(tempo.x - UM_PIXEL);
+      expect(b.x + b.width).toBeLessThanOrEqual(bloco.x + bloco.width + UM_PIXEL);
+    }
+    expect(adicionar.y >= botao.y + botao.height || adicionar.x >= botao.x + botao.width).toBe(true);
+    await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('Dado um celular, o bloco do prazo e do tempo da tarefa (#442)', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  for (const esquema of ['light', 'dark'] as const) {
+    test(`quando a pessoa abre o cartão da tarefa (tema ${esquema === 'dark' ? 'escuro' : 'claro'}), então o prazo fica em cima e o relógio embaixo, os botões lado a lado, com 44 px, e nada sai do cartão`, async ({ page }) => {
+      // Dado
+      await page.emulateMedia({ colorScheme: esquema });
+      // Quando
+      const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+      const p = partesDoBloco(cartao);
+      await expect(p.tempo.getByRole('timer')).toBeVisible();
+      await esperarOCartao(p.bloco);
+      const [bloco, prazo, tempo, botao, adicionar] = await Promise.all([p.bloco, p.prazo, p.tempo, p.botao, p.adicionar].map(async l => (await l.boundingBox())!));
+      // Então
+      expect(tempo.y).toBeGreaterThanOrEqual(prazo.y + prazo.height);
+      conferirOsBotoes(botao, adicionar, bloco);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+      // E a linha da equipe e os registros abertos também cabem
+      await p.equipe.getByRole('button', { name: /^Ver registros/ }).click();
+      const registros = cartao.getByRole('group', { name: 'Registros de tempo' });
+      for (const acao of await registros.getByRole('button').all()) {
+        const c = (await acao.boundingBox())!;
+        expect(c.x + c.width).toBeLessThanOrEqual(bloco.x + bloco.width + UM_PIXEL);
+        expect(c.height).toBeGreaterThanOrEqual(ALVO - UM_PIXEL);
+      }
+    });
+  }
 
   test('dada uma demanda sem prazo, quando a pessoa abre o cartão, então "Sem prazo" fica numa linha só, alinhado com as outras datas', async ({ page }) => {
     // Quando: "Busca de anterioridade" não tem prazo
@@ -634,28 +644,29 @@ test.describe('Dada uma demanda, a faixa do tempo (#383)', () => {
   });
 });
 
-test.describe('Dada a tarefa com o cronômetro, o botão Iniciar/Pausar (#383)', () => {
+test.describe('Dada a tarefa com o relógio, o botão Continuar/Parar (#383, #442)', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('quando a pessoa aperta T para contar e de novo para pausar, então o botão continua no mesmo lugar e do mesmo tamanho', async ({ page }) => {
+  // A regra mudou na #442: os botões são Iniciar, Parar e Continuar (antes, Iniciar, Pausar e Retomar), e a situação fica na linha de
+  // cima do relógio ("Seu tempo, contando"). O botão continua começando no mesmo lugar.
+  test('quando a pessoa aperta T para contar e de novo para parar, então o botão continua no mesmo lugar', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
-    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-    const botao = tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ });
-    await expect(botao).toHaveText(/^Retomar/);
+    const tempo = seuTempo(cartao);
+    const botao = tempo.getByRole('button', { name: /^(Iniciar|Continuar|Parar)$/ });
+    await expect(botao).toHaveText('Continuar');
     await esperarOCartao(tempo);
     const antes = (await botao.boundingBox())!;
     // Quando
     await page.keyboard.press('t');
     // Então
-    await expect(botao).toHaveText(/^Pausar/);
-    await expect(tempo.getByText('contando', { exact: true })).toBeVisible();
-    const contando = (await botao.boundingBox())!;
-    expect(contando.x).toBeCloseTo(antes.x, 0);
-    expect(contando.width).toBeCloseTo(antes.width, 0);
+    await expect(botao).toHaveText('Parar');
+    await expect(tempo).toContainText('Seu tempo, contando');
+    expect((await botao.boundingBox())!.x).toBeCloseTo(antes.x, 0);
     // E de novo
     await page.keyboard.press('t');
-    await expect(botao).toHaveText(/^Retomar/);
+    await expect(botao).toHaveText('Continuar');
+    await expect(tempo).toContainText('Seu tempo, parado');
     expect((await botao.boundingBox())!.x).toBeCloseTo(antes.x, 0);
   });
 });

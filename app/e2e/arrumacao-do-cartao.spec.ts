@@ -20,16 +20,22 @@ const cruzam = (a: Caixa, b: Caixa) => a.x < b.x + b.width && b.x < a.x + a.widt
 const caixa = async (alvo: Locator) => (await alvo.boundingBox())!;
 const NOME_DOS_BOTOES_DA_JANELA = 'Botões da janela';
 
-/** O que cada cartão tem na cabeça: a faixa das datas, a faixa do tempo, a descrição (ou o número) e a primeira seção da esquerda. */
+/**
+ * O que cada cartão tem na cabeça: a faixa das datas, a faixa do tempo, a descrição (ou o número) e a primeira seção da esquerda. A
+ * tarefa, desde a #442, não tem as faixas: os dados dela são o bloco "Prazo e tempo" e a linha da equipe (dadosProprios).
+ */
 interface Cartao {
   cartao: string; endereco: string; linha: string;
   datas: boolean; tempo: boolean; concluir: boolean;
+  /** Os blocos de dados que o cartão tem no lugar das faixas (o nome de cada grupo, na ordem). */
+  dadosProprios?: string[];
   descricao?: (c: Locator) => Locator;
   primeiraSecao: RegExp;
 }
 const descricaoDoCartao = (c: Locator) => c.getByRole('button', { name: /^Sem descrição/ });
 const CARTOES: Cartao[] = [
-  { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', datas: true, tempo: true, concluir: true, descricao: descricaoDoCartao, primeiraSecao: /^Checklists/ },
+  { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', datas: false, tempo: false, dadosProprios: ['Prazo e tempo', 'Tempo da equipe'], concluir: true,
+    descricao: descricaoDoCartao, primeiraSecao: /^Checklists/ },
   { cartao: 'demanda', endereco: '/demandas/', linha: 'Registro de marca', datas: true, tempo: true, concluir: true, descricao: descricaoDoCartao, primeiraSecao: /^Checklists/ },
   { cartao: 'processo judicial', endereco: '/processos/judicial/', linha: 'JOSÉ DA SILVA TESTE', datas: false, tempo: false, concluir: false, primeiraSecao: /^Prazos/ },
   { cartao: 'processo administrativo', endereco: '/processos/administrativo/', linha: 'Registro da marca Exemplo', datas: false, tempo: false, concluir: false, primeiraSecao: /^Prazos/ },
@@ -86,6 +92,7 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
       const blocos: Locator[] = [menuDoCartao(cartao), menuDaSituacao(cartao), cartao.getByRole('heading', { level: 2 })];
       if (c.datas) blocos.push(cartao.getByRole('group', { name: 'Datas do cartão', exact: true }));
       if (c.tempo) blocos.push(cartao.getByRole('group', { name: 'Tempo', exact: true }));
+      for (const nome of c.dadosProprios ?? []) blocos.push(cartao.getByRole('group', { name: nome, exact: true }));
       if (c.descricao) blocos.push(c.descricao(cartao));
       const esquerda = expandirDaEsquerda(cartao);
       blocos.push(esquerda, secao(cartao, c.primeiraSecao));
@@ -95,28 +102,27 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
         expect(atual.y).toBeGreaterThanOrEqual(embaixo(anterior) - TOLERANCIA);
         anterior = atual;
       }
-      // E a faixa das datas some no processo e na pessoa (os dados ficam nas seções)
+      // E a faixa das datas some no processo e na pessoa (os dados ficam nas seções) e, desde a #442, na tarefa
       if (!c.datas) await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
     });
   }
 
-  test('dada a tarefa no centro, quando abre, então o tempo total é o último dado da faixa das datas, à direita das outras datas', async ({ page }) => {
+  // A regra mudou na #442 (opção 9, aprovada pelo dono): o total da equipe saiu da faixa das datas (onde era o último dado, em
+  // destaque, #397) e foi para a linha da equipe, embaixo do bloco do prazo e do tempo, em texto; o número em destaque passou a ser
+  // o relógio de quem olha ("Seu tempo").
+  test('dada a tarefa no centro, quando abre, então o total da equipe fica na linha da equipe, embaixo do prazo e do relógio, e o relógio de quem olha é o número em destaque', async ({ page }) => {
     // Dado / Quando
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     await formato(cartao, 'Abrir no centro da tela');
     // Então
-    const datas = cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
-    const total = datas.getByRole('group', { name: 'Tempo total' });
-    await expect(total).toContainText('2 h');
-    const [prazo, dadoTotal] = [await caixa(datas.getByRole('group', { name: 'Datas', exact: true })), await caixa(total)];
-    expect(dadoTotal.x).toBeGreaterThan(prazo.x + prazo.width);
-    expect(Math.abs(dadoTotal.y - prazo.y)).toBeLessThanOrEqual(TOLERANCIA);
-    // E o resumo da equipe não repete o total
-    await expect(cartao.getByText(/^Total (até agora|da equipe)/)).toHaveCount(0);
-    // E o total, em destaque, não fica menor que o relógio de quem olha ("Seu tempo nesta tarefa")
+    const equipe = cartao.getByRole('group', { name: 'Tempo da equipe', exact: true });
+    await expect(equipe).toContainText('Total da equipe 2 h');
+    const [bloco, linha] = [await caixa(cartao.getByRole('group', { name: 'Prazo e tempo', exact: true })), await caixa(equipe)];
+    expect(linha.y).toBeGreaterThanOrEqual(embaixo(bloco) - TOLERANCIA);
+    // E o total aparece uma vez só
+    await expect(cartao.getByText(/^Total da equipe/)).toHaveCount(1);
     const tamanho = (alvo: Locator) => alvo.evaluate(e => parseFloat(getComputedStyle(e).fontSize));
-    const relogio = cartao.getByRole('timer');
-    expect(await tamanho(total.getByText('2 h'))).toBeGreaterThanOrEqual(await tamanho(relogio));
+    expect(await tamanho(cartao.getByRole('timer'))).toBeGreaterThan(await tamanho(equipe.getByText('2 h', { exact: true })));
   });
 });
 
@@ -309,8 +315,10 @@ test.describe('O cartão arquivado (#397)', () => {
     await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     const desarquivar = cartao.getByRole('button', { name: 'Desarquivar' });
     await expect(desarquivar).toBeVisible();
-    // Então: a faixa do arquivado (onde está o Desarquivar) vem logo depois do tempo, com o vão de sempre entre os blocos
-    const [tempo, faixa] = [await caixa(cartao.getByRole('group', { name: 'Tempo', exact: true })), await caixa(desarquivar.locator('..'))];
+    // Então: a faixa do arquivado (onde está o Desarquivar) vem logo depois dos dados (#442: o bloco do prazo e do tempo com a linha
+    // da equipe, medido inteiro, com a folga até a linha fina de baixo, como a faixa do tempo de antes), com o vão de sempre entre os blocos
+    const dados = cartao.getByRole('group', { name: 'Prazo e tempo', exact: true }).locator('..');
+    const [tempo, faixa] = [await caixa(dados), await caixa(desarquivar.locator('..'))];
     const vaoEntreOsBlocos = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cartao-vao-secoes')));
     expect(faixa.y - embaixo(tempo)).toBeLessThanOrEqual(vaoEntreOsBlocos + TOLERANCIA);
     await expect(descricaoDoCartao(cartao)).toHaveCount(0);
@@ -347,7 +355,7 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
 
   for (const tela of [{ nome: 'no computador', viewport: { width: 1440, height: 900 }, antes: NO_COMPUTADOR_V1_34 },
     { nome: 'no celular', viewport: { width: 375, height: 812 }, antes: NO_CELULAR_V1_34 }]) {
-    test(`dada a tarefa ${tela.nome}, quando abre, então os vãos da cabeça são maiores que os da v1.34.0 e as faixas das datas e do tempo ficam separadas por eles`, async ({ page }) => {
+    test(`dada a tarefa ${tela.nome}, quando abre, então os vãos da cabeça são maiores que os da v1.34.0 e a linha da equipe fica separada do bloco do prazo e do tempo`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela.viewport);
       // Quando
@@ -355,14 +363,11 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
       await esperarParar(cartao);
       // Então: cada vão cresceu
       for (const [nome, antes] of Object.entries(tela.antes)) expect(await variavel(page, nome), nome).toBeGreaterThan(antes);
-      // E entre o fim das datas e o primeiro dado do tempo ficam as duas folgas das faixas (a linha fina fica no meio)
-      const datas = cartao.getByRole('group', { name: 'Datas do cartão', exact: true }), tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-      const fimDasDatas = Math.max(...await datas.getByRole('group').evaluateAll(gs => gs.map(g => g.getBoundingClientRect().bottom)));
-      const primeiroTempo = await caixa(tempo.getByRole('group').first());
-      expect(primeiroTempo.y - fimDasDatas).toBeGreaterThanOrEqual(2 * await variavel(page, '--vao-das-faixas-dos-dados') - TOLERANCIA);
-      // E, dentro da faixa do tempo, a parte de cada um fica um vão das linhas abaixo do relógio
-      const relogio = await caixa(tempo.getByRole('group').first()), parte = await caixa(tempo.getByRole('list', { name: 'Parte de cada um' }));
-      expect(parte.y - embaixo(relogio)).toBeGreaterThanOrEqual(await variavel(page, '--vao-das-linhas-da-faixa') - TOLERANCIA);
+      // E a linha da equipe fica um vão das linhas do tempo abaixo do bloco do prazo e do tempo. A regra mudou na #442: as faixas das
+      // datas e do tempo (separadas pelas duas folgas, com a linha fina no meio) viraram um bloco só, com a linha da equipe embaixo
+      const bloco = await caixa(cartao.getByRole('group', { name: 'Prazo e tempo', exact: true }));
+      const equipe = await caixa(cartao.getByRole('group', { name: 'Tempo da equipe', exact: true }));
+      expect(equipe.y - embaixo(bloco)).toBeGreaterThanOrEqual(await variavel(page, '--vao-das-linhas-do-tempo') - TOLERANCIA);
     });
 
 
@@ -373,10 +378,10 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
       const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
       await esperarParar(cartao);
       // Então
-      // (desde a #399, sem a linha dos botões rápidos: o fim dos dados é a faixa do tempo)
+      // (desde a #399, sem a linha dos botões rápidos; desde a #442, os dados são o bloco do prazo e do tempo e a linha da equipe)
       const [topo, situacao, titulo, datas, tempo, descricao] = await Promise.all([menuDoCartao(cartao), menuDaSituacao(cartao),
-        cartao.getByRole('heading', { level: 2 }), cartao.getByRole('group', { name: 'Datas do cartão', exact: true }),
-        cartao.getByRole('group', { name: 'Tempo', exact: true }), descricaoDoCartao(cartao)].map(caixa));
+        cartao.getByRole('heading', { level: 2 }), cartao.getByRole('group', { name: 'Prazo e tempo', exact: true }),
+        cartao.getByRole('group', { name: 'Tempo da equipe', exact: true }), descricaoDoCartao(cartao)].map(caixa));
       expect(situacao.y - embaixo(topo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-do-topo-a-situacao') - TOLERANCIA);
       expect(titulo.y - embaixo(situacao)).toBeGreaterThanOrEqual(await variavel(page, '--vao-ate-o-titulo') - TOLERANCIA);
       expect(datas.y - embaixo(titulo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-do-titulo-aos-dados') - TOLERANCIA);

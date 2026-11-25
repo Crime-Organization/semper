@@ -115,8 +115,8 @@ test.describe('Desligar os atalhos de uma tecla só', () => {
     await expect(cartao.getByRole('timer')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Iniciar' })).not.toHaveAttribute('aria-keyshortcuts');
     await page.keyboard.press('t');
-    // Então
-    await expect(cartao.getByText('pausado')).toBeVisible();
+    // Então (#442: o relógio parado continua com "Iniciar", sem "Seu tempo, contando")
+    await expect(cartao.getByRole('button', { name: 'Iniciar' })).toBeVisible();
     await expect(cartao.getByText('contando')).toHaveCount(0);
     // Quando: religa
     await page.goto('/minha-conta/');

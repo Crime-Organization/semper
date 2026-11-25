@@ -1,0 +1,5 @@
+{
+  "titulo": "Prazo e tempo da tarefa, mais simples",
+  "texto": "O cartão da tarefa ficou mais simples: à esquerda, o dia do prazo numa folhinha e quanto falta; à direita, o seu tempo, com Iniciar, Parar, Continuar (tecla T) e Adicionar tempo. O total da equipe e os registros, agrupados por pessoa, ficam embaixo, em Ver registros. O início fica em Mudar prazo. Na tarefa concluída, a folhinha mostra o dia da conclusão.",
+  "ondeAchar": "No cartão de qualquer tarefa, logo abaixo do título."
+}

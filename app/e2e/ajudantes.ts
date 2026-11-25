@@ -177,3 +177,13 @@ export async function escolherPapeisDosClientes(lugar: Page | Locator, papel = '
   await expect(campos.first()).toBeEnabled();
   for (const campo of await campos.all()) await campo.selectOption(papel);
 }
+
+// ---------- o prazo e o tempo no cartão da tarefa (#442) ----------
+/** O prazo na folhinha do cartão da tarefa: a folhinha, quanto falta, a hora e o lembrete e o link que abre as datas. */
+export const prazoDoCartao = (cartao: Locator) => cartao.getByRole('group', { name: 'Prazo', exact: true });
+/** O link "Mudar prazo" ("Definir prazo", sem prazo), que abre a janela das datas, com o início lá dentro. */
+export const mudarPrazo = (cartao: Locator) => cartao.getByRole('button', { name: /^(Mudar|Definir) prazo$/ });
+/** O relógio de quem está com o cartão: "Seu tempo, contando", a duração e os botões. */
+export const seuTempo = (cartao: Locator) => cartao.getByRole('group', { name: 'Seu tempo' });
+/** A linha da equipe, embaixo do bloco do prazo e do tempo: o total e o link dos registros. */
+export const tempoDaEquipe = (cartao: Locator) => cartao.getByRole('group', { name: 'Tempo da equipe' });
