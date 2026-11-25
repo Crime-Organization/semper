@@ -308,6 +308,11 @@ interface Banco {
   /** O e-mail do Google informado de cada um da equipe (emails_do_google no banco); sem ele, vale o de entrada. */
   emailsDoGoogle?: Record<string, string>;
   /**
+   * As reuniões do Google Meet (#437) que a conta simulada já criou, por compromisso (agenda_google_reunioes no banco): a
+   * fila só mexe nelas com o Meet disponível (com as agendas desligadas, ficam como estavam, como no Google).
+   */
+  reunioesGoogle?: Record<string, NonNullable<Compromisso['reuniao']>>;
+  /**
    * As agendas do escritório no Google (#166): a chave e o problema (em privado.ligacoes), se o escritório está na fila
    * (agendas_google_fila), as agendas criadas na conta simulada e os compartilhamentos (agendas_google e
    * agenda_google_compartilhamentos no banco).
@@ -1049,12 +1054,19 @@ function linkDoMeetNoFalso(id: string) {
   return `https://meet.google.com/${letras.slice(0, 3)}-${letras.slice(3, 7)}-${letras.slice(7)}`;
 }
 /**
- * A reunião do Google Meet (#437), como a função google-agendas a deixaria, já feita: com a opção marcada e o Meet disponível,
- * o compromisso ativo e não cancelado tem o link (e a gravação ligada); arquivado, cancelado ou sem a opção, não tem.
+ * A reunião do Google Meet (#437), como a função google-agendas a deixaria, já feita (o fictício não tem fila): com o Meet
+ * disponível, o compromisso ativo, não cancelado e com a opção ganha a reunião (com o link e a gravação ligada), e o
+ * arquivado, cancelado ou sem a opção a perde. Sem o Meet disponível (as agendas desligadas), a reunião fica como estava, e
+ * é cancelada só quando o Meet volta. Como em supabase.ts, o compromisso só a mostra com a opção marcada.
  */
-const reuniaoNoFalso = (c: CompromissoGuardado): Compromisso['reuniao'] =>
-  c.reuniao_google && situacaoDasReunioesNoFalso()?.disponivel && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id))
-    ? { link: linkDoMeetNoFalso(c.id), gravacao: 'ligada' } : null;
+function reuniaoNoFalso(c: CompromissoGuardado): Compromisso['reuniao'] {
+  const reunioes = bd.reunioesGoogle ??= {};
+  if (situacaoDasReunioesNoFalso()?.disponivel) {
+    if (c.reuniao_google && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id))) reunioes[c.id] ??= { link: linkDoMeetNoFalso(c.id), gravacao: 'ligada' };
+    else delete reunioes[c.id];
+  }
+  return c.reuniao_google ? reunioes[c.id] ?? null : null;
+}
 /** Como uma execução da função google-agendas: no máximo ACOES_POR_EXECUCAO ações; devolve o que fez e se restou o que fazer. */
 function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas: Contagem; restam: boolean } {
   const feitas = { ...CONTAGEM_ZERADA };
@@ -2167,7 +2179,9 @@ function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda())
     }
     const c: CompromissoGuardado = { ...modelo, id: novoId(), codigo: codigo(), data, sala_id: sala, resultado: null, etapa_id: inicio, etapa_ordem: Date.now() / 1000,
       participantes: modelo.participantes.filter(id => EQUIPE.some(m => m.id === id)), arquivado_em: null, arquivado_por: null,
-      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data };
+      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data,
+      // Como no banco: a opção do Google Meet (#437) não passa às datas novas (cada data marca a sua).
+      reuniao_google: false };
     bd.compromissos!.push(c);
     // A ligação com a demanda que nasceu de outra data não vem junto (cada data tem a sua, #307 parte B).
     ligacoesDoCompromisso(modelo.id).filter(l => !(l.modulo === 'demandas' && demandaGeradaPorAlgum(l.item_id)))

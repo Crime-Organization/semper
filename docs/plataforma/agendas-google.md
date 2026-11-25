@@ -239,7 +239,8 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
 
 **Ainda não:** a opção não passa às datas seguintes de um compromisso que se repete (cada data marca a sua); quem está
 no compromisso só por um **grupo da equipe** não é convidado (como nas cópias: o responsável e os participantes postos um a
-um); o banco fictício (`npm run teste`) faz a reunião na hora, com um link de exemplo.
+um); o banco fictício (`npm run teste`) faz a reunião na hora, com um link de exemplo e a gravação sempre ligada (com as
+agendas desligadas, ela fica como estava, como no Google).
 
 ## Onde está cada parte
 
@@ -255,8 +256,9 @@ um); o banco fictício (`npm run teste`) faz a reunião na hora, com um link de 
 | Banco: as correções da revisão (compartilhamentos recusados, a fila ao religar e ao excluir, as colunas do quadro, o e-mail do Google só pelos administradores) | `supabase/migrations/20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`, `20261125122303_email_do_google_so_administradores.sql` |
 | A reunião do Google Meet (#437): a que deve existir, os convidados, o plano e a execução | `supabase/functions/_compartilhado/reunioesGoogle.ts` |
 | Banco: a opção no compromisso, as permissões do Meet, a reunião guardada, os convidados | `supabase/migrations/20261125143159_reunioes_google.sql` |
+| Banco: as correções da revisão do Meet (a gravação de novo, a troca de conta, os convidados em dia e o religar) | `supabase/migrations/20261125153836_reunioes_google_gravacao_de_novo.sql`, `20261125154843_reunioes_google_troca_de_conta.sql`, `20261125155832_reunioes_google_convidados_em_dia.sql` |
 | Tela do Meet: a opção, o cartão e Configurações | `app/src/paginas/NovoCompromisso.tsx`, `app/src/paginas/agenda/ReuniaoNoCartao.tsx`, `app/src/paginas/AgendasNoGoogle.tsx`; os textos em `app/src/regras/reuniaoGoogle.ts` |
-| Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `app/e2e/google-meet.spec.ts` |
+| Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `reunioes_google_correcoes.test.sql`, `app/e2e/google-meet.spec.ts` |
 | Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `agendas_google_correcoes.test.sql`, `app/e2e/agendas-google.spec.ts` |
 | Tela | `app/src/paginas/AgendasNoGoogle.tsx` (Configurações) e `EmailDoGoogle.tsx` (Equipe e Minha conta) |
 
@@ -280,12 +282,14 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
-4. **Banco.** Aplicar as seis migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
+4. **Banco.** Aplicar as nove migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
    `20261125102621_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
    `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`,
    `20261125122303_email_do_google_so_administradores.sql` e, do Google Meet, `20261125143159_reunioes_google.sql` (a
    coluna `reuniao_google` com valor padrão, a tabela `agenda_google_reunioes`, a finalidade 'meet' do pedido de ligação
-   e funções refeitas com a mesma assinatura). Elas só acrescentam: a versão anterior do site continua
+   e funções refeitas com a mesma assinatura) e as três das correções do Meet, `20261125153836_reunioes_google_gravacao_de_novo.sql`,
+   `20261125154843_reunioes_google_troca_de_conta.sql` (a chave de `agenda_google_reunioes` passa a ter a conta) e
+   `20261125155832_reunioes_google_convidados_em_dia.sql`. Elas só acrescentam: a versão anterior do site continua
    funcionando (as funções antigas da ligação ficam como eram; as seguintes alargam a regra do assunto da fila, criam a
    tabela das recusas e refazem funções das anteriores com a mesma assinatura).
 5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas

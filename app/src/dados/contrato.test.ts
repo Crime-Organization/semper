@@ -7183,6 +7183,32 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.compromissoObter(id)).toMatchObject({ reuniao_google: false, reuniao: null });
         expect((await SD.compromissoHistorico(id))[0].alteracoes).toHaveProperty('reuniao_google');
       });
+
+      it('dada a reunião criada, quando as agendas são desligadas e o compromisso é arquivado, então a reunião continua no Google até as agendas voltarem', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true });
+        const link = (await SD.compromissoObter(id))?.reuniao?.link;
+        // Quando
+        await SD.agendasGoogleLigar(false);
+        await SD.compromissosArquivar([id]);
+        // Então
+        expect((await SD.compromissoObter(id))?.reuniao?.link).toBe(link);
+        await SD.agendasGoogleLigar(true);
+        expect((await SD.compromissoObter(id))?.reuniao).toBeNull();
+      });
+
+      it('dado um compromisso com o Meet que se repete, quando as datas seguintes nascem, então elas vêm sem a opção (cada data marca a sua)', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true, data: somarDias(hojeISO(), 1) });
+        // Quando
+        const { ids } = await SD.compromissoRepetir(id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: 3 });
+        // Então
+        expect(ids.length).toBeGreaterThan(0);
+        for (const outra of ids) expect(await SD.compromissoObter(outra)).toMatchObject({ reuniao_google: false, reuniao: null });
+        expect(await SD.compromissoObter(id)).toMatchObject({ reuniao_google: true });
+      });
     });
 
     describe('E-mail do Google da equipe (#166)', () => {
