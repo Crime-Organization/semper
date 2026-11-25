@@ -15,6 +15,9 @@ import { FUSO_DO_ESCRITORIO } from './fuso';
 /** O fuso da agenda: a data e a hora dos compromissos são as do relógio do escritório (regras/fuso.ts). */
 export const FUSO_DA_AGENDA = FUSO_DO_ESCRITORIO;
 
+/** O endereço do cadastro de compromisso (o botão Novo compromisso, o "+" do menu lateral, o horário livre da visão das salas). */
+export const CADASTRO_DE_COMPROMISSO = '/agenda/novo/';
+
 /** Rótulo dos compromissos fora das colunas do quadro. */
 export const SEM_SITUACAO_COMPROMISSO = 'Sem situação';
 

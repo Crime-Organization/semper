@@ -1908,6 +1908,8 @@ export interface Sala {
 export type DadosSala = Pick<Sala, 'nome' | 'capacidade'>;
 /** Um compromisso que ocupa a sala num dia. Sem título (null): quem lê não vê esse compromisso, e fica só o código e o horário. */
 export interface OcupacaoDaSala { id: string; codigo: string; tipo: TipoCompromisso; hora: string | null; hora_fim: string | null; titulo: string | null }
+/** A ocupação de uma das salas do escritório, na leitura de todas de uma vez (a visão das salas, #438): a mesma, com a sala. */
+export interface OcupacaoNaSala extends OcupacaoDaSala { sala_id: string }
 /** Uma função dos participantes da tarefa (#313): a lista é de cada escritório, nas Configurações. */
 export interface FuncaoNaTarefa {
   id: string;
@@ -1937,6 +1939,11 @@ export interface DadosSalas {
   salaAtualizar(id: string, dados: Partial<DadosSala & Pick<Sala, 'ativa'>>): Promise<void>;
   /** Os compromissos ativos (não cancelados) que ocupam a sala no dia, fora um (o que está sendo mudado), pela hora. */
   salaOcupacao(salaId: string, data: string, fora?: string | null): Promise<OcupacaoDaSala[]>;
+  /**
+   * A ocupação de todas as salas do escritório no dia, numa leitura só (a visão das salas na Agenda, #438;
+   * supabase/migrations/20261125101229_ocupacao_das_salas.sql): a mesma de salaOcupacao, por sala e pela hora.
+   */
+  salasOcupacao(data: string): Promise<OcupacaoNaSala[]>;
 }
 
 // ---------- anotações (módulo Documentos, #303) ----------

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CompromissoLista, PrazoNaAgenda } from '../dados/tipos';
 import { FUSO_DA_AGENDA } from './compromisso';
-import { diasDoPeriodo, hojeNaAgenda, horaNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, VISOES_DE_DATA } from './agenda';
+import { diasDoPeriodo, hojeNaAgenda, horaNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, VISOES_DE_DATA, visoesDaAgenda } from './agenda';
 
 const compromisso = (id: string, data: string, hora: string | null, titulo = id) =>
   ({ id, tipo: 'reuniao', titulo, data, hora, pessoa_nome: '', processo_numero: null } as CompromissoLista);
@@ -37,6 +37,7 @@ describe('A data da agenda', () => {
 describe('Os períodos da agenda', () => {
   it.each([
     ['dia', '2026-11-04', '2026-11-04', '2026-11-04'],
+    ['salas', '2026-11-04', '2026-11-04', '2026-11-04'],
     ['semana', '2026-11-04', '2026-11-02', '2026-11-08'],
     ['semana', '2026-11-08', '2026-11-02', '2026-11-08'],
     ['semana', '2026-11-02', '2026-11-02', '2026-11-08'],
@@ -52,6 +53,8 @@ describe('Os períodos da agenda', () => {
   it.each([
     ['dia', '2026-11-30', 1, '2026-12-01'],
     ['dia', '2026-01-01', -1, '2025-12-31'],
+    ['salas', '2026-11-30', 1, '2026-12-01'],
+    ['salas', '2026-11-04', -1, '2026-11-03'],
     ['semana', '2026-11-04', 1, '2026-11-11'],
     ['semana', '2026-11-04', -1, '2026-10-28'],
     ['mes', '2026-01-31', 1, '2026-02-01'],
@@ -64,11 +67,18 @@ describe('Os períodos da agenda', () => {
 
   it.each([
     ['dia', '2026-11-04', 'quarta-feira, 04/11/2026'],
+    ['salas', '2026-11-04', 'quarta-feira, 04/11/2026'],
     ['semana', '2026-11-04', '02/11/2026 a 08/11/2026'],
     ['mes', '2026-11-04', 'novembro de 2026']
   ] as const)('quando a visão é %s em %s, então o título é %s', (visao, data, titulo) => {
     // Quando / Então
     expect(VISOES_DE_DATA[visao].titulo(data)).toBe(titulo);
+  });
+
+  it('dado o escritório com ou sem salas ativas, quando a agenda monta as visões, então a das salas (#438) só aparece com salas', () => {
+    // Dado / Quando / Então
+    expect(visoesDaAgenda(true)).toEqual(['dia', 'semana', 'mes', 'salas']);
+    expect(visoesDaAgenda(false)).toEqual(['dia', 'semana', 'mes']);
   });
 
   it('quando pede os dias do período, então vêm todos, na ordem, mesmo virando o mês', () => {

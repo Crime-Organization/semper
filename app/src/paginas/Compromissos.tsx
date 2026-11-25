@@ -11,7 +11,7 @@ import { SD, type CompromissoLista, type FiltroCompromissos, type Ordem, type Or
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { PARAMETRO_DA_VISAO } from '../regras/buscaGeral';
 import { clientesPorExtenso } from '../regras/contrato';
-import { nomeDoCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, soLeNaLista, TIPOS, TIPOS_COMPROMISSO } from '../regras/compromisso';
+import { CADASTRO_DE_COMPROMISSO as CADASTRO, nomeDoCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, soLeNaLista, TIPOS, TIPOS_COMPROMISSO } from '../regras/compromisso';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -41,7 +41,6 @@ import './Contratos.css';
 import './Demandas.css';
 import './Compromissos.css';
 
-const CADASTRO = '/agenda/novo/';
 const VISOES_DA_AGENDA: Visao[] = ['agenda', 'tabela', 'kanban'];
 /** As ordens da tabela: a data do compromisso, a mais adiante primeiro, é a padrão (a primeira da lista). */
 const ORDENS_DA_TABELA: [OrdemCompromisso, string][] = [
@@ -176,7 +175,7 @@ export default function Compromissos() {
         ...(visao === 'tabela' ? [{ id: 'ordem', rotulo: 'Ordenar', valor: ordem, aoMudar: (o: string) => mudarOrdem(o as OrdemCompromisso), opcoes: ORDENS_DA_TABELA }] : [])
       ]}
       visoes={VISOES_DA_AGENDA} visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
-      {visao === 'agenda' && <VisaoPorData filtro={f} recarga={chaveDaLista} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} />}
+      {visao === 'agenda' && <VisaoPorData filtro={f} recarga={chaveDaLista} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} salas={salas} />}
       {visao === 'kanban' && <Kanban<CompromissoLista> quadro={quadro}
         recarga={chaveDaLista}
         carregar={(colunaId, deslocamento, ordemDaColuna) => SD.compromissosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos', soAProxima: true }, deslocamento, POR_COLUNA)}

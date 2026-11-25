@@ -25,7 +25,7 @@ import {
 } from '../regras/repeticao';
 import { perguntarNosCampos } from './agenda/soEstaOuSeguintes';
 import {
-  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
+  CADASTRO_DE_COMPROMISSO as CADASTRO, camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
@@ -55,6 +55,7 @@ import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, u
 import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
 import { useSalas } from './agenda/useSalas';
 import { avisoDoConflito, conflitoNaSala, nomeDaSala, salasParaEscolher } from '../regras/sala';
+import { horarioDoEndereco, PARAMETROS_DO_HORARIO, salaDoEndereco } from '../regras/salasDoDia';
 import { lerData } from '../regras/pessoa';
 import { origemDoCompromissoNoEndereco } from '../regras/nascerLigado';
 import './Contratos.css';
@@ -64,8 +65,6 @@ type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 const ENDERECO = '/agenda/';
-/** O endereço deste cadastro (o do "+" do menu lateral). */
-const CADASTRO = '/agenda/novo/';
 /** Como o processo aparece na busca e no campo: número, nome e clientes. */
 const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'cliente_nome'>) =>
   [p.numero, p.titulo, p.cliente_nome && clientesPorExtenso(p.cliente_nome)].filter(Boolean).join(' · ');
@@ -92,8 +91,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   // A tarefa, a demanda ou o contrato de onde o compromisso nasce (#306): ele fica ligado ao compromisso novo.
   const doItem = useOrigemDoCompromisso(origemDoCompromissoNoEndereco(params, !!idAtualizar));
 
-  // Quem cadastra já vem como responsável.
-  const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
+  // Quem cadastra já vem como responsável. Aberto num horário livre da visão das salas (#438), começa com a data e a hora dele.
+  const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id, ...(idAtualizar ? {} : horarioDoEndereco(params)) }));
   const [alvo, setAlvo] = useState<Compromisso | null>(null);   // compromisso sendo atualizado
   const [pronto, setPronto] = useState(!idAtualizar);
   const [passo, setPasso] = useState(0);
@@ -105,6 +104,14 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [erroSala, setErroSala] = useState('');
   // Enquanto confere a sala, o Próxima espera (dois cliques não pulam a etapa).
   const [conferindo, setConferindo] = useState(false);
+  // E a sala do horário livre (#438), assim que as salas do escritório chegam (só se ela é uma das ativas), uma vez só.
+  const salaPedida = useRef(idAtualizar ? null : params.get(PARAMETROS_DO_HORARIO.sala));
+  useEffect(() => {
+    if (!salaPedida.current || !salas.length) return;
+    const salaId = salaDoEndereco(params, salas);
+    salaPedida.current = null;
+    if (salaId) setC(atual => ({ ...atual, salaId }));
+  }, [salas, params]);
   // A pessoa escolhida em cada linha (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);

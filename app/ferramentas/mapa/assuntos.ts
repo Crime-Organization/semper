@@ -277,19 +277,21 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'agenda',
     titulo: 'Agenda e compromissos',
-    resumo: 'Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.',
+    resumo: 'Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório (com a visão de todas lado a lado).',
     arquivos: [
       'Compromissos', 'NovoCompromisso', 'CartaoCompromisso', 'CompromissosDoItem', 'CompromissosLigados', 'ItensDoCompromisso', 'QuandoDoCompromisso',
       'SalasDoEscritorio', pasta('app/src/paginas/agenda'),
-      'agenda', 'compromisso', 'repeticao', 'sala', 'demandaDoCompromisso',
-      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'menu-lateral',
-      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'modelo_das_datas_novas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
+      'agenda', 'compromisso', 'repeticao', 'sala', 'salasDoDia', 'demandaDoCompromisso',
+      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'visao-das-salas', 'menu-lateral',
+      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'modelo_das_datas_novas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio',
+      'ocupacao_das_salas'
     ],
     tabelas: ['compromissos', 'compromisso_etiquetas', 'compromisso_historico', 'compromisso_ligacoes', 'compromisso_pessoas', 'compromisso_repeticoes', 'salas'],
     dados: ['DadosCompromissos', 'DadosSalas'],
     rotas: ['agenda', 'agenda/novo'],
     armadilhas: [
       'O conflito de horário das salas é conferido no banco e em `regras/sala.ts` (o fictício): mude os dois.',
+      'A visão das salas (#438, `paginas/agenda/VisaoDasSalas.tsx`) lê `ocupacao_das_salas`, a mesma ocupação de `ocupacao_da_sala` para todas as salas de uma vez (o título só de quem a pessoa vê); a grade e o horário livre (o endereço `/agenda/novo/?sala=…&data=…&hora=…`, lido pelo cadastro) ficam em `regras/salasDoDia.ts`.',
       'Cada data de um compromisso que se repete é um cartão; só quem pode mudar as datas mexe na repetição (teste do banco `repeticao_so_quem_muda_as_datas`).',
       'O `falso.ts` reescreve à mão as regras da série (repetir, mudar "esta e as seguintes" a data e o horário ou o título, o local, a equipe e as pessoas, arquivar as seguintes, só a próxima data no quadro): cada caso do teste do banco precisa do caso igual em `dados/contrato.test.ts`.',
       'A demanda que nasce de cada data avisa o responsável: o aviso aparece em `paginas/Mensagens.tsx` (`ItemDaDemandaDoCompromisso`; veja [Mensagens e avisos](#mensagens)).',

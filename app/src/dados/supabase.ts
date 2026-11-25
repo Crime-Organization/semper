@@ -20,7 +20,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, DespesaDoEscritorio, FrequenciaRepeticao, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, ProcessoRelacionado, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, ProcessoRelacionado, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, OcupacaoNaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
 import type { AvisoDaTarefaDaMensagem, DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -1420,6 +1420,9 @@ export const SD: Dados = {
   },
   async salaOcupacao(salaId, data, fora = null) {
     return rpc('ocupacao_da_sala', { p_sala: salaId, p_data: data, p_fora: fora }) as Promise<OcupacaoDaSala[]>;
+  },
+  async salasOcupacao(data) {
+    return rpc('ocupacao_das_salas', { p_data: data }) as Promise<OcupacaoNaSala[]>;
   },
   async prazosDoPeriodo(de, ate, f = {}) {
     // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem. Eles saem no próprio pedido, antes do corte em

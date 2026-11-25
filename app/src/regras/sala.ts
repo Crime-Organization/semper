@@ -9,7 +9,8 @@ import { normal } from './texto';
 export const MINUTOS_SEM_FIM = 60;
 /** Os minutos de um dia: o compromisso sem hora (o dia inteiro) ocupa a sala do começo ao fim do dia. */
 export const MINUTOS_NO_DIA = 24 * 60;
-const MINUTOS_NA_HORA = 60;
+/** Os minutos de uma hora (as contas de hora do relógio, aqui e na visão das salas, regras/salasDoDia.ts). */
+export const MINUTOS_NA_HORA = 60;
 
 // ---------- o conflito de horário ----------
 /** "14:30" ou "14:30:00" em minutos do dia. */
@@ -21,7 +22,7 @@ export function minutosNaSala(hora: string | null | undefined, horaFim: string |
   return [inicio, horaFim ? emMinutos(horaFim) : Math.min(inicio + MINUTOS_SEM_FIM, MINUTOS_NO_DIA)];
 }
 /** Os minutos como hora do relógio: 870 → "14:30" (o fim do dia é "24:00"). */
-const comoHora = (minutos: number) =>
+export const comoHora = (minutos: number) =>
   `${String(Math.floor(minutos / MINUTOS_NA_HORA)).padStart(2, '0')}:${String(minutos % MINUTOS_NA_HORA).padStart(2, '0')}`;
 
 /**

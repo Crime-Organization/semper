@@ -24,19 +24,25 @@ const inicioDaSemana = (iso: string) => somarDias(iso, -DESDE_A_SEGUNDA[paraData
 const primeiroDoMes = (iso: string, meses = 0) => { const d = paraData(iso); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + meses, 1)).toISOString().slice(0, 10); };
 const nomeDoMes = (iso: string) => `${MESES[Number(iso.slice(5, 7)) - 1]} de ${iso.slice(0, 4)}`;
 
-export type VisaoDeData = 'dia' | 'semana' | 'mes';
+/** Um dia só: o período, o caminhar e o título do Dia (e da visão das salas). */
+const UM_DIA = {
+  periodo: (data: string) => ({ de: data, ate: data }),
+  andar: (data: string, passos: number) => somarDias(data, passos),
+  titulo: (data: string) => `${diaDaSemana(data)}, ${fmtData(data)}`
+};
+
+export type VisaoDeData = 'dia' | 'semana' | 'mes' | 'salas';
 export interface PeriodoDaAgenda { de: string; ate: string }
 /**
  * O que cada visão faz com a data em que a pessoa está: o período que ela mostra (primeiro e último dia entram), o
  * caminhar para o período seguinte ou anterior e o título. O mês mostra semanas inteiras: começa na segunda e termina no domingo.
  */
-export const VISOES_DE_DATA: Record<VisaoDeData, { nome: string; periodo: (data: string) => PeriodoDaAgenda; andar: (data: string, passos: number) => string; titulo: (data: string) => string }> = {
-  dia: {
-    nome: 'Dia',
-    periodo: data => ({ de: data, ate: data }),
-    andar: (data, passos) => somarDias(data, passos),
-    titulo: data => `${diaDaSemana(data)}, ${fmtData(data)}`
-  },
+export const VISOES_DE_DATA: Record<VisaoDeData, {
+  nome: string; periodo: (data: string) => PeriodoDaAgenda; andar: (data: string, passos: number) => string; titulo: (data: string) => string;
+  /** Só aparece com salas ativas no escritório. */
+  precisaDeSalas?: boolean;
+}> = {
+  dia: { nome: 'Dia', ...UM_DIA },
   semana: {
     nome: 'Semana',
     periodo: data => { const de = inicioDaSemana(data); return { de, ate: somarDias(de, DIAS_NA_SEMANA - 1) }; },
@@ -48,9 +54,13 @@ export const VISOES_DE_DATA: Record<VisaoDeData, { nome: string; periodo: (data:
     periodo: data => ({ de: inicioDaSemana(primeiroDoMes(data)), ate: somarDias(inicioDaSemana(somarDias(primeiroDoMes(data, 1), -1)), DIAS_NA_SEMANA - 1) }),
     andar: (data, passos) => primeiroDoMes(data, passos),
     titulo: nomeDoMes
-  }
+  },
+  // Todas as salas do escritório lado a lado, num dia, por horário (#438): anda de dia em dia, como o Dia.
+  salas: { nome: 'Salas', ...UM_DIA, precisaDeSalas: true }
 };
 export const VISOES = Object.keys(VISOES_DE_DATA) as VisaoDeData[];
+/** As visões que a agenda oferece: a das salas, só com salas ativas no escritório. */
+export const visoesDaAgenda = (temSalas: boolean) => VISOES.filter(v => temSalas || !VISOES_DE_DATA[v].precisaDeSalas);
 
 /** Todos os dias de um período, na ordem. */
 export function diasDoPeriodo({ de, ate }: PeriodoDaAgenda) {
