@@ -552,6 +552,8 @@ export interface Usuario {
   id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; reservada?: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
 }
+/** O e-mail do Google de alguém da equipe: o informado (null: usa o de entrada) e o de entrada (null na conta reservada). */
+export interface EmailDoGoogle { email: string | null; padrao: string | null }
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
 /** Convite recém-criado: traz o código do link (o banco guarda só o resumo, então ele só aparece agora). */
 export type ConviteCriado = Convite & { codigo?: string };
@@ -1302,7 +1304,11 @@ export interface DadosFotos {
 /** A conta Google ligada ao escritório (supabase/migrations/20261031120000_ligacao_google.sql). Nunca traz a autorização. */
 export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_em: string; ligado_por: string | null }
 /** Como terminou a tentativa de ligar a conta Google (a página de Configurações mostra um aviso para cada um). */
-export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
+/**
+ * Como terminou a tentativa de ligar a conta Google, ou de somar a ela a permissão da agenda (#166): 'agenda-ligada',
+ * 'sem-permissao-agenda' (faltou marcar a agenda no Google) e 'outra-conta' (entrou-se no Google com outra conta).
+ */
+export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro' | 'agenda-ligada' | 'sem-permissao-agenda' | 'outra-conta';
 
 /**
  * O que impede a sincronização dos contatos (public.sincronizacao_google e public.primeira_sincronizacao_google): autorização
@@ -1366,6 +1372,34 @@ export interface ContatoParaConferir {
 /** O que o administrador decide: o contato é desta pessoa; é de outra pessoa (o SEMPER cria um contato novo); ou deixa como está. */
 export type DecisaoDoContato = { acao: 'ligar'; pessoa_id: string } | { acao: 'outra' } | { acao: 'ignorar' };
 
+/** O que impede as agendas no Google (public.agendas_google_situacao): autorização vencida, Google fora ou dados recusados. */
+export type ProblemaDasAgendas = 'autorizacao' | 'google-fora' | 'recusado';
+/** Como estão as agendas do escritório no Google Agenda (#166; supabase/migrations/20261125102621_agendas_google.sql). */
+export interface AgendasGoogle {
+  /** O administrador ligou as agendas (começam desligadas). */
+  ativa: boolean;
+  /** A conta Google do escritório deu a permissão da agenda (pedida à parte, depois dos contatos). */
+  autorizada: boolean;
+  /** Pedidos esperando para ir ao Google; com_falha: os que já falharam 3 vezes ou mais. */
+  pendentes: number;
+  com_falha: number;
+  problema: ProblemaDasAgendas | null;
+  problema_em: string | null;
+  /** A última vez que as agendas foram arrumadas no Google. */
+  sincronizado_em: string | null;
+  /** Quantas agendas o SEMPER já criou na conta e quantos compartilhamentos fez. */
+  agendas: number;
+  compartilhamentos: number;
+}
+/** O que o "Sincronizar agora" das agendas fez no Google (supabase/functions/_compartilhado/agendasGoogle.ts). */
+export interface ResultadoDasAgendas {
+  resultado: 'ok' | 'desligada' | 'erro';
+  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number };
+  falhas: number;
+  /** Faltou tempo: o resto vai sozinho na próxima vez. */
+  restam: boolean;
+}
+
 /** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
 export interface DadosLigacoes {
   /** A conta Google ligada ao escritório, ou null. */
@@ -1389,6 +1423,14 @@ export interface DadosLigacoes {
   contatosParaConferir(): Promise<ContatoParaConferir[]>;
   /** Decide um contato para conferir; ele sai da lista e não volta (só administradores). */
   contatoParaConferirDecidir(id: string, decisao: DecisaoDoContato): Promise<void>;
+  /** Começa o pedido da permissão da agenda (#166) na conta já ligada: devolve o endereço para onde o navegador vai. Só administradores. */
+  ligacaoGoogleAutorizarAgendas(voltarPara: string): Promise<string>;
+  /** Como estão as agendas no Google, ou null sem conta ligada (ou para quem não é administrador). */
+  agendasGoogle(): Promise<AgendasGoogle | null>;
+  /** Liga ou desliga as agendas no Google (só administradores; ligar pede a agenda autorizada). Desligar esvazia a fila e não apaga nada no Google. */
+  agendasGoogleLigar(ligar: boolean): Promise<void>;
+  /** Arruma agora as agendas do escritório no Google, sem esperar a rotina (só administradores). */
+  sincronizarAgendasAgora(): Promise<ResultadoDasAgendas>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */
@@ -1490,6 +1532,16 @@ export interface DadosEquipe {
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;
+  /**
+   * O e-mail do Google de alguém da equipe (#166), o que recebe as agendas do escritório: o informado (null: usa o de entrada)
+   * e o de entrada. Só a própria pessoa e os administradores; para os outros, null.
+   */
+  emailDoGoogle(perfilId: string): Promise<EmailDoGoogle | null>;
+  /**
+   * Muda o e-mail do Google: a própria pessoa, ou um administrador (o de um administrador, só o master; o de um master, só ele).
+   * Vazio (ou o de entrada) volta ao de entrada. Fica no registro de ações.
+   */
+  emailDoGoogleSalvar(perfilId: string, email: string): Promise<void>;
   /** Registra uma exportação no registro de ações (LGPD). Vem antes de entregar o arquivo; só administradores. */
   exportacaoRegistrar(tabela: 'pessoas', descricao: string, quantidade: number): Promise<void>;
 

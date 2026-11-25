@@ -406,7 +406,7 @@ export const ASSUNTOS: Assunto[] = [
       'equipe-no-cartao', 'equipe-ve-tudo', 'grupos-da-equipe', 'convidar-pelo-cartao',
       'convite_seguro', 'funcao_na_equipe', 'trocar_email_pelo_administrador', 'aviso_da_troca_de_email', 'reforco_do_aviso_da_troca', 'correcoes_do_aviso_da_troca',
       'desativar_encerra_as_sessoes', 'desativar_encerra_sessoes', 'reativar_tira_a_senha_de_uso', 'reativar_tira_a_senha', 'conta_reservada', 'equipe_nome',
-      'equipe_ve_tudo', 'fase_de_adaptacao', 'excluir_usuario', 'grupos_da_equipe'
+      'equipe_ve_tudo', 'fase_de_adaptacao', 'excluir_usuario', 'grupos_da_equipe', 'EmailDoGoogle', 'emailDoGoogle'
     ],
     tabelas: ['perfis', 'convites', 'grupos_da_equipe', 'grupo_integrantes', 'privado.mudancas_na_equipe'],
     dados: ['DadosEquipe', 'DadosGrupos'],
@@ -578,13 +578,21 @@ export const ASSUNTOS: Assunto[] = [
   },
   {
     id: 'google',
-    titulo: 'Conta Google e contatos',
-    resumo: 'A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".',
+    titulo: 'Conta Google, contatos e agendas',
+    resumo: 'A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",\n'
+      + 'e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, e os compartilhamentos). Veja docs/plataforma/agendas-google.md.',
     arquivos: ['LigacaoGoogle', 'SincronizacaoDosContatos', 'ContatosParaConferir', 'contatosGoogle', 'correspondenciaDeContatos', 'ligacaoGoogle',
-      'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira'],
-    tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos'],
+      'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira',
+      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'agendas_google', 'agendas-google'],
+    tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos',
+      'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google'],
     dados: ['DadosLigacoes'],
-    armadilhas: ['As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.']
+    armadilhas: [
+      'As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.',
+      'O que criar, compartilhar ou retirar nas agendas é decidido pelo plano puro de `supabase/functions/_compartilhado/agendasGoogle.ts` (testado em `app/src/regras/agendasGoogle.test.ts`), que o `falso.ts` também usa; os pedidos ao Google ficam só no adaptador `apiDaAgenda.ts`.',
+      'As permissões da agenda estão em `ESCOPOS_DA_AGENDA` (`_compartilhado/ligacao.ts`) e em `privado.agenda_autorizada` no banco: mude os dois juntos. Somar a agenda é um pedido de ligação com a finalidade \'agendas\', que só vale para a conta já ligada.',
+      'O e-mail do Google (`emails_do_google`) é editado em Equipe e em Minha conta com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).'
+    ]
   },
   {
     id: 'novidades',
@@ -608,7 +616,7 @@ export const ASSUNTOS: Assunto[] = [
     id: 'rotinas',
     titulo: 'Rotinas automáticas',
     resumo: 'O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,\n'
-      + 'contatos do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.',
+      + 'contatos e agendas do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.',
     arquivos: [],
     conteudo: /cron\.schedule/,
     armadilhas: [

@@ -19,6 +19,12 @@ import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/e
 import { LINK_VENCIDO } from './erros';
 // A primeira sincronização com o Google Contatos usa as mesmas regras de correspondência da função do servidor.
 import { corresponder, type ContatoDaConta } from '../../../supabase/functions/_compartilhado/correspondenciaDeContatos';
+import {
+  ACOES_POR_EXECUCAO, CONTAGEM_ZERADA, planejarAgendas, type AcaoNasAgendas, type AgendaGuardada, type CompartilhamentoFeito, type Contagem, type EstadoDasAgendas, type TipoDaAcao
+} from '../../../supabase/functions/_compartilhado/agendasGoogle';
+import { agendaAutorizada, ESCOPOS_DA_AGENDA } from '../../../supabase/functions/_compartilhado/ligacao';
+import { emailDoGoogleParaGravar, erroDoEmailDoGoogle, RECUSA_DO_EMAIL_DO_GOOGLE, recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
+import type { AgendasGoogle, ProblemaDasAgendas } from './tipos';
 import { CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { resumoDaConferencia } from '../regras/conferencia';
@@ -296,8 +302,19 @@ interface Banco {
   perfisProfissionais?: PerfilProfissional[];
   /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
   ligacaoGoogle?: LigacaoGoogle | null;
-  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
-  pedidosGoogle?: { estado: string; pedido_em: number }[];
+  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco); a finalidade: ligar a conta ou somar a agenda (#166). */
+  pedidosGoogle?: { estado: string; pedido_em: number; finalidade?: 'contatos' | 'agendas' }[];
+  /** O e-mail do Google informado de cada um da equipe (emails_do_google no banco); sem ele, vale o de entrada. */
+  emailsDoGoogle?: Record<string, string>;
+  /**
+   * As agendas do escritório no Google (#166): a chave e o problema (em privado.ligacoes), se o escritório está na fila
+   * (agendas_google_fila), as agendas criadas na conta simulada e os compartilhamentos (agendas_google e
+   * agenda_google_compartilhamentos no banco).
+   */
+  agendasGoogle?: {
+    ativas: boolean; pendente: boolean; com_falha: number; problema: ProblemaDasAgendas | null; problema_em: string | null; sincronizado_em: string | null;
+    agendas: AgendaGuardada[]; compartilhamentos: CompartilhamentoFeito[];
+  };
   /** A sincronização dos contatos (a chave e o problema em privado.ligacoes, a fila em contatos_google_fila no banco). */
   contatosGoogle?: {
     ativos: boolean; fila: string[]; com_falha: number; problema: ProblemaDaSincronizacao | null; problema_em: string | null; sincronizado_em: string | null;
@@ -986,6 +1003,42 @@ function enfileirarNoGoogle(p: Pessoa) {
   const c = bd.contatosGoogle;
   if (!bd.ligacaoGoogle || !c?.ativos || p.arquivado_em || c.fila.includes(p.id)) return;
   c.fila.push(p.id);
+}
+/** Como os gatilhos agendas_google: com as agendas ligadas, mudar a equipe, as salas ou os e-mails do Google põe o escritório na fila. */
+function enfileirarAgendas() {
+  const a = bd.agendasGoogle;
+  if (bd.ligacaoGoogle && a?.ativas) a.pendente = true;
+}
+/** Como public.agendas_google_estado: a equipe (com o e-mail do Google de cada um), as salas, as agendas e os compartilhamentos. */
+const estadoDasAgendasNoFalso = (a: NonNullable<Banco['agendasGoogle']>): EstadoDasAgendas => ({
+  conta_email: bd.ligacaoGoogle!.conta_email,
+  equipe: EQUIPE.map(m => ({ perfil_id: m.id, nome: m.nome, email: bd.emailsDoGoogle?.[m.id] ?? (m.reservada ? null : m.id === eu ? meuEmail() : m.email),
+    ativo: m.ativo && !m.excluido, admin: m.papel !== 'usuario' })),
+  salas: (bd.salas ?? []).map(s => ({ sala_id: s.id, nome: s.nome, ativa: s.ativa })),
+  agendas: a.agendas, compartilhamentos: a.compartilhamentos
+});
+/** O que cada ação faz na conta Google simulada (o mesmo plano da função google-agendas, com ids de mentira). */
+const FAZER_NO_FALSO: { [K in TipoDaAcao]: (e: EstadoDasAgendas, a: Extract<AcaoNasAgendas, { acao: K }>) => EstadoDasAgendas } = {
+  retirar: (e, { compartilhamento: c }) => ({ ...e, compartilhamentos: e.compartilhamentos.filter(o => !(o.agenda_id === c.agenda_id && o.email === c.email)) }),
+  criar: (e, { agenda: d }) => {
+    const id = novoId();
+    return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: `agenda-${id}@falso`, nome: d.nome }] };
+  },
+  renomear: (e, { agenda, nome }) => ({ ...e, agendas: e.agendas.map(x => (x.id === agenda.id ? { ...x, nome } : x)) }),
+  compartilhar: (e, { agenda, leitor }) => ({ ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra: `user:${leitor.email}` }] })
+};
+/** Como uma execução da função google-agendas: no máximo ACOES_POR_EXECUCAO ações; devolve o que fez e se restou o que fazer. */
+function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas: Contagem; restam: boolean } {
+  const feitas = { ...CONTAGEM_ZERADA };
+  let estado = estadoDasAgendasNoFalso(a);
+  for (let i = 0; i < ACOES_POR_EXECUCAO; i++) {
+    const [acao] = planejarAgendas(estado);
+    if (!acao) break;
+    estado = (FAZER_NO_FALSO[acao.acao] as (e: EstadoDasAgendas, x: AcaoNasAgendas) => EstadoDasAgendas)(estado, acao);
+    feitas[acao.acao]++;
+  }
+  Object.assign(a, { agendas: estado.agendas, compartilhamentos: estado.compartilhamentos });
+  return { feitas, restam: planejarAgendas(estado).length > 0 };
 }
 /** Uma dúvida da primeira sincronização, como contatos_google_conferir no banco. */
 interface DuvidaGuardada {
@@ -3532,7 +3585,7 @@ export const SD: Dados = {
     };
     return espera(c);
   },
-  async salvarPerfil(campos) { Object.assign(bd.perfil, campos); gravar(); },
+  async salvarPerfil(campos) { Object.assign(bd.perfil, campos); enfileirarAgendas(); gravar(); },
 
   duasEtapasFatores: () => espera(bd.duasEtapas ?? []),
   async duasEtapasIniciar() {
@@ -4525,13 +4578,13 @@ export const SD: Dados = {
     if (!souAdmin()) return erro(SEM_PERMISSAO);
     const d = prepararSala(dados) as DadosSala;
     const s: Sala = { ...d, id: novoId(), ativa: true, criado_em: agora() };
-    bd.salas!.push(s); gravar();
+    bd.salas!.push(s); enfileirarAgendas(); gravar();
     return espera({ ...s });
   },
   async salaAtualizar(id, dados) {
     const s = bd.salas!.find(x => x.id === id);
     if (!s || !souAdmin()) return erro(SEM_PERMISSAO);
-    Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); gravar();
+    Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); enfileirarAgendas(); gravar();
   },
   salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId)
     ? ocupacoesNoFalso(salaId, data, fora).map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim,
@@ -5988,11 +6041,13 @@ export const SD: Dados = {
     const m = EQUIPE.find(x => x.id === id);
     if (m?.excluido) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
     if (m) m.papel = papel;
+    enfileirarAgendas(); gravar();
   },
   async equipeDefinirAtivo(id, ativo) {
     const m = EQUIPE.find(x => x.id === id);
     if (m?.excluido && ativo) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
     if (m) m.ativo = ativo;
+    enfileirarAgendas(); gravar();
   },
   // Na mesma ordem da função do banco (public.equipe_excluir). A foto sai junto; o nome fica, marcado, para os registros antigos.
   async equipeExcluir(id) {
@@ -6016,6 +6071,26 @@ export const SD: Dados = {
     bd.mensagensDeCompromisso = bd.mensagensDeCompromisso!.filter(x => x.perfil_id !== id);
     bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
+    enfileirarAgendas();
+    gravar();
+  },
+  // Como public.email_do_google: só a própria pessoa e os administradores.
+  emailDoGoogle(id) {
+    const m = EQUIPE.find(x => x.id === id && !x.excluido);
+    if (!m || (id !== eu && !souAdmin())) return espera(null);
+    return espera({ email: bd.emailsDoGoogle?.[id] ?? null, padrao: m.reservada ? null : normalizarEmail(id === eu ? meuEmail() : m.email) });
+  },
+  // Na mesma ordem da função do banco (public.email_do_google_salvar).
+  async emailDoGoogleSalvar(id, email) {
+    const m = EQUIPE.find(x => x.id === id && !x.excluido);
+    if (!m) return erro(RECUSA_DO_EMAIL_DO_GOOGLE.naoEncontrado);
+    const recusa = recusaDoEmailDoGoogle(m, membroLogado()); if (recusa) return erro(recusa);
+    const gravado = emailDoGoogleParaGravar(email, m.reservada ? null : id === eu ? meuEmail() : m.email);
+    if (gravado && erroDoEmailDoGoogle(gravado)) return erro(RECUSA_DO_EMAIL_DO_GOOGLE.invalido);
+    const emails = bd.emailsDoGoogle ??= {};
+    if (gravado) emails[id] = gravado; else delete emails[id];
+    auditar('perfis', 'alteracao', { id, nome: m.nome });
+    enfileirarAgendas();
     gravar();
   },
   async equipeDefinirNome(id, nome) {
@@ -6027,7 +6102,7 @@ export const SD: Dados = {
     const quem = EQUIPE.find(x => x.id === eu);
     if (id !== quem?.id && m.papel === 'master') return erro('Só o próprio master muda o nome dele.');
     if (id !== quem?.id && m.papel === 'admin' && quem?.papel !== 'master') return erro('Só o master muda o nome de um administrador.');
-    m.nome = limpo; auditar('perfis', 'alteracao', { id, nome: limpo }); gravar();
+    m.nome = limpo; auditar('perfis', 'alteracao', { id, nome: limpo }); enfileirarAgendas(); gravar();
   },
   async equipeDefinirFuncao(id, funcao) {
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
@@ -6046,6 +6121,7 @@ export const SD: Dados = {
     if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
+    enfileirarAgendas();
     gravar();
   },
   // Como public.equipe_reserva_preparar e equipe_reserva_concluir. Quem está logado no banco fictício é o master.
@@ -6078,6 +6154,16 @@ export const SD: Dados = {
     const pedido = (bd.pedidosGoogle ?? []).find(p => p.estado === estado);
     bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
     if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
+    // Somar a agenda (#166), como ligacao_pedido_consumir e google-concluir: só com a conta ainda ligada; o token novo cobre os
+    // contatos e a agenda, e a autorização nova tira o problema (como privado.ligacao_renovada_agendas).
+    if (pedido.finalidade === 'agendas') {
+      if (!bd.ligacaoGoogle) { gravar(); return espera('expirado' as const); }
+      bd.ligacaoGoogle = { ...bd.ligacaoGoogle, escopos: [...new Set([...bd.ligacaoGoogle.escopos, ...ESCOPOS_DA_AGENDA])], ligado_em: agora() };
+      if (bd.agendasGoogle) Object.assign(bd.agendasGoogle, { problema: null, problema_em: null });
+      enfileirarAgendas();
+      auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+      gravar(); return espera('agenda-ligada' as const);
+    }
     bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
     // Autorização nova: o problema de autorização some (como o gatilho privado.ligacao_renovada).
     if (bd.contatosGoogle?.problema === 'autorizacao') bd.contatosGoogle = { ...bd.contatosGoogle, problema: null, problema_em: null };
@@ -6087,6 +6173,8 @@ export const SD: Dados = {
   async ligacaoGoogleDesligar() {
     if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     bd.ligacaoGoogle = null;
+    // Como privado.agendas_google_sem_ligacao: a fila das agendas esvazia; as agendas e os compartilhamentos ficam (são da conta).
+    if (bd.agendasGoogle) Object.assign(bd.agendasGoogle, { ativas: false, pendente: false, com_falha: 0, problema: null, problema_em: null });
     // Como ligacao_google_desligar_servidor: a ligação (com a chave, o problema, a primeira sincronização e as dúvidas abertas)
     // sai, e a fila do escritório é esvaziada. As ligações pessoa ↔ contato e as dúvidas decididas ficam (são da conta:
     // religar a mesma reaproveita, e o que já foi decidido não volta).
@@ -6151,6 +6239,47 @@ export const SD: Dados = {
     }
     auditar('contatos_google_conferir', 'alteracao', { id: k.id, nome: k.decisao });
     gravar(); return espera(undefined);
+  },
+
+  // ---------- agendas do escritório no Google (#166; sem Google: a conta é simulada) ----------
+  // Como public.ligacao_google_iniciar_agendas: só administradores, com a conta ligada.
+  async ligacaoGoogleAutorizarAgendas(voltarPara) {
+    if (!souAdmin()) return erro('Apenas administradores autorizam a agenda na conta Google do escritório');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de autorizar a agenda');
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now(), finalidade: 'agendas' }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  agendasGoogle() {
+    if (!bd.ligacaoGoogle || !souAdmin()) return espera(null);
+    const a = bd.agendasGoogle;
+    return espera<AgendasGoogle>({ ativa: a?.ativas ?? false, autorizada: agendaAutorizada(bd.ligacaoGoogle.escopos), pendentes: a?.pendente ? 1 : 0,
+      com_falha: a?.com_falha ?? 0, problema: a?.problema ?? null, problema_em: a?.problema_em ?? null, sincronizado_em: a?.sincronizado_em ?? null,
+      agendas: a?.agendas.length ?? 0, compartilhamentos: a?.compartilhamentos.length ?? 0 });
+  },
+  // Como public.agendas_google_ligar: ligar pede a agenda autorizada e põe o escritório na fila; desligar esvazia a fila.
+  async agendasGoogleLigar(ligar) {
+    if (!souAdmin()) return erro('Apenas administradores ligam e desligam as agendas no Google');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de ligar as agendas');
+    if (ligar && !agendaAutorizada(bd.ligacaoGoogle.escopos)) return erro('Autorize a agenda na conta Google do escritório antes de ligar as agendas');
+    const a = bd.agendasGoogle ??= { ativas: false, pendente: false, com_falha: 0, problema: null, problema_em: null, sincronizado_em: null, agendas: [], compartilhamentos: [] };
+    Object.assign(a, { ativas: ligar, pendente: ligar }, ligar ? {} : { com_falha: 0 });
+    auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    gravar(); return espera(undefined);
+  },
+  // Como a função google-agendas, pedida pelo administrador: o mesmo plano, na conta simulada.
+  async sincronizarAgendasAgora() {
+    const a = bd.agendasGoogle;
+    if (!souAdmin() || !bd.ligacaoGoogle || !a?.ativas || !agendaAutorizada(bd.ligacaoGoogle.escopos)) {
+      return espera({ resultado: 'desligada' as const, feitas: { ...CONTAGEM_ZERADA }, falhas: 0, restam: false });
+    }
+    const { feitas, restam } = arrumarAgendasNoFalso(a);
+    Object.assign(a, { pendente: restam, com_falha: 0, problema: null, problema_em: null, sincronizado_em: agora() });
+    gravar(); return espera({ resultado: 'ok' as const, feitas, falhas: 0, restam });
   },
 
   async escritorioSalvar(dados) {

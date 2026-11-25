@@ -1,6 +1,7 @@
 // Conta Google do escritório (#164), em Configurações: o administrador liga a conta Google do escritório para o SEMPER
-// criar e atualizar os contatos (e, depois, as agendas, #166). A autorização acontece no Google; na volta, o endereço
-// traz o resultado (?google=ligado), que vira um aviso. Desligar apaga a ligação e a autorização guardada.
+// criar e atualizar os contatos e, depois de autorizar a agenda (#166, AgendasNoGoogle.tsx), as agendas do escritório.
+// A autorização acontece no Google; na volta, o endereço traz o resultado (?google=ligado), que vira um aviso. Desligar
+// apaga a ligação e a autorização guardada.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { SD, type LigacaoGoogle as Ligacao, type ResultadoDaLigacao } from '../dados';
@@ -8,6 +9,7 @@ import { avisar, falha } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Carregando, estiloBotao, Nota, TituloSecao } from '../ui/base';
 import { dataHora } from '../ui/util';
+import { AgendasNoGoogle } from './AgendasNoGoogle';
 import { SincronizacaoDosContatos } from './SincronizacaoDosContatos';
 
 /** O que cada resultado da volta do Google mostra (o servidor põe ?google=… no endereço). */
@@ -16,7 +18,10 @@ const RESULTADOS: Record<ResultadoDaLigacao, { ok: boolean; texto: string }> = {
   recusado: { ok: false, texto: 'A autorização no Google foi cancelada. Nada foi ligado.' },
   'sem-permissao': { ok: false, texto: 'Faltou permitir o acesso aos contatos na tela do Google. Clique de novo em "Conectar conta Google" e deixe os contatos marcados.' },
   expirado: { ok: false, texto: 'O pedido de ligação venceu. Clique de novo em "Conectar conta Google".' },
-  erro: { ok: false, texto: 'Não foi possível ligar a conta Google. Tente de novo em alguns minutos.' }
+  erro: { ok: false, texto: 'Não foi possível ligar a conta Google. Tente de novo em alguns minutos.' },
+  'agenda-ligada': { ok: true, texto: 'Agenda autorizada. Os contatos continuam como estavam; agora dá para ligar as agendas no Google, logo abaixo.' },
+  'sem-permissao-agenda': { ok: false, texto: 'Faltou permitir a agenda na tela do Google. Clique de novo em "Autorizar a agenda" e deixe a agenda marcada.' },
+  'outra-conta': { ok: false, texto: 'Você entrou no Google com outra conta. Clique de novo em "Autorizar a agenda" e escolha a conta do escritório, a que está ligada aqui. Nada mudou.' }
 };
 
 export function LigacaoGoogle() {
@@ -50,11 +55,14 @@ export function LigacaoGoogle() {
     return () => removeEventListener('pageshow', destravar);
   }, []);
 
-  async function conectar() {
+  // Ligar a conta e autorizar a agenda vão ao Google pelo mesmo caminho; muda só o pedido.
+  async function irAoGoogle(pedir: (voltarPara: string) => Promise<string>) {
     setIndo(true);
-    try { location.assign(await SD.ligacaoGoogleIniciar(location.origin + '/configuracoes/')); }
+    try { location.assign(await pedir(location.origin + '/configuracoes/')); }
     catch (e) { falha(e); setIndo(false); }
   }
+  const conectar = () => irAoGoogle(v => SD.ligacaoGoogleIniciar(v));
+  const autorizarAgenda = () => irAoGoogle(v => SD.ligacaoGoogleAutorizarAgendas(v));
   async function desligar() {
     try { await SD.ligacaoGoogleDesligar(); avisar('Conta Google desligada. O SEMPER deixou de usar essa conta, e a autorização foi cancelada no Google.'); await carregar(); }
     catch (e) { falha(e); }
@@ -62,7 +70,7 @@ export function LigacaoGoogle() {
 
   return <section className="cartao config-google" aria-labelledby="tGoogle">
     <TituloSecao id="tGoogle">Conta Google</TituloSecao>
-    <Nota>Ligue a conta Google do escritório para o SEMPER criar e atualizar os contatos dela (e, em breve, as agendas).
+    <Nota>Ligue a conta Google do escritório para o SEMPER criar e atualizar os contatos dela e as agendas do escritório.
       A autorização fica guardada no servidor do SEMPER, protegida; ninguém a vê pelo navegador.</Nota>
     {ligacao === undefined ? <Carregando />
       : ligacao ? <div className="config-google-ligada">
@@ -72,6 +80,7 @@ export function LigacaoGoogle() {
           <BotaoDuplo variante="perigo" confirmar="Confirmar: desligar" aoConfirmar={desligar}>Desligar</BotaoDuplo>
         </div>
         <SincronizacaoDosContatos versao={ligacao.ligado_em} />
+        <AgendasNoGoogle versao={ligacao.ligado_em} indo={indo} aoAutorizar={() => void autorizarAgenda()} />
       </div>
       : <div className="acoes">
         <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={indo} onClick={conectar}>{indo ? 'Abrindo o Google…' : 'Conectar conta Google'}</button>

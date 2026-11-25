@@ -32,27 +32,27 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Lucro dos sócios](#lucros), linhas 492–507: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
 - [Meus valores](#meus-valores), linhas 508–520: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
 - [Conferência dos lançamentos](#conferencia), linhas 521–535: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
-- [Equipe, grupos e permissões](#equipe), linhas 536–566: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
-- [Perfil profissional e foto](#perfil), linhas 567–586: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
-- [Configurações e escritório](#configuracoes), linhas 587–603: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
-- [Registro de ações e LGPD](#registro), linhas 604–622: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
-- [Mensagens e avisos](#mensagens), linhas 623–648: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
-- [Comentários e menções](#comentarios), linhas 649–666: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
-- [Etiquetas](#etiquetas), linhas 667–683: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
-- [Ligações entre itens](#ligacoes), linhas 684–707: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.
-- [Quadros (kanban) e situação](#quadros), linhas 708–734: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 735–760: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 761–773: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 774–788: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 789–809: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 810–823: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 824–843: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 844–862: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 863–876: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 877–892: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 893–904: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 905–1009: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 1010–1013: nada.
+- [Equipe, grupos e permissões](#equipe), linhas 536–567: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
+- [Perfil profissional e foto](#perfil), linhas 568–587: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
+- [Configurações e escritório](#configuracoes), linhas 588–604: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
+- [Registro de ações e LGPD](#registro), linhas 605–623: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
+- [Mensagens e avisos](#mensagens), linhas 624–649: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
+- [Comentários e menções](#comentarios), linhas 650–667: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
+- [Etiquetas](#etiquetas), linhas 668–684: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
+- [Ligações entre itens](#ligacoes), linhas 685–708: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.
+- [Quadros (kanban) e situação](#quadros), linhas 709–735: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
+- [Cartão dos itens](#cartao), linhas 736–761: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 762–774: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 775–789: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 790–810: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 811–824: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 825–844: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google, contatos e agendas](#google), linhas 845–870: A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",
+- [Novidades e versão](#novidades), linhas 871–884: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 885–900: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 901–912: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 913–1017: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 1018–1021: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -542,21 +542,22 @@ e a equipe de cada item (as bolinhas no topo do cartão). O registro de ações,
 - **Tabelas:** `perfis` (base), `convites` (base), `grupos_da_equipe` (grupos_da_equipe), `grupo_integrantes` (grupos_da_equipe), `privado.mudancas_na_equipe` (aviso_ao_ser_incluido); entre parênteses, a migração que a cria
 - **Migrações:** (supabase/migrations/) 20261024000001_base, 20261026000004_convite_seguro, 20261027000015_funcao_na_equipe, 20261103140000_trocar_email_pelo_administrador, 20261103150000_aviso_da_troca_de_email, 20261103162000_reforco_do_aviso_da_troca, 20261103170000_correcoes_do_aviso_da_troca, 20261103221220_desativar_encerra_as_sessoes, 20261103234100_reativar_tira_a_senha_de_uso, 20261104023116_conta_reservada, 20261107220956_equipe_nome, 20261109102349_equipe_ve_tudo, 20261109140344_fase_de_adaptacao, 20261110151651_excluir_usuario, 20261119193326_aviso_ao_ser_incluido, 20261119233811_grupos_da_equipe
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
-  - `DadosEquipe`: equipeListar, conviteCriar, conviteNovoLink, equipeDefinirPapel, equipeDefinirFuncao, equipeDefinirNome, equipeDefinirAtivo, equipeTrocarEmail, equipeReservarConta, equipeExcluir, trocasDeEmailListar, convitesListar, conviteCancelar, auditoriaListar, exportacaoRegistrar, escritorioSalvar
+  - `DadosEquipe`: equipeListar, conviteCriar, conviteNovoLink, equipeDefinirPapel, equipeDefinirFuncao, equipeDefinirNome, equipeDefinirAtivo, equipeTrocarEmail, equipeReservarConta, equipeExcluir, trocasDeEmailListar, convitesListar, conviteCancelar, auditoriaListar, emailDoGoogle, emailDoGoogleSalvar, exportacaoRegistrar, escritorioSalvar
   - `DadosGrupos`: grupoDaEquipeCriar, grupoDaEquipeRenomear, grupoDaEquipeIncluir, grupoDaEquipeTirar, grupoDaEquipeContarItens, grupoDaEquipeExcluir, contratoDefinirGrupos, itemDefinirGrupos
 - **Regras:** (app/src/regras/)
   - `conviteDaPessoa.ts`: O lugar de uma pessoa do cadastro na equipe, visto do cartão dela (#327): já é da equipe (o cartão mostra, com o link para a Equipe), já tem convite, pode ser…
+  - `emailDoGoogle.ts`: O "e-mail do Google" de cada pessoa da equipe (#166): o que recebe, por compartilhamento, as agendas do escritório no Google Agenda.
   - `equipe.ts`: Função de cada membro da equipe e o que ela permite no contrato (supabase/migrations/20261027000015_funcao_na_equipe.sql).
   - `equipeNoCartao.ts`: A equipe mudada no topo do cartão (#356): nas bolinhas, pôr e tirar participantes, trocar o responsável e (#388) tornar um participante responsável, sem abrir…
   - `equipeVeTudo.ts`: Por enquanto, os dados importados ainda não estão vinculados aos advogados: com a chave "equipe_ve_tudo" do escritório, toda a equipe vê tarefas, demandas,…
   - `gruposDaEquipe.ts`: Grupos da equipe (#378): regras puras de quem está num grupo, o que se mostra de cada grupo e o aviso antes de excluir.
   - `menuDaBolinha.ts`: O menu da bolinha da equipe no topo do cartão (#388, pedido do dono): o clique numa bolinha não tira mais ninguém na hora; abre um menu com o nome e o papel de…
-- **Telas:** (app/src/paginas/) Equipe.css, Equipe.tsx, EquipeNoTopo.tsx, FaseDeAdaptacao.tsx, GrupoDaEquipe.tsx, GruposDaEquipe.tsx, UsuarioDaEquipe.tsx, equipeNoCartao.ts
+- **Telas:** (app/src/paginas/) EmailDoGoogle.tsx, Equipe.css, Equipe.tsx, EquipeNoTopo.tsx, FaseDeAdaptacao.tsx, GrupoDaEquipe.tsx, GruposDaEquipe.tsx, UsuarioDaEquipe.tsx, equipeNoCartao.ts
 - **Rotas:** `/equipe/`
 - **Peças de ui:** (app/src/ui/) BuscaNaEquipe.tsx, EquipeDoCartao.tsx, EscolhaDaEquipe.tsx, GruposDoItem.tsx, filtroDeGrupo.ts
 - **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/avisoDaTroca.ts, _compartilhado/reservaDeConta.ts, _compartilhado/trocaDeEmail.ts, equipe-reenviar-avisos/index.ts, equipe-reservar-conta/index.ts, equipe-trocar-email/index.ts
 - **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/conta_reservada.test.sql supabase/tests/desativar_encerra_sessoes.test.sql supabase/tests/equipe_nome.test.sql supabase/tests/equipe_ve_tudo.test.sql supabase/tests/excluir_usuario.test.sql supabase/tests/fase_de_adaptacao.test.sql supabase/tests/grupos_da_equipe.test.sql supabase/tests/reativar_tira_a_senha.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/EquipeNoTopo.test.tsx src/paginas/FaseDeAdaptacao.test.tsx src/paginas/GruposDaEquipe.test.tsx src/paginas/GruposNoTopo.test.tsx src/paginas/equipeNoCartao.test.ts src/regras/acessoPeloGrupo.test.ts src/regras/avisoDaTroca.test.ts src/regras/conviteDaPessoa.test.ts src/regras/equipe.test.ts src/regras/equipeNoCartao.test.ts src/regras/equipeVeTudo.test.ts src/regras/gruposDaEquipe.test.ts src/regras/menuDaBolinha.test.ts src/regras/reservaDeConta.test.ts src/regras/trocaDeEmail.test.ts src/ui/BuscaNaEquipe.test.tsx src/ui/EquipeDoCartao.test.tsx src/ui/EscolhaDaEquipe.test.tsx src/ui/GruposDoItem.test.tsx src/ui/filtroDeGrupo.test.ts`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/EquipeNoTopo.test.tsx src/paginas/FaseDeAdaptacao.test.tsx src/paginas/GruposDaEquipe.test.tsx src/paginas/GruposNoTopo.test.tsx src/paginas/equipeNoCartao.test.ts src/regras/acessoPeloGrupo.test.ts src/regras/avisoDaTroca.test.ts src/regras/conviteDaPessoa.test.ts src/regras/emailDoGoogle.test.ts src/regras/equipe.test.ts src/regras/equipeNoCartao.test.ts src/regras/equipeVeTudo.test.ts src/regras/gruposDaEquipe.test.ts src/regras/menuDaBolinha.test.ts src/regras/reservaDeConta.test.ts src/regras/trocaDeEmail.test.ts src/ui/BuscaNaEquipe.test.tsx src/ui/EquipeDoCartao.test.tsx src/ui/EscolhaDaEquipe.test.tsx src/ui/GruposDoItem.test.tsx src/ui/filtroDeGrupo.test.ts`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/convidar-pelo-cartao.spec.ts e2e/equipe-no-cartao.spec.ts e2e/equipe-ve-tudo.spec.ts e2e/equipe.spec.ts e2e/grupos-da-equipe.spec.ts`
 - **Armadilhas:**
   - Função (advogado, administrativo, estagiário) é diferente de papel (administrador): quem não é administrador vê só o que criou ou em que foi posto.
@@ -842,23 +843,30 @@ Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferram
   - Nunca dado real de cliente no repositório: os testes da planilha usam só nomes fictícios (`planilha-do-site/ficticios.ts`).
 
 <a id="google"></a>
-## Conta Google e contatos
+## Conta Google, contatos e agendas
 
-A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",
+e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, e os compartilhamentos). Veja docs/plataforma/agendas-google.md.
 
-- **Tabelas:** `contatos_google` (contatos_google), `contatos_google_conferir` (contatos_google_primeira), `contatos_google_fila` (contatos_google), `privado.ligacoes` (ligacao_google), `privado.ligacao_pedidos` (ligacao_google); entre parênteses, a migração que a cria
-- **Migrações:** (supabase/migrations/) 20261031120000_ligacao_google, 20261120205439_contatos_google, 20261120213407_contatos_google_primeira
+- **Tabelas:** `contatos_google` (contatos_google), `contatos_google_conferir` (contatos_google_primeira), `contatos_google_fila` (contatos_google), `privado.ligacoes` (ligacao_google), `privado.ligacao_pedidos` (ligacao_google), `agendas_google` (agendas_google), `agenda_google_compartilhamentos` (agendas_google), `agendas_google_fila` (agendas_google), `emails_do_google` (agendas_google); entre parênteses, a migração que a cria
+- **Migrações:** (supabase/migrations/) 20261031120000_ligacao_google, 20261120205439_contatos_google, 20261120213407_contatos_google_primeira, 20261125102621_agendas_google
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
-  - `DadosLigacoes`: ligacaoGoogle, ligacaoGoogleIniciar, ligacaoGoogleConcluir, ligacaoGoogleDesligar, sincronizacaoGoogle, sincronizacaoGoogleLigar, sincronizarGoogleAgora, contatosParaConferir, contatoParaConferirDecidir
+  - `DadosLigacoes`: ligacaoGoogle, ligacaoGoogleIniciar, ligacaoGoogleConcluir, ligacaoGoogleDesligar, sincronizacaoGoogle, sincronizacaoGoogleLigar, sincronizarGoogleAgora, contatosParaConferir, contatoParaConferirDecidir, ligacaoGoogleAutorizarAgendas, agendasGoogle, agendasGoogleLigar, sincronizarAgendasAgora
 - **Regras:** (app/src/regras/)
   - `contatosGoogle.ts`: Pessoas no formato do Google Contatos: o mesmo CSV que o Google exporta e aceita em "Importar".
+  - `emailDoGoogle.ts`: O "e-mail do Google" de cada pessoa da equipe (#166): o que recebe, por compartilhamento, as agendas do escritório no Google Agenda.
+  - `sincronizacaoDasAgendas.ts`: Os textos das agendas do escritório no Google Agenda (#166), em Configurações, no cartão Conta Google: o que falta autorizar, a situação, o problema que impede…
   - `sincronizacaoGoogle.ts`: Os textos da sincronização das pessoas com o Google Contatos (#164), em Configurações: a situação da fila, o problema que a impede (com o que fazer) e o…
-- **Telas:** (app/src/paginas/) ContatosParaConferir.tsx, LigacaoGoogle.tsx, SincronizacaoDosContatos.tsx
-- **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/contatosGoogle.ts, _compartilhado/correspondenciaDeContatos.ts, _compartilhado/ligacao.ts, google-concluir/index.ts, google-conectar/index.ts, google-desligar/index.ts, google-retorno/index.ts, google-sincronizar/index.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/contatos_google.test.sql supabase/tests/contatos_google_primeira.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/regras/contatosGoogle.test.ts src/regras/correspondenciaDeContatos.test.ts src/regras/ligacaoGoogle.test.ts src/regras/sincronizacaoDeContatos.test.ts src/regras/sincronizacaoGoogle.test.ts`
+- **Telas:** (app/src/paginas/) AgendasNoGoogle.tsx, ContatosParaConferir.tsx, EmailDoGoogle.tsx, LigacaoGoogle.tsx, SincronizacaoDosContatos.tsx
+- **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/agendasGoogle.ts, _compartilhado/apiDaAgenda.ts, _compartilhado/contatosGoogle.ts, _compartilhado/correspondenciaDeContatos.ts, _compartilhado/ligacao.ts, google-agendas/index.ts, google-concluir/index.ts, google-conectar/index.ts, google-desligar/index.ts, google-retorno/index.ts, google-sincronizar/index.ts
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/agendas_google.test.sql supabase/tests/contatos_google.test.sql supabase/tests/contatos_google_primeira.test.sql`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/regras/agendasGoogle.test.ts src/regras/contatosGoogle.test.ts src/regras/correspondenciaDeContatos.test.ts src/regras/emailDoGoogle.test.ts src/regras/ligacaoGoogle.test.ts src/regras/sincronizacaoDasAgendas.test.ts src/regras/sincronizacaoDeContatos.test.ts src/regras/sincronizacaoGoogle.test.ts`
+- **Testes de tela:** na pasta app, `npx playwright test e2e/agendas-google.spec.ts`
 - **Armadilhas:**
   - As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.
+  - O que criar, compartilhar ou retirar nas agendas é decidido pelo plano puro de `supabase/functions/_compartilhado/agendasGoogle.ts` (testado em `app/src/regras/agendasGoogle.test.ts`), que o `falso.ts` também usa; os pedidos ao Google ficam só no adaptador `apiDaAgenda.ts`.
+  - As permissões da agenda estão em `ESCOPOS_DA_AGENDA` (`_compartilhado/ligacao.ts`) e em `privado.agenda_autorizada` no banco: mude os dois juntos. Somar a agenda é um pedido de ligação com a finalidade 'agendas', que só vale para a conta já ligada.
+  - O e-mail do Google (`emails_do_google`) é editado em Equipe e em Minha conta com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).
 
 <a id="novidades"></a>
 ## Novidades e versão
@@ -894,10 +902,10 @@ A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e
 ## Rotinas automáticas
 
 O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-contatos do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.
+contatos e agendas do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.
 
-- **Migrações:** (supabase/migrations/) 20261103162000_reforco_do_aviso_da_troca, 20261109085738_avisos_de_prazo, 20261110022014_lembretes_dos_prazos, 20261120205439_contatos_google, 20261122232804_compromissos_que_se_repetem, 20261123000750_demandas_dos_compromissos
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/avisos_de_prazo.test.sql supabase/tests/compromissos_que_se_repetem.test.sql supabase/tests/contatos_google.test.sql supabase/tests/demandas_dos_compromissos.test.sql supabase/tests/lembretes_dos_prazos.test.sql`
+- **Migrações:** (supabase/migrations/) 20261103162000_reforco_do_aviso_da_troca, 20261109085738_avisos_de_prazo, 20261110022014_lembretes_dos_prazos, 20261120205439_contatos_google, 20261122232804_compromissos_que_se_repetem, 20261123000750_demandas_dos_compromissos, 20261125102621_agendas_google
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/agendas_google.test.sql supabase/tests/avisos_de_prazo.test.sql supabase/tests/compromissos_que_se_repetem.test.sql supabase/tests/contatos_google.test.sql supabase/tests/demandas_dos_compromissos.test.sql supabase/tests/lembretes_dos_prazos.test.sql`
 - **Armadilhas:**
   - A rotina roda sem ninguém logado (`auth.uid()` nulo): o teste do banco limpa o login antes de chamá-la, e o que ela cria não pode disparar os gatilhos de aviso ao ser incluído.
   - A rotina chama uma função `privado.…` da mesma migração: mudou a regra, mude a função (numa migração nova) e o caso do teste do banco.
@@ -921,7 +929,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - escrevem o endereço: (app/) e2e/ajudantes.ts, src/paginas/Conferencia.test.tsx, src/paginas/financeiro/Hub.tsx, src/regras/enderecosAntigos.test.ts
 - `/configuracoes/` (Configuracoes): [Configurações e escritório](#configuracoes)
   - escrevem o endereço: (app/) src/paginas/Configuracoes.test.tsx, src/paginas/LigacaoGoogle.tsx, src/regras/ligacaoGoogle.test.ts, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/equipe-ve-tudo.spec.ts e2e/objetos-de-contrato.spec.ts e2e/processos.spec.ts e2e/salas.spec.ts e2e/separar-objeto.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/agendas-google.spec.ts e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/equipe-ve-tudo.spec.ts e2e/objetos-de-contrato.spec.ts e2e/processos.spec.ts e2e/salas.spec.ts e2e/separar-objeto.spec.ts e2e/tarefa-pedido.spec.ts e2e/tarefas.spec.ts`
 - `/contratos/` (Contratos): [Contratos](#contratos)
   - escrevem o endereço: (app/) src/paginas/CartaoDemanda.tsx, src/paginas/CartaoPessoa.tsx, src/paginas/CartaoTarefa.tsx, src/paginas/ContratosDoProcesso.tsx, src/paginas/Inicio.test.tsx, src/paginas/ModelosDeLista.tsx, src/paginas/NovoContrato.tsx, src/paginas/NovoContratoPelaOrigem.test.tsx, src/paginas/clienteAoContrato.ts, src/paginas/financeiro/DetalheFinanceiro.tsx, src/paginas/financeiro/Parcelas.tsx, src/paginas/nascerNaAnotacao.test.tsx, src/regras/anotacao.ts, src/regras/buscaGeral.test.ts, src/regras/buscaGeral.ts, src/regras/inclusao.test.ts, src/regras/mensagens.test.ts, src/regras/mensagens.ts, src/regras/nascerLigado.test.ts, src/regras/origemDoCadastro.test.ts, src/regras/pedidoDeParticipacao.test.ts, src/regras/pedidoDeParticipacao.ts, src/ui/Casca.tsx, src/ui/ItensLigados.test.tsx, src/ui/useCartaoNaUrl.test.tsx
   - 27 testes de tela vão direto a ele: rode a bateria completa (`npm run testar-telas`).
@@ -942,7 +950,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/entrada-paineis.spec.ts e2e/pagina-publica.spec.ts`
 - `/equipe/` (Equipe): [Equipe, grupos e permissões](#equipe)
   - escrevem o endereço: (app/) src/paginas/CartaoPessoa.tsx, src/paginas/PerfilDaEquipe.tsx, src/regras/conviteDaPessoa.test.ts, src/regras/conviteDaPessoa.ts, src/ui/Casca.tsx, src/ui/base/base.test.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/grupos-da-equipe.spec.ts e2e/importacao.spec.ts e2e/meus-valores.spec.ts e2e/objetos-sem-demanda.spec.ts e2e/perfil.spec.ts e2e/topo-do-cartao.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/agendas-google.spec.ts e2e/ajuda.spec.ts e2e/configuracoes.spec.ts e2e/grupos-da-equipe.spec.ts e2e/importacao.spec.ts e2e/meus-valores.spec.ts e2e/objetos-sem-demanda.spec.ts e2e/perfil.spec.ts e2e/topo-do-cartao.spec.ts`
 - `/equipe/perfil/` (PerfilDaEquipe): [Perfil profissional e foto](#perfil)
   - escrevem o endereço: (app/) src/paginas/EquipeDaPessoaNoTopo.test.tsx, src/paginas/UsuarioDaEquipe.tsx, src/regras/menuDaBolinha.test.ts, src/regras/menuDaBolinha.ts, src/ui/EquipeDoCartao.test.tsx
 - `/financeiro/` (HubDoFinanceiro): [Financeiro](#financeiro)
@@ -973,7 +981,7 @@ todos os que o escrevem, rode os testes de cada um e ponha o antigo em `regras/e
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/meus-valores.spec.ts`
 - `/minha-conta/` (MinhaConta): [Entrada e minha conta](#conta)
   - escrevem o endereço: (app/) src/paginas/Entrada.tsx, src/paginas/EquipeNoTopo.test.tsx, src/paginas/PerfilDaEquipe.tsx, src/regras/menuDaBolinha.test.ts, src/regras/menuDaBolinha.ts, src/ui/Casca.tsx
-  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/atalhos.spec.ts e2e/entrada-paineis.spec.ts e2e/foto.spec.ts e2e/mensagens.spec.ts e2e/perfil.spec.ts`
+  - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/agendas-google.spec.ts e2e/ajuda.spec.ts e2e/atalhos.spec.ts e2e/entrada-paineis.spec.ts e2e/foto.spec.ts e2e/mensagens.spec.ts e2e/perfil.spec.ts`
 - `/modelos-de-lista/` (ModelosDeLista): [Checklists e modelos](#listas)
   - escrevem o endereço: (app/) src/paginas/Contratos.tsx, src/paginas/Demandas.tsx, src/paginas/ListasDoCartao.tsx, src/paginas/Tarefas.tsx
   - testes de tela que vão direto a ele, na pasta app: `npx playwright test e2e/ajuda.spec.ts e2e/checklists-com-grupos.spec.ts e2e/demandas.spec.ts`

@@ -7,6 +7,8 @@ import { MARCA } from '../marca';
 import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
+import { lerResultadoDasAgendas } from '../regras/sincronizacaoDasAgendas';
+import type { AgendasGoogle, EmailDoGoogle } from './tipos';
 import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -2559,6 +2561,23 @@ export const SD: Dados = {
     await rpc('contatos_google_conferir_decidir', { p_id: id, p_acao: decisao.acao, p_pessoa: decisao.acao === 'ligar' ? decisao.pessoa_id : null });
   },
 
+  // ---------- agendas do escritório no Google (#166) ----------
+  // Como ligacaoGoogleIniciar: o banco cria o pedido da permissão da agenda e o navegador vai à função do servidor.
+  async ligacaoGoogleAutorizarAgendas(voltarPara) {
+    const estado = await rpc('ligacao_google_iniciar_agendas', { p_voltar_para: voltarPara }) as string;
+    return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  async agendasGoogle() {
+    const linhas = await rpc('agendas_google_situacao') as AgendasGoogle[];
+    return linhas[0] ?? null;
+  },
+  async agendasGoogleLigar(ligar) { await rpc('agendas_google_ligar', { p_ligar: ligar }); },
+  // A função do servidor confere se é administrador e arruma as agendas do escritório na hora.
+  async sincronizarAgendasAgora() {
+    const r = await comSessao(`${URL_BASE}/functions/v1/google-agendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    return lerResultadoDasAgendas(await r.json().catch(() => ({})));
+  },
+
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.
   async equipeListar() {
@@ -2588,6 +2607,11 @@ export const SD: Dados = {
   equipeDefinirAtivo: (perfilId, ativo) => rpc('equipe_definir_ativo', { p_perfil: perfilId, p_ativo: ativo }),
   equipeDefinirFuncao: (perfilId, funcao) => rpc('equipe_definir_funcao', { p_perfil: perfilId, p_funcao: funcao }),
   equipeDefinirNome: (perfilId, nome) => rpc('equipe_definir_nome', { p_perfil: perfilId, p_nome: nome }),
+  async emailDoGoogle(perfilId) {
+    const linhas = await rpc('email_do_google', { p_perfil: perfilId }) as EmailDoGoogle[];
+    return linhas[0] ?? null;
+  },
+  async emailDoGoogleSalvar(perfilId, email) { await rpc('email_do_google_salvar', { p_perfil: perfilId, p_email: email }); },
   // A função do servidor confere quem está logado (a sessão vai junto pelo comSessao), e o banco decide se a troca pode acontecer.
   async equipeTrocarEmail(perfilId, email) {
     const r = await comSessao(`${URL_BASE}/functions/v1/equipe-trocar-email`, {

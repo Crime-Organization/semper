@@ -7022,6 +7022,141 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Agendas do escritório no Google (#166)', () => {
+      // No banco de verdade, a volta do Google traz o código; aqui, o pedido criado por "iniciar" é concluído direto.
+      const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+      async function ligarConta() {
+        expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/')), 'codigo')).toBe('ligado');
+      }
+      async function autorizarAgenda() {
+        expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')), 'codigo')).toBe('agenda-ligada');
+      }
+      async function agendasLigadas() {
+        await ligarConta();
+        await autorizarAgenda();
+        await SD.agendasGoogleLigar(true);
+      }
+
+      it('quando não há conta ligada, então não há agendas, e autorizar a agenda, ligá-las ou sincronizar é recusado', async () => {
+        // Quando / Então
+        expect(await SD.agendasGoogle()).toBeNull();
+        await expect(SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')).rejects.toThrow('Ligue a conta Google do escritório antes de autorizar a agenda');
+        await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Ligue a conta Google do escritório antes de ligar as agendas');
+        expect((await SD.sincronizarAgendasAgora()).resultado).toBe('desligada');
+      });
+
+      it('dada a conta ligada só com os contatos, então as agendas começam desligadas, sem a agenda autorizada, e ligá-las é recusado', async () => {
+        // Dado
+        await ligarConta();
+        // Quando / Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, autorizada: false, pendentes: 0, agendas: 0 });
+        await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Autorize a agenda na conta Google do escritório antes de ligar as agendas');
+      });
+
+      it('quando o administrador autoriza a agenda, então ela fica autorizada e os contatos continuam na mesma conta', async () => {
+        // Dado
+        await ligarConta();
+        // Quando
+        await autorizarAgenda();
+        // Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, autorizada: true });
+        const ligacao = await SD.ligacaoGoogle();
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/contacts');
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.acls');
+      });
+
+      it('dadas as agendas ligadas, quando o administrador pede "Sincronizar agora", então as agendas são criadas e compartilhadas; de novo, nada muda', async () => {
+        // Dado
+        await agendasLigadas();
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: true, pendentes: 1 });
+        // Quando
+        const r = await SD.sincronizarAgendasAgora();
+        // Então
+        expect(r).toMatchObject({ resultado: 'ok', falhas: 0, restam: false });
+        expect(r.feitas.criar).toBeGreaterThanOrEqual(3);
+        expect(r.feitas.compartilhar).toBeGreaterThanOrEqual(r.feitas.criar);
+        const s = await SD.agendasGoogle();
+        expect(s).toMatchObject({ pendentes: 0, agendas: r.feitas.criar, compartilhamentos: r.feitas.compartilhar });
+        expect(s?.sincronizado_em).toBeTruthy();
+        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0 });
+      });
+
+      it('dadas as agendas criadas, quando alguém da equipe é desativado e reativado, então o escritório volta à fila e o compartilhamento sai e volta', async () => {
+        // Dado
+        await agendasLigadas();
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.equipeDefinirAtivo(outro.id, false);
+        // Então
+        expect((await SD.agendasGoogle())?.pendentes).toBe(1);
+        expect((await SD.sincronizarAgendasAgora()).feitas.retirar).toBeGreaterThanOrEqual(2);
+        await SD.equipeDefinirAtivo(outro.id, true);
+        expect((await SD.sincronizarAgendasAgora()).feitas.compartilhar).toBeGreaterThanOrEqual(2);
+      });
+
+      it('dadas as agendas criadas, quando alguém muda de nome, então a agenda dele muda de nome no Google', async () => {
+        // Dado
+        await agendasLigadas();
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.equipeDefinirNome(outro.id, 'Nome Novo ' + marca());
+        // Então
+        expect((await SD.sincronizarAgendasAgora()).feitas).toMatchObject({ renomear: 1, criar: 0 });
+      });
+
+      it('quando as agendas são desligadas, então a fila esvazia e as agendas já criadas continuam (nada é apagado no Google)', async () => {
+        // Dado
+        await agendasLigadas();
+        const { feitas } = await SD.sincronizarAgendasAgora();
+        await SD.equipeDefinirNome((await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!.id, 'Outro Nome ' + marca());
+        // Quando
+        await SD.agendasGoogleLigar(false);
+        // Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, pendentes: 0, agendas: feitas.criar });
+        expect((await SD.sincronizarAgendasAgora()).resultado).toBe('desligada');
+      });
+    });
+
+    describe('E-mail do Google da equipe (#166)', () => {
+      it('dado alguém sem e-mail do Google informado, então vale o de entrada; informado, vale o novo, e vazio volta ao de entrada', async () => {
+        // Dado
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        expect(await SD.emailDoGoogle(outro.id)).toEqual({ email: null, padrao: outro.email.toLowerCase() });
+        // Quando
+        await SD.emailDoGoogleSalvar(outro.id, '  Pessoal.Teste@Exemplo.com ');
+        // Então
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBe('pessoal.teste@exemplo.com');
+        await SD.emailDoGoogleSalvar(outro.id, '');
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBeNull();
+        await SD.emailDoGoogleSalvar(outro.id, outro.email.toUpperCase());
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBeNull();
+      });
+
+      it('quando o e-mail do Google não é um e-mail, então é recusado', async () => {
+        // Dado
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando / Então
+        await expect(SD.emailDoGoogleSalvar(outro.id, 'sem-arroba')).rejects.toThrow('Informe um e-mail válido.');
+        await expect(SD.emailDoGoogleSalvar('00000000-0000-0000-0000-000000000000', 'x@exemplo.com')).rejects.toThrow('Usuário não encontrado');
+      });
+
+      it('dadas as agendas ligadas, quando um e-mail do Google muda, então o escritório volta à fila', async () => {
+        // Dado
+        expect(await SD.ligacaoGoogleConcluir(/estado=([0-9a-f]{64})/.exec(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/'))![1], 'c')).toBe('ligado');
+        expect(await SD.ligacaoGoogleConcluir(/estado=([0-9a-f]{64})/.exec(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/'))![1], 'c')).toBe('agenda-ligada');
+        await SD.agendasGoogleLigar(true);
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.emailDoGoogleSalvar(outro.id, 'novo.' + marca().toLowerCase().replace(/\s/g, '') + '@exemplo.com');
+        // Então
+        expect((await SD.agendasGoogle())?.pendentes).toBe(1);
+        expect((await SD.sincronizarAgendasAgora()).feitas).toMatchObject({ retirar: 2, compartilhar: 2 });
+      });
+    });
+
     describe('Importação de pessoas', () => {
       // CPFs fictícios (com os dígitos certos), fora da semente.
       const [CPF_1, CPF_2, CPF_3, CPF_4, CPF_5, CPF_6] = ['86288366757', '71428793860', '15350946056', '40713521910', '58392610415', '26047193803'];
@@ -9326,6 +9461,54 @@ describe('O nome de alguém da equipe (banco fictício)', () => {
   it('dado o master, quando dá um nome de uma letra, então é recusado', async () => {
     // Então
     await expect(SD.equipeDefinirNome('u-ana', 'A')).rejects.toThrow('Informe um nome de 2 a 200 letras.');
+  });
+});
+
+// A regra do banco de verdade está provada em supabase/tests/agendas_google.test.sql; aqui, que o fictício faz igual.
+describe('O e-mail do Google de alguém da equipe (banco fictício, #166)', () => {
+  let SD: Dados;
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+
+  it('dado um usuário comum, quando muda o próprio e-mail do Google, então muda; o de outra pessoa, nem lê nem muda', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando
+    await SD.emailDoGoogleSalvar('u-bruno', 'bruno.pessoal@exemplo.com');
+    // Então
+    expect((await SD.emailDoGoogle('u-bruno'))?.email).toBe('bruno.pessoal@exemplo.com');
+    expect(await SD.emailDoGoogle('u-ana')).toBeNull();
+    await expect(SD.emailDoGoogleSalvar('u-ana', 'x@exemplo.com')).rejects.toThrow('Apenas administradores mudam o e-mail do Google de alguém da equipe');
+  });
+
+  it('dada uma administradora, quando muda o e-mail do Google do master, então é recusado; o de um usuário, muda', async () => {
+    // Dado
+    entrarComo('u-ana');
+    // Quando / Então
+    await expect(SD.emailDoGoogleSalvar('u-master', 'x@exemplo.com')).rejects.toThrow('Só o próprio master muda o e-mail do Google dele.');
+    await SD.emailDoGoogleSalvar('u-bruno', 'bruno.escritorio@exemplo.com');
+    expect((await SD.emailDoGoogle('u-bruno'))?.email).toBe('bruno.escritorio@exemplo.com');
+  });
+
+  it('dado o master, quando muda o de uma administradora, então muda', async () => {
+    // Quando
+    await SD.emailDoGoogleSalvar('u-ana', 'ana.pessoal@exemplo.com');
+    // Então
+    expect((await SD.emailDoGoogle('u-ana'))?.email).toBe('ana.pessoal@exemplo.com');
+  });
+
+  it('dado um usuário comum, quando tenta autorizar a agenda ou ligar as agendas, então é recusado, e ele não vê a situação', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')).rejects.toThrow('Apenas administradores autorizam a agenda na conta Google do escritório');
+    await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Apenas administradores ligam e desligam as agendas no Google');
+    expect(await SD.agendasGoogle()).toBeNull();
   });
 });
 
