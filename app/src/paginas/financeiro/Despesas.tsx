@@ -1,8 +1,9 @@
 // As despesas do escritório a pagar (#439), na aba Obrigações do Financeiro, só para os administradores: DAS, funcionários, contas.
 // Cada uma tem descrição, valor, vencimento e, se quiser, a repetição (as próximas datas nascem sozinhas). Marcar como paga só registra
 // o pagamento (a saída no caixa se lança à parte); a próxima da repetição continua a pagar. Clicar na descrição abre a despesa: mudar,
-// excluir e o histórico. As regras ficam em regras/despesas.ts; o banco, em 20261125102117_despesas_do_escritorio.sql.
-import { useId, useState, type FormEvent } from 'react';
+// excluir e o histórico; o endereço da despesa (enderecoDaDespesa, em supabase/functions/_compartilhado) também a abre. As regras ficam
+// em regras/despesas.ts; o banco, em 20261125102117_despesas_do_escritorio.sql.
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { SD, type DespesaDoEscritorio } from '../../dados';
 import { REPETICAO, TAMANHO_FINANCEIRO } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
@@ -191,11 +192,18 @@ function DetalheDaDespesa({ despesa, hoje, aoMudar, aoFechar }: { despesa: Despe
   </div>;
 }
 
-/** As despesas do período escolhido no alto do Financeiro (um mês "aaaa-mm" ou o ano "aaaa") e as a pagar que venceram antes dele. */
-export function DespesasDoEscritorio({ lista, periodo, hoje, aoMudar }: { lista: DespesaDoEscritorio[]; periodo: string; hoje: string; aoMudar: () => void }) {
+/**
+ * As despesas do período escolhido no alto do Financeiro (um mês "aaaa-mm" ou o ano "aaaa") e as a pagar que venceram antes dele.
+ * `pedida`: a despesa que o endereço pede para abrir; já usada (aberta, ou não achada na lista), `aoAbrirPedida` avisa, para não abrir
+ * de novo quando a lista voltar com outro mês.
+ */
+export function DespesasDoEscritorio({ lista, periodo, hoje, aoMudar, pedida = null, aoAbrirPedida }: {
+  lista: DespesaDoEscritorio[]; periodo: string; hoje: string; aoMudar: () => void; pedida?: string | null; aoAbrirPedida?: () => void;
+}) {
   const [cadastrando, setCadastrando] = useState(false);
   const [pagando, setPagando] = useState<DespesaDoEscritorio | null>(null);
-  const [aberta, setAberta] = useState<DespesaDoEscritorio | null>(null);
+  const [aberta, setAberta] = useState<DespesaDoEscritorio | null>(() => lista.find(d => d.id === pedida) ?? null);
+  useEffect(() => { if (pedida) aoAbrirPedida?.(); }, [pedida, aoAbrirPedida]);
   const terminou = () => { setCadastrando(false); setPagando(null); aoMudar(); };
   async function desfazer(d: DespesaDoEscritorio) {
     try {

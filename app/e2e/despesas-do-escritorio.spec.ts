@@ -2,6 +2,7 @@
 // As despesas do escritório a pagar (#439), na aba Obrigações do Financeiro. Quem está logado é o Mauro (administrador); o Bruno é
 // estagiário e não é administrador. O banco fictício começa sem despesas.
 import { expect, test, type Page } from '@playwright/test';
+import { enderecoDaDespesa } from '../../supabase/functions/_compartilhado/enderecoDaDespesa';
 import { entrarComo } from './ajudantes';
 
 /** O dia dos testes: o Financeiro abre no mês de hoje (novembro de 2026). */
@@ -64,6 +65,36 @@ test.describe('Despesas do escritório a pagar', () => {
     await expect(despesas(page).getByText('Nenhuma despesa neste mês.')).toBeVisible();
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).last().click();
     await expect(despesas(page).getByRole('row', { name: /Conta de luz/ })).toBeVisible();
+  });
+
+  test('dado o endereço de uma despesa (o link da agenda), quando o abre, então vai ao mês do vencimento com a despesa aberta, uma vez só', async ({ page }) => {
+    // Dado
+    await page.goto('/financeiro/obrigacoes/');
+    await despesas(page).getByRole('button', { name: 'Nova despesa' }).click();
+    const form = page.getByRole('form', { name: 'Nova despesa' });
+    await form.getByLabel('Descrição').fill('Conta de água');
+    await form.getByLabel('Valor').fill('80,00');
+    await form.getByLabel('Vencimento').fill('2026-12-10');
+    await form.getByRole('button', { name: 'Cadastrar despesa' }).click();
+    await expect(page.getByText('Despesa cadastrada.')).toBeVisible();
+    // O id da despesa, guardado pelo banco fictício.
+    const id = await page.evaluate(() => (JSON.parse(sessionStorage.getItem('semper-dados-falsos') ?? '{}') as { despesas?: { id: string; descricao: string }[] })
+      .despesas?.find(d => d.descricao === 'Conta de água')?.id ?? '');
+    expect(id).not.toBe('');
+    // Quando
+    await page.goto(enderecoDaDespesa({ id, vencimento: '2026-12-10' }));
+    // Então
+    const janela = page.getByRole('dialog', { name: 'Despesa' });
+    await expect(janela.getByText('Conta de água · vence em 10/12/2026')).toBeVisible();
+    await expect(despesas(page).getByRole('row', { name: /Conta de água/ })).toContainText('10/12/2026');
+    await expect(page).not.toHaveURL(/despesa=/);
+    // E quando fecha e volta ao mesmo mês, então ela não abre de novo
+    await janela.getByRole('button', { name: 'Fechar' }).click();
+    await expect(janela).toHaveCount(0);
+    await mes(page, 'Nov').click();
+    await mes(page, 'Dez').click();
+    await expect(despesas(page).getByRole('row', { name: /Conta de água/ })).toBeVisible();
+    await expect(janela).toHaveCount(0);
   });
 
   test('dado alguém que não é administrador, quando abre as Obrigações, então não vê as despesas do escritório', async ({ page }) => {

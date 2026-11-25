@@ -139,3 +139,29 @@ describe('Despesas do escritório', () => {
     expect(avisos.feito).not.toHaveBeenCalled();
   });
 });
+
+describe('Despesa pedida pelo endereço', () => {
+  beforeEach(() => { vi.clearAllMocks(); SD.financeiroDespesaHistorico.mockResolvedValue([]); });
+  const comPedida = (pedida: string) => {
+    const aoAbrirPedida = vi.fn();
+    render(<MemoryRouter><DespesasDoEscritorio lista={[A_PAGAR, PAGA, MENSAL]} periodo="2030-03" hoje={HOJE} aoMudar={vi.fn()} pedida={pedida} aoAbrirPedida={aoAbrirPedida} /></MemoryRouter>);
+    return aoAbrirPedida;
+  };
+
+  it('dado o endereço de uma despesa da lista, quando a lista abre, então a despesa já vem aberta, e o pedido é dado por usado', async () => {
+    // Quando
+    const aoAbrirPedida = comPedida('d-3');
+    // Então
+    const janela = within(await screen.findByRole('dialog', { name: 'Despesa' }));
+    expect(janela.getByText(/DAS · vence em 20\/03\/2030/)).toBeTruthy();
+    expect(aoAbrirPedida).toHaveBeenCalled();
+  });
+
+  it('dado o endereço de uma despesa que não está na lista, quando a lista abre, então nada abre, e o pedido é dado por usado', () => {
+    // Quando
+    const aoAbrirPedida = comPedida('outra');
+    // Então
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(aoAbrirPedida).toHaveBeenCalled();
+  });
+});
