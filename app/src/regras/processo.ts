@@ -477,7 +477,9 @@ export const ROTULO_DO_NOVO_DERIVADO: Record<TipoProcesso, string> = {
 /** Como cada processo ligado aparece no cartão do outro. */
 export const RELACOES: Record<RelacaoEntreProcessos, string> = {
   origem: 'Processo de origem', recurso: 'Recurso deste processo', incidental: 'Incidental deste processo',
-  administrativo: 'Processo administrativo de origem', judicial: 'Processo judicial deste administrativo'
+  administrativo: 'Processo administrativo de origem', judicial: 'Processo judicial deste administrativo',
+  // Ligado depois, de qualquer tipo (#440): sem tipo de relação, a pedido do dono.
+  relacionado: 'Relacionado'
 };
 /** As recusas da ligação "judicial", as mesmas no banco e no fictício (#425). */
 export const SO_JUDICIAL_NO_ADMINISTRATIVO = 'Só um processo judicial pode ser ligado a um processo administrativo.';
@@ -496,7 +498,9 @@ export function relacaoEntreProcessos(achado: Pick<Processo, 'id' | 'origem_id' 
  * desfaz (a origem do recurso e do incidental, e os que nasceram como eles).
  */
 const QUEM_GUARDA_A_LIGACAO: Record<RelacaoEntreProcessos, (relacionadoId: string, abertoId: string) => string | null> = {
-  administrativo: (_r, aberto) => aberto, judicial: r => r, origem: () => null, recurso: () => null, incidental: () => null
+  administrativo: (_r, aberto) => aberto, judicial: r => r, origem: () => null, recurso: () => null, incidental: () => null,
+  // O relacionado (#440) não é origem: desfaz-se pela própria ligação (processoDesrelacionar), não pelo judicial.
+  relacionado: () => null
 };
 export const judicialParaDesligar = (relacionado: Pick<ProcessoRelacionado, 'id' | 'relacao'>, abertoId: string): string | null =>
   QUEM_GUARDA_A_LIGACAO[relacionado.relacao](relacionado.id, abertoId);
@@ -575,6 +579,21 @@ export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes
     ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId),
     partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel))
   })).filter(p => p.papeis.length || p.partes?.length).toSorted((a, b) => b.criado_em.localeCompare(a.criado_em));
+}
+// ---------- processos relacionados de qualquer tipo (#440) ----------
+/** A recusa de relacionar o processo a ele mesmo (a regra processos_relacionados_em_ordem do banco). */
+export const MESMO_PROCESSO = 'Um processo não se relaciona com ele mesmo.';
+/** O que a busca de "Ligar processo existente" explica enquanto está aberta. */
+export const AVISO_AO_RELACIONAR_PROCESSO = 'A ligação aparece nos dois processos, como "Relacionado". Vale para qualquer tipo: judicial ou administrativo.';
+/** O que a busca deixa de fora: o próprio processo e os que já aparecem em "Processos relacionados" (por origem ou ligados depois). */
+export const foraDaBuscaDeProcessos = (processoId: string, relacionados: readonly { id: string }[]) => [processoId, ...relacionados.map(r => r.id)];
+/**
+ * Junta aos ligados por origem os ligados depois (#440). O processo que tem as duas ligações com o aberto aparece uma vez só, pela
+ * origem (que diz mais). Na ordem do cartão.
+ */
+export function comOsRelacionados(daOrigem: readonly ProcessoRelacionado[], ligados: readonly Omit<ProcessoRelacionado, 'relacao'>[]): ProcessoRelacionado[] {
+  const jaEstao = new Set(daOrigem.map(p => p.id));
+  return ordemDosRelacionados([...daOrigem, ...ligados.filter(p => !jaEstao.has(p.id)).map(p => ({ ...p, relacao: 'relacionado' as const }))]);
 }
 /** Os processos ligados ao aberto, cada um com a relação (os sem ligação com ele saem), na ordem do cartão. */
 export function relacionadosDoProcesso(achados: readonly (Omit<ProcessoRelacionado, 'relacao'> & Pick<Processo, 'origem_id' | 'ligacao'>)[],

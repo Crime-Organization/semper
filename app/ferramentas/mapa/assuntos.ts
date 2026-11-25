@@ -239,10 +239,11 @@ export const ASSUNTOS: Assunto[] = [
       'historico_processos_sem_nome_ordem', 'campos_de_processo', 'andamentos_e_prazos', 'painel_de_processos', 'painel_com_tipo_do_andamento', 'processo_demandas',
       'advogado_entra_no_processo', 'andamentos_tipo_e_comentarios_de_processos', 'colunas_de_acompanhamento_dos_processos', 'ligar_processo_existente',
       'polo_criminal', 'processo_partes_recursos_e_tipos', 'investigacaoNoAdministrativo', 'investigacao_no_processo_administrativo', 'papel_do_cliente',
-      'processoJudicialDoAdministrativo', 'processo_judicial_do_administrativo', 'processo-judicial-do-administrativo'
+      'processoJudicialDoAdministrativo', 'processo_judicial_do_administrativo', 'processo-judicial-do-administrativo',
+      'processosRelacionados', 'processos_relacionados', 'processos-relacionados'
     ],
     tabelas: ['processos', 'processo_andamentos', 'processo_campos', 'processo_clientes', 'processo_demandas', 'processo_etiquetas', 'processo_historico',
-      'processo_opcoes', 'processo_partes', 'processo_prazos'],
+      'processo_opcoes', 'processo_partes', 'processo_prazos', 'processos_relacionados'],
     dados: ['DadosProcessos', 'DadosAcompanhamento'],
     rotas: ['processos', 'processos/judicial', 'processos/administrativo', 'processos/novo'],
     armadilhas: [

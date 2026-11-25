@@ -2887,6 +2887,88 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Processos relacionados de qualquer tipo (#440)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const novoProcesso = async (tipo: 'judicial' | 'administrativo') => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo, numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const idsRelacionados = async (id: string) => (await SD.processosRelacionados(id)).filter(p => p.relacao === 'relacionado').map(p => p.id);
+
+      it.each([
+        ['judicial', 'judicial'], ['administrativo', 'administrativo'], ['judicial', 'administrativo'], ['administrativo', 'judicial']
+      ] as const)('dado um %s e um %s, quando a pessoa liga um ao outro, então cada cartão mostra o outro como "Relacionado"', async (tipoA, tipoB) => {
+        // Dado
+        const [a, b] = [await novoProcesso(tipoA), await novoProcesso(tipoB)];
+        // Quando
+        const ligou = await SD.processoRelacionar(a.id, b.id);
+        // Então
+        expect(ligou).toBe(true);
+        expect(await idsRelacionados(a.id)).toEqual([b.id]);
+        expect(await idsRelacionados(b.id)).toEqual([a.id]);
+      });
+
+      it('dado um par já ligado, quando liga de novo, em qualquer sentido, então nada se repete', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('administrativo')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        const deNovo = await SD.processoRelacionar(b.id, a.id);
+        // Então
+        expect(deNovo).toBe(false);
+        expect(await idsRelacionados(a.id)).toEqual([b.id]);
+      });
+
+      it('quando desfaz num cartão, então a ligação some dos dois; desfazer o que não está ligado é recusado', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('judicial')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        await SD.processoDesrelacionar(b.id, a.id);
+        // Então
+        expect(await idsRelacionados(a.id)).toEqual([]);
+        expect(await idsRelacionados(b.id)).toEqual([]);
+        await expect(SD.processoDesrelacionar(a.id, b.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando liga o processo a ele mesmo, a um arquivado, ou quem tenta não está nos dois, então é recusado', async () => {
+        // Dado
+        const [a, b, arquivado] = [await novoProcesso('judicial'), await novoProcesso('administrativo'), await novoProcesso('judicial')];
+        await SD.processosArquivar([arquivado.id], true);
+        // Quando
+        const consigo = SD.processoRelacionar(a.id, a.id);
+        const comArquivado = SD.processoRelacionar(a.id, arquivado.id);
+        entrarComo('u-bruno');
+        const deFora = SD.processoRelacionar(a.id, b.id);
+        // Então
+        await expect(consigo).rejects.toThrow('Um processo não se relaciona com ele mesmo.');
+        await expect(comArquivado).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(deFora).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('dado um processo que é origem do outro, quando também é ligado depois, então aparece uma vez só, pela origem', async () => {
+        // Dado
+        const administrativo = await novoProcesso('administrativo'), judicial = await novoProcesso('judicial');
+        await SD.processoJudicialLigar(administrativo.id, judicial.id);
+        // Quando
+        await SD.processoRelacionar(administrativo.id, judicial.id);
+        // Então
+        expect(await SD.processosRelacionados(administrativo.id)).toEqual([expect.objectContaining({ id: judicial.id, relacao: 'judicial' })]);
+      });
+
+      it('quando um dos processos é excluído, então a ligação sai do outro', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('administrativo')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        await SD.processosArquivar([b.id], true);
+        await SD.processosExcluir([b.id]);
+        // Então
+        expect(await idsRelacionados(a.id)).toEqual([]);
+      });
+    });
+
     describe('Processos', () => {
       // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const NUMERO = '0005678-13.2026.8.13.0433';

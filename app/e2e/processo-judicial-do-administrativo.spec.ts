@@ -74,29 +74,33 @@ test.describe('O administrativo e o judicial que nasceu dele (#425)', () => {
     await expect(cartao.getByRole('button', { name: /processo judicial a partir deste/ })).toHaveCount(0);
   });
 
-  test('dado um administrativo de outra área, quando liga um judicial que já existe, então os dois cartões mostram a ligação, que se desfaz pelo "x"', async ({ page }) => {
+  // Desde a #440, o administrativo liga um processo que já existe pelo "Ligar processo existente" (de qualquer tipo), como "Relacionado",
+  // no lugar do "Ligar processo judicial existente".
+  test('dado um administrativo de outra área, quando liga um judicial que já existe, então os dois cartões mostram o outro como "Relacionado", e o "x" desfaz', async ({ page }) => {
     // Dado
     let cartao = await administrativo(page, 'Previdenciário');
     let relacionados = await secao(cartao, 'Processos relacionados');
+    await expect(cartao.getByRole('button', { name: 'Ligar processo judicial existente' })).toHaveCount(0);
     // Quando
     // (a corrente do título, #427)
-    await cartao.getByRole('button', { name: 'Ligar processo judicial existente' }).click();
+    await cartao.getByRole('button', { name: 'Ligar processo existente' }).click();
     await relacionados.getByRole('textbox', { name: 'Buscar processo para ligar' }).fill('0001234');
     await relacionados.getByRole('list', { name: 'Processos para ligar' }).getByRole('button', { name: /JOSÉ DA SILVA TESTE/ }).click();
     // Então
-    await expect(page.getByText(/Processo judicial ligado:/)).toBeVisible();
-    const judicial = relacionados.getByRole('link', { name: /Processo judicial deste administrativo/ });
+    await expect(page.getByText(/Processo relacionado:/)).toBeVisible();
+    const judicial = relacionados.getByRole('link', { name: /Relacionado/ });
     await expect(judicial).toContainText(JUDICIAL_DA_SEMENTE);
+    await expect(judicial).toContainText('Judicial');
     // E o cartão do judicial mostra o administrativo
     await judicial.click();
     cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
     relacionados = await secao(cartao, 'Processos relacionados');
-    await expect(relacionados.getByRole('link', { name: /Processo administrativo de origem/ })).toContainText(NUMERO_ADMINISTRATIVO);
+    await expect(relacionados.getByRole('link', { name: /Relacionado/ }).filter({ hasText: NUMERO_ADMINISTRATIVO })).toContainText('Administrativo');
     // Quando desfaz pelo "x" do cartão do judicial e confirma
-    await tirarDoCartao(page, relacionados.getByRole('button', { name: /Tirar a ligação com o processo/ }));
+    await tirarDoCartao(page, relacionados.getByRole('button', { name: /Tirar a ligação com o processo/ }).last());
     // Então a ligação sai
-    await expect(relacionados.getByRole('link', { name: /Processo administrativo de origem/ })).toHaveCount(0);
+    await expect(relacionados.getByRole('link', { name: /Relacionado/ }).filter({ hasText: NUMERO_ADMINISTRATIVO })).toHaveCount(0);
     await expect(page.getByText(/Ligação desfeita com o processo/)).toBeVisible();
   });
 
