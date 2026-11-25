@@ -65,7 +65,12 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
     await gravar();
     aoGravarRef.current();
   }, [despachar, gravar]);
-  const iniciar = useCallback(() => { if (podeContar) despachar({ tipo: 'iniciar', agora: Date.now() }); }, [podeContar, despachar]);
+  // O período que ainda não foi gravado começa agora (não quando o cartão abriu): é o "desde" do registro e da linha que conta (#442).
+  const iniciar = useCallback(() => {
+    if (!podeContar) return;
+    if (periodo.current.id === null && periodo.current.gravados === 0) periodo.current.inicio = new Date().toISOString();
+    despachar({ tipo: 'iniciar', agora: Date.now() });
+  }, [podeContar, despachar]);
   const alternar = useCallback(() => { if (c.current.contando) void pausar(); else iniciar(); }, [pausar, iniciar]);
   // O registro do período pausado foi apagado ou corrigido (#400): o cronômetro o solta, e o próximo Retomar começa outro período
   // (gravar no registro corrigido desfaria a correção; no apagado, o tempo se perderia). Contando, não solta: a tela pede para pausar.
@@ -164,6 +169,8 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
     segundos: segundosDoPeriodo(estado, agora) - periodo.current.desconto,
     /** O registro do banco em que este período está sendo gravado (para não somá-lo duas vezes). */
     periodoId: periodo.current.id,
+    /** Quando começou o período deste cartão: o "desde" da linha que conta, antes mesmo da primeira gravação (#442). */
+    inicio: periodo.current.inicio,
     pausar, iniciar, alternar, soltarPeriodo
   };
 }

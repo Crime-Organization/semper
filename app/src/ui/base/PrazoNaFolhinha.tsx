@@ -2,8 +2,9 @@
 // esquerda, a folhinha (o mês, o dia e o dia da semana); ao lado, quanto falta ("Faltam 2 dias", "Venceu há 2 dias" em vermelho,
 // "Sem prazo"), embaixo a hora e o lembrete ("Às 18:00 · lembrete 1 h antes") e o link "Mudar prazo" ("Definir prazo", sem prazo).
 // O link e a folhinha abrem a mesma janela das datas dos outros cartões (DatasDoCartao, com janelaDoInicioEPrazo): o início fica só
-// lá dentro. Na tarefa concluída, a folhinha mostra o dia da conclusão, a frase diz quanto antes ou depois do prazo, e a folhinha
-// não abre nada (o link continua, para quem altera: a concluída também muda de datas). Quem só lê vê o mesmo, sem o link.
+// lá dentro; ela se chama "Prazo", e o Remover, "Tirar o prazo". Na tarefa concluída, a folhinha mostra o dia da conclusão ("Concluída
+// em 26/11"), o detalhe diz quanto antes ou depois do prazo, e a folhinha não abre nada (o link continua, para quem altera: a
+// concluída também muda de datas e ganha um prazo). "Vence hoje" fica na cor de pendência. Quem só lê vê o mesmo, sem o link.
 // A folhinha é só para o mouse (aria-hidden, fora do Tab): o leitor de tela ouve o dia por extenso, e o link leva o resumo antigo
 // (o início, a entrega e o lembrete) como descrição. As contas ficam em regras/prazoNaFolhinha.ts.
 import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
@@ -18,6 +19,8 @@ import './PrazoNaFolhinha.css';
 export const ROTULO_DO_PRAZO = 'Prazo';
 /** O link que abre a janela das datas: com prazo e sem ele. */
 export const MUDAR_PRAZO = 'Mudar prazo', DEFINIR_PRAZO = 'Definir prazo';
+/** O botão da janela que tira o prazo (nos outros cartões, "Remover"). */
+export const TIRAR_O_PRAZO = 'Tirar o prazo';
 
 interface PropsDaFolhinha {
   folha: FolhaDoDia;
@@ -48,7 +51,8 @@ interface Props extends DoInicioEPrazo {
 export function PrazoNaFolhinha({ concluidaEm, atalho, ...datas }: Props) {
   const p = prazoNaFolhinha({ ...datas.valor, concluida_em: concluidaEm }, hojeISO());
   const folha = p.dia ? folhaDoDia(p.dia) : null;
-  const janela = janelaDoInicioEPrazo(datas);
+  // A janela se chama "Prazo", como o link que a abre, e o Remover diz o que tira (o início continua lá dentro, e não se tira).
+  const janela = { ...janelaDoInicioEPrazo(datas), nome: ROTULO_DO_PRAZO, rotuloDoRemover: TIRAR_O_PRAZO };
   // O dia por extenso, para o leitor de tela (a folhinha é só para o mouse).
   const porExtenso = folha && `${concluidaEm ? 'Concluída em' : 'Prazo'}: ${folha.porExtenso}`;
   const bloco = (a?: AbridoresDasDatas) => <div className="prazo-folhinha">

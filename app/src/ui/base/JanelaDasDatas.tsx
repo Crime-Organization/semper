@@ -69,6 +69,8 @@ interface Props {
   entrega?: EntregaDaJanela;
   /** A lista da repetição (só nos itens que se repetem). */
   repeticao?: RepeticaoDaJanela;
+  /** O nome do botão que tira as datas que podem ficar vazias (#442: "Tirar o prazo", na folhinha da tarefa). Sem isto, "Remover". */
+  rotuloDoRemover?: string;
   /** O rascunho com o que está gravado, quando a janela abre. */
   inicial: () => CamposDasDatas;
   /** Os erros do rascunho, pelas regras do cadastro (vazio: pode salvar). */
@@ -149,8 +151,11 @@ interface PropsDaJanela extends Omit<Props, 'resumo' | 'lido' | 'atalho' | 'aoSa
 /** As marcas de erro de um campo (aria-invalid e a descrição com o erro). */
 type MarcasDoCampo = { 'aria-invalid': true | undefined; 'aria-describedby': string | undefined };
 
+/** O nome de sempre do botão que tira as datas. */
+const REMOVER = 'Remover';
+
 /** A janela das datas, presa ao resumo que a abriu. */
-function JanelaDasDatas({ botao, nome, titulo, inicio, entrega, repeticao, inicial, conferir, aoSalvar, aoFechar }: PropsDaJanela) {
+function JanelaDasDatas({ botao, nome, titulo, inicio, entrega, repeticao, rotuloDoRemover = REMOVER, inicial, conferir, aoSalvar, aoFechar }: PropsDaJanela) {
   const partes = partesDe(inicio, entrega);
   const [gravado] = useState(inicial);
   const [rascunho, setRascunho] = useState(gravado);
@@ -261,7 +266,7 @@ function JanelaDasDatas({ botao, nome, titulo, inicio, entrega, repeticao, inici
         <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={() => void gravar(rascunho)}>
           {ocupado ? 'Salvando…' : 'Salvar'}
         </button>
-        {podeRemover(gravado, partes) && <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={remover}>Remover</button>}
+        {podeRemover(gravado, partes) && <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={remover}>{rotuloDoRemover}</button>}
       </div>
     </div>
   </MenuFlutuante>;

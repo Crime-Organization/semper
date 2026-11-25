@@ -86,6 +86,7 @@ describe('O prazo na folhinha (#442)', () => {
     render(<Prazo concluidaEm="2026-11-26T13:00:00Z" />);
     // Então
     expect(bloco()).toHaveTextContent('nov26quinta');
+    expect(bloco()).toHaveTextContent('Concluída em 26/11');
     expect(bloco()).toHaveTextContent('Concluída em: quinta-feira, 26/11/2026');
     expect(bloco()).toHaveTextContent('1 dia antes do prazo');
     expect(folhinha('26').tagName).not.toBe('BUTTON');
@@ -102,5 +103,26 @@ describe('O prazo na folhinha (#442)', () => {
     expect(bloco()).toHaveTextContent('Faltam 2 dias');
     expect(within(bloco()).queryByRole('button')).not.toBeInTheDocument();
     expect(folhinha('27').tagName).not.toBe('BUTTON');
+  });
+
+  it('dado a tarefa concluída sem prazo, quando o cartão abre, então diz o dia da conclusão e "Sem prazo", e ainda se pode definir um prazo', () => {
+    // Quando
+    render(<Prazo valor={{ ...COM_PRAZO, prazo: null, prazo_hora: null, lembrete: null }} concluidaEm="2026-11-24T13:00:00Z" />);
+    // Então
+    expect(bloco()).toHaveTextContent('Concluída em 24/11');
+    expect(bloco()).toHaveTextContent('Sem prazo');
+    expect(within(bloco()).getByRole('button', { name: 'Definir prazo' })).toBeInTheDocument();
+  });
+
+  it('dado o prazo, quando abro a janela por "Mudar prazo", então ela se chama "Prazo" e o botão de tirar diz "Tirar o prazo"', async () => {
+    // Dado
+    vi.useRealTimers();
+    render(<Prazo />);
+    // Quando
+    await userEvent.click(within(bloco()).getByRole('button', { name: 'Mudar prazo' }));
+    // Então
+    expect(within(janela()).getByText('Prazo', { exact: true })).toBeInTheDocument();
+    expect(within(janela()).getByRole('button', { name: 'Tirar o prazo' })).toBeInTheDocument();
+    expect(within(janela()).queryByRole('button', { name: 'Remover' })).not.toBeInTheDocument();
   });
 });

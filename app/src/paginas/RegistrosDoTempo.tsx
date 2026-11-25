@@ -1,20 +1,21 @@
 // O tempo da equipe no cartão da tarefa (#442), embaixo do bloco "Prazo e tempo": numa linha só, o total da equipe (só quando mais
 // alguém além de quem olha tem tempo) e o link "Ver registros (N)". Ao abrir, os registros agrupados por pessoa (#400, refeitos na
 // #442), cada grupo com o nome ("Você", para quem olha) e o total: a duração para o administrador e para os próprios; para os outros,
-// a % (só na tarefa concluída, como antes). Cada registro numa linha: quando ("Hoje", "Ontem, 24/11", "Hoje, desde 14:10"), de onde
-// veio ("À mão: motivo", "Mudado: motivo"), a duração numa coluna fixa e o lápis e a lixeira (que, armada, vira "Confirmar" no mesmo
-// lugar). O registro que o relógio deste cartão está contando só se muda ou se apaga depois de parar (decisão do dono): o lápis e a
+// a % do total (só na tarefa concluída, como antes; sempre com uma casa). Cada registro numa linha: quando ("Hoje", "Ontem, 24/11",
+// "Hoje, desde 14:10"), de onde veio ("À mão: motivo", "Tirado à mão: motivo", "Mudado: motivo"), a duração numa coluna fixa e o
+// lápis e a lixeira (que, armada, vira "Confirmar" no mesmo lugar). O registro que o relógio deste cartão está contando aparece desde
+// o Iniciar ("Contando agora", com a duração andando), antes mesmo de ser gravado, e só se muda ou se apaga depois de parar (decisão do dono): o lápis e a
 // lixeira dele ficam desligados, com o motivo na dica e na descrição, e o clique não faz nada. Quem não é administrador só recebe os
 // próprios registros (o banco nem devolve os dos outros). Mudar, apagar e o Desfazer acertam o relógio, o total e a parte de cada um,
 // e vão ao histórico da tarefa.
 import { useId, useState, type ReactNode } from 'react';
 import { SD, type RegistroDeTempo, type Tarefa, type TempoDaTarefa } from '../dados';
 import { TAMANHO_MOTIVO } from '../dados/limites';
-import { fmtDecorrido, fmtDuracao, outrosTemTempo, parteDeCadaUmAparece, partesAoVivo, totalAoVivo } from '../regras/cronometro';
+import { fmtDecorrido, fmtDuracao, fmtParte, outrosTemTempo, parteDeCadaUmAparece, partesAoVivo, totalAoVivo } from '../regras/cronometro';
 import { fmtData } from '../regras/pessoa';
 import {
-  conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, gruposDosRegistros, MOTIVO_DO_DESFAZER, NOME_DO_TIPO, PARE_ANTES,
-  possoMexer, quandoDoRegistro, talvezContando, tipoDoRegistro, type CamposDaCorrecao, type GrupoDeRegistros
+  comOQueConta, conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, gruposDosRegistros, MOTIVO_DO_DESFAZER, NOME_DO_TIPO,
+  ORIGEM_DO_AJUSTE, PARE_ANTES, possoMexer, quandoDoRegistro, sinalDoAjuste, talvezContando, tipoDoRegistro, type CamposDaCorrecao, type GrupoDeRegistros
 } from '../regras/registrosDeTempo';
 import { falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { Aviso, BotaoDeIcone, Campo, CampoData, estiloBotao, Nota } from '../ui/base';
@@ -26,13 +27,15 @@ import { dataCurta, hojeISO } from '../ui/util';
 import type { useCronometro } from './useCronometro';
 
 /** O cronômetro deste cartão, como a linha da equipe precisa dele: qual registro ele conta, quanto, se está contando, e soltar. */
-type RelogioDoCartao = Pick<ReturnType<typeof useCronometro>, 'periodoId' | 'segundos' | 'contando' | 'soltarPeriodo'>;
+type RelogioDoCartao = Pick<ReturnType<typeof useCronometro>, 'periodoId' | 'inicio' | 'segundos' | 'contando' | 'soltarPeriodo'>;
 interface Props { t: Tarefa; tempo: TempoDaTarefa; relogio: RelogioDoCartao; carregar: () => Promise<unknown> }
 
 /** O aviso ao mexer no período recente de outra pessoa, que pode estar contando em outra aba ou aparelho dela (talvezContando). */
 const TALVEZ_CONTANDO = 'Este período começou há menos de um dia e pode ainda estar contando em outra aba ou aparelho de quem o registrou. Se estiver, o tempo contado depois desta mudança vai para um registro novo.';
 /** O que o aviso diz depois de apagar: o de sempre, ou com a lembrança de que o período apagado podia estar contando. */
 const APAGADO = { sempre: 'Registro de tempo apagado.', talvez: 'Registro de tempo apagado. Se ainda estava contando, o tempo seguinte vai para um registro novo.' };
+/** A quem não é administrador, quando há tempo de outros: de onde vem o resto do total (os registros deles não vêm). */
+export const SO_OS_SEUS = 'Você vê só os seus registros; os dos outros, só eles e os administradores veem.';
 /** O nome da lista aberta dos registros, para o leitor de tela e para os testes. */
 export const REGISTROS_DE_TEMPO = 'Registros de tempo';
 
@@ -52,8 +55,11 @@ export function TempoDaEquipe({ t, tempo, relogio, carregar }: Props) {
   const partes = partesAoVivo(tempo, eu, relogio.periodoId, relogio.segundos);
   const total = totalAoVivo(tempo, eu, relogio.periodoId, relogio.segundos);
   // A parte de cada um aparece com a tarefa concluída e, a qualquer momento, para o administrador.
-  const grupos = gruposDosRegistros(tempo.registros, partes, eu, !!t.concluida_em || ctx.ehAdmin);
-  const comTotal = outrosTemTempo(partes, eu), comLista = tempo.registros.length > 0 || grupos.length > 1;
+  // O registro que este relógio conta está na lista desde o Iniciar (#442), antes mesmo da primeira gravação no banco: a contagem
+  // "Ver registros (N)" e a lista dizem a mesma coisa o tempo todo.
+  const { registros, periodoId } = comOQueConta(tempo.registros, eu, relogio.periodoId, relogio.contando, relogio.inicio);
+  const grupos = gruposDosRegistros(registros, partes, eu, !!t.concluida_em || ctx.ehAdmin);
+  const comTotal = outrosTemTempo(partes, eu), comLista = registros.length > 0 || grupos.length > 1;
   if (!comTotal && !comLista) return null;
 
   /** Depois de mexer: o cronômetro solta o registro que contava (se foi ele), a faixa relê o tempo e o cartão, o histórico. */
@@ -97,14 +103,15 @@ export function TempoDaEquipe({ t, tempo, relogio, carregar }: Props) {
       {comTotal && <span>Total da equipe <b className="num">{fmtDuracao(total)}</b></span>}
       {comTotal && comLista && <span className="tempo-da-equipe-ponto" aria-hidden="true">·</span>}
       {comLista && <button type="button" className={estiloBotao({ forma: 'link' }, 'tempo-da-equipe-abrir')} aria-expanded={aberta} aria-controls={id}
-        onClick={() => setAberta(a => !a)}>{textoDoLink(aberta, tempo.registros.length)}<Icone nome="abaixo" tam={ICONE_DO_MINI} /></button>}
+        onClick={() => setAberta(a => !a)}>{textoDoLink(aberta, registros.length)}<Icone nome="abaixo" tam={ICONE_DO_MINI} /></button>}
     </p>
     {aberta && <div id={id} className="registros-do-tempo" role="group" aria-label={REGISTROS_DE_TEMPO}>
       {t.concluida_em && <p className="registros-do-tempo-decorrido">
         Da criação à conclusão: <b className="num">{fmtDecorrido(t.criado_em, t.concluida_em)}</b>
       </p>}
+      {comTotal && !ctx.ehAdmin && <p className="registros-do-tempo-nota">{SO_OS_SEUS}</p>}
       {grupos.map(g => <GrupoDaPessoa key={g.perfil_id ?? 'removido'} g={g} comCabeca={comCabeca}
-        linha={r => <LinhaDoRegistro key={r.id} r={r} posso={possoMexer(r, eu, ctx.ehAdmin)} contando={emAndamento(r, relogio.periodoId, relogio.contando)}
+        linha={r => <LinhaDoRegistro key={r.id} r={r} posso={possoMexer(r, eu, ctx.ehAdmin)} contando={emAndamento(r, periodoId, relogio.contando)} agora={relogio.segundos}
           aoMudar={() => mudar(r)} aoApagar={() => apagar(r)} />} />)}
     </div>}
   </div>;
@@ -125,27 +132,33 @@ function GrupoDaPessoa({ g, comCabeca, linha }: PropsDoGrupo) {
   const comDuracao = meu || ctx.ehAdmin;
   return <div className="registros-da-pessoa" role="group" aria-label={nome}>
     {comCabeca && <p className="registros-da-pessoa-cabeca">
-      <span className="registros-da-pessoa-nome">{nome}{g.percentual !== null && <span className="registros-da-pessoa-parte"> · {g.percentual.toLocaleString('pt-BR')}%</span>}</span>
+      <span className="registros-da-pessoa-nome">{nome}{g.percentual !== null && <span className="registros-da-pessoa-parte"> · {fmtParte(g.percentual)} do total</span>}</span>
       {comDuracao && <b className="registros-da-pessoa-total num">{fmtDuracao(g.segundos)}</b>}
     </p>}
     {g.registros.length > 0 && <ul className="registros-da-pessoa-lista" aria-label={meu ? 'Seus registros' : `Registros de ${nome}`}>{g.registros.map(linha)}</ul>}
   </div>;
 }
 
-interface PropsDaLinha { r: RegistroDeTempo; posso: boolean; contando: boolean; aoMudar: () => unknown; aoApagar: () => unknown }
+interface PropsDaLinha {
+  r: RegistroDeTempo; posso: boolean; contando: boolean;
+  /** Os segundos que o relógio deste cartão já contou no período: a duração, andando, do registro que está contando. */
+  agora: number;
+  aoMudar: () => unknown; aoApagar: () => unknown;
+}
 
 /** Um registro: quando e de onde veio, à esquerda; a duração; o lápis e a lixeira à direita. */
-function LinhaDoRegistro({ r, posso, contando, aoMudar, aoApagar }: PropsDaLinha) {
+function LinhaDoRegistro({ r, posso, contando, agora, aoMudar, aoApagar }: PropsDaLinha) {
   const dia = dataCurta(r.inicio);
   const mudar = `Mudar o registro de ${dia}`, apagar = `Apagar o registro de ${dia}`;
   return <li className="registro-do-tempo">
     <span className="registro-do-tempo-quando">
       {quandoDoRegistro(r.inicio, hojeISO(), contando)}
-      {r.ajuste && r.motivo && <span className="registro-do-tempo-motivo">À mão: {r.motivo}</span>}
+      {contando && <span className="registro-do-tempo-motivo">Contando agora</span>}
+      {r.ajuste && r.motivo && <span className="registro-do-tempo-motivo">{ORIGEM_DO_AJUSTE[sinalDoAjuste(r.segundos)]}: {r.motivo}</span>}
       {r.motivo_da_correcao && <span className="registro-do-tempo-motivo">Mudado: {r.motivo_da_correcao}</span>}
     </span>
     <span className="registro-do-tempo-duracao num">
-      {contando ? <><span className="seu-tempo-pulso" aria-hidden="true" />contando</> : duracaoDoRegistro(r)}
+      {contando ? <><span className="seu-tempo-pulso" aria-hidden="true" />{fmtDuracao(agora)}</> : duracaoDoRegistro(r)}
     </span>
     <span className="registro-do-tempo-acoes">
       {posso && (contando

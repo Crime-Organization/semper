@@ -116,7 +116,8 @@ function TempoNaTarefa({ t, tempo, carregar, prazo }: { t: Tarefa; tempo: TempoL
         </Campo>
       </div>,
       acoes: [{ rotulo: 'Cancelar', valor: null },
-        { rotulo: 'Adicionar', tipo: 'pri', valor: f => ({ tanto: String(f.get('tanto') || ''), motivo: String(f.get('motivo') || '') }) }]
+        // "Salvar", e não "Adicionar": a mesma janela também tira tempo ("-20min").
+        { rotulo: 'Salvar', tipo: 'pri', valor: f => ({ tanto: String(f.get('tanto') || ''), motivo: String(f.get('motivo') || '') }) }]
     });
     if (!campos) return;
     const erros = errosDoAjuste(campos.tanto, campos.motivo);

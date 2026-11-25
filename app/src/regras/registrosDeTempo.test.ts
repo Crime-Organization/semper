@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, inicioNoDia, lerDuracaoDoRegistro, NO_HISTORICO,
+import { AINDA_SEM_REGISTRO, comOQueConta, ORIGEM_DO_AJUSTE, sinalDoAjuste, conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, inicioNoDia, lerDuracaoDoRegistro, NO_HISTORICO,
   gruposDosRegistros, NOME_DO_TIPO, PARE_ANTES, possoMexer, quandoDoRegistro, registroNoHistorico, registrosEmOrdem, talvezContando, tipoDoRegistro } from './registrosDeTempo';
 
 const registro = (id: number, inicio: string, extra: Partial<{ perfil_id: string | null; segundos: number; ajuste: boolean }> = {}) =>
@@ -198,5 +198,43 @@ describe('Quando foi o registro, na lista do cartão (#442)', () => {
   it('quando o registro que está contando não pode mudar, então a explicação diz para parar o relógio antes', () => {
     // Então
     expect(PARE_ANTES).toBe('Pare o relógio antes de mudar ou apagar o registro que está contando.');
+  });
+});
+
+describe('O registro que o relógio está contando, na lista (#442)', () => {
+  const extra = { motivo: null, corrigido_em: null, motivo_da_correcao: null };
+  const gravado = { ...registro(7, '2026-11-20T17:00:00Z', { perfil_id: 'eu' }), ...extra };
+  const INICIO = '2026-11-21T19:32:00Z';
+
+  it('dado o relógio que acabou de começar, sem nada gravado ainda, quando a lista é montada, então ela já traz a linha dele, minha, desde o início', () => {
+    // Quando
+    const { registros, periodoId } = comOQueConta([gravado], 'eu', null, true, INICIO);
+    // Então
+    expect(registros).toHaveLength(2);
+    expect(registros[1]).toMatchObject({ id: AINDA_SEM_REGISTRO, perfil_id: 'eu', inicio: INICIO, segundos: 0, ajuste: false });
+    expect(periodoId).toBe(AINDA_SEM_REGISTRO);
+  });
+
+  it('dado o relógio contando num registro já gravado, quando a lista é montada, então ela é a de sempre, sem linha a mais', () => {
+    // Quando
+    const { registros, periodoId } = comOQueConta([gravado], 'eu', 7, true, INICIO);
+    // Então
+    expect(registros).toEqual([gravado]);
+    expect(periodoId).toBe(7);
+  });
+
+  it('dado o relógio parado, quando a lista é montada, então não ganha linha nenhuma', () => {
+    // Quando / Então
+    expect(comOQueConta([gravado], 'eu', null, false, INICIO).registros).toEqual([gravado]);
+  });
+});
+
+describe('De onde veio o ajuste à mão (#442)', () => {
+  it.each([
+    [1800, 'À mão'],
+    [-600, 'Tirado à mão']
+  ])('dado o ajuste de %i segundos, quando a lista o mostra, então diz "%s"', (segundos, origem) => {
+    // Quando / Então
+    expect(ORIGEM_DO_AJUSTE[sinalDoAjuste(segundos)]).toBe(origem);
   });
 });

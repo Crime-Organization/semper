@@ -102,6 +102,10 @@
   --texto-do-relogio: var(--texto-titulo-1);
   /* O relógio da tarefa: um degrau abaixo do título do cartão (24px) e acima da frase do prazo (--texto-do-prazo) */
   --texto-do-relogio-da-tarefa: 22px;
+  /* A altura da linha do relógio (o lugar reservado enquanto o tempo chega usa a mesma, e o bloco não pula) e a unidade ("h",
+     "min"), menor que o número */
+  --altura-da-linha-do-relogio: 1.1;
+  --unidade-do-relogio: .7em;
   /* O vão entre o prazo e o relógio, lado a lado ({spacing.xl}), e entre eles, um embaixo do outro ({spacing.lg}) */
   --vao-das-colunas-do-tempo: 32px;
   --vao-das-linhas-do-tempo: 24px;
@@ -117,6 +121,8 @@
   --bolinha-contando: 8px;
   --anel-da-bolinha: 3px;
   --pulso: 1.6s;
+  /* O quanto o ponto apaga no meio do pulso */
+  --pulso-apagado: .35;
   /* O vão entre o ponto (ou o ícone) e "Seu tempo", e entre o texto do link "Ver registros" e a seta */
   --vao-da-marca-do-tempo: 8px;
   --vao-da-seta-do-link: 6px;
@@ -133,23 +139,24 @@
 /* O bloco entre as duas linhas finas, como a faixa das datas (--vao-das-faixas-dos-dados, #398), e o recipiente das consultas de largura. */
 .cartao-cabeca-dados:has(> .prazo-e-tempo) { container: prazo-e-tempo / inline-size; padding-block: var(--vao-das-faixas-dos-dados); border-block: 1px solid var(--line) }
 .prazo-e-tempo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--vao-das-linhas-do-tempo) var(--vao-das-colunas-do-tempo) }
-/* Uma coluna só quando as duas não cabem com "Continuar" e "Adicionar tempo" lado a lado (o @container não aceita variável: 600px
-   são as duas colunas, de ~290px cada, mais o vão). */
-@container prazo-e-tempo (max-width: 600px) { .prazo-e-tempo { grid-template-columns: minmax(0, 1fr) } }
+/* Lado a lado sempre que as duas colunas cabem (no painel ao lado, de ~490px, também: lá os botões do tempo descem um embaixo do
+   outro, dentro da coluna deles); uma coluna só na faixa estreita do celular (o @container não aceita variável: 440px são as duas
+   colunas, de ~200px cada, a folhinha com "Faltam 2 dias" e o botão "Adicionar tempo" inteiro, mais o vão). */
+@container prazo-e-tempo (max-width: 440px) { .prazo-e-tempo { grid-template-columns: minmax(0, 1fr) } }
 
 .seu-tempo { display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-relogio); min-width: 0 }
 .seu-tempo-estado { margin: 0; display: flex; align-items: center; gap: var(--vao-da-marca-do-tempo); min-height: 1lh; font-size: var(--texto-tabela); line-height: 1.5; color: var(--text2) }
 .seu-tempo-estado b { font-weight: 700; color: var(--ink) }
 .seu-tempo-pulso { flex: 0 0 auto; width: var(--bolinha-contando); height: var(--bolinha-contando); border-radius: 999px; background: var(--accent-bright);
   box-shadow: 0 0 0 var(--anel-da-bolinha) var(--accent-tint); animation: pulso-do-relogio var(--pulso) ease-in-out infinite }
-@keyframes pulso-do-relogio { 50% { opacity: .35 } }
+@keyframes pulso-do-relogio { 50% { opacity: var(--pulso-apagado) } }
 @media (prefers-reduced-motion: reduce) { .seu-tempo-pulso { animation: none } }
-.seu-tempo-relogio { margin: 0; font-size: var(--texto-do-relogio-da-tarefa); font-weight: 900; line-height: 1.1; letter-spacing: -.01em; color: var(--ink);
-  font-variant-numeric: tabular-nums; white-space: nowrap }
-.seu-tempo-unidade { font-size: .7em; font-weight: 700; letter-spacing: 0; color: var(--text2) }
+.seu-tempo-relogio { margin: 0; font-size: var(--texto-do-relogio-da-tarefa); font-weight: 900; line-height: var(--altura-da-linha-do-relogio); letter-spacing: -.01em;
+  color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap }
+.seu-tempo-unidade { font-size: var(--unidade-do-relogio); font-weight: 700; letter-spacing: 0; color: var(--text2) }
 .seu-tempo-relogio.zerado, .seu-tempo-relogio.zerado .seu-tempo-unidade { color: var(--muted) }
 /* Enquanto o tempo chega do banco, o lugar do relógio fica reservado, e o bloco não pula. */
-.seu-tempo-lendo { min-height: calc(var(--texto-do-relogio-da-tarefa) * 1.1) }
+.seu-tempo-lendo { min-height: calc(var(--texto-do-relogio-da-tarefa) * var(--altura-da-linha-do-relogio)) }
 .seu-tempo-acoes { display: flex; flex-wrap: wrap; gap: var(--vao-dos-botoes-do-tempo); margin-top: var(--vao-do-relogio-aos-botoes) }
 .btn.seu-tempo-botao { padding: var(--folga-do-botao-do-tempo); font-size: var(--texto-tabela) }
 
@@ -170,6 +177,7 @@
 /* Os registros abertos, por pessoa: a cabeça (o nome, a % e o total) e uma linha por registro, nas mesmas colunas. */
 .registros-do-tempo { margin-top: var(--vao-dos-registros); border-top: 1px solid var(--line) }
 .registros-do-tempo-decorrido { margin: var(--vao-dos-registros) 0 0; font-size: var(--texto-tabela); color: var(--text) }
+.registros-do-tempo-nota { margin: var(--vao-dos-registros) 0 0; font-size: var(--texto-apoio); color: var(--muted) }
 .registros-do-tempo-decorrido b { font-weight: 900; color: var(--ink); white-space: nowrap }
 /* Cada pessoa é uma grade só (a cabeça, a lista e cada registro dividem as colunas, por subgrid): as durações ficam alinhadas. */
 .registros-da-pessoa { display: grid; grid-template-columns: minmax(0, 1fr) var(--coluna-da-duracao) var(--coluna-das-acoes); column-gap: var(--vao-das-colunas-do-registro);
@@ -187,6 +195,9 @@
 .registro-do-tempo-motivo { font-size: var(--texto-apoio); line-height: 1.35; color: var(--muted); overflow-wrap: anywhere }
 .registro-do-tempo-duracao { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--vao-da-seta-do-link); white-space: nowrap; color: var(--ink) }
 .registro-do-tempo-acoes { display: flex; justify-content: flex-end; align-items: center; gap: var(--vao-das-acoes-do-registro) }
+/* A lixeira em repouso fica neutra, como o lápis; o vermelho é só dela armada ("Confirmar") e do mouse por cima. */
+.registro-do-tempo-acoes .mini.perigo:not(.confirmar) { border-color: var(--line2); color: var(--ink) }
+@media (hover: hover) { .registro-do-tempo-acoes .mini.perigo:not(.confirmar):hover:not(:disabled) { border-color: var(--erro-borda); color: var(--erro) } }
 /* Na faixa estreita (o celular), o lápis e a lixeira na altura do dedo, e a coluna deles na largura do que tem: o nome e o dia ficam
    com o resto (a lixeira armada, mais larga, alarga a coluna da pessoa toda, e as durações continuam alinhadas). */
 @container prazo-e-tempo (max-width: 420px) {

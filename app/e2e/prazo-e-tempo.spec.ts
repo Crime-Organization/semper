@@ -92,6 +92,8 @@ test.describe('O prazo na folhinha (#442)', () => {
     const prazo = prazoDoCartao(cartao);
     await expect(prazo.getByText(daqui(0).dia, { exact: true })).toBeVisible();
     await expect(prazo).toContainText(`Concluída em: `);
+    // (desde a revisão da #442, a frase também diz que o dia é o da conclusão, para não parecer o prazo)
+    await expect(prazo.getByText(`Concluída em ${daqui(0).data.slice(0, 5)}`, { exact: true })).toBeVisible();
     await expect(prazo).toContainText(daqui(0).data);
     await expect(prazo).toContainText('Sem prazo');
     await expect(seuTempo(cartao)).toContainText('Seu tempo, encerrado');
@@ -151,7 +153,7 @@ test.describe('Seu tempo (#442)', () => {
     const janela = page.getByRole('dialog', { name: 'Adicionar tempo' });
     await janela.getByLabel('Quanto').fill('30min');
     await janela.getByLabel('Motivo').fill('Leitura dos autos fora do sistema');
-    await janela.getByRole('button', { name: 'Adicionar' }).click();
+    await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(cartao.getByRole('timer')).toHaveText('30 min');
     await tempoDaEquipe(cartao).getByRole('button', { name: 'Ver registros (1)' }).click();
@@ -180,6 +182,8 @@ test.describe('O tempo da equipe (#442)', () => {
     await expect(grupos.nth(0)).toContainText('1 h 20 min');
     await expect(grupos.nth(1)).toHaveAccessibleName('Bruno Exemplo Souza');
     await expect(grupos.nth(1)).toContainText('40 min');
+    // E o administrador, que vê os registros de todos, não recebe a nota de quem só vê os próprios
+    await expect(registros.getByText(/^Você vê só os seus registros/)).toHaveCount(0);
     await expect(tempoDaEquipe(cartao).getByRole('button', { name: 'Esconder registros' })).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -205,6 +209,8 @@ test.describe('O tempo da equipe (#442)', () => {
     await expect(registros.getByRole('list', { name: 'Seus registros' }).getByRole('listitem')).toHaveCount(1);
     await expect(registros).not.toContainText('Mauro');
     await expect(registros).not.toContainText('1 h 20 min');
+    // E uma nota diz de onde vem o resto do total (revisão da #442)
+    await expect(registros.getByText('Você vê só os seus registros; os dos outros, só eles e os administradores veem.')).toBeVisible();
     // Quando: a tarefa é concluída
     await cartao.getByRole('button', { name: 'Concluir', exact: true }).click();
     await expect(page.getByText('Tarefa concluída.')).toBeVisible();

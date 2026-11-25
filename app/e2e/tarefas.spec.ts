@@ -636,8 +636,8 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(relogio).toHaveText('1 h 25 min');
     await expect(totalDaEquipe(cartao)).toHaveText('Total da equipe 2 h 05 min');
     await expect(cabecaDoMauro).toContainText('1 h 25 min');
-    await expect(cabecaDoMauro).toContainText('68%');
-    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('32%');
+    await expect(cabecaDoMauro).toContainText('68,0% do total');
+    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('32,0% do total');
   });
 
   test('dada a tarefa concluída, quando a pessoa abre o cartão, então "Seu tempo, encerrado", sem Iniciar nem Continuar, e com "Adicionar tempo" (#442)', async ({ page }) => {
@@ -704,13 +704,13 @@ test.describe('Cronômetro da tarefa', () => {
     const janela = page.getByRole('dialog', { name: 'Adicionar tempo' });
     await janela.getByLabel('Quanto').fill('-20min');
     await janela.getByLabel('Motivo').fill('Contei a mais');
-    await janela.getByRole('button', { name: 'Adicionar' }).click();
+    await janela.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByText('Tempo ajustado: −20 min.')).toBeVisible();
     await expect(cartao.getByRole('timer')).toHaveText('1 h');
     // E o ajuste aparece nos registros do Mauro (#400), com o motivo
     await cartao.getByRole('button', { name: /^Ver registros/ }).click();
-    await expect(cartao.getByRole('list', { name: 'Seus registros' }).getByRole('listitem').filter({ hasText: 'À mão: Contei a mais' }))
+    await expect(cartao.getByRole('list', { name: 'Seus registros' }).getByRole('listitem').filter({ hasText: 'Tirado à mão: Contei a mais' }))
       .toContainText('−20 min');
   });
 
@@ -728,7 +728,7 @@ test.describe('Cronômetro da tarefa', () => {
     await cartao.getByRole('button', { name: /^Ver registros/ }).click();
     const registros = cartao.getByRole('group', { name: 'Registros de tempo' });
     await expect(registros.getByText(/^Da criação à conclusão:/)).toBeVisible();
-    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('Bruno Exemplo Souza · 100%');
+    await expect(registros.getByRole('group', { name: 'Bruno Exemplo Souza' })).toContainText('Bruno Exemplo Souza · 100,0% do total');
   });
 });
 

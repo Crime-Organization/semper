@@ -140,6 +140,11 @@ export interface ParteDoTempo { perfil_id: string | null; segundos: number; perc
 type ParteDoBanco = Omit<ParteDoTempo, 'segundos'>;
 /** A % com uma casa, como o banco a calcula (resumo_do_tempo): 2/3 é 66,7. */
 const percentualDe = (segundos: number, total: number) => Math.round(1000 * segundos / total) / 10;
+/** Quantas casas a % mostra: sempre uma, a mesma do banco (66,7%; 67,0%, e não 67%, para o número não mudar de largura). */
+const CASAS_DA_PARTE = 1;
+/** A parte de cada um como a lista mostra: "66,7%", "67,0%". */
+export const fmtParte = (percentual: number) =>
+  `${percentual.toLocaleString('pt-BR', { minimumFractionDigits: CASAS_DA_PARTE, maximumFractionDigits: CASAS_DA_PARTE })}%`;
 /**
  * A parte de cada um, com o relógio de quem está com o cartão (#436), na mesma conta do banco: só quem tem tempo, a % com uma
  * casa, da maior para a menor. O meu tempo é o de agora, como em totalAoVivo: o relógio, o tempo total e a minha linha dizem a

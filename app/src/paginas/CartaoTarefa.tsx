@@ -211,11 +211,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
           tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */
       <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">Tarefa</Selo>}
-        esquerda={<>
+        /* O código e os selos juntos (#442): sem o selo do prazo, ao lado e no celular eles descem com a equipe para a linha de baixo,
+           e ela nunca fica sozinha numa linha (veja .cartao-topo-abaixo-do-tipo em estilo.css). */
+        esquerda={<span className="cartao-topo-abaixo-do-tipo">
           <span className="codigo">{t.codigo}</span>
           {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {t.diligencia && <Selo tipo="pend" dica={t.diligencia_motivo ?? undefined}>Diligência</Selo>}
-        </>}
+        </span>}
         equipe={<EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos}
           funcoes={{ opcoes: funcoes, de: t.funcoes, trocar: trocarFuncao }} mudar={mudaNoLugar ? {
           saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, demandasDaTarefa(t))), peloLigado: continuaPelaDemanda(t, demandasDaTarefa(t)) },

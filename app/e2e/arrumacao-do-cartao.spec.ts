@@ -315,13 +315,12 @@ test.describe('O cartão arquivado (#397)', () => {
     await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     const desarquivar = cartao.getByRole('button', { name: 'Desarquivar' });
     await expect(desarquivar).toBeVisible();
-    // Então: a faixa do arquivado (onde está o Desarquivar) vem logo depois dos dados (#442: a linha da equipe), com o vão de sempre entre os blocos
-    const [tempo, faixa] = [await caixa(cartao.getByRole('group', { name: 'Tempo da equipe', exact: true })), await caixa(desarquivar.locator('..'))];
+    // Então: a faixa do arquivado (onde está o Desarquivar) vem logo depois dos dados (#442: o bloco do prazo e do tempo com a linha
+    // da equipe, medido inteiro, com a folga até a linha fina de baixo, como a faixa do tempo de antes), com o vão de sempre entre os blocos
+    const dados = cartao.getByRole('group', { name: 'Prazo e tempo', exact: true }).locator('..');
+    const [tempo, faixa] = [await caixa(dados), await caixa(desarquivar.locator('..'))];
     const vaoEntreOsBlocos = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cartao-vao-secoes')));
-    // (#442: a folga embaixo dos dados, até a linha fina, é a mesma de antes, mas fica fora da linha da equipe, que é só o texto;
-    // na faixa do tempo de antes, ela ficava dentro da caixa medida)
-    const folgaDosDados = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-das-faixas-dos-dados')));
-    expect(faixa.y - embaixo(tempo)).toBeLessThanOrEqual(vaoEntreOsBlocos + folgaDosDados + TOLERANCIA);
+    expect(faixa.y - embaixo(tempo)).toBeLessThanOrEqual(vaoEntreOsBlocos + TOLERANCIA);
     await expect(descricaoDoCartao(cartao)).toHaveCount(0);
   });
 

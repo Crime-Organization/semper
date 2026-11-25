@@ -1,7 +1,8 @@
 // O prazo como a folhinha do cartão da tarefa o mostra (#442, opção 9 aprovada pelo dono em 25/11), sem tela nem banco: a
 // folhinha (o mês curto, o dia e o dia da semana), a frase principal ao lado ("Faltam 2 dias", "Vence hoje", "Venceu há 2 dias",
-// "Sem prazo", "Concluída") e o detalhe embaixo dela (a hora e o lembrete: "Às 18:00 · lembrete 1 h antes"; na concluída, quanto
-// antes ou depois do prazo ela terminou). Na tarefa concluída, a folhinha mostra o dia da conclusão. O dia de hoje vem por
+// "Sem prazo", "Concluída em 26/11") e o detalhe embaixo dela (a hora e o lembrete: "Às 18:00 · lembrete 1 h antes"; na concluída,
+// quanto antes ou depois do prazo ela terminou). Na tarefa concluída, a folhinha mostra o dia da conclusão, e a frase diz que é a
+// conclusão (com "Concluída" sozinho e "Sem prazo" embaixo, o dia da folhinha parecia o prazo). O dia de hoje vem por
 // parâmetro (a tela passa hojeISO(), o mesmo do selo do prazo), nunca de um new Date() solto.
 import type { Lembrete } from '../dados/tipos';
 import { DIAS_DA_SEMANA, MESES } from './calendario';
@@ -50,8 +51,8 @@ export function antesOuDepoisDoPrazo(diaDaConclusao: string, prazo: string) {
   return n > 0 ? `${quantosDias(n)} antes do prazo` : `${quantosDias(-n)} depois do prazo`;
 }
 
-/** O tom da frase principal: o de sempre, calmo (sem prazo, em cinza) ou vencido (em vermelho). */
-export type TomDoPrazo = 'normal' | 'calmo' | 'vencido';
+/** O tom da frase principal: o de sempre, calmo (sem prazo, em cinza), hoje (na cor de pendência, como o selo do quadro) ou vencido (em vermelho). */
+export type TomDoPrazo = 'normal' | 'calmo' | 'hoje' | 'vencido';
 /** O que o bloco do prazo mostra. */
 export interface PrazoNaFolhinha {
   /** O dia da folhinha (aaaa-mm-dd): o do prazo ou, na concluída, o da conclusão. Sem ele (sem prazo), não há folhinha. */
@@ -77,6 +78,11 @@ export type SituacaoDaFolhinha = 'sem-prazo' | 'em_dia' | 'hoje' | 'vencido' | '
 const situacaoDaFolhinha = (v: PrazoDoItem, hoje: string): SituacaoDaFolhinha =>
   v.concluida_em ? 'concluida' : (situacaoDoPrazo(v.prazo, hoje) ?? 'sem-prazo') as SituacaoDaFolhinha;
 
+/** Quantas letras de "26/11/2026" são o dia e o mês. */
+const LETRAS_DO_DIA_E_MES = 5;
+/** O dia curto: "26/11" no ano de hoje; "26/11/2025" em outro ano. */
+const diaCurto = (iso: string, hoje: string) => fmtData(iso).slice(0, iso.slice(0, 4) === hoje.slice(0, 4) ? LETRAS_DO_DIA_E_MES : undefined);
+
 /** O que cada situação mostra (padrão State: uma situação nova é uma entrada nova). */
 const NA_FOLHINHA: Record<SituacaoDaFolhinha, (v: PrazoDoItem, hoje: string) => PrazoNaFolhinha> = {
   'sem-prazo': () => ({ dia: null, principal: 'Sem prazo', tom: 'calmo', detalhe: null, folhinhaAbre: false }),
@@ -84,12 +90,13 @@ const NA_FOLHINHA: Record<SituacaoDaFolhinha, (v: PrazoDoItem, hoje: string) => 
     const n = diasEntre(hoje, v.prazo!);
     return { dia: v.prazo, principal: n === 1 ? 'Falta 1 dia' : `Faltam ${n} dias`, tom: 'normal', detalhe: detalheDoPrazo(v.prazo_hora, v.lembrete), folhinhaAbre: true };
   },
-  'hoje': v => ({ dia: v.prazo, principal: 'Vence hoje', tom: 'normal', detalhe: detalheDoPrazo(v.prazo_hora, v.lembrete), folhinhaAbre: true }),
+  'hoje': v => ({ dia: v.prazo, principal: 'Vence hoje', tom: 'hoje', detalhe: detalheDoPrazo(v.prazo_hora, v.lembrete), folhinhaAbre: true }),
   'vencido': (v, hoje) => ({ dia: v.prazo, principal: `Venceu há ${quantosDias(diasEntre(v.prazo!, hoje))}`, tom: 'vencido',
     detalhe: detalheDoPrazo(v.prazo_hora, v.lembrete), folhinhaAbre: true }),
-  'concluida': v => {
+  'concluida': (v, hoje) => {
     const dia = isoNoEscritorio(v.concluida_em!);
-    return { dia, principal: 'Concluída', tom: 'normal', detalhe: v.prazo ? antesOuDepoisDoPrazo(dia, v.prazo) : 'Sem prazo', folhinhaAbre: false };
+    return { dia, principal: `Concluída em ${diaCurto(dia, hoje)}`, tom: 'normal', detalhe: v.prazo ? antesOuDepoisDoPrazo(dia, v.prazo) : 'Sem prazo',
+      folhinhaAbre: false };
   }
 };
 

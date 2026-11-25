@@ -278,9 +278,9 @@ test.describe('A equipe no topo, como na anotação', () => {
     { formato: 'no celular', tela: { width: 390, height: 844 }, centro: false }
   ];
   for (const { formato, tela, centro } of FORMATOS) {
-    test(`dados a tarefa e o contrato ${formato}, quando abrem, então a equipe fica à direita do tipo e do que vem depois dele, na mesma linha (na tarefa ao lado e no celular, desde a #442, pode descer sozinha para a linha de baixo)`, async ({ page }) => {
+    test(`dados a tarefa e o contrato ${formato}, quando abrem, então a equipe divide uma linha com o tipo ou com o que vem depois dele (nunca fica sozinha numa linha), à direita`, async ({ page }) => {
       await page.setViewportSize(tela);
-      for (const { cartao: qual, endereco, linha, partes } of ESQUERDA) {
+      for (const { endereco, linha, partes } of ESQUERDA) {
         // Quando
         const cartao = await abrirCartao(page, endereco, linha);
         if (centro) await abrirNoCentro(cartao);
@@ -289,13 +289,8 @@ test.describe('A equipe no topo, como na anotação', () => {
         const equipe = (await cartao.getByRole('group', { name: 'Equipe', exact: true }).boundingBox())!;
         const caixas = await Promise.all(partes(cartao).map(async p => (await p.boundingBox())!));
         const naMesmaLinha = caixas.filter(c => c.y < equipe.y + equipe.height && equipe.y < c.y + c.height);
+        expect(naMesmaLinha.length).toBeGreaterThan(0);
         for (const c of naMesmaLinha) expect(c.x + c.width).toBeLessThanOrEqual(equipe.x);
-        // A regra mudou na #442 para a tarefa: sem o selo do prazo, o tipo e o código cabem na linha dos botões, e a equipe, quando
-        // não cabe ao lado deles (ao lado e no celular), desce sozinha para a linha de baixo, encostada à direita, logo abaixo dos botões
-        // (como em "dada a tarefa ao lado", logo abaixo). Na janela estreita, ela continua na linha do tipo.
-        if (qual === 'tarefa' && !centro) {
-          if (!naMesmaLinha.length) for (const c of caixas) expect(equipe.y).toBeGreaterThanOrEqual(c.y + c.height - 1);
-        } else expect(naMesmaLinha.length).toBeGreaterThan(0);
         await cartao.getByRole('button', { name: 'Fechar' }).click();
       }
     });

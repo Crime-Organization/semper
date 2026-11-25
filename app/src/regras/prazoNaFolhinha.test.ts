@@ -33,13 +33,20 @@ describe('A folhinha de um dia', () => {
 describe('Quanto falta para o prazo', () => {
   it.each([
     ['2026-11-27', 'Faltam 2 dias'],
-    ['2026-11-26', 'Falta 1 dia'],
-    ['2026-11-25', 'Vence hoje']
+    ['2026-11-26', 'Falta 1 dia']
   ])('dado o prazo em %s, quando o cartão abre, então diz "%s", no tom de sempre, e a folhinha abre as datas', (prazo, principal) => {
     // Quando
     const p = prazoNaFolhinha({ prazo }, HOJE);
     // Então
     expect(p).toMatchObject({ dia: prazo, principal, tom: 'normal', folhinhaAbre: true });
+  });
+
+  // A regra mudou na revisão da #442: "Vence hoje" ganhou o tom de pendência, a mesma cor do selo do prazo no quadro e na lista.
+  it('dado o prazo hoje, quando o cartão abre, então diz "Vence hoje", na cor de pendência, e a folhinha abre as datas', () => {
+    // Quando
+    const p = prazoNaFolhinha({ prazo: HOJE }, HOJE);
+    // Então
+    expect(p).toMatchObject({ dia: HOJE, principal: 'Vence hoje', tom: 'hoje', folhinhaAbre: true });
   });
 
   it.each([
@@ -95,6 +102,8 @@ describe('A hora e o lembrete, embaixo da frase do prazo', () => {
   });
 });
 
+// A regra mudou na revisão da #442: a frase diz o dia da conclusão ("Concluída em 26/11"; antes, só "Concluída", e o dia da
+// folhinha parecia o prazo).
 describe('A tarefa concluída', () => {
   // 26/11/2026 às 15:00 em Brasília.
   const CONCLUIDA_EM = '2026-11-26T18:00:00Z';
@@ -103,18 +112,25 @@ describe('A tarefa concluída', () => {
     ['2026-11-27', '1 dia antes do prazo'],
     ['2026-11-26', 'No dia do prazo'],
     ['2026-11-24', '2 dias depois do prazo']
-  ])('dado o prazo em %s, quando a tarefa foi concluída em 26/11, então a folhinha é o dia da conclusão e diz "%s"', (prazo, detalhe) => {
+  ])('dado o prazo em %s, quando a tarefa foi concluída em 26/11, então a folhinha é o dia da conclusão, a frase diz "Concluída em 26/11" e o detalhe, "%s"', (prazo, detalhe) => {
     // Quando
     const p = prazoNaFolhinha({ prazo, concluida_em: CONCLUIDA_EM }, HOJE);
     // Então
-    expect(p).toEqual({ dia: '2026-11-26', principal: 'Concluída', tom: 'normal', detalhe, folhinhaAbre: false });
+    expect(p).toEqual({ dia: '2026-11-26', principal: 'Concluída em 26/11', tom: 'normal', detalhe, folhinhaAbre: false });
   });
 
-  it('dado a concluída sem prazo, quando o cartão abre, então a folhinha é o dia da conclusão e diz "Sem prazo"', () => {
+  it('dado a concluída sem prazo, quando o cartão abre, então a folhinha é o dia da conclusão, diz "Sem prazo"', () => {
     // Quando
     const p = prazoNaFolhinha({ prazo: null, concluida_em: CONCLUIDA_EM }, HOJE);
     // Então
-    expect(p).toMatchObject({ dia: '2026-11-26', principal: 'Concluída', detalhe: 'Sem prazo' });
+    expect(p).toMatchObject({ dia: '2026-11-26', principal: 'Concluída em 26/11', detalhe: 'Sem prazo' });
+  });
+
+  it('dado a concluída em outro ano, quando o cartão abre, então a frase traz o ano', () => {
+    // Quando
+    const p = prazoNaFolhinha({ prazo: null, concluida_em: '2025-12-10T15:00:00Z' }, HOJE);
+    // Então
+    expect(p.principal).toBe('Concluída em 10/12/2025');
   });
 
   it('dado a conclusão às 22:00 de Brasília (01:00 do dia seguinte em UTC), quando vira o dia da folhinha, então é o dia de Brasília', () => {

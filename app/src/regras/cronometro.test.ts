@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, outrosTemTempo, PARADO, parteDeCadaUmAparece, partesAoVivo, partesDaDuracao, segundosDoPeriodo, situacaoDoRelogio, somaDoTempo, totalAoVivo,
+import { cronometro, errosDoAjuste, fmtDuracao, fmtParte, fmtRelogio, lerAjuste, outrosTemTempo, PARADO, parteDeCadaUmAparece, partesAoVivo, partesDaDuracao, segundosDoPeriodo, situacaoDoRelogio, somaDoTempo, totalAoVivo,
   totalAparece, type Evento } from './cronometro';
 
 const MIN = 60_000;
@@ -284,5 +284,16 @@ describe('O relógio do cartão da tarefa (#442)', () => {
   it('dado outra pessoa com tempo zero, quando o cartão decide a linha da equipe, então ela não aparece', () => {
     // Quando / Então
     expect(outrosTemTempo([{ perfil_id: 'ana', segundos: 0, percentual: 0 }], 'eu')).toBe(false);
+  });
+});
+
+describe('A parte de cada um, escrita (#442)', () => {
+  it.each([
+    [66.7, '66,7%'],
+    [67, '67,0%'],
+    [100, '100,0%']
+  ])('dado %s%%, quando a lista mostra, então escreve "%s", sempre com uma casa', (percentual, texto) => {
+    // Quando / Então
+    expect(fmtParte(percentual)).toBe(texto);
   });
 });

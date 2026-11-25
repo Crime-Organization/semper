@@ -156,3 +156,23 @@ export function quandoDoRegistro(inicio: string, hoje: string, contando: boolean
   const quando = dia === hoje ? 'Hoje' : dia === somarDias(hoje, -1) ? `Ontem, ${curto}` : curto;
   return contando ? `${quando}, desde ${horaNoEscritorio(inicio)}` : quando;
 }
+
+/** O id da linha do registro que o relógio acabou de começar e que ainda não foi gravado no banco (nenhum id do banco é negativo). */
+export const AINDA_SEM_REGISTRO = -1;
+/**
+ * Os registros da lista com o que o relógio deste cartão está contando (#442): desde o Iniciar, mesmo antes da primeira gravação no
+ * banco (que vem só depois de um tempo), a linha "Hoje, desde 14:10" já está lá, com zero segundos gravados. Devolve também qual id
+ * é o do registro que conta. Parado, ou com o registro já gravado, a lista é a de sempre.
+ */
+export function comOQueConta<R extends Registro & { motivo: string | null; corrigido_em: string | null; motivo_da_correcao: string | null }>(
+  registros: readonly R[], eu: string, periodoId: number | null, contando: boolean, inicio: string): { registros: R[]; periodoId: number | null } {
+  if (!contando || (periodoId !== null && registros.some(r => r.id === periodoId))) return { registros: [...registros], periodoId };
+  const novo = { id: AINDA_SEM_REGISTRO, perfil_id: eu, inicio, segundos: 0, ajuste: false, motivo: null, corrigido_em: null, motivo_da_correcao: null } as R;
+  return { registros: [...registros, novo], periodoId: AINDA_SEM_REGISTRO };
+}
+
+/** O sentido do ajuste à mão: pôs tempo ou tirou. */
+export type SinalDoAjuste = 'pos' | 'tirou';
+export const sinalDoAjuste = (segundos: number): SinalDoAjuste => segundos < 0 ? 'tirou' : 'pos';
+/** De onde veio o ajuste, na linha do registro: "À mão: motivo" ou, quando tirou tempo, "Tirado à mão: motivo". */
+export const ORIGEM_DO_AJUSTE: Record<SinalDoAjuste, string> = { pos: 'À mão', tirou: 'Tirado à mão' };

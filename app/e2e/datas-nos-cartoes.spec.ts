@@ -67,12 +67,13 @@ const dado = (cartao: Locator, nome: string) => faixa(cartao).getByRole('group',
 /**
  * Os cartões com início e prazo: quem abre a janela (na demanda, o resumo "Datas"; na tarefa, desde a #442, o link "Mudar prazo" da
  * folhinha), o que o cartão mostra das datas (para conferir que nada mudou) e duas coisas do cartão cuja distância não pode mudar
- * quando a janela abre (na demanda, a criação e as datas; na tarefa, o prazo e o relógio, ao lado).
+ * quando a janela abre (na demanda, a criação e as datas; na tarefa, o prazo e o relógio, ao lado). O botão que tira o prazo: na
+ * tarefa, desde a revisão da #442, "Tirar o prazo" (a janela aberta pela folhinha se chama "Prazo"); na demanda, "Remover".
  */
 const CARTOES = [
-  { modulo: 'tarefas', titulo: 'Emitir a GRU', prazo: 'Prazo', abridor: mudarPrazo, lido: prazoDoCartao,
+  { modulo: 'tarefas', titulo: 'Emitir a GRU', prazo: 'Prazo', abridor: mudarPrazo, lido: prazoDoCartao, remover: 'Tirar o prazo',
     referencias: (cartao: Locator) => [prazoDoCartao(cartao), seuTempo(cartao)] },
-  { modulo: 'demandas', titulo: 'Notificar o devedor', prazo: 'Prazo de entrega', abridor: (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / }),
+  { modulo: 'demandas', titulo: 'Notificar o devedor', prazo: 'Prazo de entrega', remover: 'Remover', abridor: (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / }),
     lido: (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / }), referencias: (cartao: Locator) => [dado(cartao, 'Criada em'), dado(cartao, 'Datas')] }
 ];
 /** A janela das datas (#422): flutua sobre o cartão, e por isso é achada na página. */
@@ -151,7 +152,7 @@ for (const c of CARTOES) {
       // E Salvar em cima de Remover, os dois da largura do calendário
       const largura = (await janela.getByRole('group', { name: 'Calendário' }).boundingBox())!.width;
       const salvar = (await janela.getByRole('button', { name: 'Salvar' }).boundingBox())!;
-      const remover = (await janela.getByRole('button', { name: 'Remover' }).boundingBox())!;
+      const remover = (await janela.getByRole('button', { name: c.remover }).boundingBox())!;
       expect(Math.round(salvar.width)).toBe(Math.round(largura));
       expect(Math.round(remover.width)).toBe(Math.round(largura));
       expect(remover.y).toBeGreaterThanOrEqual(salvar.y + salvar.height);

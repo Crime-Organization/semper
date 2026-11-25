@@ -294,7 +294,8 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
     // E no cartão, nenhum campo
     await expect(cartao.getByRole('textbox', { name: 'Prazo', exact: true })).toHaveCount(0);
-    // Quando: abre a janela; ela tem o calendário, o início, a entrega com a caixa de marcar, a hora, o lembrete, Salvar e Remover
+    // Quando: abre a janela; ela tem o calendário, o início, a entrega com a caixa de marcar, a hora, o lembrete, Salvar e "Tirar o
+    // prazo" (a regra mudou na revisão da #442: na tarefa, aberta pela folhinha, a janela se chama "Prazo", e o Remover, "Tirar o prazo")
     await mudarPrazo(cartao).click();
     const janela = janelaDasDatas(page);
     await expect(calendarioDaJanela(page)).toBeVisible();
@@ -302,7 +303,8 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await expect(janela.getByRole('checkbox', { name: 'Entrega' })).toBeChecked();
     await expect(janela.getByLabel('Hora do prazo')).toBeVisible();
     await expect(janela.getByRole('combobox', { name: 'Lembrete' })).toBeVisible();
-    await expect(janela.getByRole('button', { name: 'Remover' })).toBeVisible();
+    await expect(janela.getByText('Prazo', { exact: true })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Tirar o prazo' })).toBeVisible();
     // Quando: escreve um dia de outro mês na entrega, escolhe outro no calendário, a hora e o lembrete
     await janela.getByRole('textbox', { name: 'Prazo', exact: true }).fill('15/12/2030');
     await calendarioDaJanela(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
@@ -344,12 +346,12 @@ test.describe('Tempo, datas e prazos no cartão (#361, #422)', () => {
     await expect(prazoDoCartao(cartao)).toHaveText(antes!);
   });
 
-  test('dada uma tarefa com prazo, quando a pessoa usa o Remover, então o prazo sai e o cartão diz "Sem prazo", com "Definir prazo"', async ({ page }) => {
+  test('dada uma tarefa com prazo, quando a pessoa usa "Tirar o prazo" (antes, "Remover"), então o prazo sai e o cartão diz "Sem prazo", com "Definir prazo"', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     await mudarPrazo(cartao).click();
     // Quando
-    await janelaDasDatas(page).getByRole('button', { name: 'Remover' }).click();
+    await janelaDasDatas(page).getByRole('button', { name: 'Tirar o prazo' }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(janelaDasDatas(page)).toHaveCount(0);
@@ -540,16 +542,26 @@ test.describe('Dado um computador, o bloco do prazo e do tempo da tarefa (#442)'
     await expect(p.equipe).toContainText('Total da equipe 2 h');
   });
 
-  test('quando a pessoa abre o cartão da tarefa ao lado, então o prazo e o relógio cabem no painel, sem nada quebrar, e os botões ficam lado a lado', async ({ page }) => {
+  // A regra mudou na revisão da #442: no painel ao lado (~490 px), o prazo e o relógio ficam lado a lado, como no modelo aprovado
+  // (antes, um embaixo do outro, com os botões lado a lado); sem largura para os dois botões na coluna do relógio, eles descem um
+  // embaixo do outro, dentro dela.
+  test('quando a pessoa abre o cartão da tarefa ao lado, então o prazo e o relógio ficam lado a lado no painel, e os botões cabem na coluna do relógio', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     const p = partesDoBloco(cartao);
     await expect(p.tempo.getByRole('timer')).toBeVisible();
     await esperarOCartao(p.bloco);
     const [bloco, prazo, tempo, botao, adicionar] = await Promise.all([p.bloco, p.prazo, p.tempo, p.botao, p.adicionar].map(async l => (await l.boundingBox())!));
-    // Então: o relógio ao lado do prazo ou, sem lugar para as duas colunas, embaixo dele; nunca por cima
-    expect(tempo.x >= prazo.x + prazo.width || tempo.y >= prazo.y + prazo.height).toBe(true);
-    conferirOsBotoes(botao, adicionar, bloco);
+    // Então: o relógio ao lado do prazo, alinhado pelo topo
+    expect(tempo.x).toBeGreaterThanOrEqual(prazo.x + prazo.width);
+    expect(Math.abs(tempo.y - prazo.y)).toBeLessThanOrEqual(UM_PIXEL);
+    // E os botões, com 44 px, dentro da coluna do relógio, um embaixo do outro (sem se cruzar)
+    for (const b of [botao, adicionar]) {
+      expect(b.height).toBeGreaterThanOrEqual(ALVO - UM_PIXEL);
+      expect(b.x).toBeGreaterThanOrEqual(tempo.x - UM_PIXEL);
+      expect(b.x + b.width).toBeLessThanOrEqual(bloco.x + bloco.width + UM_PIXEL);
+    }
+    expect(adicionar.y >= botao.y + botao.height || adicionar.x >= botao.x + botao.width).toBe(true);
     await expect(cartao.getByRole('group', { name: 'Datas do cartão', exact: true })).toHaveCount(0);
   });
 });

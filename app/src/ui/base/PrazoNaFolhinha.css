@@ -39,6 +39,8 @@ button.folhinha { cursor: pointer }
 .prazo-folhinha-texto { display: flex; flex-direction: column; align-items: flex-start; min-width: 0 }
 .prazo-folhinha-principal { margin: 0; font-size: var(--texto-do-prazo); font-weight: 900; line-height: 1.25; letter-spacing: -.01em; color: var(--ink); text-wrap: balance }
 .prazo-folhinha-principal.calmo { font-weight: 700; color: var(--text2) }
+/* Vence hoje: a cor de pendência, a mesma do selo do prazo no quadro e na lista */
+.prazo-folhinha-principal.hoje { color: var(--warn-ink) }
 .prazo-folhinha-principal.vencido { color: var(--erro) }
 .prazo-folhinha-detalhe { margin: var(--vao-do-detalhe-do-prazo) 0 0; font-size: var(--texto-apoio); line-height: 1.4; color: var(--text2) }
 /* O link: alvo de toque de --alvo-de-toque pelo ::before, sem aumentar a linha. */

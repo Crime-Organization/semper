@@ -144,6 +144,26 @@ test.describe('Dado o cronômetro contando', () => {
   }
   const PARE_ANTES = 'Pare o relógio antes de mudar ou apagar o registro que está contando.';
 
+  test('quando a pessoa aperta "Iniciar" e abre os registros logo em seguida, então a linha de hoje já está lá, com a duração andando, e entra na contagem', async ({ page }) => {
+    // Dado: "Renovar a procuração", sem tempo do Mauro ainda
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const tempo = cartao.getByRole('group', { name: 'Seu tempo' });
+    // Quando: inicia e, antes da primeira gravação no banco, abre os registros
+    await tempo.getByRole('button', { name: 'Iniciar' }).click();
+    await page.clock.runFor(5_000);
+    const lista = await abrirRegistros(cartao, 'Seus registros');
+    // Então: a linha que conta, desde agora, com os segundos contados
+    const contando = lista.getByRole('listitem').filter({ hasText: 'Contando agora' });
+    await expect(contando).toContainText(/^Hoje, desde \d\d:\d\d/);
+    await expect(contando).toContainText(/Contando agora\d+ s$/);
+    // E a duração anda com o relógio (passado um minuto, em minutos)
+    await page.clock.runFor(60_000);
+    await expect(contando).toContainText(/Contando agora1 min$/);
+    // E o lápis e a lixeira dela ficam desligados, com o motivo
+    await expect(contando.getByRole('button', { name: /^Apagar o registro/ })).toHaveAttribute('aria-disabled', 'true');
+  });
+
   test('quando a pessoa olha o registro que está contando, então o lápis e a lixeira estão desligados, com o motivo, e o clique não abre a janela nem para o relógio', async ({ page }) => {
     // Dado
     const { tempo, contando } = await contandoComRegistro(page);
