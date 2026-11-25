@@ -5026,8 +5026,14 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const descricao = 'DAS ' + marca();
         // Quando
         await SD.financeiroDespesaCriar({ descricao, valor: 90000, vencimento: daqui(5) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: null });
+        const rotina = (hoje?: string) => (window as unknown as { SEMPER_FALSO: { estenderDespesas(hoje?: string): string[] } }).SEMPER_FALSO.estenderDespesas(hoje);
+        const criadasPelaRotina = rotina();
         // Então
+        expect(criadasPelaRotina).toEqual([]);
         expect(await daSerie(descricao)).toHaveLength(REPETICAO.horizonteMeses);
+        // E quando a rotina roda um mês depois, então nasce a data seguinte, uma só
+        expect(rotina(somarMeses(hojeISO(), 1))).toHaveLength(1);
+        expect((await daSerie(descricao)).map(d => d.vencimento).at(-1)).toBe(somarMeses(daqui(5), REPETICAO.horizonteMeses));
       });
 
       it('quando a data final vem antes do vencimento, ou o valor está zerado, então é recusado', async () => {
