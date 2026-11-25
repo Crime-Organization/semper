@@ -1049,9 +1049,9 @@ export interface Processo {
 export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
 /**
  * Como um processo ligado se relaciona com o aberto: é a origem dele (o administrativo, quando o aberto é o judicial que nasceu dele,
- * #425), ou nasceu dele como recurso, incidental ou judicial.
+ * #425), nasceu dele como recurso, incidental ou judicial, ou foi ligado a ele depois, de qualquer tipo ("relacionado", #440).
  */
-export type RelacaoEntreProcessos = 'origem' | 'administrativo' | LigacaoDeProcesso;
+export type RelacaoEntreProcessos = 'origem' | 'administrativo' | LigacaoDeProcesso | 'relacionado';
 /** Processo ligado a outro (#316), como aparece no cartão. */
 export interface ProcessoRelacionado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   relacao: RelacaoEntreProcessos;
@@ -1162,7 +1162,8 @@ export interface DadosProcessos {
   processoParteRetirar(id: string): Promise<void>;
   /**
    * Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê; e, desde
-   * a #425, o administrativo de que o judicial nasceu e os judiciais que nasceram do administrativo.
+   * a #425, o administrativo de que o judicial nasceu e os judiciais que nasceram do administrativo; e, desde a #440, os ligados
+   * depois, de qualquer tipo ("relacionado"). O processo que tem as duas ligações com o aberto aparece uma vez só, pela origem.
    */
   processosRelacionados(processoId: string): Promise<ProcessoRelacionado[]>;
   /**
@@ -1172,6 +1173,13 @@ export interface DadosProcessos {
   processoJudicialLigar(administrativoId: string, judicialId: string): Promise<void>;
   /** Desfaz a ligação do judicial ao administrativo (#425; o recurso e o incidental não se desligam): quem altera um dos dois. */
   processoJudicialDesligar(judicialId: string): Promise<void>;
+  /**
+   * Liga um processo a outro que já existe, de qualquer tipo (#440; supabase/migrations/20261125104145_processos_relacionados.sql):
+   * quem altera os dois, ativos. O mesmo par, em qualquer sentido, é a mesma ligação: ligar de novo devolve false e nada muda.
+   */
+  processoRelacionar(processoId: string, outroId: string): Promise<boolean>;
+  /** Desfaz a ligação entre os dois (#440), nos dois cartões: quem altera um deles, mesmo arquivado. */
+  processoDesrelacionar(processoId: string, outroId: string): Promise<void>;
   processoOpcoes(): Promise<OpcaoDeProcesso[]>;
   /** Só administradores. */
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;

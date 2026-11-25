@@ -20,7 +20,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, DespesaDoEscritorio, FrequenciaRepeticao, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, ProcessoRelacionado, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
 import type { AvisoDaTarefaDaMensagem, DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -38,7 +38,7 @@ import type { PreviaExclusaoContrato } from './tipos';
 import { RECUSA_DA_EXCLUSAO } from '../regras/exclusaoDoContrato';
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
-import { processosComPartes, relacionadosDoProcesso } from '../regras/processo';
+import { comOsRelacionados, processosComPartes, relacionadosDoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { contratosDaTarefa, demandasDaTarefa, papeisNaTarefa } from '../regras/tarefa';
 import { periodoDosGraficos } from '../regras/graficosDeProcessos';
@@ -2078,8 +2078,31 @@ export const SD: Dados = {
     const { data: aberto } = await rodar(sb.from('processos').select('id, origem_id, ligacao').eq('id', processoId).maybeSingle());
     if (!aberto) return [];
     const filtros = [`origem_id.eq.${processoId}`, ...(aberto.origem_id ? [`id.eq.${aberto.origem_id}`] : [])];
-    const { data } = await rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS));
-    return relacionadosDoProcesso(data, aberto);
+    // Os ligados depois, de qualquer tipo (#440): cada ponta vem pela regra de leitura dos processos, e a que quem lê não vê chega null.
+    const campos = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em';
+    const [{ data }, { data: ligacoes }] = await Promise.all([
+      rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS)),
+      rodar(sb.from('processos_relacionados').select(`processo_a, a:processos!processos_relacionados_a(${campos}), b:processos!processos_relacionados_b(${campos})`)
+        .or(`processo_a.eq.${processoId},processo_b.eq.${processoId}`).order('criado_em').limit(PROCESSOS_LIGADOS))
+    ]);
+    type Ponta = Omit<ProcessoRelacionado, 'relacao'> | null;
+    const outros = (ligacoes as { processo_a: string; a: Ponta; b: Ponta }[]).flatMap(l => {
+      const outro = l.processo_a === processoId ? l.b : l.a;
+      return outro ? [outro] : [];
+    });
+    return comOsRelacionados(relacionadosDoProcesso(data, aberto), outros);
+  },
+  async processoRelacionar(processoId, outroId) {
+    // O mesmo par, em qualquer sentido, é a mesma linha: a repetida o banco descarta, e ela não volta na resposta.
+    const [processo_a, processo_b] = parDaRelacao(processoId, outroId);
+    const { data } = await rodar(sb.from('processos_relacionados').upsert({ processo_a, processo_b, criado_por: uid() },
+      { onConflict: 'processo_a,processo_b', ignoreDuplicates: true }).select('processo_a'));
+    return data.length > 0;
+  },
+  async processoDesrelacionar(processoId, outroId) {
+    // A regra do banco não apaga o que a pessoa não pode desfazer: nenhuma linha sai, e a tela precisa saber.
+    const [a, b] = parDaRelacao(processoId, outroId);
+    conferirQueMudou((await rodar(sb.from('processos_relacionados').delete().eq('processo_a', a).eq('processo_b', b).select('processo_a').maybeSingle())).data);
   },
   // A ligação do judicial ao administrativo (#425), pelas funções da migração processo_judicial_do_administrativo.
   async processoJudicialLigar(administrativoId, judicialId) {

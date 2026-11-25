@@ -180,10 +180,10 @@ export async function ligarContratoNoProcesso(processoId: string, contratoId: st
   return () => SD.contratoProcessoDesligar(contratoId, processoId);
 }
 
-/** Liga ao administrativo um judicial que já existe (#425): o Desfazer tira a ligação. */
-export async function ligarJudicialNoAdministrativo(administrativoId: string, judicialId: string): Promise<Desfazer> {
-  await SD.processoJudicialLigar(administrativoId, judicialId);
-  return () => SD.processoJudicialDesligar(judicialId);
+/** Liga um processo a outro que já existe, de qualquer tipo (#440): o Desfazer tira a ligação; null se o par já estava ligado. */
+export async function relacionarProcessos(processoId: string, outroId: string): Promise<Desfazer | null> {
+  if (!await SD.processoRelacionar(processoId, outroId)) return null;
+  return () => SD.processoDesrelacionar(processoId, outroId);
 }
 
 /** Liga o compromisso à tarefa, à demanda ou ao contrato (#306), a mesma ligação do cartão do compromisso. */

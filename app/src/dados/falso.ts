@@ -61,7 +61,7 @@ import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembret
 import {
   alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, processosComPartes, relacionadosDoProcesso, ehTipoDeProcesso, TIPOS_PROCESSO,
   LIGACOES, PAPEIS_DA_PARTE, PAPEL_REPETIDO, ehPapelDaParte, papeisAoGravar, type QuadroDeProcesso, ARQUIVADO_SEM_LIGACAO, JUDICIAL_JA_LIGADO, judicialParaLigar,
-  SO_JUDICIAL_NO_ADMINISTRATIVO
+  SO_JUDICIAL_NO_ADMINISTRATIVO, comOsRelacionados, MESMO_PROCESSO
 } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { APRESENTACOES_DA_MARCA, areaPodeMudar, NATUREZAS_DA_MARCA, ORDEM_DAS_DATAS, PAPEIS_DA_PI_NA_TROCA_DE_AREA, PAPEL_SO_DA_PI, papelCabeNoProcesso, TIPOS_COM_PROTECAO, TIPOS_DE_PROTECAO } from '../regras/propriedadeIntelectual';
@@ -289,6 +289,8 @@ interface Banco {
   processoDemandas?: { processo_id: string; demanda_id: string; papel?: PapelDaDemandaNoProcesso }[];
   /** As demandas relacionadas (demandas_relacionadas no banco, #310): as duas em ordem, a menor primeiro. Os números vêm das demandas. */
   demandasRelacionadas?: { demanda_a: string; demanda_b: string }[];
+  /** Os processos ligados depois, de qualquer tipo (processos_relacionados no banco, #440), cada par em ordem. */
+  processosRelacionados?: { processo_a: string; processo_b: string }[];
   /** O que cada contrato arquivou junto (privado.arquivados_com_contrato no banco, #284): o id da demanda ou da tarefa. */
   arquivadosComContrato?: { contrato_id: string; id: string }[];
   /**
@@ -668,6 +670,7 @@ bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
 bd.demandasRelacionadas ??= [];
+bd.processosRelacionados ??= [];
 bd.arquivadosComContrato ??= [];
 bd.financeiroExcluidos ??= [];
 bd.processoPartes ??= [];
@@ -2685,6 +2688,11 @@ const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnot
 /** Como a regra de alterar do banco nas buscas para ligar: quem está no item e, na fase de adaptação, toda a equipe. */
 const alteroNoFalso = (estaNele: boolean) => !!bd.equipeEditaTudo || estaNele;
 /** Como privado.estou_na_demanda_do_id (#310): quem está logado altera a demanda; com `ativa`, só se ela não está arquivada. */
+/** Como privado.estou_no_processo_do_id (#440): quem altera o processo; com ativo, só se ele não está arquivado. */
+const estouNoProcessoDoId = (id: string, ativo: boolean) => {
+  const p = bd.processos!.find(x => x.id === id);
+  return !!p && (!ativo || !p.arquivado_em) && vejoNoModulo('processos', p.id) && alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()));
+};
 const estouNaDemandaDoId = (id: string, ativa: boolean) => {
   const d = bd.demandas!.find(x => x.id === id);
   return !!d && (!ativa || !d.arquivado_em) && alteroNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()));
@@ -5839,6 +5847,7 @@ export const SD: Dados = {
       bd.processos = bd.processos!.filter(x => x.id !== id);
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.processo_id !== id);
+      bd.processosRelacionados = bd.processosRelacionados!.filter(l => l.processo_a !== id && l.processo_b !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.processo_id !== id);
       soltarDasAnotacoes('processos', id);
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
@@ -5920,10 +5929,33 @@ export const SD: Dados = {
   processosRelacionados: processoId => {
     const aberto = bd.processos!.find(x => x.id === processoId && vejoNoModulo('processos', x.id));
     if (!aberto) return espera([]);
-    return espera(relacionadosDoProcesso(bd.processos!.filter(x => vejoNoModulo('processos', x.id)).map(x => ({
+    const visiveis = bd.processos!.filter(x => vejoNoModulo('processos', x.id)).map(x => ({
       id: x.id, codigo: x.codigo, tipo: x.tipo, numero: x.numero, titulo: x.titulo, cliente_nome: nomesDosClientes(x.clientes), etapa_id: x.etapa_id, arquivado_em: x.arquivado_em,
       criado_em: x.criado_em, origem_id: x.origem_id, ligacao: x.ligacao
-    })), aberto));
+    }));
+    // Os ligados depois (#440): como a regra de leitura, cada ponta só aparece para quem a vê.
+    const outros = bd.processosRelacionados!.filter(l => l.processo_a === processoId || l.processo_b === processoId)
+      .map(l => l.processo_a === processoId ? l.processo_b : l.processo_a)
+      .flatMap(id => visiveis.filter(x => x.id === id)).map(({ origem_id: _o, ligacao: _l, ...x }) => x);
+    return espera(comOsRelacionados(relacionadosDoProcesso(visiveis, aberto), outros));
+  },
+  // Como a tabela processos_relacionados (#440): ligar é de quem está nos dois, ativos; desfazer, de quem está em um deles.
+  async processoRelacionar(processoId, outroId) {
+    if (processoId === outroId) return erro(MESMO_PROCESSO);
+    if (![processoId, outroId].every(id => estouNoProcessoDoId(id, true))) return erro(SEM_PERMISSAO);
+    const [processo_a, processo_b] = parDaRelacao(processoId, outroId);
+    const nova = !bd.processosRelacionados!.some(l => l.processo_a === processo_a && l.processo_b === processo_b);
+    if (nova) bd.processosRelacionados!.push({ processo_a, processo_b });
+    gravar();
+    return espera(nova);
+  },
+  async processoDesrelacionar(processoId, outroId) {
+    const [processo_a, processo_b] = parDaRelacao(processoId, outroId);
+    const ligada = bd.processosRelacionados!.some(l => l.processo_a === processo_a && l.processo_b === processo_b);
+    if (!ligada || ![processo_a, processo_b].some(id => estouNoProcessoDoId(id, false))) return erro(SEM_PERMISSAO);
+    bd.processosRelacionados = bd.processosRelacionados!.filter(l => !(l.processo_a === processo_a && l.processo_b === processo_b));
+    gravar();
+    return espera(undefined);
   },
   // A ligação do judicial ao administrativo (#425), como as funções processo_judicial_ligar e processo_judicial_desligar.
   async processoJudicialLigar(administrativoId, judicialId) {
