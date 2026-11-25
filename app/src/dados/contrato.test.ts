@@ -9510,6 +9510,33 @@ describe('O e-mail do Google de alguém da equipe (banco fictício, #166)', () =
     await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Apenas administradores ligam e desligam as agendas no Google');
     expect(await SD.agendasGoogle()).toBeNull();
   });
+
+  it('dado o Google que recusa compartilhar com um e-mail, quando as agendas são arrumadas, então só ele fica de fora, o administrador vê a recusa e o "Sincronizar agora" tenta de novo', async () => {
+    // Dado
+    const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+    expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/')), 'c')).toBe('ligado');
+    expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')), 'c')).toBe('agenda-ligada');
+    await SD.agendasGoogleLigar(true);
+    await SD.emailDoGoogleSalvar('u-bruno', 'fora@gmail.test');
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { agendasGoogle: Record<string, unknown> };
+    bd.agendasGoogle.recusar = ['fora@gmail.test'];
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    // Quando
+    const r = await SD.sincronizarAgendasAgora();
+    // Então
+    expect(r).toMatchObject({ resultado: 'ok', falhas: 0, restam: false });
+    const recusas = await SD.agendasGoogleRecusas();
+    expect(recusas.map(x => x.agenda)).toEqual(expect.arrayContaining(['Agenda – Bruno Exemplo Souza', 'Geral']));
+    expect(recusas.every(x => x.email === 'fora@gmail.test' && x.detalhe === '403 forbidden')).toBe(true);
+    expect((await SD.agendasGoogle())?.compartilhamentos).toBe(r.feitas.compartilhar);
+    entrarComo('u-bruno');
+    expect(await SD.agendasGoogleRecusas()).toEqual([]);
+    entrarComo('u-master');
+    expect((await SD.sincronizarAgendasAgora()).feitas.compartilhar).toBe(0);
+    expect(await SD.agendasGoogleRecusas()).toHaveLength(recusas.length);
+  });
 });
 
 describe('Pedir para participar (banco fictício, #363)', () => {

@@ -53,8 +53,21 @@ tentativas com espera e o aviso ao administrador a partir da 3ª falha.
 9. **Falhas.** Se o Google falha, o pedido fica na fila e a tentativa se repete sozinha, com esperas de 1 minuto a
    1 dia. O que já foi feito antes da falha fica guardado. A partir da 3ª falha, Configurações mostra o problema e o que
    fazer. Autorização vencida ou retirada para a fila do escritório até a agenda ser autorizada de novo (o botão
-   **Autorizar a agenda** volta a aparecer) ou o administrador pedir **Sincronizar agora**. Agenda apagada no Google
-   (só a conta do escritório consegue apagar) é esquecida e criada de novo.
+   **Autorizar a agenda** volta a aparecer) ou o administrador pedir **Sincronizar agora**. Só contam como autorização o
+   401 e o 403 com o motivo `insufficientPermissions` ou `authError`; o 403 de cota (`rateLimitExceeded`,
+   `userRateLimitExceeded`, `quotaExceeded`, `dailyLimitExceeded`) é temporário, e o resto do 403 é recusa daquele pedido.
+10. **Compartilhamento recusado.** Se o Google recusa compartilhar uma agenda com um e-mail (o Workspace que não deixa
+   compartilhar com contas de fora, por exemplo), a recusa fica guardada (`agenda_google_recusas`), aquele e-mail fica de
+   fora só naquela agenda e o resto do plano segue: os outros da equipe recebem as agendas normalmente. Configurações
+   mostra ao administrador cada e-mail recusado, a agenda e o que o Google respondeu. O **Sincronizar agora** (e ligar as
+   agendas de novo) apaga as recusas e tenta cada uma outra vez.
+11. **Agenda apagada no Google** (só a conta do escritório consegue apagar). O 404 do Google não diz o que sumiu (o
+   evento, a regra ou a agenda), e logo depois de criar uma agenda o Google ainda pode responder 404 enquanto a espalha.
+   Por isso o SEMPER só esquece uma agenda (com os compartilhamentos e as cópias guardadas) e a cria de novo quando:
+   ela foi criada há mais de 10 minutos (`AGENDA_NOVA_MS`) **e**, conferida no Google (`calendars.get`), também responde
+   404. Antes disso, ou se a conferência não responder com clareza, a falha é temporária e a tentativa se repete. Um 404
+   do evento com a agenda existindo é falha do evento (temporária), e um 404 do compartilhamento com a agenda existindo é
+   recusa daquele e-mail.
 
 O que **não** acontece (ainda): conferir no Google se alguém mexeu à mão nos compartilhamentos (o SEMPER guarda o que ele
 mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é desfeito); apagar agendas no Google.

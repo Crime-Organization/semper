@@ -20,7 +20,8 @@ import { LINK_VENCIDO } from './erros';
 // A primeira sincronização com o Google Contatos usa as mesmas regras de correspondência da função do servidor.
 import { corresponder, type ContatoDaConta } from '../../../supabase/functions/_compartilhado/correspondenciaDeContatos';
 import {
-  ACOES_POR_EXECUCAO, CONTAGEM_ZERADA, planejarAgendas, type AcaoNasAgendas, type AgendaGuardada, type CompartilhamentoFeito, type Contagem, type EstadoDasAgendas, type TipoDaAcao
+  ACOES_POR_EXECUCAO, CONTAGEM_ZERADA, planejarAgendas, type AcaoNasAgendas, type AgendaGuardada, type CompartilhamentoFeito, type CompartilhamentoRecusado, type Contagem,
+  type EstadoDasAgendas, type TipoDaAcao
 } from '../../../supabase/functions/_compartilhado/agendasGoogle';
 import { agendaAutorizada, ESCOPOS_DA_AGENDA } from '../../../supabase/functions/_compartilhado/ligacao';
 import { emailDoGoogleParaGravar, erroDoEmailDoGoogle, RECUSA_DO_EMAIL_DO_GOOGLE, recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
@@ -314,6 +315,10 @@ interface Banco {
   agendasGoogle?: {
     ativas: boolean; pendente: boolean; com_falha: number; problema: ProblemaDasAgendas | null; problema_em: string | null; sincronizado_em: string | null;
     agendas: AgendaGuardada[]; compartilhamentos: CompartilhamentoFeito[];
+    /** Os compartilhamentos que a conta simulada recusou (agenda_google_recusas no banco). */
+    recusas?: (CompartilhamentoRecusado & { detalhe: string; recusada_em: string })[];
+    /** A conta Google simulada recusa compartilhar com estes e-mails (os testes põem aqui). */
+    recusar?: string[];
   };
   /** A sincronização dos contatos (a chave e o problema em privado.ligacoes, a fila em contatos_google_fila no banco). */
   contatosGoogle?: {
@@ -1015,8 +1020,10 @@ const estadoDasAgendasNoFalso = (a: NonNullable<Banco['agendasGoogle']>): Estado
   equipe: EQUIPE.map(m => ({ perfil_id: m.id, nome: m.nome, email: bd.emailsDoGoogle?.[m.id] ?? (m.reservada ? null : m.id === eu ? meuEmail() : m.email),
     ativo: m.ativo && !m.excluido, admin: m.papel !== 'usuario' })),
   salas: (bd.salas ?? []).map(s => ({ sala_id: s.id, nome: s.nome, ativa: s.ativa })),
-  agendas: a.agendas, compartilhamentos: a.compartilhamentos
+  agendas: a.agendas, compartilhamentos: a.compartilhamentos, recusas: (a.recusas ?? []).map(r => ({ agenda_id: r.agenda_id, email: r.email }))
 });
+/** O que a conta simulada responde ao compartilhamento recusado (um 403 do Google). */
+const RECUSA_DO_FALSO = '403 forbidden';
 /** O que cada ação faz na conta Google simulada (o mesmo plano da função google-agendas, com ids de mentira). */
 const FAZER_NO_FALSO: { [K in TipoDaAcao]: (e: EstadoDasAgendas, a: Extract<AcaoNasAgendas, { acao: K }>) => EstadoDasAgendas } = {
   retirar: (e, { compartilhamento: c }) => ({ ...e, compartilhamentos: e.compartilhamentos.filter(o => !(o.agenda_id === c.agenda_id && o.email === c.email)) }),
@@ -1025,7 +1032,10 @@ const FAZER_NO_FALSO: { [K in TipoDaAcao]: (e: EstadoDasAgendas, a: Extract<Acao
     return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: `agenda-${id}@falso`, nome: d.nome }] };
   },
   renomear: (e, { agenda, nome }) => ({ ...e, agendas: e.agendas.map(x => (x.id === agenda.id ? { ...x, nome } : x)) }),
-  compartilhar: (e, { agenda, leitor }) => ({ ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra: `user:${leitor.email}` }] })
+  // Como FAZER.compartilhar: o e-mail recusado fica de fora só naquela agenda, e o resto do plano segue.
+  compartilhar: (e, { agenda, leitor }) => (bd.agendasGoogle?.recusar?.includes(leitor.email)
+    ? { ...e, recusas: [...(e.recusas ?? []), { agenda_id: agenda.id, email: leitor.email }] }
+    : { ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra: `user:${leitor.email}` }] })
 };
 /** Como uma execução da função google-agendas: no máximo ACOES_POR_EXECUCAO ações; devolve o que fez e se restou o que fazer. */
 function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas: Contagem; restam: boolean } {
@@ -1034,10 +1044,14 @@ function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas
   for (let i = 0; i < ACOES_POR_EXECUCAO; i++) {
     const [acao] = planejarAgendas(estado);
     if (!acao) break;
+    const recusasAntes = estado.recusas?.length ?? 0;
     estado = (FAZER_NO_FALSO[acao.acao] as (e: EstadoDasAgendas, x: AcaoNasAgendas) => EstadoDasAgendas)(estado, acao);
-    feitas[acao.acao]++;
+    if ((estado.recusas?.length ?? 0) === recusasAntes) feitas[acao.acao]++;
   }
-  Object.assign(a, { agendas: estado.agendas, compartilhamentos: estado.compartilhamentos });
+  const guardadas = a.recusas ?? [];
+  const novas = (estado.recusas ?? []).filter(r => !guardadas.some(g => g.agenda_id === r.agenda_id && g.email === r.email))
+    .map(r => ({ ...r, detalhe: RECUSA_DO_FALSO, recusada_em: agora() }));
+  Object.assign(a, { agendas: estado.agendas, compartilhamentos: estado.compartilhamentos, recusas: [...guardadas, ...novas] });
   return { feitas, restam: planejarAgendas(estado).length > 0 };
 }
 /** Uma dúvida da primeira sincronização, como contatos_google_conferir no banco. */
@@ -6267,7 +6281,8 @@ export const SD: Dados = {
     if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de ligar as agendas');
     if (ligar && !agendaAutorizada(bd.ligacaoGoogle.escopos)) return erro('Autorize a agenda na conta Google do escritório antes de ligar as agendas');
     const a = bd.agendasGoogle ??= { ativas: false, pendente: false, com_falha: 0, problema: null, problema_em: null, sincronizado_em: null, agendas: [], compartilhamentos: [] };
-    Object.assign(a, { ativas: ligar, pendente: ligar }, ligar ? {} : { com_falha: 0 });
+    // Ligar de novo tenta outra vez os compartilhamentos recusados.
+    Object.assign(a, { ativas: ligar, pendente: ligar }, ligar ? { recusas: [] } : { com_falha: 0 });
     auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     gravar(); return espera(undefined);
   },
@@ -6277,9 +6292,18 @@ export const SD: Dados = {
     if (!souAdmin() || !bd.ligacaoGoogle || !a?.ativas || !agendaAutorizada(bd.ligacaoGoogle.escopos)) {
       return espera({ resultado: 'desligada' as const, feitas: { ...CONTAGEM_ZERADA }, falhas: 0, restam: false });
     }
+    // Como public.agendas_google_agora: as recusas saem, e cada compartilhamento recusado é tentado de novo.
+    a.recusas = [];
     const { feitas, restam } = arrumarAgendasNoFalso(a);
     Object.assign(a, { pendente: restam, com_falha: 0, problema: null, problema_em: null, sincronizado_em: agora() });
     gravar(); return espera({ resultado: 'ok' as const, feitas, falhas: 0, restam });
+  },
+  // Como public.agendas_google_recusas: só administradores, com a conta ligada.
+  agendasGoogleRecusas() {
+    const a = bd.agendasGoogle;
+    if (!souAdmin() || !bd.ligacaoGoogle || !a) return espera([]);
+    return espera((a.recusas ?? []).map(r => ({ email: r.email, agenda: a.agendas.find(x => x.id === r.agenda_id)?.nome ?? '', detalhe: r.detalhe, recusada_em: r.recusada_em }))
+      .toSorted((x, y) => x.email.localeCompare(y.email) || x.agenda.localeCompare(y.agenda)));
   },
 
   async escritorioSalvar(dados) {

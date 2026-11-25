@@ -280,7 +280,8 @@ function passos(item: ItemDaFila['item'], eventos: EventoGuardado[], buscar: typ
     estado: vi.fn(async () => ({ conta_email: 'contato@exemplo.com', equipe: [], salas: [], agendas: [], compartilhamentos: [] })),
     agendaCriada: vi.fn(async () => 'nova'), agendaRenomeada: vi.fn(async () => {}),
     agendaSumiu: vi.fn(async (id: string) => { banco.agendas = banco.agendas.filter(a => a.id !== id); banco.eventos = banco.eventos.filter(e => e.agenda_id !== id); }),
-    compartilhada: vi.fn(async () => {}), retirada: vi.fn(async () => {}), concluir: vi.fn(async () => {}), falhou: vi.fn(async () => {}),
+    compartilhada: vi.fn(async () => {}), compartilhamentoRecusado: vi.fn(async () => {}), retirada: vi.fn(async () => {}),
+    concluir: vi.fn(async () => {}), falhou: vi.fn(async () => {}),
     item: vi.fn(async () => structuredClone({ item, agendas: banco.agendas, eventos: banco.eventos })),
     eventoGravado: vi.fn(async (_p: PedidoDaFila, agenda_id: string, evento_id: string, assinatura: string) => {
       banco.eventos = [...banco.eventos.filter(e => !(e.agenda_id === agenda_id && e.evento_id === evento_id)),
@@ -353,9 +354,9 @@ describe('A execução dos eventos, com o Google simulado', () => {
     expect(g.eventos()).toEqual([`PATCH ag-ana@google/events/${ID}`, 'POST ag-ana@google/events']);
   });
 
-  it('dada a agenda apagada no Google, quando a cópia vai ser criada, então o SEMPER esquece a agenda (para criá-la de novo) e o pedido termina', async () => {
+  it('dada a agenda apagada no Google (conferida: ela também não existe lá), quando a cópia vai ser criada, então o SEMPER esquece a agenda (para criá-la de novo) e o pedido termina', async () => {
     // Dado
-    const g = google(x => (x.url.includes('/events') ? erroDaAgenda(404, 'notFound') : null));
+    const g = google(x => (x.url.includes('/events') || x.metodo === 'GET' ? erroDaAgenda(404, 'notFound') : null));
     const { passos: p } = passos(prazo(), [], g.buscar);
     // Quando
     const r = await sincronizarAgendas(p, null);
@@ -363,6 +364,44 @@ describe('A execução dos eventos, com o Google simulado', () => {
     expect(p.agendaSumiu).toHaveBeenCalledWith('ag-ana');
     expect(p.eventoGravado).not.toHaveBeenCalled();
     expect(r).toMatchObject({ falhas: 0, feitas: { gravar_evento: 0 } });
+  });
+
+  it('dado um 404 do evento com a agenda ainda no Google (a conferência responde), quando a cópia vai ser criada, então a agenda não é esquecida e o pedido espera a próxima tentativa', async () => {
+    // Dado
+    const g = google(x => (x.url.includes('/events') ? erroDaAgenda(404, 'notFound') : null));
+    const { passos: p } = passos(prazo(), [], g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(p.agendaSumiu).not.toHaveBeenCalled();
+    expect(r.falhas).toBe(1);
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'temporario', expect.stringContaining('a agenda continua no Google'), 60);
+  });
+
+  it('dado o id já usado (409) e o evento que some ao ser mudado (404), quando a cópia é gravada, então a falha é do evento: a agenda nem é conferida nem esquecida', async () => {
+    // Dado
+    const g = google(x => (x.metodo === 'POST' && x.url.endsWith('/events') ? erroDaAgenda(409, 'duplicate') : x.metodo === 'PATCH' ? erroDaAgenda(404, 'notFound') : null));
+    const { passos: p } = passos(prazo(), [], g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(p.agendaSumiu).not.toHaveBeenCalled();
+    expect(vi.mocked(g.buscar).mock.calls.some(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(false);
+    expect(r.falhas).toBe(1);
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'temporario', expect.stringContaining(`o evento ${ID}`), 60);
+  });
+
+  it('dada uma agenda criada há poucos minutos que ainda responde 404, quando a cópia vai ser criada, então ela não é esquecida (o Google ainda a espalha)', async () => {
+    // Dado
+    const agora = Date.parse('2026-11-25T12:00:00Z');
+    const g = google(x => (x.url.includes('/events') || x.metodo === 'GET' ? erroDaAgenda(404, 'notFound') : null));
+    const { passos: p, banco } = passos(prazo(), [], g.buscar);
+    banco.agendas = banco.agendas.map(a => ({ ...a, criada_em: '2026-11-25T11:58:00Z' }));
+    // Quando
+    const r = await sincronizarAgendas(p, null, undefined, agora);
+    // Então
+    expect(p.agendaSumiu).not.toHaveBeenCalled();
+    expect(r.falhas).toBe(1);
   });
 
   it('dado o compromisso excluído no SEMPER, quando a fila é feita, então todas as cópias saem do Google (a que já não existia lá também conta como tirada)', async () => {

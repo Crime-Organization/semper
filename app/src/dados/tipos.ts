@@ -1401,6 +1401,9 @@ export interface ResultadoDasAgendas {
   restam: boolean;
 }
 
+/** Um compartilhamento que o Google recusou (public.agendas_google_recusas): o e-mail, a agenda, o que o Google respondeu e quando. */
+export interface RecusaDasAgendas { email: string; agenda: string; detalhe: string | null; recusada_em: string }
+
 /** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
 export interface DadosLigacoes {
   /** A conta Google ligada ao escritório, ou null. */
@@ -1432,6 +1435,11 @@ export interface DadosLigacoes {
   agendasGoogleLigar(ligar: boolean): Promise<void>;
   /** Arruma agora as agendas do escritório no Google, sem esperar a rotina (só administradores). */
   sincronizarAgendasAgora(): Promise<ResultadoDasAgendas>;
+  /**
+   * Os compartilhamentos que o Google recusou (o Workspace que não deixa compartilhar com contas de fora, por exemplo): o
+   * resto continua indo, e o "Sincronizar agora" tenta cada um de novo. Só administradores; os outros recebem a lista vazia.
+   */
+  agendasGoogleRecusas(): Promise<RecusaDasAgendas[]>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */

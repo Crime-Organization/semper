@@ -26,6 +26,9 @@ const passos = (): PassosDasAgendas => ({
   agendaRenomeada: (agenda, nome) => rpc<void>('agendas_google_agenda_renomeada', { p_agenda: agenda, p_nome: nome }),
   agendaSumiu: agenda => rpc<void>('agendas_google_agenda_sumiu', { p_agenda: agenda }),
   compartilhada: (agenda, leitor, regra) => rpc<void>('agendas_google_compartilhada', { p_agenda: agenda, p_email: leitor.email, p_perfil: leitor.perfil_id, p_regra: regra }),
+  compartilhamentoRecusado: (agenda, leitor, detalhe) => rpc<void>('agendas_google_compartilhamento_recusado', {
+    p_agenda: agenda, p_email: leitor.email, p_perfil: leitor.perfil_id, p_detalhe: detalhe
+  }),
   retirada: (agenda, email) => rpc<void>('agendas_google_retirada', { p_agenda: agenda, p_email: email }),
   concluir: (p, restam) => rpc<void>('agendas_google_concluir', { p_pedido: p.id, p_versao: p.versao, p_restam: restam }),
   falhou: (p, falha, detalhe, espera) => rpc<void>('agendas_google_falhou', { p_pedido: p.id, p_erro: falha, p_detalhe: detalhe, p_espera: espera }),

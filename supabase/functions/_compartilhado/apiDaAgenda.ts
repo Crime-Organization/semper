@@ -3,8 +3,12 @@
 // Sem Deno: o fetch entra de fora, e os testes passam um simulado (app/src/regras/agendasGoogle.test.ts).
 // Referência: https://developers.google.com/workspace/calendar/api/v3/reference (calendars, acl, events).
 
-/** Como o erro do Google é tratado: autorização vencida ou sem a permissão da agenda, Google fora (ou ocupado), dados
- * recusados, o item não existe mais no Google (apagado lá) ou já existe (o id escolhido pelo SEMPER já foi usado). */
+/**
+ * Como o erro do Google é tratado: autorização vencida ou sem a permissão da agenda, Google fora (ou ocupado, ou com a cota
+ * gasta), dados recusados, o que foi pedido não existe no Google ('sumiu': o evento, a regra ou a própria agenda; o 404 não
+ * diz qual, e logo depois de criar uma agenda o Google ainda pode responder 404 enquanto a espalha, por isso só a
+ * conferência da agenda, em agendasGoogle.ts, diz que ela foi apagada) ou já existe (o id escolhido pelo SEMPER já foi usado).
+ */
 export type TipoDoErroDaAgenda = 'autorizacao' | 'temporario' | 'recusado' | 'sumiu' | 'repetido';
 
 /**
@@ -17,14 +21,19 @@ export class FalhaDaAgenda extends Error {
   constructor(readonly tipo: TipoDoErroDaAgenda, readonly detalhe: string) { super(detalhe); }
 }
 
-/** O motivo que o Google manda no erro (error.errors[0].reason) diz mais que o número. */
+/**
+ * O motivo que o Google manda no erro (error.errors[0].reason) diz mais que o número. Só a falta de permissão e o login
+ * recusado (e o 401) são de autorização, que para a fila do escritório até a agenda ser autorizada de novo; a cota (do
+ * minuto ou do dia) é temporária; o resto do 403 (o Workspace que não deixa compartilhar com contas de fora, por exemplo)
+ * é recusa daquele pedido só.
+ */
 const POR_MOTIVO: Record<string, TipoDoErroDaAgenda> = {
-  rateLimitExceeded: 'temporario', userRateLimitExceeded: 'temporario', quotaExceeded: 'temporario', backendError: 'temporario',
-  insufficientPermissions: 'autorizacao', authError: 'autorizacao', forbiddenForNonOrganizer: 'recusado',
+  rateLimitExceeded: 'temporario', userRateLimitExceeded: 'temporario', quotaExceeded: 'temporario', dailyLimitExceeded: 'temporario',
+  backendError: 'temporario', insufficientPermissions: 'autorizacao', authError: 'autorizacao', forbiddenForNonOrganizer: 'recusado',
   notFound: 'sumiu', deleted: 'sumiu', duplicate: 'repetido'
 };
 const POR_STATUS: Record<number, TipoDoErroDaAgenda> = {
-  401: 'autorizacao', 403: 'autorizacao', 404: 'sumiu', 408: 'temporario', 409: 'repetido', 410: 'sumiu', 429: 'temporario'
+  401: 'autorizacao', 403: 'recusado', 404: 'sumiu', 408: 'temporario', 409: 'repetido', 410: 'sumiu', 429: 'temporario'
 };
 /** A partir deste número, o erro é do Google (fora do ar ou com problema), não do pedido. */
 const ERRO_DO_SERVIDOR = 500;
@@ -64,6 +73,12 @@ export interface EventoDoGoogle {
   extendedProperties?: { private?: Record<string, string> };
 }
 
+/**
+ * O que a conferência da agenda no Google diz: ela existe; sumiu (o Google diz que não existe); ou incerto (outra falha:
+ * não dá para dizer, e nada deve ser esquecido).
+ */
+export type ConferenciaDaAgenda = 'existe' | 'sumiu' | 'incerto';
+
 /** O papel do compartilhamento: só ver (decisão do dono: tudo se muda no SEMPER). */
 export const PAPEL_DO_COMPARTILHAMENTO = 'reader';
 
@@ -77,6 +92,12 @@ export function apiDaAgenda(buscar: typeof fetch, acesso: string) {
       const { id } = await pedir<{ id?: string }>(buscar, `${AGENDA}/calendars`, com('POST', dados));
       if (!id) throw new FalhaDaAgenda('temporario', 'o Google não devolveu a agenda');
       return id;
+    },
+    /** Confere se a agenda ainda existe no Google (calendars.get), antes de o SEMPER esquecê-la. */
+    async conferirAgenda(id: string): Promise<ConferenciaDaAgenda> {
+      try { await pedir<unknown>(buscar, daAgenda(id), com('GET')); return 'existe'; } catch (e) {
+        return e instanceof FalhaDaAgenda && e.tipo === 'sumiu' ? 'sumiu' : 'incerto';
+      }
     },
     /** Muda o nome (e o que mais vier) da agenda. */
     mudarAgenda: (id: string, dados: Partial<DadosDaAgenda>) => pedir<unknown>(buscar, daAgenda(id), com('PATCH', dados)).then(() => undefined),

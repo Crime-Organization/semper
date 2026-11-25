@@ -51,8 +51,8 @@ export interface ParcelaNaAgenda {
 }
 export interface ItensNaAgenda { compromisso: CompromissoNaAgenda; tarefa: PrazoNaAgenda; demanda: PrazoNaAgenda; dia: DiaNaAgenda; parcela: ParcelaNaAgenda }
 
-/** A agenda, só com o que o plano dos eventos usa. */
-export type AgendaDoEvento = Pick<AgendaGuardada, 'id' | 'tipo' | 'perfil_id' | 'sala_id' | 'google_id'>;
+/** A agenda, só com o que o plano dos eventos usa (criada_em: para um 404 numa agenda nova não contar como apagada). */
+export type AgendaDoEvento = Pick<AgendaGuardada, 'id' | 'tipo' | 'perfil_id' | 'sala_id' | 'google_id' | 'criada_em'>;
 /** Uma cópia já gravada no Google: em que agenda, com que id e com que conteúdo (a assinatura). */
 export interface EventoGuardado { agenda_id: string; agenda_google_id: string; evento_id: string; assinatura: string }
 /** Tudo o que o banco entrega para um pedido da fila: o item (null se foi excluído), as agendas da conta e as cópias gravadas. */

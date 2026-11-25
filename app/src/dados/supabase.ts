@@ -8,7 +8,7 @@ import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
 import { lerResultadoDasAgendas } from '../regras/sincronizacaoDasAgendas';
-import type { AgendasGoogle, EmailDoGoogle } from './tipos';
+import type { AgendasGoogle, EmailDoGoogle, RecusaDasAgendas } from './tipos';
 import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -2572,6 +2572,7 @@ export const SD: Dados = {
     return linhas[0] ?? null;
   },
   async agendasGoogleLigar(ligar) { await rpc('agendas_google_ligar', { p_ligar: ligar }); },
+  async agendasGoogleRecusas() { return (await rpc('agendas_google_recusas') as RecusaDasAgendas[] | null) ?? []; },
   // A função do servidor confere se é administrador e arruma as agendas do escritório na hora.
   async sincronizarAgendasAgora() {
     const r = await comSessao(`${URL_BASE}/functions/v1/google-agendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

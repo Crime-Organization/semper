@@ -1,6 +1,6 @@
 // Os textos das agendas do escritório no Google Agenda (#166), em Configurações, no cartão Conta Google: o que falta
 // autorizar, a situação, o problema que impede (com o que fazer) e o resultado do "Sincronizar agora". Puro: a tela só mostra.
-import type { AgendasGoogle, ProblemaDasAgendas, ResultadoDasAgendas } from '../dados/tipos';
+import type { AgendasGoogle, ProblemaDasAgendas, RecusaDasAgendas, ResultadoDasAgendas } from '../dados/tipos';
 
 /** O que a tela diz enquanto a conta não deu a permissão da agenda. */
 export const FALTA_AUTORIZAR_A_AGENDA = 'Falta autorizar a agenda: o Google ainda não deixou o SEMPER criar e compartilhar agendas nesta conta. Os contatos continuam como estão.';
@@ -67,6 +67,16 @@ export const RESULTADO_DAS_AGENDAS: Record<ResultadoDasAgendas['resultado'], (r:
   desligada: () => ({ ok: false, texto: 'As agendas no Google estão desligadas.' }),
   erro: () => ({ ok: false, texto: 'Não foi possível sincronizar as agendas agora. Tente de novo em alguns minutos: nada se perdeu.' })
 };
+
+/** O título da lista dos compartilhamentos que o Google recusou, e o que fazer. */
+export const RECUSAS_DAS_AGENDAS = {
+  titulo: 'O Google recusou compartilhar estas agendas:',
+  oQueFazer: 'O resto continua indo. Confira cada e-mail (em Equipe e acessos) e se o Workspace do escritório deixa compartilhar agendas com contas de fora; depois, clique em "Sincronizar agora" para tentar de novo.'
+};
+
+/** Uma recusa numa linha: o e-mail e a agenda (e o que o Google respondeu, se veio). */
+export const linhaDaRecusa = (r: Pick<RecusaDasAgendas, 'email' | 'agenda' | 'detalhe'>) =>
+  `${r.email}, na agenda "${r.agenda}"${r.detalhe ? ` (${r.detalhe})` : ''}`;
 
 /** O que a tela confirma depois de ligar ou desligar. */
 export const AO_MUDAR_AS_AGENDAS: Record<'ligadas' | 'desligadas', string> = {

@@ -33,12 +33,22 @@ export const NOME_DA_AGENDA: Record<TipoDeAgenda, (nome: string) => string> = {
 /** Alguém da equipe: o e-mail é o "e-mail do Google" (o de entrada, se a pessoa não informou outro); null se não há. */
 export interface MembroDaEquipe { perfil_id: string; nome: string; email: string | null; ativo: boolean; admin: boolean }
 export interface SalaDoEscritorio { sala_id: string; nome: string; ativa: boolean }
-/** Uma agenda já criada no Google (id: o do SEMPER; google_id: o do Google). */
-export interface AgendaGuardada { id: string; tipo: TipoDeAgenda; perfil_id: string | null; sala_id: string | null; google_id: string; nome: string }
+/**
+ * Uma agenda já criada no Google (id: o do SEMPER; google_id: o do Google; criada_em: quando o SEMPER a criou, em ISO, que
+ * diz se ela é nova demais para um 404 do Google contar como apagada; sem ela, conta como antiga).
+ */
+export interface AgendaGuardada { id: string; tipo: TipoDeAgenda; perfil_id: string | null; sala_id: string | null; google_id: string; nome: string; criada_em?: string | null }
 /** Um compartilhamento feito: a regra é o id que o Google deu, guardado para retirar depois. */
 export interface CompartilhamentoFeito { agenda_id: string; email: string; regra: string }
+/**
+ * Um compartilhamento que o Google recusou (o Workspace que não deixa compartilhar com contas de fora, por exemplo): o plano
+ * pula esse e-mail naquela agenda e segue com o resto, até o administrador pedir "Sincronizar agora" (que tenta de novo).
+ */
+export interface CompartilhamentoRecusado { agenda_id: string; email: string }
 export interface EstadoDasAgendas {
   conta_email: string; equipe: MembroDaEquipe[]; salas: SalaDoEscritorio[]; agendas: AgendaGuardada[]; compartilhamentos: CompartilhamentoFeito[];
+  /** Os compartilhamentos recusados pelo Google (sem a lista: nenhum). */
+  recusas?: CompartilhamentoRecusado[];
 }
 
 // ---------------------------------------------------------------------
@@ -112,8 +122,9 @@ export function planejarAgendas(e: EstadoDasAgendas): AcaoNasAgendas[] {
     return agenda ? [{ d, agenda }] : [];
   });
   const renomear = existentes.filter(({ d, agenda }) => agenda.nome !== d.nome).map(({ d, agenda }): AcaoNasAgendas => ({ acao: 'renomear', agenda, nome: d.nome }));
+  const recusado = (agenda: AgendaGuardada, l: Leitor) => (e.recusas ?? []).some(r => r.agenda_id === agenda.id && r.email === l.email);
   const compartilhar = existentes.flatMap(({ d, agenda }) => d.leitores
-    .filter(l => !e.compartilhamentos.some(c => c.agenda_id === agenda.id && c.email === l.email))
+    .filter(l => !e.compartilhamentos.some(c => c.agenda_id === agenda.id && c.email === l.email) && !recusado(agenda, l))
     .map((leitor): AcaoNasAgendas => ({ acao: 'compartilhar', agenda, leitor })));
   return [...retirar, ...criar, ...renomear, ...compartilhar];
 }
@@ -142,6 +153,8 @@ export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRe
   /** A agenda foi apagada no Google: esquece-a (e os compartilhamentos dela), para ser criada de novo. */
   agendaSumiu(agendaId: string): Promise<void>;
   compartilhada(agendaId: string, leitor: Leitor, regra: string): Promise<void>;
+  /** O Google recusou compartilhar a agenda com o e-mail: guarda a recusa (o administrador a vê em Configurações). */
+  compartilhamentoRecusado(agendaId: string, leitor: Leitor, detalhe: string): Promise<void>;
   retirada(agendaId: string, email: string): Promise<void>;
   /** Terminou (restam: faltou tempo nesta execução e o pedido volta para a próxima, sem contar como falha). */
   concluir(p: PedidoDaFila, restam: boolean): Promise<void>;
@@ -168,14 +181,39 @@ export type Contagem = Record<TipoDaAcao | TipoDaAcaoNoEvento, number>;
 export const CONTAGEM_ZERADA: Contagem = { retirar: 0, criar: 0, renomear: 0, compartilhar: 0, gravar_evento: 0, apagar_evento: 0 };
 export interface ResultadoDasAgendas { feitas: Contagem; falhas: number; restam: boolean }
 
-interface Execucao { passos: PassosDasAgendas; api: ApiDaAgenda; pedido: PedidoDaFila; feitas: Contagem; orcamento: { restante: number } }
+interface Execucao { passos: PassosDasAgendas; api: ApiDaAgenda; pedido: PedidoDaFila; feitas: Contagem; orcamento: { restante: number }; agora: number }
 type Fazer = { [K in TipoDaAcao]: (x: Execucao, e: EstadoDasAgendas, a: Extract<AcaoNasAgendas, { acao: K }>) => Promise<EstadoDasAgendas> };
 
-const sumiu = (e: unknown) => e instanceof FalhaDaAgenda && e.tipo === 'sumiu';
-/** A agenda não existe mais no Google: o SEMPER a esquece, e o próximo plano a cria de novo (se ainda deve existir). */
+/**
+ * Por quanto tempo, depois de criada, uma agenda ainda pode responder 404 no Google enquanto ele a espalha, em milissegundos
+ * (10 minutos, folgado): nesse tempo, o 404 é uma falha temporária, nunca a agenda apagada.
+ */
+export const AGENDA_NOVA_MS = 10 * 60 * 1000;
+
+const sumiu = (e: unknown): e is FalhaDaAgenda => e instanceof FalhaDaAgenda && e.tipo === 'sumiu';
+const temporaria = (detalhe: string) => new FalhaDaAgenda('temporario', detalhe.slice(0, TAMANHO_DO_DETALHE));
+
+/**
+ * O Google respondeu 404 num pedido sobre a agenda (um compartilhamento, um nome, um evento): o 404 pode ser do evento, da
+ * regra ou do Google ainda espalhando a agenda nova. Só conta como apagada a agenda antiga que, conferida no Google
+ * (calendars.get), também responde 404. Agenda nova, ou conferência sem resposta clara: 'incerto' (nada é esquecido).
+ */
+async function conferirSumico(x: Execucao, agenda: Pick<AgendaGuardada, 'google_id' | 'criada_em'>) {
+  const criada = agenda.criada_em ? Date.parse(agenda.criada_em) : NaN;
+  if (Number.isFinite(criada) && x.agora - criada < AGENDA_NOVA_MS) return 'incerto';
+  return x.api.conferirAgenda(agenda.google_id);
+}
+
+/** A agenda não existe mais no Google (conferido): o SEMPER a esquece, e o próximo plano a cria de novo (se ainda deve existir). */
 async function semAgenda(x: Execucao, e: EstadoDasAgendas, agenda: AgendaGuardada): Promise<EstadoDasAgendas> {
   await x.passos.agendaSumiu(agenda.id);
   return { ...e, agendas: e.agendas.filter(a => a.id !== agenda.id), compartilhamentos: e.compartilhamentos.filter(c => c.agenda_id !== agenda.id) };
+}
+
+/** Depois de um 404: a agenda conferida como apagada é esquecida; senão, a falha é temporária (a fila tenta de novo, com espera). */
+async function aposUm404(x: Execucao, e: EstadoDasAgendas, agenda: AgendaGuardada, erro: FalhaDaAgenda) {
+  if (await conferirSumico(x, agenda) === 'sumiu') return semAgenda(x, e, agenda);
+  throw temporaria(`${erro.detalhe} (a agenda continua no Google)`);
 }
 
 /** Cada ação: o pedido ao Google, o registro no banco e o estado depois dela. */
@@ -189,16 +227,26 @@ const FAZER: Fazer = {
   async criar(x, e, { agenda: d }) {
     const googleId = await x.api.criarAgenda({ summary: d.nome, description: DESCRICAO_DA_AGENDA, timeZone: FUSO_DAS_AGENDAS });
     const id = await x.passos.agendaCriada(x.pedido, d, googleId);
-    return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: googleId, nome: d.nome }] };
+    const criada_em = new Date(x.agora).toISOString();
+    return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: googleId, nome: d.nome, criada_em }] };
   },
   async renomear(x, e, { agenda, nome }) {
-    try { await x.api.mudarAgenda(agenda.google_id, { summary: nome }); } catch (err) { if (sumiu(err)) return semAgenda(x, e, agenda); throw err; }
+    try { await x.api.mudarAgenda(agenda.google_id, { summary: nome }); } catch (err) { if (sumiu(err)) return aposUm404(x, e, agenda, err); throw err; }
     await x.passos.agendaRenomeada(agenda.id, nome);
     return { ...e, agendas: e.agendas.map(a => (a.id === agenda.id ? { ...a, nome } : a)) };
   },
   async compartilhar(x, e, { agenda, leitor }) {
     let regra: string;
-    try { regra = await x.api.compartilhar(agenda.google_id, leitor.email); } catch (err) { if (sumiu(err)) return semAgenda(x, e, agenda); throw err; }
+    try { regra = await x.api.compartilhar(agenda.google_id, leitor.email); } catch (err) {
+      if (!(err instanceof FalhaDaAgenda)) throw err;
+      const conferida = err.tipo === 'sumiu' ? await conferirSumico(x, agenda) : null;
+      if (conferida === 'sumiu') return semAgenda(x, e, agenda);
+      if (conferida === 'incerto') throw temporaria(`${err.detalhe} (a agenda pode ser nova demais)`);
+      // Recusado (ou 404 com a agenda existindo): só este e-mail nesta agenda fica de fora; o resto do plano segue.
+      if (err.tipo !== 'recusado' && conferida !== 'existe') throw err;
+      await x.passos.compartilhamentoRecusado(agenda.id, leitor, err.detalhe);
+      return { ...e, recusas: [...(e.recusas ?? []), { agenda_id: agenda.id, email: leitor.email }] };
+    }
     await x.passos.compartilhada(agenda.id, leitor, regra);
     return { ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra }] };
   }
@@ -215,8 +263,10 @@ async function arrumarAgendas(x: Execucao) {
     if (!acao) return false;
     if (x.orcamento.restante <= 0) return true;
     x.orcamento.restante--;
+    const recusasAntes = estado.recusas?.length ?? 0;
     estado = await (FAZER[acao.acao] as (x: Execucao, e: EstadoDasAgendas, a: AcaoNasAgendas) => Promise<EstadoDasAgendas>)(x, estado, acao);
-    x.feitas[acao.acao]++;
+    // O compartilhamento recusado não conta como feito.
+    if ((estado.recusas?.length ?? 0) === recusasAntes) x.feitas[acao.acao]++;
   }
 }
 
@@ -227,22 +277,25 @@ async function arrumarAgendas(x: Execucao) {
 /**
  * Grava a cópia no Google: a nova é criada com o id do SEMPER; se o id já existe (uma tentativa anterior que chegou lá, ou
  * a cópia apagada antes, que o Google guarda como cancelada), ela é mudada. A que já existia é mudada; se sumiu do Google,
- * é criada de novo. Devolve false se a própria agenda sumiu do Google (o SEMPER a esquece e a cria de novo).
+ * é criada de novo. Devolve false se a própria agenda sumiu do Google, conferida (o SEMPER a esquece e a cria de novo).
+ * Um 404 depois de o Google dizer que o id já existe é do evento (a agenda existe): falha temporária, nunca a agenda apagada.
  */
 async function gravarCopia(x: Execucao, { agenda, evento }: CopiaDesejada, existe: boolean) {
+  const mudar = () => x.api.mudarEvento(agenda.google_id, evento.id, corpoParaMudar(evento));
   const criar = async () => {
     try { await x.api.criarEvento(agenda.google_id, evento); } catch (err) {
       if (!(err instanceof FalhaDaAgenda && err.tipo === 'repetido')) throw err;
-      await x.api.mudarEvento(agenda.google_id, evento.id, corpoParaMudar(evento));
+      try { await mudar(); } catch (e2) { if (sumiu(e2)) throw temporaria(`${e2.detalhe} (o evento ${evento.id})`); throw e2; }
     }
   };
   try {
     if (!existe) await criar();
     else {
-      try { await x.api.mudarEvento(agenda.google_id, evento.id, corpoParaMudar(evento)); } catch (err) { if (!sumiu(err)) throw err; await criar(); }
+      try { await mudar(); } catch (err) { if (!sumiu(err)) throw err; await criar(); }
     }
   } catch (err) {
     if (!sumiu(err)) throw err;
+    if (await conferirSumico(x, agenda) !== 'sumiu') throw temporaria(`${err.detalhe} (a agenda continua no Google)`);
     await x.passos.agendaSumiu(agenda.id);
     return false;
   }
@@ -299,7 +352,7 @@ export function falhaDaFila(e: unknown): { falha: TipoDaFalha; detalhe: string }
  * escritório uma vez e faz cada pedido. Uma falha não para os outros pedidos: ela fica na fila com a espera da tentativa
  * (o que já foi feito antes dela fica guardado). O orçamento de ações vale para a execução inteira.
  */
-export async function sincronizarAgendas(passos: PassosDasAgendas, escritorio: string | null, acoes = ACOES_POR_EXECUCAO): Promise<ResultadoDasAgendas> {
+export async function sincronizarAgendas(passos: PassosDasAgendas, escritorio: string | null, acoes = ACOES_POR_EXECUCAO, agora = Date.now()): Promise<ResultadoDasAgendas> {
   const pedidos = await passos.pendentes(escritorio, PEDIDOS_POR_EXECUCAO);
   const acessos = new Map<string, Promise<string>>();
   const resultado: ResultadoDasAgendas = { feitas: { ...CONTAGEM_ZERADA }, falhas: 0, restam: false };
@@ -308,7 +361,7 @@ export async function sincronizarAgendas(passos: PassosDasAgendas, escritorio: s
     try {
       if (!acessos.has(pedido.escritorio_id)) acessos.set(pedido.escritorio_id, tokenDeAcesso(passos, pedido.escritorio_id));
       const api = apiDaAgenda(passos.buscar, await acessos.get(pedido.escritorio_id)!);
-      const restam = await PROCESSAR[pedido.assunto]({ passos, api, pedido, feitas: resultado.feitas, orcamento });
+      const restam = await PROCESSAR[pedido.assunto]({ passos, api, pedido, feitas: resultado.feitas, orcamento, agora });
       await passos.concluir(pedido, restam);
       resultado.restam ||= restam;
     } catch (e) {

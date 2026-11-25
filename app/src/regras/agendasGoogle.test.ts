@@ -198,6 +198,7 @@ function passos(inicial: EstadoDasAgendas, fila: PedidoDaFila[], buscar: typeof 
       banco.agendas = banco.agendas.filter(a => a.id !== id); banco.compartilhamentos = banco.compartilhamentos.filter(c => c.agenda_id !== id);
     }),
     compartilhada: vi.fn<PassosDasAgendas['compartilhada']>(async (agenda_id, l, regra) => { banco.compartilhamentos.push({ agenda_id, email: l.email, regra }); }),
+    compartilhamentoRecusado: vi.fn<PassosDasAgendas['compartilhamentoRecusado']>(async (agenda_id, l) => { (banco.recusas ??= []).push({ agenda_id, email: l.email }); }),
     retirada: vi.fn<PassosDasAgendas['retirada']>(async (id, email) => { banco.compartilhamentos = banco.compartilhamentos.filter(c => !(c.agenda_id === id && c.email === email)); }),
     concluir: vi.fn<PassosDasAgendas['concluir']>(async () => {}),
     falhou: vi.fn<PassosDasAgendas['falhou']>(async () => {}),
@@ -258,9 +259,9 @@ describe('A execução, com o Google simulado', () => {
     expect(banco.agendas).toHaveLength(3);
   });
 
-  it('dada uma agenda apagada no Google, quando vai ser compartilhada, então o SEMPER a esquece e cria outra na mesma execução', async () => {
+  it('dada uma agenda apagada no Google (conferida: ela também não existe lá), quando vai ser compartilhada, então o SEMPER a esquece e cria outra na mesma execução', async () => {
     // Dado
-    const g = google((x, padrao) => (x.url.includes('/calendars/velha%40google/acl') ? erroDaAgenda(404, 'notFound') : padrao(x)));
+    const g = google((x, padrao) => (x.url.includes('/calendars/velha%40google') ? erroDaAgenda(404, 'notFound') : padrao(x)));
     const e = estado({ equipe: [membro('ana')], agendas: [agenda({ id: 'g', tipo: 'geral', nome: 'Geral', google_id: 'velha@google' }),
       agenda({ id: 'adm', tipo: 'administrativo', nome: 'Administrativo' })] });
     const { passos: p, banco } = passos(e, [pedidoDaFila()], g.buscar);
@@ -270,6 +271,63 @@ describe('A execução, com o Google simulado', () => {
     expect(p.agendaSumiu).toHaveBeenCalledWith('g');
     expect(banco.agendas.find(a => a.tipo === 'geral')?.google_id).toMatch(/@group\.calendar\.google\.com$/);
     expect(planejarAgendas(banco)).toEqual([]);
+  });
+
+  it('dado um 404 no compartilhamento de uma agenda que ainda existe no Google, quando a fila é feita, então a agenda não é esquecida: só aquele e-mail fica de fora', async () => {
+    // Dado
+    const g = google((x, padrao) => (x.url.includes('/calendars/geral%40google/acl') ? erroDaAgenda(404, 'notFound') : padrao(x)));
+    const e = estado({ equipe: [membro('ana')], agendas: [agenda({ id: 'g', tipo: 'geral', nome: 'Geral', google_id: 'geral@google' }),
+      agenda({ id: 'adm', tipo: 'administrativo', nome: 'Administrativo' }), agenda({ id: 'p', tipo: 'pessoa', perfil_id: 'ana', nome: 'Agenda – ANA' })] });
+    const { passos: p, banco } = passos(e, [pedidoDaFila()], g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(p.agendaSumiu).not.toHaveBeenCalled();
+    expect(g.daAgenda().filter(x => x.metodo === 'GET').map(x => x.url)).toEqual(['https://www.googleapis.com/calendar/v3/calendars/geral%40google']);
+    expect(banco.recusas).toEqual([{ agenda_id: 'g', email: 'ana@exemplo.com' }]);
+    expect(banco.compartilhamentos.map(c => c.agenda_id)).toEqual(['p']);
+    expect(r).toMatchObject({ falhas: 0, feitas: { criar: 0, compartilhar: 1 } });
+  });
+
+  it('dada uma agenda recém-criada que o Google ainda responde 404, quando vai ser compartilhada, então nada é esquecido nem criado de novo: o pedido espera', async () => {
+    // Dado: o Google responde 404 a tudo sobre as agendas novas (ainda não espalhou), e também à conferência.
+    const g = google((x, padrao) => (x.url.includes('/calendars/nova') ? erroDaAgenda(404, 'notFound') : padrao(x)));
+    const { passos: p, banco } = passos(estado({ equipe: [membro('ana', { admin: true })] }), [pedidoDaFila()], g.buscar);
+    p.agendaCriada.mockImplementation(async (_p, a, google_id) => {
+      const id = `sem-${a.tipo}`;
+      banco.agendas.push({ id, tipo: a.tipo, perfil_id: a.perfil_id, sala_id: a.sala_id, google_id, nome: a.nome, criada_em: new Date(0).toISOString() });
+      return id;
+    });
+    // Quando: a execução acontece um minuto depois de criar.
+    const r = await sincronizarAgendas(p, null, undefined, 60_000);
+    // Então: cada agenda foi criada uma vez só (antes, eram criadas de novo até o orçamento acabar).
+    expect(r.feitas.criar).toBe(3);
+    expect(p.agendaSumiu).not.toHaveBeenCalled();
+    expect(g.daAgenda().filter(x => x.metodo === 'GET')).toEqual([]);
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), 'temporario', expect.stringContaining('nova demais'), 60);
+  });
+
+  it('dado o Workspace que recusa compartilhar com um e-mail de fora (403), quando a fila é feita, então só ele fica de fora e todos os outros recebem as agendas', async () => {
+    // Dado
+    const g = google((x, padrao) => (x.url.includes('/acl') && x.corpo.includes('fora@gmail.test') ? erroDaAgenda(403, 'forbidden') : padrao(x)));
+    const { passos: p, banco } = passos(estado({ equipe: [membro('caio', { email: 'fora@gmail.test' }), membro('ana'), membro('beto')] }), [pedidoDaFila()], g.buscar);
+    // Quando
+    const r = await sincronizarAgendas(p, null);
+    // Então
+    expect(r).toMatchObject({ falhas: 0, feitas: { criar: 5, compartilhar: 4 } });
+    expect(new Set(banco.compartilhamentos.map(c => c.email))).toEqual(new Set(['ana@exemplo.com', 'beto@exemplo.com']));
+    expect(p.compartilhamentoRecusado).toHaveBeenCalledWith('sem1', { email: 'fora@gmail.test', perfil_id: 'caio' }, '403 forbidden');
+    expect(p.falhou).not.toHaveBeenCalled();
+    expect(p.concluir).toHaveBeenCalledWith(pedidoDaFila(), false);
+    expect(planejarAgendas(banco)).toEqual([]);
+  });
+
+  it('dado um compartilhamento recusado antes, quando o plano é feito, então ele é pulado (até o "Sincronizar agora" tentar de novo)', () => {
+    // Dado
+    const e = estado({ equipe: [membro('ana')], agendas: [agenda({ id: 'g', tipo: 'geral', nome: 'Geral' }), agenda({ id: 'adm', tipo: 'administrativo', nome: 'Administrativo' }),
+      agenda({ id: 'p', tipo: 'pessoa', perfil_id: 'ana', nome: 'Agenda – ANA' })], recusas: [{ agenda_id: 'g', email: 'ana@exemplo.com' }] });
+    // Quando / Então
+    expect(resumo(e)).toEqual(['compartilhar Agenda – ANA com ana@exemplo.com']);
   });
 
   it('dado mais trabalho que o orçamento da execução, quando a fila é feita, então para no limite e o pedido volta para a próxima', async () => {
@@ -325,7 +383,8 @@ describe('A execução, com o Google simulado', () => {
 describe('O adaptador da API do Google Agenda', () => {
   it.each([
     [403, 'rateLimitExceeded', 'temporario'], [403, 'userRateLimitExceeded', 'temporario'], [429, null, 'temporario'], [403, 'quotaExceeded', 'temporario'],
-    [403, 'insufficientPermissions', 'autorizacao'], [401, null, 'autorizacao'], [403, null, 'autorizacao'],
+    [403, 'dailyLimitExceeded', 'temporario'], [403, 'insufficientPermissions', 'autorizacao'], [403, 'authError', 'autorizacao'], [401, null, 'autorizacao'],
+    [403, null, 'recusado'], [403, 'forbidden', 'recusado'], [403, 'requiredAccessLevel', 'recusado'],
     [404, 'notFound', 'sumiu'], [410, 'deleted', 'sumiu'], [409, 'duplicate', 'repetido'], [500, null, 'temporario'], [400, 'invalid', 'recusado']
   ])('quando o Google responde %i com o motivo %s, então o erro é "%s"', (status, motivo, tipo) => {
     // Quando / Então

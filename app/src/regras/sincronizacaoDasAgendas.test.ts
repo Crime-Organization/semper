@@ -2,7 +2,9 @@
 // Os textos das agendas do escritório no Google (#166), em Configurações.
 import { describe, expect, it } from 'vitest';
 import type { ResultadoDasAgendas } from '../dados/tipos';
-import { lerResultadoDasAgendas, PROBLEMAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS, resumoDasAgendas, situacaoDasAgendas } from './sincronizacaoDasAgendas';
+import {
+  lerResultadoDasAgendas, linhaDaRecusa, PROBLEMAS_DAS_AGENDAS, RECUSAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS, resumoDasAgendas, situacaoDasAgendas
+} from './sincronizacaoDasAgendas';
 
 const NADA = { criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0 };
 const resultado = (campos: Partial<ResultadoDasAgendas> = {}): ResultadoDasAgendas => ({ resultado: 'ok', feitas: NADA, falhas: 0, restam: false, ...campos });
@@ -60,5 +62,12 @@ describe('Textos das agendas no Google', () => {
   it('quando a autorização venceu, então o aviso manda autorizar a agenda de novo', () => {
     // Quando / Então
     expect(PROBLEMAS_DAS_AGENDAS.autorizacao.oQueFazer).toContain('"Autorizar a agenda"');
+  });
+
+  it('dado um compartilhamento recusado pelo Google, então a linha diz o e-mail, a agenda e a resposta, e o aviso manda tentar de novo', () => {
+    // Quando / Então
+    expect(linhaDaRecusa({ email: 'fora@gmail.test', agenda: 'Geral', detalhe: '403 forbidden' })).toBe('fora@gmail.test, na agenda "Geral" (403 forbidden)');
+    expect(linhaDaRecusa({ email: 'fora@gmail.test', agenda: 'Sala 1', detalhe: null })).toBe('fora@gmail.test, na agenda "Sala 1"');
+    expect(RECUSAS_DAS_AGENDAS.oQueFazer).toContain('"Sincronizar agora"');
   });
 });
