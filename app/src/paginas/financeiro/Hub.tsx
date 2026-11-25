@@ -5,7 +5,7 @@
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas nem o caixa.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
-import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { SD, type ContaFinanceira, type DespesaDoEscritorio, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { dicaComAtalho, ATALHOS } from '../../regras/atalhos';
 import { diasDoMes, fmtCentavos, mesPedido, PARAMETROS_DO_LANCAMENTO } from '../../regras/caixa';
 import {
@@ -29,6 +29,7 @@ import { hojeISO, useTitulo } from '../../ui/util';
 import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
 import { ValoresAPassar } from './APassar';
 import { Repasses } from './Repasses';
+import { DespesasDoEscritorio } from './Despesas';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
 import { LUGAR_DAS_LISTAS, PainelDoFinanceiro, type CaixaDoPainel, type DadosDoPainel } from './Graficos';
@@ -329,11 +330,15 @@ function Direitos({ parcelas, usuario, aoReceber, aoAbrir }: { parcelas: Parcela
   </section>;
 }
 
-type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[] } | { chave: string; erro: string };
+type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[]; despesas: DespesaDoEscritorio[] } | { chave: string; erro: string };
 
-/** Obrigações: o que ainda vai sair. Os repasses que o escritório paga e o que o responsável passa a participantes e indicadores. */
+/**
+ * Obrigações: o que ainda vai sair. As despesas do escritório (só o administrador, #439), os repasses que o escritório paga e o que o
+ * responsável passa a participantes e indicadores.
+ */
 function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void }) {
   const ctx = useCtx();
+  const admin = ctx.ehAdmin;
   const hoje = hojeISO();
   const [lido, setLido] = useState<Pagar | null>(null);
   const { de, ate } = periodo.length === 4 ? { de: `${periodo}-01-01`, ate: `${periodo}-12-31` } : diasDoMes(periodo);
@@ -341,15 +346,19 @@ function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; con
   useEffect(() => {
     let vivo = true;
     const esta = de + '/' + versao;
-    Promise.all([SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate)])
-      .then(([repasses, aPassar]) => { if (vivo) setLido({ chave: esta, repasses, aPassar }); })
+    Promise.all([SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate), admin ? SD.financeiroDespesas(de, ate) : []])
+      .then(([repasses, aPassar, despesas]) => { if (vivo) setLido({ chave: esta, repasses, aPassar, despesas }); })
       .catch(e => { if (vivo) setLido({ chave: esta, erro: (e as Error).message }); });
     return () => { vivo = false; };
-  }, [de, ate, versao]);
+  }, [de, ate, versao, admin]);
   const atual = lido?.chave === chave ? lido : null;
   if (!atual) return <Carregando />;
   if ('erro' in atual) return <Aviso tipo="erro">{atual.erro}</Aviso>;
   return <section className="painel-secao" aria-label="Obrigações">
+    {admin && <section aria-label="Despesas do escritório">
+      <TituloSecao>Despesas do escritório</TituloSecao>
+      <DespesasDoEscritorio lista={atual.despesas} periodo={periodo} hoje={hoje} aoMudar={aoMudar} />
+    </section>}
     <section aria-label="Repasses">
       <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
       <Repasses lista={atual.repasses} periodo={periodo} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />

@@ -15,7 +15,7 @@ import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { meusGrupos, pedidoDoFiltroDeGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
-import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContaParaEscolher, DespesaDoEscritorio, FrequenciaRepeticao, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
@@ -100,6 +100,9 @@ async function emPartes<T>(montar: () => Livre): Promise<T[]> {
     if (data.length < LINHAS_POR_CONSULTA) return todas;
   }
 }
+
+/** Uma linha de public.financeiro_despesas_do_periodo (#439): a despesa com a regra da repetição ao lado (null: não se repete). */
+type LinhaDaDespesa = Omit<DespesaDoEscritorio, 'repeticao'> & { repeticao_id: string | null; frequencia: FrequenciaRepeticao | null; intervalo: number | null; ate: string | null; vezes: number | null };
 
 // ---------- pessoas ----------
 const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
@@ -1782,6 +1785,27 @@ export const SD: Dados = {
   },
   async financeiroDasSalvar(mes, aliquota) {
     await rodar(sb.from('financeiro_das').upsert({ mes, aliquota, atualizado_por: uid() }, { onConflict: 'escritorio_id,mes' }));
+  },
+  // ---------- despesas do escritório (#439) ----------
+  async financeiroDespesas(de, ate) {
+    const linhas = await emPartes<LinhaDaDespesa>(() => sb.rpc('financeiro_despesas_do_periodo', { p_de: de, p_ate: ate }));
+    return linhas.map(({ repeticao_id, frequencia, intervalo, ate: ateQuando, vezes, ...d }) =>
+      ({ ...d, valor: Number(d.valor), repeticao: repeticao_id && frequencia ? { frequencia, intervalo: intervalo ?? 1, ate: ateQuando, vezes } : null }));
+  },
+  async financeiroDespesaCriar({ descricao, valor, vencimento }, r) {
+    const feito = await rpc('financeiro_despesa_criar', { p_descricao: descricao, p_valor: valor, p_vencimento: vencimento, p_frequencia: r?.frequencia ?? null,
+      p_intervalo: r?.intervalo ?? 1, p_ate: r?.ate ?? null, p_vezes: r?.vezes ?? null }) as { id: string; ids: string[] };
+    return { id: feito.id, ids: feito.ids };
+  },
+  financeiroDespesaMudar: async (id, { descricao, valor, vencimento }, seguintes) =>
+    await rpc('financeiro_despesa_mudar', { p_id: id, p_descricao: descricao, p_valor: valor, p_vencimento: vencimento, p_seguintes: seguintes }) as number,
+  financeiroDespesaPagar: async (id, data) => { await rpc('financeiro_despesa_pagar', { p_id: id, p_data: data }); },
+  financeiroDespesaDesfazerPagamento: async id => { await rpc('financeiro_despesa_desfazer_pagamento', { p_id: id }); },
+  financeiroDespesaExcluir: async (id, seguintes) => await rpc('financeiro_despesa_excluir', { p_id: id, p_seguintes: seguintes }) as string[],
+  financeiroDespesaRestaurar: async ids => { await rpc('financeiro_despesa_restaurar', { p_ids: ids }); },
+  async financeiroDespesaHistorico(id) {
+    const { data } = await rodar(sb.from('financeiro_despesas_historico').select('id, alteracoes, feito_por, em').eq('despesa_id', id).order('em', { ascending: false }).order('id', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
   },
   // ---------- parcelas, recebimentos e repasses ----------
   async parcelasDoContrato(contratoId) {

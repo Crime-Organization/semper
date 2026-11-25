@@ -44,6 +44,8 @@ import {
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
 import type { AvisoDaDemandaDoCompromisso, AvisoDaTarefa, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
+import type { DespesaDoEscritorio, RegraDeRepeticao } from './tipos';
+import { DESPESA_JA_PAGA, DESPESA_NAO_ENCONTRADA, despesaNoLimite, despesaNoPeriodo, FIM_ANTES_DO_VENCIMENTO, porVencimento, SO_ADMINISTRADOR_NAS_DESPESAS } from '../regras/despesas';
 import { aprovacaoMudouDeDono, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, quemExecuta, saiuDaAprovacao, type SequenciaDoSolicitante } from '../regras/avisosDaTarefa';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
@@ -258,6 +260,10 @@ interface Banco {
   contasFinanceiras?: ContaFinanceira[];
   lancamentos?: LancamentoGuardado[];
   historicoLancamentos?: (Historico & { lancamento_id: string })[];
+  /** As despesas do escritório a pagar (#439), as repetições delas e o histórico de cada uma. */
+  despesas?: DespesaGuardada[];
+  repeticoesDeDespesa?: RepeticaoDaDespesa[];
+  historicoDespesas?: (Historico & { despesa_id: string })[];
   dasDoEscritorio?: AliquotaDoDas[];
   ajustesFinanceiros?: Historico[];
   parcelas?: ParcelaGuardada[];
@@ -617,6 +623,9 @@ bd.camposDeProcesso ??= [];
 bd.contasFinanceiras ??= [];
 bd.lancamentos ??= [];
 bd.historicoLancamentos ??= [];
+bd.despesas ??= [];
+bd.repeticoesDeDespesa ??= [];
+bd.historicoDespesas ??= [];
 bd.dasDoEscritorio ??= [];
 bd.ajustesFinanceiros ??= [];
 bd.parcelas ??= [];
@@ -817,6 +826,8 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
     const criados = bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).flatMap(r => gerarRepeticoesNoFalso(r, hoje).ids);
     gravar(); return criados;
   },
+  /** A rotina diária das despesas que se repetem (como privado.estender_despesas, #439) num dia (aaaa-mm-dd); sem ele, hoje. Devolve as despesas criadas. */
+  estenderDespesas: (hoje?: string) => { const criadas = bd.repeticoesDeDespesa!.flatMap(r => gerarDespesasNoFalso(r, hoje)); gravar(); return criadas; },
   /** A rotina dos lembretes num instante (ISO, ex.: '2030-11-15T13:05:00-03:00'); sem ele, agora. */
   gerarLembretes: (quando?: string) => gerarLembretes(quando ? new Date(quando) : undefined),
   equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
@@ -2601,6 +2612,60 @@ const NAO_DEU = 'Não foi possível concluir agora. Tente de novo.';
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
 const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos', 'correcao_recebimento'];
 /** Como as regras check e o gatilho do banco. */
+// ---------- despesas do escritório (como supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439) ----------
+/** A repetição da despesa como fica guardada: a regra, o primeiro vencimento, o ponto em que parou e o último que já virou despesa. */
+interface RepeticaoDaDespesa extends RegraDeRepeticao { id: string; inicio: string; parada_em: string | null; gerada_ate: string; criado_por: string | null }
+/** A despesa como fica guardada: a da lista, a data que a regra deu, a exclusão e quem a criou. */
+interface DespesaGuardada extends Omit<DespesaDoEscritorio, 'repeticao'> {
+  repeticao_id: string | null; repeticao_data: string | null; excluida_em: string | null; criado_por: string | null; criado_em: string;
+}
+const serieDaDespesa = (id: string | null) => bd.repeticoesDeDespesa!.find(r => r.id === id) ?? null;
+/** O fim da repetição como a lista mostra: a que parou termina na véspera do ponto em que parou (e aí não conta as vezes). */
+const ateDaSerie = (s: RepeticaoDaDespesa) => s.parada_em ? [s.ate, somarDias(s.parada_em, -1)].filter(d => d !== null).toSorted()[0] : s.ate;
+const despesaNaLista = (d: DespesaGuardada): DespesaDoEscritorio => {
+  const s = serieDaDespesa(d.repeticao_id);
+  return { id: d.id, descricao: d.descricao, valor: d.valor, vencimento: d.vencimento, paga_em: d.paga_em,
+    repeticao: s ? { frequencia: s.frequencia, intervalo: s.intervalo, ate: ateDaSerie(s), vezes: s.parada_em ? null : s.vezes } : null };
+};
+/** Como o gatilho historico (privado.historico_despesa): o que mudou, campo a campo; e o registro de ações. */
+function mudarDespesa(d: DespesaGuardada, novo: Partial<DespesaGuardada>) {
+  const alteracoes: Historico['alteracoes'] = {};
+  for (const k of ['descricao', 'valor', 'vencimento', 'paga_em', 'excluida_em'] as const) {
+    if (k in novo && novo[k] !== d[k]) alteracoes[k] = { de: d[k], para: novo[k] ?? null };
+  }
+  if (!Object.keys(alteracoes).length) return;
+  bd.historicoDespesas!.unshift({ id: Date.now() + Math.random(), despesa_id: d.id, alteracoes, feito_por: eu, em: agora() });
+  Object.assign(d, novo);
+  auditar('financeiro_despesas', 'alteracao', d);
+}
+/** Como privado.despesa_para_mudar: só o administrador, e só a despesa que não foi excluída. */
+function despesaParaMudar(id: string) {
+  if (!souAdmin()) throw new Error(SO_ADMINISTRADOR_NAS_DESPESAS);
+  const d = bd.despesas!.find(x => x.id === id && !x.excluida_em);
+  if (!d) throw new Error(DESPESA_NAO_ENCONTRADA);
+  return d;
+}
+/** As seguintes da repetição ainda a pagar (nem pagas, nem excluídas). */
+const seguintesAPagar = (d: DespesaGuardada) => bd.despesas!.filter(x => x.repeticao_id === d.repeticao_id && x.repeticao_data! > d.repeticao_data! && !x.paga_em && !x.excluida_em);
+/**
+ * Como privado.gerar_despesas: cada data nova copia a descrição e o valor da última da repetição que não foi excluída (sem nenhuma, a
+ * repetição não cresce), sem passar do ponto em que ela parou.
+ */
+function gerarDespesasNoFalso(serie: RepeticaoDaDespesa, hoje = hojeNaAgenda()): string[] {
+  const modelo = bd.despesas!.filter(d => d.repeticao_id === serie.id && !d.excluida_em).toSorted((a, b) => b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
+  if (!modelo) return [];
+  const ids: string[] = [];
+  for (const { data } of vezesParaGerar({ ...serie, ate: ateDaSerie(serie) }, serie.gerada_ate, hoje)) {
+    const d: DespesaGuardada = { id: novoId(), descricao: modelo.descricao, valor: modelo.valor, vencimento: data, paga_em: null, repeticao_id: serie.id, repeticao_data: data,
+      excluida_em: null, criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora() };
+    bd.despesas!.push(d);
+    auditar('financeiro_despesas', 'inclusao', d);
+    ids.push(d.id);
+    serie.gerada_ate = data;
+  }
+  return ids;
+}
+
 function conferirLancamento(l: LancamentoGuardado) {
   l.descricao = l.descricao.trim();
   const conta = bd.contasFinanceiras!.find(c => c.id === l.conta_id);
@@ -5097,6 +5162,73 @@ export const SD: Dados = {
     return espera(undefined);
   },
   financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
+  // ---------- despesas do escritório (como supabase/migrations/20261125102117_despesas_do_escritorio.sql, #439) ----------
+  // Como a regra RLS: quem não é administrador recebe a lista vazia, sem erro.
+  financeiroDespesas: (de, ate) => espera(souAdmin() ? bd.despesas!.filter(d => !d.excluida_em && despesaNoPeriodo(d, de, ate))
+    .toSorted((a, b) => porVencimento(a, b) || a.criado_em.localeCompare(b.criado_em) || a.id.localeCompare(b.id)).map(despesaNaLista) : []),
+  async financeiroDespesaCriar(dados, regra) {
+    if (!souAdmin()) return erro(SO_ADMINISTRADOR_NAS_DESPESAS);
+    if (regra?.ate && regra.ate <= dados.vencimento) return erro(FIM_ANTES_DO_VENCIMENTO);
+    const novo = { ...dados, descricao: dados.descricao.trim() };
+    if (!despesaNoLimite(novo) || (regra && !regraNoLimite(regra))) return erro(FORMATO_INVALIDO);
+    const d: DespesaGuardada = { id: novoId(), ...novo, paga_em: null, repeticao_id: null, repeticao_data: null, excluida_em: null, criado_por: eu, criado_em: agora() };
+    bd.despesas!.push(d);
+    auditar('financeiro_despesas', 'inclusao', d);
+    let ids: string[] = [];
+    if (regra) {
+      const serie: RepeticaoDaDespesa = { ...regra, id: novoId(), inicio: d.vencimento, parada_em: null, gerada_ate: d.vencimento, criado_por: eu };
+      bd.repeticoesDeDespesa!.push(serie);
+      Object.assign(d, { repeticao_id: serie.id, repeticao_data: d.vencimento });
+      ids = gerarDespesasNoFalso(serie);
+    }
+    gravar();
+    return espera({ id: d.id, ids });
+  },
+  async financeiroDespesaMudar(id, dados, seguintes) {
+    const d = despesaParaMudar(id);
+    const novo = { ...dados, descricao: dados.descricao.trim() };
+    if (!despesaNoLimite(novo)) return erro(FORMATO_INVALIDO);
+    const outras = seguintes && d.repeticao_id ? seguintesAPagar(d) : [];
+    mudarDespesa(d, novo);
+    outras.forEach(x => mudarDespesa(x, { descricao: novo.descricao, valor: novo.valor }));
+    gravar();
+    return espera(1 + outras.length);
+  },
+  async financeiroDespesaPagar(id, data) {
+    const d = despesaParaMudar(id);
+    if (d.paga_em) return erro(DESPESA_JA_PAGA);
+    if (!dataExiste(data) || !anoAceito(data)) return erro(FORMATO_INVALIDO);
+    mudarDespesa(d, { paga_em: data });
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroDespesaDesfazerPagamento(id) {
+    mudarDespesa(despesaParaMudar(id), { paga_em: null });
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroDespesaExcluir(id, seguintes) {
+    const d = despesaParaMudar(id);
+    const outras = seguintes && d.repeticao_id ? seguintesAPagar(d) : [];
+    [d, ...outras].forEach(x => mudarDespesa(x, { excluida_em: agora() }));
+    const serie = seguintes ? serieDaDespesa(d.repeticao_id) : null;
+    if (serie && (!serie.parada_em || serie.parada_em > d.repeticao_data!)) serie.parada_em = d.repeticao_data;
+    gravar();
+    return espera([d.id, ...outras.map(x => x.id)]);
+  },
+  async financeiroDespesaRestaurar(ids) {
+    if (!souAdmin()) return erro(SO_ADMINISTRADOR_NAS_DESPESAS);
+    const linhas = bd.despesas!.filter(d => ids.includes(d.id));
+    linhas.filter(d => d.excluida_em).forEach(d => mudarDespesa(d, { excluida_em: null }));
+    for (const serie of new Set(linhas.map(d => serieDaDespesa(d.repeticao_id)).filter(s => s !== null))) {
+      const primeira = linhas.filter(d => d.repeticao_id === serie.id).map(d => d.repeticao_data!).toSorted()[0];
+      if (serie.parada_em === primeira) serie.parada_em = null;
+      gerarDespesasNoFalso(serie);
+    }
+    gravar();
+    return espera(undefined);
+  },
+  financeiroDespesaHistorico: id => espera(souAdmin() ? bd.historicoDespesas!.filter(h => h.despesa_id === id).map(({ despesa_id: _d, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO) : []),
   // Como a regra RLS da cópia escondida: quem não é administrador recebe a lista vazia, sem erro. A cópia das linhas não vem.
   financeiroExcluidos: () => espera(souAdmin() ? bd.financeiroExcluidos!
     .map(({ contrato_id: _k, conta_id: _c, cliente_nome: _n, copia: _x, conta_nome, ...r }, i): RecebimentoExcluido => ({ ...r, id: i + 1, conta_nome: conta_nome ?? null }))

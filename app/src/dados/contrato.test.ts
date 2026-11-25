@@ -16,7 +16,9 @@ import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
-import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES } from '../regras/repeticao';
+import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES, somarMeses } from '../regras/repeticao';
+import { DESPESA_JA_PAGA, DESPESA_NAO_ENCONTRADA, FIM_ANTES_DO_VENCIMENTO, SO_ADMINISTRADOR_NAS_DESPESAS } from '../regras/despesas';
+import { REPETICAO } from './limites';
 import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO, SEM_OBJETO_DA_DEMANDA, SEPARAR_POUCOS, SEPARAR_REPETIDOS } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
@@ -4985,6 +4987,138 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const fora = SD.financeiroDasSalvar('2031-06', 101);
         // Então
         await expect(fora).rejects.toThrow(INVALIDO);
+      });
+    });
+
+    describe('Despesas do escritório a pagar (#439)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const daqui = (dias: number) => somarDias(hojeISO(), dias);
+      const TUDO = { de: '2000-01-01', ate: '2100-12-31' };
+      const daSerie = async (descricao: string) => (await SD.financeiroDespesas(TUDO.de, TUDO.ate)).filter(d => d.descricao === descricao);
+
+      it('quando cadastra uma despesa sem repetição, então ela aparece no período do vencimento, a pagar', async () => {
+        // Dado
+        const descricao = 'LUZ ' + marca();
+        // Quando
+        const { id, ids } = await SD.financeiroDespesaCriar({ descricao: `  ${descricao} `, valor: 25000, vencimento: daqui(3) }, null);
+        // Então
+        expect(ids).toEqual([]);
+        const [lida] = await daSerie(descricao);
+        expect(lida).toEqual({ id, descricao, valor: 25000, vencimento: daqui(3), paga_em: null, repeticao: null });
+        expect((await SD.financeiroDespesas(daqui(3), daqui(3))).map(d => d.id)).toContain(id);
+      });
+
+      it('quando cadastra uma despesa de todo mês, três vezes, então as próximas datas nascem sozinhas, com a repetição', async () => {
+        // Dado
+        const descricao = 'SALÁRIO ' + marca();
+        // Quando
+        const { ids } = await SD.financeiroDespesaCriar({ descricao, valor: 300000, vencimento: daqui(5) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 3 });
+        // Então
+        expect(ids).toHaveLength(2);
+        const serie = await daSerie(descricao);
+        expect(serie.map(d => d.vencimento)).toEqual([daqui(5), somarMeses(daqui(5), 1), somarMeses(daqui(5), 2)]);
+        expect(serie.every(d => d.valor === 300000 && d.repeticao?.frequencia === 'mes' && d.repeticao.vezes === 3)).toBe(true);
+      });
+
+      it('quando cadastra uma de todo mês sem fim, então nascem as datas dos próximos 12 meses, e a rotina não repete nenhuma', async () => {
+        // Dado
+        const descricao = 'DAS ' + marca();
+        // Quando
+        await SD.financeiroDespesaCriar({ descricao, valor: 90000, vencimento: daqui(5) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: null });
+        // Então
+        expect(await daSerie(descricao)).toHaveLength(REPETICAO.horizonteMeses);
+      });
+
+      it('quando a data final vem antes do vencimento, ou o valor está zerado, então é recusado', async () => {
+        // Quando / Então
+        await expect(SD.financeiroDespesaCriar({ descricao: 'ÁGUA', valor: 100, vencimento: daqui(3) }, { frequencia: 'mes', intervalo: 1, ate: daqui(2), vezes: null }))
+          .rejects.toThrow(FIM_ANTES_DO_VENCIMENTO);
+        await expect(SD.financeiroDespesaCriar({ descricao: 'ÁGUA', valor: 0, vencimento: daqui(3) }, null)).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando marca a primeira como paga, então ela fica paga, a próxima continua a pagar, e desfazer volta como estava', async () => {
+        // Dado
+        const descricao = 'CONTADOR ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 50000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 2 });
+        // Quando
+        await SD.financeiroDespesaPagar(id, daqui(0));
+        // Então
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([daqui(0), null]);
+        await expect(SD.financeiroDespesaPagar(id, daqui(0))).rejects.toThrow(DESPESA_JA_PAGA);
+        expect((await SD.financeiroDespesaHistorico(id))[0].alteracoes).toEqual({ paga_em: { de: null, para: daqui(0) } });
+        await SD.financeiroDespesaDesfazerPagamento(id);
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([null, null]);
+      });
+
+      it('dada uma paga, quando o período é depois dela, então ela não aparece; a pagar de antes, sim', async () => {
+        // Dado
+        const descricao = 'ALUGUEL ' + marca();
+        const paga = await SD.financeiroDespesaCriar({ descricao, valor: 100000, vencimento: daqui(1) }, null);
+        const aPagar = await SD.financeiroDespesaCriar({ descricao, valor: 100000, vencimento: daqui(2) }, null);
+        await SD.financeiroDespesaPagar(paga.id, daqui(1));
+        // Quando
+        const depois = await SD.financeiroDespesas(daqui(30), daqui(60));
+        // Então
+        expect(depois.map(d => d.id)).toContain(aPagar.id);
+        expect(depois.map(d => d.id)).not.toContain(paga.id);
+      });
+
+      it('quando muda o valor "nesta e nas seguintes", então a paga fica como estava e só as seguintes a pagar mudam', async () => {
+        // Dado
+        const descricao = 'FUNCIONÁRIO ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 200000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 3 });
+        const [, segunda] = await daSerie(descricao);
+        await SD.financeiroDespesaPagar(id, daqui(0));
+        // Quando
+        const mudadas = await SD.financeiroDespesaMudar(segunda.id, { descricao, valor: 210000, vencimento: segunda.vencimento }, true);
+        // Então
+        expect(mudadas).toBe(2);
+        expect((await daSerie(descricao)).map(d => d.valor)).toEqual([200000, 210000, 210000]);
+        expect(await SD.financeiroDespesaMudar(id, { descricao, valor: 205000, vencimento: daqui(1) }, false)).toBe(1);
+        expect((await daSerie(descricao)).map(d => d.valor)).toEqual([205000, 210000, 210000]);
+      });
+
+      it('quando exclui "esta e as seguintes", então elas saem e a repetição para; restaurar devolve tudo', async () => {
+        // Dado
+        const descricao = 'INTERNET ' + marca();
+        await SD.financeiroDespesaCriar({ descricao, valor: 15000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 4 });
+        const [primeira, segunda] = await daSerie(descricao);
+        // Quando
+        const excluidas = await SD.financeiroDespesaExcluir(segunda.id, true);
+        // Então
+        expect(excluidas).toHaveLength(3);
+        const restou = await daSerie(descricao);
+        expect(restou.map(d => d.id)).toEqual([primeira.id]);
+        expect(restou[0].repeticao).toMatchObject({ ate: somarDias(segunda.vencimento, -1), vezes: null });
+        await expect(SD.financeiroDespesaPagar(segunda.id, daqui(0))).rejects.toThrow(DESPESA_NAO_ENCONTRADA);
+        await SD.financeiroDespesaRestaurar(excluidas);
+        const devolvidas = await daSerie(descricao);
+        expect(devolvidas).toHaveLength(4);
+        expect(devolvidas[0].repeticao).toMatchObject({ ate: null, vezes: 4 });
+      });
+
+      it('quando exclui só uma da repetição, então as outras ficam', async () => {
+        // Dado
+        const descricao = 'TELEFONE ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, { frequencia: 'semana', intervalo: 1, ate: null, vezes: 3 });
+        // Quando
+        expect(await SD.financeiroDespesaExcluir(id, false)).toEqual([id]);
+        // Então
+        expect(await daSerie(descricao)).toHaveLength(2);
+      });
+
+      it('dado alguém que não é administrador, quando abre, então não vê as despesas e não cadastra nem paga', async () => {
+        // Dado
+        const descricao = 'SEGURO ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, null);
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        expect(await SD.financeiroDespesas(TUDO.de, TUDO.ate)).toEqual([]);
+        expect(await SD.financeiroDespesaHistorico(id)).toEqual([]);
+        await expect(SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, null)).rejects.toThrow(SO_ADMINISTRADOR_NAS_DESPESAS);
+        await expect(SD.financeiroDespesaPagar(id, daqui(0))).rejects.toThrow(SO_ADMINISTRADOR_NAS_DESPESAS);
       });
     });
 

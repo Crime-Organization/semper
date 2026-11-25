@@ -342,12 +342,15 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
-    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
-    dados: ['DadosFinanceiro'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos',
+      'despesas', 'despesas_do_escritorio', 'despesas-do-escritorio'],
+    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos',
+      'financeiro_despesas', 'financeiro_despesa_repeticoes', 'financeiro_despesas_historico'],
+    dados: ['DadosFinanceiro', 'DadosDespesas'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],
     armadilhas: [
       'Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.',
+      'As despesas do escritório a pagar (#439, aba Obrigações, só administradores) se repetem como os compromissos (`regras/repeticao.ts`, a mesma conta de `privado.data_da_vez`): cada data é uma linha, e a rotina `estender-despesas` acrescenta as seguintes. Marcar como paga não cria lançamento no caixa. Na agenda Administrativo do Google (#166), a despesa vai no dia útil anterior ao vencimento (`supabase/functions/_compartilhado/diaUtilAnterior.ts`).',
       'O Hub e as abas (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx` e `TELAS_DO_FINANCEIRO` de `e2e/ajudantes.ts`) abrem Parcelas, Lucros, Meus valores e Conferência: mexeu no Hub ou nos endereços, rode os testes dessas telas (já no comando abaixo) e veja [Rotas e endereços](#rotas).'
     ],
     testes: ['parcelas', 'lucros', 'meus-valores', 'conferencia', 'contrato-exclui-em-cascata', 'topo-do-cartao', 'mais-no-titulo-das-secoes']
