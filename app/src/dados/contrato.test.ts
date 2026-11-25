@@ -2487,6 +2487,34 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await SD.compromissoAtualizar(antigo.id, { sala_id: null });
           expect((await SD.compromissoHistorico(antigo.id))[0].alteracoes.sala).toEqual({ de: sala.nome, para: null });
         });
+
+        it('dadas duas salas ocupadas no dia, quando se pede a ocupação de todas (#438), então vem a de cada sala, com a sala; de quem não participa, sem o título', async () => {
+          // Dado: na primeira sala, um compromisso da Ana e um com o Bruno; na segunda, um com o Bruno; e um arquivado, que não ocupa
+          const fecharVisibilidade = (ligada: boolean) => (window as unknown as { SEMPER_FALSO: { fecharVisibilidade(l: boolean): void } }).SEMPER_FALSO.fecharVisibilidade(ligada);
+          const dia = '2031-06-17';
+          const um = await SD.salaCriar({ nome: marca(), capacidade: 6 }), dois = await SD.salaCriar({ nome: marca(), capacidade: 4 });
+          const daAna = await reuniao({ data: dia, hora: '09:00', hora_fim: '10:00', sala_id: um.id });
+          const comBruno = await reuniao({ data: dia, hora: '14:00', sala_id: um.id, participantes: ['u-bruno'] });
+          const naSegunda = await reuniao({ data: dia, hora: '11:00', hora_fim: '12:30', sala_id: dois.id, participantes: ['u-bruno'] });
+          const arquivado = await reuniao({ data: dia, hora: '16:00', sala_id: dois.id });
+          await SD.compromissosArquivar([arquivado.id]);
+          // Quando
+          const todas = (await SD.salasOcupacao(dia)).filter(o => o.sala_id === um.id || o.sala_id === dois.id);
+          // Então: é a mesma ocupação de cada sala, com a sala
+          expect(todas.filter(o => o.sala_id === um.id)).toEqual((await SD.salaOcupacao(um.id, dia)).map(o => ({ ...o, sala_id: um.id })));
+          expect(todas.filter(o => o.sala_id === dois.id).map(o => o.id)).toEqual([naSegunda.id]);
+          expect(todas.filter(o => o.sala_id === um.id).map(o => o.id)).toEqual([daAna.id, comBruno.id]);
+          // Então: para o Bruno, com a visualização fechada, o da Ana vem só ocupado (com o código e o horário, sem o título)
+          fecharVisibilidade(true);
+          try {
+            entrarComo('u-bruno');
+            const doBruno = await SD.salasOcupacao(dia);
+            expect(doBruno.find(o => o.id === daAna.id)).toMatchObject({ titulo: null, codigo: daAna.codigo, hora: '09:00:00', hora_fim: '10:00:00', sala_id: um.id });
+            expect(doBruno.find(o => o.id === comBruno.id)?.titulo).toBeTruthy();
+          } finally { fecharVisibilidade(false); }
+          // E num dia sem nada, vem vazio
+          expect((await SD.salasOcupacao('2031-06-18')).filter(o => o.sala_id === um.id || o.sala_id === dois.id)).toEqual([]);
+        });
       });
 
       it('quando o processo é excluído, então as audiências saem e os outros compromissos ficam sem a ligação', async () => {

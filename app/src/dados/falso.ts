@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, ContatoParaConferir, MotivoParaConferir, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, Sala, OcupacaoDaSala, DadosSala, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, Sala, OcupacaoDaSala, OcupacaoNaSala, DadosSala, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -1938,6 +1938,9 @@ function prepararCompromisso(dados: DadosCompromisso, atual?: CompromissoGuardad
 const ocupacoesNoFalso = (salaId: string, data: string, fora: string | null | undefined) => bd.compromissos!
   .filter(c => c.sala_id === salaId && c.data === data && c.id !== fora && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id)))
   .sort((a, b) => (a.hora ?? '').localeCompare(b.hora ?? '') || a.codigo.localeCompare(b.codigo));
+/** Como public.ocupacao_da_sala: o código e o horário de todos; o título, só dos que quem pergunta vê. */
+const ocupacaoNoFalso = (salaId: string, data: string, fora: string | null | undefined) => ocupacoesNoFalso(salaId, data, fora)
+  .map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim, titulo: vejoNoModulo('compromissos', c.id) ? c.titulo : null }));
 /** Como o gatilho conferir_sala: a sala existe, a escolhida agora está ativa, e está livre no horário (o arquivado e o cancelado não ocupam). */
 function conferirSalaNoFalso(fica: Pick<CompromissoGuardado, 'sala_id' | 'data' | 'hora' | 'hora_fim' | 'etapa_id' | 'arquivado_em'> & { id?: string }, atual?: Pick<CompromissoGuardado, 'id' | 'sala_id'>) {
   if (!fica.sala_id) return;
@@ -4533,10 +4536,10 @@ export const SD: Dados = {
     if (!s || !souAdmin()) return erro(SEM_PERMISSAO);
     Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); gravar();
   },
-  salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId)
-    ? ocupacoesNoFalso(salaId, data, fora).map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim,
-      titulo: vejoNoModulo('compromissos', c.id) ? c.titulo : null }))
-    : []),
+  salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId) ? ocupacaoNoFalso(salaId, data, fora) : []),
+  // Como public.ocupacao_das_salas (#438): a mesma ocupação, de todas as salas do escritório, por sala e pela hora.
+  salasOcupacao: data => espera([...bd.salas!].sort((a, b) => a.id.localeCompare(b.id))
+    .flatMap(s => ocupacaoNoFalso(s.id, data, null).map((o): OcupacaoNaSala => ({ ...o, sala_id: s.id })))),
   compromissosDoItem: (modulo, itemId) => espera(bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId)
     .flatMap(l => { const c = bd.compromissos!.find(x => x.id === l.compromisso_id && vejoNoModulo('compromissos', x.id)); return c ? [compromissoLigado(c, [])] : []; })
     .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
