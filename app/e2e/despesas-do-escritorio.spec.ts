@@ -31,12 +31,15 @@ test.describe('Despesas do escritório a pagar', () => {
     await expect(linha).toContainText('30/11/2026');
     await expect(linha).toContainText('A pagar');
     await expect(linha).toContainText('Todo mês, 3 vezes');
+    // O total, na célula inteira: "R$ 2.500,00" também contém "0,00".
+    const total = tabela.getByRole('row', { name: /Total a pagar/ }).getByRole('cell').first();
+    await expect(total).toHaveText(/^R\$\s2\.500,00$/);
     // Quando
     await linha.getByRole('button', { name: 'Marcar como paga: Salário da recepção, vence em 30/11/2026' }).click();
     await page.getByRole('form', { name: /Marcar como paga/ }).getByRole('button', { name: 'Confirmar' }).click();
     // Então
     await expect(linha).toContainText('Paga em 22/11/2026');
-    await expect(tabela.getByRole('row', { name: /Total a pagar/ })).toContainText('0,00');
+    await expect(total).toHaveText(/^R\$\s0,00$/);
     await mes(page, 'Dez').click();
     const proxima = despesas(page).getByRole('row', { name: /Salário da recepção/ });
     await expect(proxima).toContainText('30/12/2026');
