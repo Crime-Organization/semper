@@ -4,7 +4,7 @@
 // e o clique fora fecham sem gravar; o mesmo jeito no início, no prazo, na data do compromisso e na assinatura do contrato. Os
 // prazos do processo continuam com o formulário deles (#395), e o calendário dos campos de data abre dentro dele.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, mudarPrazo, prazoDoCartao, seuTempo } from './ajudantes';
 
 const calendario = (page: Page) => page.getByRole('dialog', { name: 'Calendário' });
 
@@ -61,17 +61,27 @@ async function cabeNaTela(page: Page, local: Locator) {
 }
 
 const TELAS = [{ nome: 'computador', viewport: { width: 1300, height: 900 } }, { nome: 'celular', viewport: { width: 375, height: 812 } }];
+/** A faixa das datas da demanda e um dado dela. */
+const faixa = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
+const dado = (cartao: Locator, nome: string) => faixa(cartao).getByRole('group', { name: nome, exact: true });
+/**
+ * Os cartões com início e prazo: quem abre a janela (na demanda, o resumo "Datas"; na tarefa, desde a #442, o link "Mudar prazo" da
+ * folhinha), o que o cartão mostra das datas (para conferir que nada mudou) e duas coisas do cartão cuja distância não pode mudar
+ * quando a janela abre (na demanda, a criação e as datas; na tarefa, o prazo e o relógio, ao lado).
+ */
 const CARTOES = [
-  { modulo: 'tarefas', titulo: 'Emitir a GRU', prazo: 'Prazo', criacao: 'Criada em' },
-  { modulo: 'demandas', titulo: 'Notificar o devedor', prazo: 'Prazo de entrega', criacao: 'Criada em' }
+  { modulo: 'tarefas', titulo: 'Emitir a GRU', prazo: 'Prazo', abridor: mudarPrazo, lido: prazoDoCartao,
+    referencias: (cartao: Locator) => [prazoDoCartao(cartao), seuTempo(cartao)] },
+  { modulo: 'demandas', titulo: 'Notificar o devedor', prazo: 'Prazo de entrega', abridor: (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / }),
+    lido: (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / }), referencias: (cartao: Locator) => [dado(cartao, 'Criada em'), dado(cartao, 'Datas')] }
 ];
 /** A janela das datas (#422): flutua sobre o cartão, e por isso é achada na página. */
 const janelaDasDatas = (page: Page) => page.getByRole('dialog', { name: 'Mudar as datas' });
 
 for (const c of CARTOES) {
-  const faixa = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas do cartão', exact: true });
-  const dado = (cartao: Locator, nome: string) => faixa(cartao).getByRole('group', { name: nome, exact: true });
-  const datas = (cartao: Locator) => cartao.getByRole('button', { name: /^Datas: / });
+  const datas = c.abridor;
+  /** A distância entre as duas referências do cartão. */
+  const entreAsReferencias = async (cartao: Locator) => { const [a, b] = c.referencias(cartao); return distancia(await posicao(a), await posicao(b)); };
 
   for (const tela of TELAS) {
     test.describe(`Dado o cartão (${c.modulo}) no ${tela.nome} (#422)`, () => {
@@ -80,7 +90,7 @@ for (const c of CARTOES) {
       test('quando a pessoa clica em "Datas", então a janela flutua sobre o cartão, inteira na tela, sem cobrir o resumo das datas, e nada no cartão é empurrado', async ({ page }) => {
         // Dado
         const cartao = await abrirCartao(page, c.modulo, c.titulo);
-        const antes = distancia(await posicao(dado(cartao, c.criacao)), await posicao(dado(cartao, 'Datas')));
+        const antes = await entreAsReferencias(cartao);
         // Quando
         await datas(cartao).click();
         // Então: a janela, com o calendário, abre por cima, sem empurrar nada no cartão (a regra mudou na #431: para a janela não
@@ -88,7 +98,7 @@ for (const c of CARTOES) {
         const janela = janelaDasDatas(page);
         await expect(janela.getByRole('group', { name: 'Calendário' })).toBeVisible();
         await esperarParar(janela);
-        expect(distancia(await posicao(dado(cartao, c.criacao)), await posicao(dado(cartao, 'Datas')))).toEqual(antes);
+        expect(await entreAsReferencias(cartao)).toEqual(antes);
         expect(await cabeNaTela(page, janela)).toBe(true);
         expect(seCruzam((await janela.boundingBox())!, (await datas(cartao).boundingBox())!)).toBe(false);
         // E o que se muda está à vista e ao alcance: o início, a entrega, a hora, o lembrete e Salvar
@@ -168,7 +178,7 @@ for (const c of CARTOES) {
     test('dada a janela aberta, quando a pessoa aperta Esc, então só a janela fecha, sem mudar nada, o foco volta às datas, e o cartão continua aberto', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      const antes = await datas(cartao).textContent();
+      const antes = await c.lido(cartao).textContent();
       await datas(cartao).click();
       await janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' }).fill('08/08/2027');
       // Quando
@@ -176,7 +186,7 @@ for (const c of CARTOES) {
       // Então
       await expect(janelaDasDatas(page)).toHaveCount(0);
       await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
-      await expect(datas(cartao)).toHaveText(antes!);
+      await expect(c.lido(cartao)).toHaveText(antes!);
       await expect(datas(cartao)).toBeFocused();
       await expect(cartao).toBeVisible();
     });
@@ -184,7 +194,7 @@ for (const c of CARTOES) {
     test('dada a janela aberta com uma data que não existe, quando a pessoa salva, então o campo fica marcado, a mensagem aparece e nada é gravado', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      const antes = await datas(cartao).textContent();
+      const antes = await c.lido(cartao).textContent();
       await datas(cartao).click();
       const campo = janelaDasDatas(page).getByRole('textbox', { name: 'Data de início' });
       // Quando
@@ -193,13 +203,13 @@ for (const c of CARTOES) {
       // Então
       await expect(janelaDasDatas(page).getByRole('alert')).toHaveText('Data inexistente.');
       await expect(campo).toHaveAttribute('aria-invalid', 'true');
-      await expect(datas(cartao)).toHaveText(antes!);
+      await expect(c.lido(cartao)).toHaveText(antes!);
     });
 
     test('dada a janela aberta, quando a pessoa clica fora dela (no título) e depois no lápis Editar, então a janela fecha sem gravar e o lápis abre', async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, c.modulo, c.titulo);
-      const antes = await datas(cartao).textContent();
+      const antes = await c.lido(cartao).textContent();
       await datas(cartao).click();
       await janelaDasDatas(page).getByRole('textbox', { name: c.prazo, exact: true }).fill('04/04/2031');
       // Quando: a janela flutua por cima do topo do cartão; o clique fora dela a fecha, e aí o lápis fica ao alcance
@@ -210,7 +220,7 @@ for (const c of CARTOES) {
       await expect(janelaDasDatas(page)).toHaveCount(0);
       await expect(cartao.getByRole('form', { name: /^Editar / })).toBeVisible();
       await cartao.getByRole('form', { name: /^Editar / }).getByRole('button', { name: 'Cancelar' }).click();
-      await expect(datas(cartao)).toHaveText(antes!);
+      await expect(c.lido(cartao)).toHaveText(antes!);
     });
   });
 }

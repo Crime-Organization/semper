@@ -3,6 +3,7 @@
 // No banco de verdade, a rotina dos lembretes roda a cada minuto; no fictício, o teste a chama num instante escolhido
 // (SEMPER_FALSO.gerarLembretes). Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
+import { mudarPrazo, prazoDoCartao } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 
@@ -36,8 +37,9 @@ test.describe('Hora e lembrete no prazo da tarefa', () => {
     // Então: o cartão
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: TITULO })).toBeVisible();
-    await expect(cartao).toContainText('Prazo: 05/11/2026 às 14:00');
-    await expect(cartao).toContainText('Lembrete: 1 hora antes');
+    // (#442: na folhinha do cartão da tarefa, a data e, embaixo, a hora e o lembrete curtos)
+    await expect(prazoDoCartao(cartao)).toContainText('05/11/2026');
+    await expect(prazoDoCartao(cartao)).toContainText('Às 14:00 · lembrete 1 h antes');
     // Então: o quadro e a tabela
     await page.goto('/tarefas/');
     await expect(page.getByRole('list', { name: 'Para fazer' }).getByRole('listitem').filter({ hasText: TITULO })).toContainText('Prazo: 05/11/2026 às 14:00');
@@ -117,13 +119,13 @@ test.describe('Lembrete marcado pelo sino no cartão (#361)', () => {
     await page.getByRole('row').filter({ hasText: TITULO }).click();
     const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: TITULO, level: 2 }) });
     // Quando
-    await cartao.getByRole('button', { name: /^Datas: / }).click();
+    await mudarPrazo(cartao).click();
     const formulario = page.getByRole('dialog', { name: 'Mudar as datas' });
     await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('06/11/2026');
     await formulario.getByLabel('Hora do prazo').selectOption('10:00');   // desde a #431, a hora vem numa lista de horários
     await formulario.getByRole('combobox', { name: 'Lembrete' }).selectOption({ label: '30 minutos antes' });
     await formulario.getByRole('button', { name: 'Salvar' }).click();
-    await expect(cartao.getByRole('button', { name: /^Datas: / })).toContainText('Lembrete: 30 minutos antes');
+    await expect(prazoDoCartao(cartao)).toContainText('Às 10:00 · lembrete 30 min antes');
     // Quando: a rotina roda antes e na hora do lembrete (9h30)
     await rodarOsLembretes(page, '2026-11-06T09:29:00-03:00');
     await page.goto('/mensagens/');

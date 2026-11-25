@@ -2,7 +2,7 @@
 // Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mauro,
 // e não está na demanda "Busca de anterioridade".
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
+import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao, mudarPrazo, prazoDoCartao } from './ajudantes';
 
 async function ligarAChave(page: Page) {
   await page.goto('/inicio/');
@@ -173,14 +173,15 @@ test.describe('Toda a equipe vê os cartões', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
     const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Renovar a procuração', level: 2 }) });
-    // Quando: muda o prazo na janela das datas do cartão (desde a #361, ele não está mais no lápis; #422, a janela) e salva o lápis
-    await cartao.getByRole('button', { name: /^Datas: / }).click();
+    // Quando: muda o prazo na janela das datas do cartão (desde a #361, ele não está mais no lápis; #422, a janela; #442, pelo link
+    // "Mudar prazo") e salva o lápis
+    await mudarPrazo(cartao).click();
     const prazo = page.getByRole('dialog', { name: 'Mudar as datas' }).getByRole('textbox', { name: 'Prazo', exact: true });
     await prazo.fill('15112030');
     await prazo.press('Enter');
     await expect(page.getByRole('dialog', { name: 'Mudar as datas' })).toHaveCount(0);
     // Então
-    await expect(cartao).toContainText('Prazo: 15/11/2030');
+    await expect(prazoDoCartao(cartao)).toContainText('15/11/2030');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();

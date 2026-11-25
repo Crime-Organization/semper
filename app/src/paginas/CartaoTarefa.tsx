@@ -1,8 +1,9 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo (TopoDoCartao, #382, como o da
-// anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
-// ⋯ à direita; logo abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os selos das etiquetas; o
-// título; depois, os dados (CabecaDoCartao, #397): a faixa das datas (#361, #383: a criação, o início e o prazo com a hora e o
-// lembrete, que quem altera muda ali mesmo, e o tempo total da tarefa à direita) e a faixa do tempo (DadosDaTarefa) (os botões rápidos
+// anotação), o tipo e o código (o selo do prazo saiu do cartão aberto na #442: o prazo está na folhinha; no quadro e na lista, o
+// selo continua), com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o ⋯ à direita; logo
+// abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os selos das etiquetas; o título; depois, os
+// dados (CabecaDoCartao, #397): o bloco "Prazo e tempo" (#442, DadosDaTarefa): o prazo na folhinha (o início fica só na janela das
+// datas, e a criação, no rodapé) e o relógio de quem altera, com o total da equipe e os registros embaixo (os botões rápidos
 // da #351 viraram o "+" do topo, #399); depois, a descrição; e cada tópico numa seção que recolhe (demanda, pessoas,
 // contrato), com o "Expandir tudo" sozinho acima da primeira (#394); comentários, anotações e histórico na coluna da direita.
 // As demandas e os contratos ligados (vários desde a #283) aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
@@ -10,7 +11,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { useNavigate } from 'react-router';
-import { colunaComMarco } from '../regras/quadro';
 import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
 import {
   CAMPOS_TAREFA, continuaPelaDemanda, contratosQueAbre, DEMANDAS_DA_TAREFA_CHEIA, CONTRATOS_DA_TAREFA_CHEIA, demandasDaTarefa, demandasQueAbre, ligadasDaTarefa,
@@ -24,8 +24,8 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, InicioEPrazo, Nota, Selo, TextoEditavel, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
-import { CAMPOS_DO_PRAZO, datasDoPrazoComoEstao, errosDosCampos, ROTULO_DAS_DATAS } from '../regras/datasNoCartao';
+import { Aviso, Carregando, Nota, PrazoNaFolhinha, Selo, TextoEditavel, TituloEditavel, Vazio, type PedidoDeTirar } from '../ui/base';
+import { CAMPOS_DO_PRAZO, datasDoPrazoComoEstao, errosDosCampos } from '../regras/datasNoCartao';
 import { dataDaCriacao } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -40,7 +40,7 @@ import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { relativo } from '../ui/util';
 import { concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
-import { SeloDoPrazo } from './Demandas';
+
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosDoItem } from './CompromissosDoItem';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -124,8 +124,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const copiar = podeLigar && !!modulos?.demandas
     ? [{ rotulo: COPIAR_PARA_OUTRA_DEMANDA, icone: 'copiar' as const, aoClicar: () => copiarParaOutraDemanda(t, id => navegar('/tarefas/?id=' + id), aoMudar) }]
     : [];
-  // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
-  const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   // O "x" de cada pessoa, demanda e contrato (#424): tira só a ligação, com a pergunta antes e o Desfazer.
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     selo: p.arquivado_em ? 'Arquivada' : undefined, tirar: tirarPessoaDoItem('tarefas', t.id, p, t.pessoas.length, depoisDeLigar) });
@@ -215,7 +213,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         inicio={<Selo tipo="escuro">Tarefa</Selo>}
         esquerda={<>
           <span className="codigo">{t.codigo}</span>
-          <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
           {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {t.diligencia && <Selo tipo="pend" dica={t.diligencia_motivo ?? undefined}>Diligência</Selo>}
         </>}
@@ -238,14 +235,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />}
-      /* As datas lado a lado (#361, #383): a criação (fixa), o resumo do início e do prazo, que quem altera muda na janela das datas
-         (#422), como o lápis grava (com o histórico e o Desfazer), e o tempo total (#397). Logo abaixo, na faixa própria do tempo, o
-         cronômetro de quem altera, com o resumo de quem registrou tempo. */
-      dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} datas={
-        <DadoDoGrupo rotulo={ROTULO_DAS_DATAS}>
-          <InicioEPrazo nomeDoPrazo="Prazo" atalho="datas" valor={t} conferirPrazo={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
-            aoSalvar={mudaNoLugar && !editando ? g => salvarNoLugar(g, datasDoPrazoComoEstao(t)) : undefined} />
-        </DadoDoGrupo>} />} />
+      /* O prazo e o tempo (#442): o prazo na folhinha, que quem altera muda na janela das datas (#422, com o início lá dentro), como o
+         lápis grava (com o histórico e o Desfazer); ao lado, o relógio de quem altera; embaixo, o total da equipe e os registros. */
+      dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} prazo={
+        <PrazoNaFolhinha nomeDoPrazo="Prazo" atalho="datas" valor={t} concluidaEm={t.concluida_em}
+          conferirPrazo={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
+          aoSalvar={mudaNoLugar && !editando ? g => salvarNoLugar(g, datasDoPrazoComoEstao(t)) : undefined} />} />} />
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 

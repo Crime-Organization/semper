@@ -1,10 +1,11 @@
-// A faixa das datas do cartão (#361, redesenhada na #383), a mesma em todos os cartões (pessoa, contrato, demanda, tarefa,
-// processo, compromisso e anotação): cada dado com o nome em cima, pequeno, numa linha só, e o valor embaixo, sem quebrar ("Sem prazo",
+// A faixa das datas do cartão (#361, redesenhada na #383), a mesma em todos os cartões (pessoa, contrato, demanda,
+// processo, compromisso e anotação; a tarefa, desde a #442, tem o bloco "Prazo e tempo", em paginas/TempoNaTarefa.tsx): cada dado com o nome em cima, pequeno, numa linha só, e o valor embaixo, sem quebrar ("Sem prazo",
 // "20/12/2030 às 14:30"). Os nomes ficam todos na mesma linha e os valores na de baixo, alinhados. Na faixa estreita (o celular),
 // cada dado vira uma linha, com o nome à esquerda e o valor à direita, e os valores começam todos na mesma coluna. Quem decide é a
 // largura da própria faixa (container query), nunca uma conta em JavaScript.
-// O tempo (o cronômetro da tarefa, o total da demanda) fica numa faixa própria, logo abaixo da das datas (#383): um dado largo,
-// que ocupa a linha toda com o nome sempre em cima, e o resumo de quem registrou tempo numa LinhaDoGrupo, embaixo dele.
+// O tempo da demanda (a soma do tempo nas tarefas dela) fica numa faixa própria, logo abaixo da das datas (#383): um dado largo,
+// que ocupa a linha toda com o nome sempre em cima; o que vai na largura toda, embaixo dos dados, fica numa LinhaDoGrupo. A tarefa
+// deixou de usar as duas faixas na #442.
 // Desde a #422, as datas que se mudam ficam num resumo curto na faixa e abrem na janela das datas (JanelaDasDatas.tsx), que flutua
 // sobre o cartão: nada do formulário fica dentro da faixa.
 // FaixaDasDatas é a faixa das datas de um cartão (#385): a criação e as outras datas. Quando a criação seria a única, a faixa

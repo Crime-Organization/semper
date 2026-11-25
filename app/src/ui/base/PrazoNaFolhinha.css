@@ -20,6 +20,8 @@
   --vao-da-folhinha: 16px;
   --vao-do-detalhe-do-prazo: 2px;
   --vao-do-link-do-prazo: 8px;
+  /* O sublinhado dos links do bloco (Mudar prazo, Ver registros), afastado do texto */
+  --folga-do-sublinhado: 3px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) { --folhinha-cabeca: var(--line2) } }
 :root[data-tema="escuro"] { --folhinha-cabeca: var(--line2) }
@@ -40,6 +42,7 @@ button.folhinha { cursor: pointer }
 .prazo-folhinha-principal.vencido { color: var(--erro) }
 .prazo-folhinha-detalhe { margin: var(--vao-do-detalhe-do-prazo) 0 0; font-size: var(--texto-apoio); line-height: 1.4; color: var(--text2) }
 /* O link: alvo de toque de --alvo-de-toque pelo ::before, sem aumentar a linha. */
-.prazo-folhinha-mudar { position: relative; margin-top: var(--vao-do-link-do-prazo); white-space: nowrap }
+.prazo-folhinha-mudar { position: relative; margin-top: var(--vao-do-link-do-prazo); white-space: nowrap; border-bottom: 0;
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--folga-do-sublinhado) }
 .prazo-folhinha-mudar::before { content: ''; position: absolute; inset: calc((1lh - var(--alvo-de-toque)) / 2) calc(-1 * var(--vao-do-link-do-prazo)) }
-.prazo-folhinha-mudar[aria-expanded="true"] { border-bottom-width: 2px }
+.prazo-folhinha-mudar:hover, .prazo-folhinha-mudar[aria-expanded="true"] { text-decoration-thickness: 2px }

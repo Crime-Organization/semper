@@ -38,7 +38,7 @@ const ICONES = {
   oculto: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6A17 17 0 002 12s3.5 7 10 7a9.7 9.7 0 005.4-1.6"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/>',
   relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   // O relógio da tarefa (#442): Iniciar e Continuar (o triângulo), Parar (o quadrado) e o relógio parado (as duas barras).
-  iniciar: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  iniciar: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
   parar: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
   pausa: '<path d="M9 6v12M15 6v12"/>',
   seta: '<path d="M5 12h14M13 6l6 6-6 6"/>',
