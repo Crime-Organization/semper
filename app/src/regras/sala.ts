@@ -9,7 +9,8 @@ import { normal } from './texto';
 export const MINUTOS_SEM_FIM = 60;
 /** Os minutos de um dia: o compromisso sem hora (o dia inteiro) ocupa a sala do começo ao fim do dia. */
 export const MINUTOS_NO_DIA = 24 * 60;
-const MINUTOS_NA_HORA = 60;
+/** Os minutos de uma hora (as contas de hora do relógio, aqui e na visão das salas, regras/salasDoDia.ts). */
+export const MINUTOS_NA_HORA = 60;
 
 // ---------- o conflito de horário ----------
 /** "14:30" ou "14:30:00" em minutos do dia. */

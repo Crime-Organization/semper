@@ -21,7 +21,7 @@ import {
 } from '../regras/repeticao';
 import { perguntarNosCampos } from './agenda/soEstaOuSeguintes';
 import {
-  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
+  CADASTRO_DE_COMPROMISSO as CADASTRO, camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
@@ -61,8 +61,6 @@ type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 const ENDERECO = '/agenda/';
-/** O endereço deste cadastro (o do "+" do menu lateral). */
-const CADASTRO = '/agenda/novo/';
 /** Como o processo aparece na busca e no campo: número, nome e clientes. */
 const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'cliente_nome'>) =>
   [p.numero, p.titulo, p.cliente_nome && clientesPorExtenso(p.cliente_nome)].filter(Boolean).join(' · ');

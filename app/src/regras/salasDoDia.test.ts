@@ -5,11 +5,13 @@ import {
   enderecoParaMarcar, faixasDaSala, fimAntesDoProximo, GRADE_DAS_SALAS, horarioDaFaixa, horarioDoEndereco, horariosDaGrade, marcarNoHorario, OCUPADO,
   notaDosFiltrosNasSalas, ocupacoesPorSala, rotuloDaOcupacao, SALA_DO_FILTRO_DESATIVADA, salaDoEndereco, salasDaVisao, SEM_SALAS_ATIVAS, semSalasNaVisao
 } from './salasDoDia';
+import { CADASTRO_DE_COMPROMISSO } from './compromisso';
+import { MINUTOS_NA_HORA } from './sala';
 
 const ocupacao = (id: string, hora: string | null, hora_fim: string | null = null, campos: Partial<OcupacaoDaSala> = {}): OcupacaoDaSala =>
   ({ id, codigo: 'K' + id, tipo: 'reuniao', hora, hora_fim, titulo: 'Reunião ' + id, ...campos });
 const sala = (id: string, nome: string, campos: Partial<Sala> = {}): Sala => ({ id, nome, capacidade: 6, ativa: true, criado_em: '2026-11-22T10:00:00Z', ...campos });
-const em = (hora: string) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
+const em = (hora: string) => { const [h, m] = hora.split(':').map(Number); return h * MINUTOS_NA_HORA + m; };
 
 describe('A grade da visão das salas', () => {
   it('dado um dia sem compromissos, quando se monta a grade, então vai das 7h às 21h, de meia em meia hora', () => {
@@ -145,6 +147,15 @@ describe('Marcar num horário livre', () => {
     // Então
     expect(endereco).toBe('/agenda/novo/?sala=s1&data=2026-11-04&hora=14%3A00');
     expect(marcarNoHorario('Sala Verde', em('14:00'))).toBe('Marcar em Sala Verde às 14:00');
+  });
+
+  it('dado o endereço do cadastro de compromisso num lugar só, quando a visão monta o do horário livre, então é esse mesmo cadastro', () => {
+    // Dado / Quando
+    const endereco = enderecoParaMarcar('s1', '2026-11-04', em('08:00'), []);
+    // Então
+    expect(CADASTRO_DE_COMPROMISSO).toBe('/agenda/novo/');
+    expect(endereco.startsWith(CADASTRO_DE_COMPROMISSO + '?')).toBe(true);
+    expect(GRADE_DAS_SALAS.inicio).toBe(7 * MINUTOS_NA_HORA);
   });
 
   it('dado um horário livre às 13h30 e a sala ocupada às 14h, quando se monta o endereço, então o compromisso termina às 14h', () => {

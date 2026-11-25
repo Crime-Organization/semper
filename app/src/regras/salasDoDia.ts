@@ -3,9 +3,9 @@
 // hora, o dia inteiro. Quem não participa do compromisso vê só que a sala está ocupada, sem o título (o banco já manda sem ele).
 // Tudo puro, sem tela nem banco: a tela (paginas/agenda/VisaoDasSalas.tsx) só desenha o que sai daqui.
 import type { FiltroCompromissos, OcupacaoDaSala, OcupacaoNaSala, Sala } from '../dados/tipos';
-import { comoHora, minutosNaSala, MINUTOS_NO_DIA, MINUTOS_SEM_FIM } from './sala';
+import { CADASTRO_DE_COMPROMISSO } from './compromisso';
+import { comoHora, minutosNaSala, MINUTOS_NA_HORA, MINUTOS_NO_DIA, MINUTOS_SEM_FIM } from './sala';
 
-const MINUTOS_NA_HORA = 60;
 /**
  * A grade da visão, em minutos do dia: das 7h às 21h, em horários de meia em meia hora. Um compromisso que começa antes ou termina
  * depois estica a grade até ele (o dia inteiro não estica: ocupa a grade toda).
@@ -94,7 +94,6 @@ export const rotuloDaOcupacao = (o: Pick<OcupacaoDaSala, 'titulo'>) => o.titulo?
 // ---------- marcar num horário livre ----------
 /** Os parâmetros do endereço do cadastro de compromisso aberto num horário livre: a sala, a data (aaaa-mm-dd) e as horas (hh:mm). */
 export const PARAMETROS_DO_HORARIO = { sala: 'sala', data: 'data', hora: 'hora', ate: 'ate' } as const;
-const CADASTRO = '/agenda/novo/';
 
 /**
  * Até quando o compromisso marcado no horário livre pode ir sem bater no próximo: se o próximo compromisso da sala começa antes de
@@ -110,7 +109,7 @@ export function enderecoParaMarcar(salaId: string, data: string, inicio: number,
   const p = new URLSearchParams({ [PARAMETROS_DO_HORARIO.sala]: salaId, [PARAMETROS_DO_HORARIO.data]: data, [PARAMETROS_DO_HORARIO.hora]: comoHora(inicio) });
   const fim = fimAntesDoProximo(inicio, ocupacoes);
   if (fim !== null) p.set(PARAMETROS_DO_HORARIO.ate, comoHora(fim));
-  return `${CADASTRO}?${p}`;
+  return `${CADASTRO_DE_COMPROMISSO}?${p}`;
 }
 
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
