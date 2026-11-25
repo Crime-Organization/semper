@@ -580,18 +580,20 @@ export const ASSUNTOS: Assunto[] = [
     id: 'google',
     titulo: 'Conta Google, contatos e agendas',
     resumo: 'A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",\n'
-      + 'e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, e os compartilhamentos). Veja docs/plataforma/agendas-google.md.',
+      + 'e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, os compartilhamentos e os eventos: compromissos, prazos, dias sem expediente e parcelas). Veja docs/plataforma/agendas-google.md.',
     arquivos: ['LigacaoGoogle', 'SincronizacaoDosContatos', 'ContatosParaConferir', 'contatosGoogle', 'correspondenciaDeContatos', 'ligacaoGoogle',
       'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira',
-      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'agendas_google', 'agendas-google'],
+      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'eventosGoogle', 'agendas_google', 'agendas_google_eventos', 'agendas-google'],
     tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos',
-      'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google'],
+      'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google', 'agenda_google_eventos'],
     dados: ['DadosLigacoes'],
     armadilhas: [
       'As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.',
       'O que criar, compartilhar ou retirar nas agendas é decidido pelo plano puro de `supabase/functions/_compartilhado/agendasGoogle.ts` (testado em `app/src/regras/agendasGoogle.test.ts`), que o `falso.ts` também usa; os pedidos ao Google ficam só no adaptador `apiDaAgenda.ts`.',
       'As permissões da agenda estão em `ESCOPOS_DA_AGENDA` (`_compartilhado/ligacao.ts`) e em `privado.agenda_autorizada` no banco: mude os dois juntos. Somar a agenda é um pedido de ligação com a finalidade \'agendas\', que só vale para a conta já ligada.',
-      'O e-mail do Google (`emails_do_google`) é editado em Equipe e em Minha conta com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).'
+      'O e-mail do Google (`emails_do_google`) é editado em Equipe e em Minha conta com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).',
+      'O que vai para qual agenda, e como fica cada evento, é decidido pelas funções puras de `supabase/functions/_compartilhado/eventosGoogle.ts` (testadas em `app/src/regras/eventosGoogle.test.ts`); o banco só entrega o item (`privado.agenda_do_compromisso` e afins, na migração `agendas_google_eventos`). Campo novo de compromisso, tarefa, demanda, dia sem expediente ou parcela que deve ir ao Google: ponha no item dessas funções e na lista do gatilho `agendas_google_mudou` da tabela (só os campos da lista põem o item na fila).',
+      'O banco fictício (`falso.ts`) simula as agendas e os compartilhamentos, mas não os eventos: as cópias dos itens só existem no servidor, e o "Sincronizar agora" do fictício conta zero eventos.'
     ]
   },
   {

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ResultadoDasAgendas } from '../dados/tipos';
 import { lerResultadoDasAgendas, PROBLEMAS_DAS_AGENDAS, RESULTADO_DAS_AGENDAS, resumoDasAgendas, situacaoDasAgendas } from './sincronizacaoDasAgendas';
 
-const NADA = { criar: 0, renomear: 0, compartilhar: 0, retirar: 0 };
+const NADA = { criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0 };
 const resultado = (campos: Partial<ResultadoDasAgendas> = {}): ResultadoDasAgendas => ({ resultado: 'ok', feitas: NADA, falhas: 0, restam: false, ...campos });
 
 describe('Textos das agendas no Google', () => {
@@ -20,9 +20,16 @@ describe('Textos das agendas no Google', () => {
 
   it('quando o que foi feito é resumido, então só aparece o que aconteceu', () => {
     // Quando / Então
-    expect(resumoDasAgendas({ criar: 2, renomear: 0, compartilhar: 5, retirar: 1 })).toBe('2 agendas criadas, 5 compartilhamentos feitos, 1 compartilhamento retirado');
+    expect(resumoDasAgendas({ ...NADA, criar: 2, compartilhar: 5, retirar: 1 })).toBe('2 agendas criadas, 5 compartilhamentos feitos, 1 compartilhamento retirado');
     expect(resumoDasAgendas({ ...NADA, renomear: 1 })).toBe('1 agenda com o nome atualizado');
     expect(resumoDasAgendas(NADA)).toBe('');
+  });
+
+  it('dados eventos levados e tirados das agendas, quando o que foi feito é resumido, então eles aparecem depois das agendas', () => {
+    // Quando / Então
+    expect(resumoDasAgendas({ ...NADA, compartilhar: 1, gravar_evento: 12, apagar_evento: 1 }))
+      .toBe('1 compartilhamento feito, 12 eventos levados às agendas, 1 evento tirado da agenda');
+    expect(resumoDasAgendas({ ...NADA, gravar_evento: 1 })).toBe('1 evento levado à agenda');
   });
 
   it.each([
@@ -44,7 +51,8 @@ describe('Textos das agendas no Google', () => {
   it('dada a resposta da função do servidor, quando é lida, então o que não vier certo conta como zero ou como erro', () => {
     // Quando / Então
     expect(lerResultadoDasAgendas({ resultado: 'ok', feitas: { criar: 2, compartilhar: '3' }, falhas: 1, restam: true }))
-      .toEqual({ resultado: 'ok', feitas: { criar: 2, renomear: 0, compartilhar: 0, retirar: 0 }, falhas: 1, restam: true });
+      .toEqual({ resultado: 'ok', feitas: { ...NADA, criar: 2 }, falhas: 1, restam: true });
+    expect(lerResultadoDasAgendas({ resultado: 'ok', feitas: { gravar_evento: 3, apagar_evento: 1 } }).feitas).toEqual({ ...NADA, gravar_evento: 3, apagar_evento: 1 });
     expect(lerResultadoDasAgendas(null)).toEqual({ resultado: 'erro', feitas: NADA, falhas: 0, restam: false });
     expect(lerResultadoDasAgendas({ resultado: 'desligada' }).resultado).toBe('desligada');
   });

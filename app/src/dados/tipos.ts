@@ -1394,7 +1394,8 @@ export interface AgendasGoogle {
 /** O que o "Sincronizar agora" das agendas fez no Google (supabase/functions/_compartilhado/agendasGoogle.ts). */
 export interface ResultadoDasAgendas {
   resultado: 'ok' | 'desligada' | 'erro';
-  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number };
+  /** As ações nas agendas e, nos eventos (#166, parte 2), as cópias gravadas (novas ou mudadas) e as tiradas. */
+  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number; gravar_evento: number; apagar_evento: number };
   falhas: number;
   /** Faltou tempo: o resto vai sozinho na próxima vez. */
   restam: boolean;

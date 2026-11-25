@@ -8,7 +8,9 @@ export const FALTA_AUTORIZAR_A_AGENDA = 'Falta autorizar a agenda: o Google aind
 /** O que cada agenda é, para quem liga. */
 export const AGENDAS_QUE_O_SEMPER_CRIA = 'O SEMPER cria nesta conta uma agenda para cada pessoa ativa da equipe ("Agenda – nome"), a Geral, uma para cada sala ativa e a Administrativo, '
   + 'e as compartilha só para ver: cada pessoa recebe pelo e-mail do Google dela a própria agenda, a Geral e as das salas; os administradores, também a Administrativo. '
-  + 'Quem é desativado perde o acesso (a agenda fica com o escritório). Os compromissos, prazos e tarefas entram nas agendas numa próxima etapa.';
+  + 'Quem é desativado perde o acesso (a agenda fica com o escritório). Nelas vão os compromissos (do responsável e dos participantes; na Geral, os da Agenda geral; '
+  + 'na da sala, os que têm sala), os prazos das tarefas e das demandas, os feriados e as suspensões do escritório (na Geral) e as parcelas a receber '
+  + '(na agenda do responsável pelo contrato). Ao ligar, vai o que está em aberto de hoje em diante. Tudo se muda no SEMPER: no Google, é só para ver.';
 
 /** O problema, para o administrador: o que houve e o que fazer. */
 export const PROBLEMAS_DAS_AGENDAS: Record<ProblemaDasAgendas, { titulo: string; oQueFazer: string }> = {
@@ -41,7 +43,9 @@ const FEITO: Record<keyof ResultadoDasAgendas['feitas'], (n: number) => string> 
   criar: n => plural(n, 'agenda criada', 'agendas criadas'),
   renomear: n => plural(n, 'agenda com o nome atualizado', 'agendas com o nome atualizado'),
   compartilhar: n => plural(n, 'compartilhamento feito', 'compartilhamentos feitos'),
-  retirar: n => plural(n, 'compartilhamento retirado', 'compartilhamentos retirados')
+  retirar: n => plural(n, 'compartilhamento retirado', 'compartilhamentos retirados'),
+  gravar_evento: n => plural(n, 'evento levado à agenda', 'eventos levados às agendas'),
+  apagar_evento: n => plural(n, 'evento tirado da agenda', 'eventos tirados das agendas')
 };
 
 /** O resumo do que foi feito, só com o que aconteceu ("2 agendas criadas, 5 compartilhamentos feitos"). */
@@ -77,7 +81,9 @@ export function lerResultadoDasAgendas(corpo: unknown): ResultadoDasAgendas {
   const resultado = c.resultado === 'ok' || c.resultado === 'desligada' ? c.resultado : 'erro';
   const f = (c.feitas ?? {}) as Partial<Record<keyof ResultadoDasAgendas['feitas'], unknown>>;
   return {
-    resultado, feitas: { criar: contar(f.criar), renomear: contar(f.renomear), compartilhar: contar(f.compartilhar), retirar: contar(f.retirar) },
+    resultado,
+    feitas: { criar: contar(f.criar), renomear: contar(f.renomear), compartilhar: contar(f.compartilhar), retirar: contar(f.retirar),
+      gravar_evento: contar(f.gravar_evento), apagar_evento: contar(f.apagar_evento) },
     falhas: contar(c.falhas), restam: c.restam === true
   };
 }

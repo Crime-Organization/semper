@@ -1,5 +1,6 @@
-// As agendas do escritório no Google Agenda (#166, parte 1: as agendas e os compartilhamentos), usadas pela função do
-// servidor google-agendas. A conta Google do escritório é a dona de todas as agendas; o SEMPER cria "Agenda – <nome>" para
+// As agendas do escritório no Google Agenda (#166: as agendas, os compartilhamentos e a execução da fila, que também leva
+// os eventos de cada item; o que vai para qual agenda fica em eventosGoogle.ts), usadas pela função do servidor
+// google-agendas. A conta Google do escritório é a dona de todas as agendas; o SEMPER cria "Agenda – <nome>" para
 // cada pessoa ativa da equipe, a "Geral", uma por sala ativa e a "Administrativo", e as compartilha só para ver, por e-mail:
 // cada pessoa vê a própria, a Geral e as das salas; os administradores, também a Administrativo. Quem sai da equipe (ou da
 // administração) perde o compartilhamento; a agenda fica com o escritório, e reativar devolve.
@@ -8,6 +9,7 @@
 // Só no sentido SEMPER → Google: o que alguém mudar no Google (o nome da agenda, por exemplo) é desfeito na próxima vez.
 import { apiDaAgenda, FalhaDaAgenda, TAMANHO_DO_DETALHE, type ApiDaAgenda, type TipoDoErroDaAgenda } from './apiDaAgenda.ts';
 import { esperaDaTentativa, FalhaDoGoogle, tokenDeAcesso, type PassosDaSincronizacao, type TipoDaFalha } from './contatosGoogle.ts';
+import { copiasDoItem, corpoParaMudar, planejarEventos, type AcaoNoEvento, type AssuntoDoEvento, type CopiaDesejada, type ItemDaFila } from './eventosGoogle.ts';
 
 /** Os tipos de agenda do escritório (o mesmo check de agendas_google.tipo no banco). */
 export type TipoDeAgenda = 'pessoa' | 'geral' | 'sala' | 'administrativo';
@@ -122,9 +124,10 @@ export function planejarAgendas(e: EstadoDasAgendas): AcaoNasAgendas[] {
 
 /**
  * O que a fila pede (o mesmo check de agendas_google_fila.assunto no banco). 'agendas': arrumar as agendas e os
- * compartilhamentos do escritório inteiro. A parte 2 da #166 soma os eventos (compromisso, tarefa…), um por item.
+ * compartilhamentos do escritório inteiro. Os outros (#166, parte 2): as cópias de um item (compromisso, tarefa, demanda,
+ * dia sem expediente ou parcela) nas agendas, com o item_id dele.
  */
-export type AssuntoDaFila = 'agendas';
+export type AssuntoDaFila = 'agendas' | AssuntoDoEvento;
 /** Um pedido da fila, como o banco entrega (public.agendas_google_pendentes), já reservado para esta execução. */
 export interface PedidoDaFila { id: string; escritorio_id: string; assunto: AssuntoDaFila; item_id: string | null; versao: number; tentativas: number; conta_email: string }
 
@@ -143,14 +146,26 @@ export interface PassosDasAgendas extends Pick<PassosDaSincronizacao, 'tokenDeRe
   /** Terminou (restam: faltou tempo nesta execução e o pedido volta para a próxima, sem contar como falha). */
   concluir(p: PedidoDaFila, restam: boolean): Promise<void>;
   falhou(p: PedidoDaFila, falha: TipoDaFalha, detalhe: string, esperaEmSegundos: number): Promise<void>;
+  /** O item do pedido (null se foi excluído), as agendas da conta ligada e as cópias dele já gravadas no Google. */
+  item(p: PedidoDaFila): Promise<ItemDaFila>;
+  /** Guarda a cópia gravada no Google (nova ou mudada), com a assinatura do conteúdo. */
+  eventoGravado(p: PedidoDaFila, agendaId: string, eventoId: string, assinatura: string): Promise<void>;
+  /** A cópia saiu do Google: esquece-a. */
+  eventoApagado(agendaId: string, eventoId: string): Promise<void>;
 }
 
-/** Quantos pedidos uma execução pega, e quantas ações no Google ela faz no máximo (umas 40 levam bem menos de um minuto). */
-export const PEDIDOS_POR_EXECUCAO = 10;
+/**
+ * Quantos pedidos uma execução pega, e quantas ações no Google ela faz no máximo (umas 40 levam bem menos de um minuto).
+ * Os pedidos são muitos ao ligar as agendas (um por item em aberto), e a maioria não pede nada ao Google (a cópia já está
+ * em dia): por isso cabem mais pedidos que ações.
+ */
+export const PEDIDOS_POR_EXECUCAO = 40;
 export const ACOES_POR_EXECUCAO = 40;
 
-export type Contagem = Record<TipoDaAcao, number>;
-export const CONTAGEM_ZERADA: Contagem = { retirar: 0, criar: 0, renomear: 0, compartilhar: 0 };
+/** O que cada execução conta: as ações nas agendas e, nos eventos, as cópias gravadas (novas ou mudadas) e as apagadas. */
+export type TipoDaAcaoNoEvento = 'gravar_evento' | 'apagar_evento';
+export type Contagem = Record<TipoDaAcao | TipoDaAcaoNoEvento, number>;
+export const CONTAGEM_ZERADA: Contagem = { retirar: 0, criar: 0, renomear: 0, compartilhar: 0, gravar_evento: 0, apagar_evento: 0 };
 export interface ResultadoDasAgendas { feitas: Contagem; falhas: number; restam: boolean }
 
 interface Execucao { passos: PassosDasAgendas; api: ApiDaAgenda; pedido: PedidoDaFila; feitas: Contagem; orcamento: { restante: number } }
@@ -205,8 +220,68 @@ async function arrumarAgendas(x: Execucao) {
   }
 }
 
-/** O que fazer com cada assunto da fila (a parte 2 da #166 soma os eventos aqui). Devolve se restou o que fazer. */
-const PROCESSAR: Record<AssuntoDaFila, (x: Execucao) => Promise<boolean>> = { agendas: arrumarAgendas };
+// ---------------------------------------------------------------------
+// Os eventos de um item (#166, parte 2)
+// ---------------------------------------------------------------------
+
+/**
+ * Grava a cópia no Google: a nova é criada com o id do SEMPER; se o id já existe (uma tentativa anterior que chegou lá, ou
+ * a cópia apagada antes, que o Google guarda como cancelada), ela é mudada. A que já existia é mudada; se sumiu do Google,
+ * é criada de novo. Devolve false se a própria agenda sumiu do Google (o SEMPER a esquece e a cria de novo).
+ */
+async function gravarCopia(x: Execucao, { agenda, evento }: CopiaDesejada, existe: boolean) {
+  const criar = async () => {
+    try { await x.api.criarEvento(agenda.google_id, evento); } catch (err) {
+      if (!(err instanceof FalhaDaAgenda && err.tipo === 'repetido')) throw err;
+      await x.api.mudarEvento(agenda.google_id, evento.id, corpoParaMudar(evento));
+    }
+  };
+  try {
+    if (!existe) await criar();
+    else {
+      try { await x.api.mudarEvento(agenda.google_id, evento.id, corpoParaMudar(evento)); } catch (err) { if (!sumiu(err)) throw err; await criar(); }
+    }
+  } catch (err) {
+    if (!sumiu(err)) throw err;
+    await x.passos.agendaSumiu(agenda.id);
+    return false;
+  }
+  return true;
+}
+
+const FAZER_NO_EVENTO: { [K in AcaoNoEvento['acao']]: (x: Execucao, a: Extract<AcaoNoEvento, { acao: K }>) => Promise<TipoDaAcaoNoEvento | null> } = {
+  async apagar(x, { guardado: g }) {
+    await x.api.apagarEvento(g.agenda_google_id, g.evento_id);
+    await x.passos.eventoApagado(g.agenda_id, g.evento_id);
+    return 'apagar_evento';
+  },
+  async gravar(x, { copia, existe }) {
+    if (!await gravarCopia(x, copia, existe)) return null;
+    await x.passos.eventoGravado(x.pedido, copia.agenda.id, copia.evento.id, copia.assinatura);
+    return 'gravar_evento';
+  }
+};
+
+/**
+ * Leva um item às agendas: monta as cópias que devem existir, compara com as gravadas e faz o que falta, uma ação de cada
+ * vez, dentro do orçamento. Devolve se restou o que fazer (o pedido volta e o plano é refeito com o que já foi gravado).
+ */
+async function levarItem(x: Execucao) {
+  const assunto = x.pedido.assunto as AssuntoDoEvento;
+  const { item, agendas, eventos } = await x.passos.item(x.pedido);
+  for (const acao of planejarEventos(copiasDoItem(assunto, item, agendas, x.pedido.escritorio_id), eventos)) {
+    if (x.orcamento.restante <= 0) return true;
+    x.orcamento.restante--;
+    const feito = await (FAZER_NO_EVENTO[acao.acao] as (x: Execucao, a: AcaoNoEvento) => Promise<TipoDaAcaoNoEvento | null>)(x, acao);
+    if (feito) x.feitas[feito]++;
+  }
+  return false;
+}
+
+/** O que fazer com cada assunto da fila. Devolve se restou o que fazer. */
+const PROCESSAR: Record<AssuntoDaFila, (x: Execucao) => Promise<boolean>> = {
+  agendas: arrumarAgendas, compromisso: levarItem, tarefa: levarItem, demanda: levarItem, dia: levarItem, parcela: levarItem
+};
 
 /** Como cada erro do Google fica na fila ('sumiu' e 'repetido' que sobram das recuperações contam como recusa). */
 const FALHA_DA_FILA: Record<TipoDoErroDaAgenda, TipoDaFalha> = {

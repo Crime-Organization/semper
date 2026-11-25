@@ -7078,7 +7078,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const s = await SD.agendasGoogle();
         expect(s).toMatchObject({ pendentes: 0, agendas: r.feitas.criar, compartilhamentos: r.feitas.compartilhar });
         expect(s?.sincronizado_em).toBeTruthy();
-        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0 });
+        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0 });
       });
 
       it('dadas as agendas criadas, quando alguém da equipe é desativado e reativado, então o escritório volta à fila e o compartilhamento sai e volta', async () => {

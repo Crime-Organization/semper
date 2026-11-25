@@ -1,8 +1,9 @@
 # Agendas no Google
 
 Como o SEMPER cria e mantém as agendas do escritório no Google Agenda (tarefa #166), o que configurar na produção e como
-testar com a conta de verdade. Esta é a **parte 1**: as agendas e os compartilhamentos. Os eventos (compromissos, prazos
-de tarefas e demandas, feriados, parcelas e despesas) são a parte 2; a fila e o adaptador já estão prontos para eles.
+testar com a conta de verdade. A **parte 1** são as agendas e os compartilhamentos; a **parte 2**, os eventos
+(compromissos, prazos de tarefas e demandas, dias sem expediente e parcelas a receber; veja [Os eventos](#os-eventos)).
+As despesas a pagar (#439) entram depois, na Administrativo.
 
 A estrutura é a mesma dos contatos (veja [contatos-google.md](contatos-google.md)): a ligação em `privado.ligacoes`, com o
 token no cofre (Vault), uma fila no banco processada pela rotina do `pg_cron` e por uma função do servidor, novas
@@ -55,20 +56,76 @@ tentativas com espera e o aviso ao administrador a partir da 3ª falha.
    **Autorizar a agenda** volta a aparecer) ou o administrador pedir **Sincronizar agora**. Agenda apagada no Google
    (só a conta do escritório consegue apagar) é esquecida e criada de novo.
 
-O que **não** acontece (ainda): eventos nas agendas (parte 2); conferir no Google se alguém mexeu à mão nos
-compartilhamentos (o SEMPER guarda o que ele mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é
-desfeito); apagar agendas no Google.
+O que **não** acontece (ainda): conferir no Google se alguém mexeu à mão nos compartilhamentos (o SEMPER guarda o que ele
+mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é desfeito); apagar agendas no Google.
 
-### Onde está cada parte
+## Os eventos
+
+Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
+
+| Item do SEMPER | Em quais agendas | Quando | Sai do Google quando |
+|---|---|---|---|
+| Compromisso | do responsável e de cada participante; também na Geral, se "Agenda geral" está marcada; na da sala, se tem sala | a data e a hora (sem hora de fim: 1 hora, como a sala conta); sem hora, o dia inteiro | é arquivado, vai para a coluna "Cancelado" ou é excluído |
+| Tarefa com prazo | do responsável e de cada participante | a data de entrega, com a hora do prazo (o evento tem 30 minutos); sem hora, o dia inteiro. O início não estica o evento | é concluída, arquivada, excluída ou perde o prazo |
+| Demanda com prazo | do responsável e de cada colaborador | como a tarefa | é concluída, arquivada, excluída ou perde o prazo |
+| Dia sem expediente ou suspensão (Calendário, "Feriados e prazos" do escritório) | Geral | o dia inteiro | é apagado |
+| Parcela a receber | do advogado responsável pelo contrato (não a Administrativo) | o dia inteiro do vencimento | é recebida ou excluída |
+
+- **Cada data de um compromisso que se repete é um compromisso**: vai como um evento próprio (não como evento repetido do
+  Google).
+- **Concluída, recebida, arquivada: sai.** Foi o mais simples (o dono deixou escolher): o evento é apagado das agendas,
+  em vez de ficar marcado. Se o item voltar (reaberto, estorno do recebimento), o evento entra de novo.
+- **Quem sai do item** (um participante tirado, o responsável trocado) perde a cópia na agenda dele; quem entra ganha.
+- **O evento** leva o título, o horário, o local (ou a sala), os nomes dos clientes, o número do processo e, na descrição,
+  o link direto para o item no SEMPER (o mesmo endereço dos e-mails de prazo, `SITE` em `_compartilhado/emailsDePrazo.ts`):
+  o compromisso, a tarefa e a demanda abrem no cartão; a parcela, no cartão do contrato; o dia, no Calendário. A parcela
+  mostra o número, o contrato e o valor; o dia, o tipo e o órgão.
+- **Id estável.** O id de cada evento é escolhido pelo SEMPER (uma letra do assunto e o id do item, só com o que o Google
+  aceita: `a`–`v` e `0`–`9`) e é o mesmo em todas as agendas. Uma nova tentativa nunca duplica: se o Google diz que o id
+  já existe (a tentativa anterior chegou lá, ou o evento foi apagado antes e o Google o guarda como cancelado), o SEMPER
+  muda o evento no lugar, com `status: confirmed`.
+- **A marca de origem** fica em `extendedProperties.private` (`semper_item`: "assunto:id do item"; `semper_escritorio`).
+- **Fuso** `America/Sao_Paulo` nos eventos com hora; os do dia inteiro têm o fim no dia seguinte (o Google conta o fim
+  como exclusivo).
+- **Só o que muda vai.** Gatilhos do banco põem o item na fila (`agendas_google_fila`, com o assunto e o item) só quando
+  muda um campo que vai ao Google (título, datas, horas, local, equipe, clientes, sala, coluna, arquivo, recebimento…),
+  não a cada mudança qualquer (observações, início da tarefa…). Também entram: o contrato que muda de responsável, de
+  código ou de clientes (as parcelas dele), a sala renomeada (os compromissos nela), o número do processo mudado (as
+  tarefas dele) e a sigla do órgão (os dias dele). O item que muda várias vezes antes de a fila rodar é um pedido só e
+  vai com o estado final.
+- **A cópia em dia não vai de novo.** Cada cópia gravada fica em `agenda_google_eventos`, com uma assinatura do conteúdo;
+  se nada mudou, nada vai ao Google. Por isso, o que alguém mudar à mão no Google (só a conta do escritório consegue) é
+  desfeito na próxima vez que o item mudar no SEMPER. Um evento apagado à mão no Google é criado de novo nessa hora.
+- **Ligar as agendas** (e cada agenda nova, como a de quem entra na equipe ou a de uma sala nova) põe na fila os itens em
+  aberto **de hoje em diante**, no relógio de Brasília: compromissos não arquivados nem cancelados de hoje para a frente;
+  tarefas e demandas não concluídas nem arquivadas com prazo de hoje para a frente; dias sem expediente de hoje para a
+  frente; parcelas não recebidas nem excluídas que vencem de hoje para a frente. **O passado não vai** (nem as parcelas
+  vencidas e não recebidas, nem os prazos atrasados). Um item do passado que mude depois vai, como qualquer mudança.
+  Enquanto as agendas estão desligadas, nada entra na fila; ao ligar de novo, vale o mesmo recorte.
+- **Execução.** A mesma função `google-agendas`, a mesma rotina e o mesmo "Sincronizar agora": cada execução pega até 40
+  pedidos (`PEDIDOS_POR_EXECUCAO`) e faz até 40 ações no Google (`ACOES_POR_EXECUCAO`); a cópia em dia não gasta ação.
+  Para cada item: primeiro tira as cópias que não devem mais existir, depois grava as novas e as mudadas. A falha fica na
+  fila com as mesmas esperas das agendas. Agenda apagada no Google: o SEMPER a esquece, o escritório volta à fila das
+  agendas, ela é criada de novo e recebe os itens dela.
+- **Ainda não:** os feriados nacionais e o recesso forense prontos (os de `regras/prazos.ts`, que o Calendário mostra
+  sem estarem no banco) não vão à Geral: só os dias que o escritório lançou. Quem entra num item só por um **grupo da
+  equipe** não ganha cópia: vão o responsável e os participantes escolhidos um a um. As despesas a pagar (#439) vão
+  depois, na Administrativo.
+- **No banco fictício** (`npm run teste`) só as agendas e os compartilhamentos são simulados; os eventos não (o
+  "Sincronizar agora" de lá conta zero eventos).
+
+## Onde está cada parte
 
 | O quê | Onde |
 |---|---|
-| Plano puro (o que criar, compartilhar, renomear, retirar) e a execução | `supabase/functions/_compartilhado/agendasGoogle.ts` |
+| Plano puro (o que criar, compartilhar, renomear, retirar) e a execução da fila | `supabase/functions/_compartilhado/agendasGoogle.ts` |
+| O que vai para qual agenda, como fica cada evento e o plano dos eventos (puros) | `supabase/functions/_compartilhado/eventosGoogle.ts` |
 | Adaptador fino da API do Google Agenda (agendas, compartilhamentos e, para a parte 2, eventos) | `supabase/functions/_compartilhado/apiDaAgenda.ts` |
 | As permissões e a finalidade do pedido de ligação | `supabase/functions/_compartilhado/ligacao.ts` |
 | A função do servidor | `supabase/functions/google-agendas/index.ts` (e `google-conectar`, `google-concluir`, alteradas) |
 | Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125102621_agendas_google.sql` |
-| Testes | `app/src/regras/agendasGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `app/e2e/agendas-google.spec.ts` |
+| Banco: as cópias gravadas, os gatilhos dos itens, o item como o servidor o lê | `supabase/migrations/20261125110831_agendas_google_eventos.sql` |
+| Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `app/e2e/agendas-google.spec.ts` |
 | Tela | `app/src/paginas/AgendasNoGoogle.tsx` (Configurações) e `EmailDoGoogle.tsx` (Equipe e Minha conta) |
 
 ## O que configurar na produção
@@ -88,8 +145,10 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
-4. **Banco.** Aplicar a migração `20261125102621_agendas_google.sql` pelo roteiro `/aplicar-banco` do Claude Code. Ela só
-   acrescenta: a versão anterior do site continua funcionando (as funções antigas da ligação ficam como eram).
+4. **Banco.** Aplicar as migrações `20261125102621_agendas_google.sql` e `20261125110831_agendas_google_eventos.sql`, nesta
+   ordem, pelo roteiro `/aplicar-banco` do Claude Code. Elas só acrescentam: a versão anterior do site continua
+   funcionando (as funções antigas da ligação ficam como eram; a segunda alarga a regra do assunto da fila e refaz três
+   funções da primeira com a mesma assinatura).
 5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas
    (`verify_jwt = false`, já em `supabase/config.toml`):
 
@@ -102,7 +161,8 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    ```
 
    O `deploy` leva junto os arquivos de `supabase/functions/_compartilhado/` que elas usam (`agendasGoogle.ts`,
-   `apiDaAgenda.ts`, `ligacao.ts`, `contatosGoogle.ts`...). Se publicar pelo painel, mande o `index.ts` de cada uma e
+   `eventosGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts`...). O `emailsDePrazo.ts`
+   só passou a exportar o endereço do site (o valor é o mesmo): `prazos-enviar-emails` não precisa ser publicada de novo. Se publicar pelo painel, mande o `index.ts` de cada uma e
    os arquivos de `_compartilhado` que ele importa, e deixe **Verify JWT desligado**. Publique as funções **depois** da
    migração: as novas chamam funções do banco que só existem com ela.
 6. **Segredos.** Nenhum novo: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SITES_PERMITIDOS` e `SENHA_DA_ROTINA` nas
@@ -139,4 +199,13 @@ receber e-mails de compartilhamento do Google.
    antigo para o novo.
 7. Desative uma pessoa de teste, sincronize e confira que os compartilhamentos com ela saíram (a agenda dela continua).
    Reative e confira que voltaram.
-8. Se algo der errado, desmarque *Criar e manter no Google…*: a fila para na hora e nada mais muda no Google.
+8. **Os eventos.** Crie no SEMPER, com nomes de teste (sem cliente de verdade), um compromisso para amanhã, com você de
+   responsável, um participante de teste e uma sala; uma tarefa com prazo daqui a dois dias, com hora; e lance um feriado
+   de teste no Calendário. Clique em **Sincronizar agora** (o aviso diz quantos eventos foram levados às agendas) e confira
+   no Google Agenda da conta do escritório: o compromisso na sua agenda, na do participante e na da sala; a tarefa na sua
+   agenda, no dia e na hora do prazo; o feriado na Geral. Abra um evento e confira o título, o horário, o local, a
+   descrição e o link (ele abre o item no SEMPER).
+9. Mude a hora do compromisso e tire o participante; sincronize: o evento muda de hora e sai da agenda do participante.
+   Conclua a tarefa e mova o compromisso para "Cancelado"; sincronize: os eventos saem. Apague o feriado de teste.
+10. Se algo der errado, desmarque *Criar e manter no Google…*: a fila para na hora e nada mais muda no Google (os eventos
+   já gravados ficam lá; dá para apagá-los à mão com a conta do escritório).

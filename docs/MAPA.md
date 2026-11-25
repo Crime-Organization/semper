@@ -47,12 +47,12 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Entrada e minha conta](#conta), linhas 790–810: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
 - [Página pública](#portal), linhas 811–824: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
 - [Importação](#importacao), linhas 825–844: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google, contatos e agendas](#google), linhas 845–870: A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",
-- [Novidades e versão](#novidades), linhas 871–884: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 885–900: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 901–912: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 913–1017: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 1018–1021: nada.
+- [Conta Google, contatos e agendas](#google), linhas 845–872: A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",
+- [Novidades e versão](#novidades), linhas 873–886: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 887–902: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 903–914: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 915–1019: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 1020–1023: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -846,10 +846,10 @@ Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferram
 ## Conta Google, contatos e agendas
 
 A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",
-e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, e os compartilhamentos). Veja docs/plataforma/agendas-google.md.
+e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, os compartilhamentos e os eventos: compromissos, prazos, dias sem expediente e parcelas). Veja docs/plataforma/agendas-google.md.
 
-- **Tabelas:** `contatos_google` (contatos_google), `contatos_google_conferir` (contatos_google_primeira), `contatos_google_fila` (contatos_google), `privado.ligacoes` (ligacao_google), `privado.ligacao_pedidos` (ligacao_google), `agendas_google` (agendas_google), `agenda_google_compartilhamentos` (agendas_google), `agendas_google_fila` (agendas_google), `emails_do_google` (agendas_google); entre parênteses, a migração que a cria
-- **Migrações:** (supabase/migrations/) 20261031120000_ligacao_google, 20261120205439_contatos_google, 20261120213407_contatos_google_primeira, 20261125102621_agendas_google
+- **Tabelas:** `contatos_google` (contatos_google), `contatos_google_conferir` (contatos_google_primeira), `contatos_google_fila` (contatos_google), `privado.ligacoes` (ligacao_google), `privado.ligacao_pedidos` (ligacao_google), `agendas_google` (agendas_google), `agenda_google_compartilhamentos` (agendas_google), `agendas_google_fila` (agendas_google), `emails_do_google` (agendas_google), `agenda_google_eventos` (agendas_google_eventos); entre parênteses, a migração que a cria
+- **Migrações:** (supabase/migrations/) 20261031120000_ligacao_google, 20261120205439_contatos_google, 20261120213407_contatos_google_primeira, 20261125102621_agendas_google, 20261125110831_agendas_google_eventos
 - **Funções de dados:** o contrato em app/src/dados/tipos.ts; as mesmas funções em supabase.ts e falso.ts
   - `DadosLigacoes`: ligacaoGoogle, ligacaoGoogleIniciar, ligacaoGoogleConcluir, ligacaoGoogleDesligar, sincronizacaoGoogle, sincronizacaoGoogleLigar, sincronizarGoogleAgora, contatosParaConferir, contatoParaConferirDecidir, ligacaoGoogleAutorizarAgendas, agendasGoogle, agendasGoogleLigar, sincronizarAgendasAgora
 - **Regras:** (app/src/regras/)
@@ -858,15 +858,17 @@ e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as a
   - `sincronizacaoDasAgendas.ts`: Os textos das agendas do escritório no Google Agenda (#166), em Configurações, no cartão Conta Google: o que falta autorizar, a situação, o problema que impede…
   - `sincronizacaoGoogle.ts`: Os textos da sincronização das pessoas com o Google Contatos (#164), em Configurações: a situação da fila, o problema que a impede (com o que fazer) e o…
 - **Telas:** (app/src/paginas/) AgendasNoGoogle.tsx, ContatosParaConferir.tsx, EmailDoGoogle.tsx, LigacaoGoogle.tsx, SincronizacaoDosContatos.tsx
-- **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/agendasGoogle.ts, _compartilhado/apiDaAgenda.ts, _compartilhado/contatosGoogle.ts, _compartilhado/correspondenciaDeContatos.ts, _compartilhado/ligacao.ts, google-agendas/index.ts, google-concluir/index.ts, google-conectar/index.ts, google-desligar/index.ts, google-retorno/index.ts, google-sincronizar/index.ts
-- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/agendas_google.test.sql supabase/tests/contatos_google.test.sql supabase/tests/contatos_google_primeira.test.sql`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/regras/agendasGoogle.test.ts src/regras/contatosGoogle.test.ts src/regras/correspondenciaDeContatos.test.ts src/regras/emailDoGoogle.test.ts src/regras/ligacaoGoogle.test.ts src/regras/sincronizacaoDasAgendas.test.ts src/regras/sincronizacaoDeContatos.test.ts src/regras/sincronizacaoGoogle.test.ts`
+- **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/agendasGoogle.ts, _compartilhado/apiDaAgenda.ts, _compartilhado/contatosGoogle.ts, _compartilhado/correspondenciaDeContatos.ts, _compartilhado/eventosGoogle.ts, _compartilhado/ligacao.ts, google-agendas/index.ts, google-concluir/index.ts, google-conectar/index.ts, google-desligar/index.ts, google-retorno/index.ts, google-sincronizar/index.ts
+- **Testes do banco:** na raiz do projeto, com o Docker ligado e o banco local de pé (`npx supabase db start`), `npx supabase test db supabase/tests/agendas_google.test.sql supabase/tests/agendas_google_eventos.test.sql supabase/tests/contatos_google.test.sql supabase/tests/contatos_google_primeira.test.sql`
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/regras/agendasGoogle.test.ts src/regras/contatosGoogle.test.ts src/regras/correspondenciaDeContatos.test.ts src/regras/emailDoGoogle.test.ts src/regras/eventosGoogle.test.ts src/regras/ligacaoGoogle.test.ts src/regras/sincronizacaoDasAgendas.test.ts src/regras/sincronizacaoDeContatos.test.ts src/regras/sincronizacaoGoogle.test.ts`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/agendas-google.spec.ts`
 - **Armadilhas:**
   - As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.
   - O que criar, compartilhar ou retirar nas agendas é decidido pelo plano puro de `supabase/functions/_compartilhado/agendasGoogle.ts` (testado em `app/src/regras/agendasGoogle.test.ts`), que o `falso.ts` também usa; os pedidos ao Google ficam só no adaptador `apiDaAgenda.ts`.
   - As permissões da agenda estão em `ESCOPOS_DA_AGENDA` (`_compartilhado/ligacao.ts`) e em `privado.agenda_autorizada` no banco: mude os dois juntos. Somar a agenda é um pedido de ligação com a finalidade 'agendas', que só vale para a conta já ligada.
   - O e-mail do Google (`emails_do_google`) é editado em Equipe e em Minha conta com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).
+  - O que vai para qual agenda, e como fica cada evento, é decidido pelas funções puras de `supabase/functions/_compartilhado/eventosGoogle.ts` (testadas em `app/src/regras/eventosGoogle.test.ts`); o banco só entrega o item (`privado.agenda_do_compromisso` e afins, na migração `agendas_google_eventos`). Campo novo de compromisso, tarefa, demanda, dia sem expediente ou parcela que deve ir ao Google: ponha no item dessas funções e na lista do gatilho `agendas_google_mudou` da tabela (só os campos da lista põem o item na fila).
+  - O banco fictício (`falso.ts`) simula as agendas e os compartilhamentos, mas não os eventos: as cópias dos itens só existem no servidor, e o "Sincronizar agora" do fictício conta zero eventos.
 
 <a id="novidades"></a>
 ## Novidades e versão

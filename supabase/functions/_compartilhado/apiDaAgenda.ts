@@ -53,9 +53,12 @@ const daAgenda = (id: string) => `${AGENDA}/calendars/${encodeURIComponent(id)}`
 
 /** Os campos de uma agenda secundária que o SEMPER escreve (calendars.insert e calendars.patch). */
 export interface DadosDaAgenda { summary: string; description?: string; timeZone?: string }
-/** Um evento, no formato do Google (só o que o SEMPER escreve; a parte 2 da #166 monta os campos). */
+/**
+ * Um evento, no formato do Google (só o que o SEMPER escreve; os campos são montados em eventosGoogle.ts). O status
+ * 'confirmed' devolve à agenda o evento que o SEMPER apagou antes (o Google guarda o apagado como cancelado, com o mesmo id).
+ */
 export interface EventoDoGoogle {
-  id?: string; summary: string; description?: string; location?: string;
+  id?: string; summary: string; description?: string; location?: string; status?: 'confirmed';
   start: { date?: string; dateTime?: string; timeZone?: string };
   end: { date?: string; dateTime?: string; timeZone?: string };
   extendedProperties?: { private?: Record<string, string> };
@@ -86,15 +89,15 @@ export function apiDaAgenda(buscar: typeof fetch, acesso: string) {
     },
     /** Retira um compartilhamento pela regra guardada. */
     retirar: (id: string, regra: string) => pedir<unknown>(buscar, `${daAgenda(id)}/acl/${encodeURIComponent(regra)}`, com('DELETE')).then(() => undefined),
-    // ---- Eventos (prontos para a parte 2 da #166; a parte 1 não os usa) ----
+    // ---- Eventos (#166, parte 2: eventosGoogle.ts) ----
     /** Cria um evento com o id escolhido pelo SEMPER; devolve o id. Id repetido: FalhaDaAgenda 'repetido' (então, mudarEvento). */
     async criarEvento(agenda: string, evento: EventoDoGoogle) {
       const { id } = await pedir<{ id?: string }>(buscar, `${daAgenda(agenda)}/events`, com('POST', evento));
       if (!id) throw new FalhaDaAgenda('temporario', 'o Google não devolveu o evento');
       return id;
     },
-    /** Muda um evento (só os campos enviados mudam). */
-    mudarEvento: (agenda: string, eventoId: string, evento: Partial<EventoDoGoogle>) =>
+    /** Muda um evento (só os campos enviados mudam; o que vai como null, o Google apaga). */
+    mudarEvento: (agenda: string, eventoId: string, evento: Partial<EventoDoGoogle> | Record<string, unknown>) =>
       pedir<unknown>(buscar, `${daAgenda(agenda)}/events/${encodeURIComponent(eventoId)}`, com('PATCH', evento)).then(() => undefined),
     /** Apaga um evento; o que já não existe no Google conta como apagado. */
     async apagarEvento(agenda: string, eventoId: string) {

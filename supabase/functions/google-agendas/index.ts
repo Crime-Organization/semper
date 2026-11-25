@@ -1,7 +1,10 @@
 // As agendas do escritório no Google Agenda (#166). Esvazia a fila (public.agendas_google_fila): para cada escritório com as
 // agendas ligadas, cria as agendas que faltam (de cada pessoa ativa da equipe, a Geral, uma por sala ativa e a
-// Administrativo), compartilha só para ver com o e-mail do Google de cada um e retira o compartilhamento de quem saiu.
-// As regras ficam em _compartilhado/agendasGoogle.ts; os pedidos ao Google, em _compartilhado/apiDaAgenda.ts.
+// Administrativo), compartilha só para ver com o e-mail do Google de cada um e retira o compartilhamento de quem saiu; e
+// leva às agendas os eventos de cada item que mudou (compromissos, prazos de tarefas e demandas, dias sem expediente e
+// parcelas a receber), um pedido por item.
+// As regras ficam em _compartilhado/agendasGoogle.ts e _compartilhado/eventosGoogle.ts; os pedidos ao Google, em
+// _compartilhado/apiDaAgenda.ts.
 // Quem chama:
 //   - a rotina do banco, a cada 2 minutos, quando há algo na fila (privado.chamar_sincronizacao_das_agendas), com a senha
 //     da rotina (o segredo SENHA_DA_ROTINA aqui, e o mesmo valor no Vault): todos os escritórios;
@@ -10,6 +13,7 @@
 // Os tokens do Google ficam só aqui no servidor: o de renovação vem do cofre, o de acesso dura a execução.
 import { senhaDaRotinaConfere } from '../_compartilhado/avisoDaTroca.ts';
 import { sincronizarAgendas, type EstadoDasAgendas, type PassosDasAgendas, type PedidoDaFila } from '../_compartilhado/agendasGoogle.ts';
+import type { ItemDaFila } from '../_compartilhado/eventosGoogle.ts';
 import { cabecalhosCors, lerSitesPermitidos, nivelDaSessao } from '../_compartilhado/ligacao.ts';
 import { json, rpc, segredo, usuarioLogado } from '../_compartilhado/servidor.ts';
 
@@ -25,6 +29,11 @@ const passos = (): PassosDasAgendas => ({
   retirada: (agenda, email) => rpc<void>('agendas_google_retirada', { p_agenda: agenda, p_email: email }),
   concluir: (p, restam) => rpc<void>('agendas_google_concluir', { p_pedido: p.id, p_versao: p.versao, p_restam: restam }),
   falhou: (p, falha, detalhe, espera) => rpc<void>('agendas_google_falhou', { p_pedido: p.id, p_erro: falha, p_detalhe: detalhe, p_espera: espera }),
+  item: p => rpc<ItemDaFila>('agendas_google_item', { p_escritorio: p.escritorio_id, p_assunto: p.assunto, p_item: p.item_id }),
+  eventoGravado: (p, agenda, evento, assinatura) => rpc<void>('agendas_google_evento_gravado', {
+    p_agenda: agenda, p_assunto: p.assunto, p_item: p.item_id, p_evento: evento, p_assinatura: assinatura
+  }),
+  eventoApagado: (agenda, evento) => rpc<void>('agendas_google_evento_apagado', { p_agenda: agenda, p_evento: evento }),
   tokenDeRenovacao: escritorio => rpc<string | null>('ligacao_token', { p_escritorio: escritorio, p_perfil: null, p_provedor: 'google' }),
   buscar: fetch,
   clienteId: segredo('GOOGLE_CLIENT_ID'),

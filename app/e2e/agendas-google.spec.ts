@@ -36,6 +36,9 @@ test.describe('Agendas no Google, em Configurações', () => {
     const { agendas } = await contaLigada(page);
     await agendas.getByRole('button', { name: 'Autorizar a agenda' }).click();
     await expect(page.getByText('Agenda autorizada.', { exact: false })).toBeVisible();
+    // O que vai para as agendas está dito antes de ligar (#166, parte 2: os eventos).
+    await expect(agendas).toContainText('os prazos das tarefas e das demandas');
+    await expect(agendas).toContainText('as parcelas a receber');
     // Quando
     await agendas.getByRole('checkbox', { name: CHAVE }).check();
     await expect(page.getByText('Agendas ligadas:', { exact: false })).toBeVisible();
