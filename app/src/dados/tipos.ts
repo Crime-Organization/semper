@@ -1941,7 +1941,7 @@ export interface DadosSalas {
   salaOcupacao(salaId: string, data: string, fora?: string | null): Promise<OcupacaoDaSala[]>;
   /**
    * A ocupação de todas as salas do escritório no dia, numa leitura só (a visão das salas na Agenda, #438;
-   * supabase/migrations/20261125101229_ocupacao_das_salas.sql): a mesma de salaOcupacao, por sala e pela hora.
+   * supabase/migrations/20261125104200_ocupacao_das_salas.sql): a mesma de salaOcupacao, por sala e pela hora.
    */
   salasOcupacao(data: string): Promise<OcupacaoNaSala[]>;
 }
