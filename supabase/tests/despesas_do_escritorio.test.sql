@@ -46,6 +46,8 @@ select results_eq($$ select vencimento, descricao, valor from public.financeiro_
   $$ values (pg_temp.dia(5), 'Salário', 300000::bigint), ((pg_temp.dia(5) + interval '1 month')::date, 'Salário', 300000::bigint),
             ((pg_temp.dia(5) + interval '2 months')::date, 'Salário', 300000::bigint) $$,
   'As próximas datas nascem sozinhas, até o número de vezes');
+select results_eq($$ select acao from public.auditoria where tabela = 'financeiro_despesas' and registro_id = (select id from ids where nome = 'salario')::text $$,
+  $$ values ('inclusao') $$, 'No registro de ações, a despesa com repetição entra só como inclusão, como no banco fictício');
 
 -- Quando cadastra uma de todo mês, sem fim, então nascem as datas dos próximos 12 meses
 insert into ids select 'das', (public.financeiro_despesa_criar('DAS', 90000, pg_temp.dia(5), 'mes') ->> 'id')::uuid;
@@ -54,6 +56,13 @@ select is((select count(*)::int from public.financeiro_despesas where descricao 
 -- Quando a rotina diária roda de novo, então nada se repete
 reset role;
 select is(privado.estender_despesas(), 0, 'A rotina não cria de novo o que já nasceu');
+-- E a série que já gerou todas as vezes não é percorrida de novo; a sem fim, sim
+select ok(not exists (select 1 from privado.repeticoes_de_despesa_a_estender(privado.hoje_da_agenda()) as r(id)
+                      where id = (select repeticao_id from public.financeiro_despesas where id = (select id from ids where nome = 'salario'))),
+  'A série que já gerou todas as vezes fica fora da rotina');
+select ok(exists (select 1 from privado.repeticoes_de_despesa_a_estender(privado.hoje_da_agenda()) as r(id)
+                  where id = (select repeticao_id from public.financeiro_despesas where id = (select id from ids where nome = 'das'))),
+  'A série sem fim continua na rotina');
 select pg_temp.entrar(1); set local role authenticated;
 
 -- Quando o valor está zerado ou a data final vem antes do vencimento, então é recusado
@@ -65,6 +74,13 @@ select throws_ok($$ insert into public.financeiro_despesas (descricao, valor, ve
   'Ninguém grava direto nas despesas');
 
 -- ---------- pagar ----------
+-- Quando muda a despesa sem mudar nada, então o registro de ações não ganha uma alteração
+select is(public.financeiro_despesa_mudar((select id from ids where nome = 'avulsa'), 'Conta de luz', 25000, pg_temp.dia(3)), 1, 'Mudar sem mudar nada');
+select is((select count(*)::int from public.auditoria where tabela = 'financeiro_despesas' and registro_id = (select id from ids where nome = 'avulsa')::text and acao = 'alteracao'), 0,
+  'Mudar sem mudar nada não entra no registro de ações');
+-- Quando paga sem o dia do pagamento, então é recusado e a despesa continua a pagar
+select throws_ok($$ select public.financeiro_despesa_pagar((select id from ids where nome = 'salario'), null) $$, '23514', null, 'Pagar sem o dia é recusado');
+select is((select paga_em from public.financeiro_despesas where id = (select id from ids where nome = 'salario')), null, 'Sem o dia, continua a pagar');
 -- Quando a Ana marca a primeira do salário como paga, então ela fica paga e a próxima continua a pagar
 select lives_ok($$ select public.financeiro_despesa_pagar((select id from ids where nome = 'salario'), pg_temp.dia(4)) $$, 'A administradora marca como paga');
 select is((select paga_em from public.financeiro_despesas where id = (select id from ids where nome = 'salario')), pg_temp.dia(4), 'A despesa fica paga no dia informado');

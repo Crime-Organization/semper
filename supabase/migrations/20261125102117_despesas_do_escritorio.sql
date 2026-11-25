@@ -88,7 +88,12 @@ begin
 end $$;
 revoke execute on function privado.historico_despesa() from public, anon, authenticated;
 create trigger historico after update on public.financeiro_despesas for each row execute function privado.historico_despesa();
-create trigger auditoria after insert or update or delete on public.financeiro_despesas for each row execute function privado.auditar();
+-- O registro de ações, igual ao banco fictício: a inclusão, a exclusão e só a mudança que mexe no que o histórico mostra (não a que
+-- só carimba o atualizado_em, nem a que não muda nada).
+create trigger auditoria after insert or delete on public.financeiro_despesas for each row execute function privado.auditar();
+create trigger auditoria_mudanca after update on public.financeiro_despesas for each row
+  when ((old.descricao, old.valor, old.vencimento, old.paga_em, old.excluida_em) is distinct from (new.descricao, new.valor, new.vencimento, new.paga_em, new.excluida_em))
+  execute function privado.auditar();
 
 -- 4. Quem pode: só os administradores do escritório leem; ninguém grava direto.
 alter table public.financeiro_despesa_repeticoes enable row level security;
@@ -147,14 +152,23 @@ begin
 end $$;
 revoke execute on function privado.gerar_despesas(uuid, date) from public, anon, authenticated;
 
+-- As repetições que ainda podem crescer: nem passaram da data final, nem pararam, nem já geraram todas as vezes, e a última gerada
+-- está antes do horizonte. A série que terminou não é percorrida de novo todo dia.
+create function privado.repeticoes_de_despesa_a_estender(p_hoje date) returns setof uuid
+language sql stable set search_path = '' as $$
+  select r.id from public.financeiro_despesa_repeticoes r
+  where (r.ate is null or r.gerada_ate < r.ate) and (r.parada_em is null or r.gerada_ate < r.parada_em)
+    and (r.vezes is null or r.gerada_ate < privado.data_da_vez(r.inicio, r.frequencia, r.intervalo, r.vezes - 1))
+    and r.gerada_ate < (p_hoje + privado.horizonte_da_repeticao())::date
+$$;
+revoke execute on function privado.repeticoes_de_despesa_a_estender(date) from public, anon, authenticated;
+
 -- A rotina diária: acrescenta as datas que entraram no horizonte. Uma repetição com problema não impede as outras.
 create function privado.estender_despesas() returns integer
 language plpgsql security definer set search_path = '' as $$
 declare s record; v_hoje date := privado.hoje_da_agenda(); v_total integer := 0;
 begin
-  for s in select r.id from public.financeiro_despesa_repeticoes r
-           where (r.ate is null or r.gerada_ate < r.ate) and (r.parada_em is null or r.gerada_ate < r.parada_em)
-             and r.gerada_ate < (v_hoje + privado.horizonte_da_repeticao())::date loop
+  for s in select id from privado.repeticoes_de_despesa_a_estender(v_hoje) as id loop
     begin
       v_total := v_total + coalesce(cardinality(privado.gerar_despesas(s.id, v_hoje)), 0);
     exception when others then
@@ -214,14 +228,16 @@ begin
   if p_frequencia is not null and p_ate is not null and p_ate <= p_vencimento then
     raise exception 'A data final precisa ser depois do vencimento.';
   end if;
-  insert into public.financeiro_despesas (escritorio_id, descricao, valor, vencimento, criado_por)
-  values (privado.meu_escritorio(), btrim(p_descricao), p_valor, p_vencimento, auth.uid())
-  returning id into v_id;
+  -- A repetição nasce antes, para a despesa já entrar ligada a ela (sem uma mudança logo depois da inclusão no registro de ações).
   if p_frequencia is not null then
     insert into public.financeiro_despesa_repeticoes (escritorio_id, frequencia, intervalo, inicio, ate, vezes, gerada_ate, criado_por)
     values (privado.meu_escritorio(), p_frequencia, p_intervalo, p_vencimento, p_ate, p_vezes, p_vencimento, auth.uid())
     returning id into v_serie;
-    update public.financeiro_despesas set repeticao_id = v_serie, repeticao_data = p_vencimento where id = v_id;
+  end if;
+  insert into public.financeiro_despesas (escritorio_id, descricao, valor, vencimento, repeticao_id, repeticao_data, criado_por)
+  values (privado.meu_escritorio(), btrim(p_descricao), p_valor, p_vencimento, v_serie, case when v_serie is not null then p_vencimento end, auth.uid())
+  returning id into v_id;
+  if v_serie is not null then
     v_ids := privado.gerar_despesas(v_serie, privado.hoje_da_agenda());
   end if;
   return jsonb_build_object('id', v_id, 'ids', to_jsonb(v_ids));
@@ -252,6 +268,8 @@ language plpgsql security definer set search_path = '' as $$
 declare d public.financeiro_despesas := privado.despesa_para_mudar(p_id);
 begin
   if d.paga_em is not null then raise exception 'Esta despesa já foi paga.'; end if;
+  -- Sem o dia do pagamento, a despesa ficaria a pagar sem erro: recusa, como o banco fictício.
+  if p_data is null then raise exception 'Algum campo está em formato inválido. Confira os dados e tente de novo.' using errcode = '23514'; end if;
   update public.financeiro_despesas set paga_em = p_data where id = d.id;
 end $$;
 revoke execute on function public.financeiro_despesa_pagar(uuid, date) from public, anon;

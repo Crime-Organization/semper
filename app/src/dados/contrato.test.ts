@@ -5036,6 +5036,28 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await daSerie(descricao)).map(d => d.vencimento).at(-1)).toBe(somarMeses(daqui(5), REPETICAO.horizonteMeses));
       });
 
+      it('quando cadastra uma com repetição e depois a muda sem mudar nada, então o registro de ações só tem a inclusão (como o banco)', async () => {
+        // Dado
+        const descricao = 'INTERNET ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 12000, vencimento: daqui(2) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 2 });
+        // Quando
+        await SD.financeiroDespesaMudar(id, { descricao, valor: 12000, vencimento: daqui(2) }, false);
+        // Então
+        const acoes = (await SD.auditoriaListar()).filter(l => l.tabela === 'financeiro_despesas' && l.registro_id === id).map(l => l.acao);
+        expect(acoes).toEqual(['inclusao']);
+      });
+
+      it('quando marca como paga sem o dia do pagamento, então é recusado e ela continua a pagar (como o banco)', async () => {
+        // Dado
+        const descricao = 'TELEFONE ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 8000, vencimento: daqui(2) }, null);
+        // Quando
+        const semDia = SD.financeiroDespesaPagar(id, null as unknown as string);
+        // Então
+        await expect(semDia).rejects.toThrow('Algum campo está em formato inválido.');
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([null]);
+      });
+
       it('quando a data final vem antes do vencimento, ou o valor está zerado, então é recusado', async () => {
         // Quando / Então
         await expect(SD.financeiroDespesaCriar({ descricao: 'ÁGUA', valor: 100, vencimento: daqui(3) }, { frequencia: 'mes', intervalo: 1, ate: daqui(2), vezes: null }))
