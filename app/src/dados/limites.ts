@@ -167,8 +167,13 @@ export const TAMANHO_GRUPO = 60;
 export const TAMANHO_ETIQUETA = 40;
 
 // ---------- Processos ----------
-/** Tamanhos dos campos do processo (exigidos pelo banco: supabase/migrations/20261101155218_processos.sql). */
-export const TAMANHO_PROCESSO = { numero: 60, titulo: 300, orgao: 20, comarca: 120, vara: 120, classe: 200, assunto: 200, juiz: 200, instancia: 60, advogadoContrario: 200, observacoes: 4000, opcao: 120 };
+/**
+ * Tamanhos dos campos do processo (exigidos pelo banco: supabase/migrations/20261101155218_processos.sql). O papel escrito pela equipe
+ * (#443) também: a tabela processo_papeis, a regra de processo_partes.papel_escrito e o gatilho preparar_papeis_escritos
+ * (supabase/migrations/20261125144809_papel_escrito.sql).
+ */
+export const TAMANHO_PROCESSO = { numero: 60, titulo: 300, orgao: 20, comarca: 120, vara: 120, classe: 200, assunto: 200, juiz: 200, instancia: 60, advogadoContrario: 200, observacoes: 4000, opcao: 120,
+  papelEscrito: 60 };
 /** Andamentos e prazos do processo (exigidos pelo banco: supabase/migrations/20261102125539_andamentos_e_prazos.sql). */
 export const TAMANHO_ANDAMENTO = { texto: 4000, local: 200 };
 export const TAMANHO_PRAZO = { descricao: 300 };

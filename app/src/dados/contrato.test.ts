@@ -3218,6 +3218,123 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    // Como supabase/tests/papel_escrito.test.sql (#443).
+    describe('Papéis escritos pela equipe nos processos (#443)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      /** Um nome que nenhum outro caso usa, com letras só (o banco compara sem maiúsculas, acentos e espaços). */
+      const nomeNovo = () => 'Papel ' + marca().slice(-6);
+      const comPapelEscrito = async (escrito: string, papel: 'outro' | 'autor' = 'outro') => {
+        const { id: cliente } = await criar(marca());
+        const p = await SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-master', clientes: [cliente],
+          papeis_clientes: { [cliente]: papel }, papeis_escritos: { [cliente]: escrito } });
+        return { ...p, cliente };
+      };
+      const naLista = async () => (await SD.processoPapeisEscritos()).map(x => x.nome);
+
+      it('dado um cliente com o papel outro e um nome escrito, quando grava, então o nome fica limpo e entra na lista do escritório', async () => {
+        // Dado
+        const nome = nomeNovo();
+        // Quando
+        const { id, cliente } = await comPapelEscrito('  ' + nome + '  ');
+        // Então
+        expect((await SD.processoObter(id))!.papeis_escritos).toEqual({ [cliente]: nome });
+        expect(await naLista()).toContain(nome);
+      });
+
+      it('dado um nome na lista, quando outro processo o escreve com outras maiúsculas, então usa o da lista, sem repetir', async () => {
+        // Dado
+        const nome = nomeNovo();
+        await comPapelEscrito(nome);
+        // Quando
+        const { id, cliente } = await comPapelEscrito(' ' + nome.toUpperCase() + ' ');
+        // Então
+        expect((await SD.processoObter(id))!.papeis_escritos).toEqual({ [cliente]: nome });
+        expect((await naLista()).filter(x => x.toLowerCase() === nome.toLowerCase())).toEqual([nome]);
+      });
+
+      it('dado um nome escrito num cliente que não tem o papel outro, quando grava, então o nome sai e não entra na lista', async () => {
+        // Dado
+        const nome = nomeNovo();
+        // Quando
+        const { id } = await comPapelEscrito(nome, 'autor');
+        // Então
+        expect((await SD.processoObter(id))!.papeis_escritos).toEqual({});
+        expect(await naLista()).not.toContain(nome);
+      });
+
+      it('dado um processo com nome escrito, quando o papel muda para réu, então o nome sai junto', async () => {
+        // Dado
+        const { id, cliente } = await comPapelEscrito(nomeNovo());
+        // Quando
+        await SD.processoAtualizar(id, { papeis_clientes: { [cliente]: 'reu' } });
+        // Então
+        expect((await SD.processoObter(id))!.papeis_escritos).toEqual({});
+      });
+
+      it('dado um nome com mais letras que o máximo, quando grava, então é recusado', async () => {
+        await expect(comPapelEscrito('x'.repeat(61))).rejects.toThrow('Algum campo está em formato inválido');
+      });
+
+      it('dado o administrador, quando tira um papel da lista, então os processos continuam com o nome, e salvar de novo não o devolve', async () => {
+        // Dado
+        const nome = nomeNovo();
+        const { id, cliente } = await comPapelEscrito(nome);
+        const papel = (await SD.processoPapeisEscritos()).find(x => x.nome === nome)!;
+        // Quando
+        await SD.processoPapelEscritoTirar(papel.id);
+        // Então
+        expect(await naLista()).not.toContain(nome);
+        expect((await SD.processoObter(id))!.papeis_escritos).toEqual({ [cliente]: nome });
+        // Quando salva de novo, com o mesmo nome
+        await SD.processoAtualizar(id, { titulo: 'De novo', papeis_escritos: { [cliente]: nome } });
+        // Então o nome não volta à lista
+        expect(await naLista()).not.toContain(nome);
+        // E o Desfazer o devolve; devolver de novo é recusado
+        await expect(SD.processoPapelEscritoDevolver(nome)).resolves.toMatchObject({ nome });
+        await expect(SD.processoPapelEscritoDevolver(nome.toLowerCase())).rejects.toThrow('Esse papel já está na lista.');
+      });
+
+      it('dado um usuário comum, quando tenta tirar ou devolver um papel da lista, então é recusado', async () => {
+        // Dado
+        const nome = nomeNovo();
+        await comPapelEscrito(nome);
+        const papel = (await SD.processoPapeisEscritos()).find(x => x.nome === nome)!;
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.processoPapelEscritoTirar(papel.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(SD.processoPapelEscritoDevolver(nomeNovo())).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect(await naLista()).toContain(nome);
+      });
+
+      it('dada uma pessoa do processo com o papel outro e um nome escrito, quando entra, então mostra o nome e ele entra na lista', async () => {
+        // Dado
+        const { id } = await comPapelEscrito(nomeNovo());
+        const { id: pessoa } = await criar(marca());
+        const nome = nomeNovo();
+        // Quando
+        const x = await SD.processoParteIncluir(id, pessoa, 'outro', '  ' + nome + ' ');
+        // Então
+        expect(x).toMatchObject({ papel: 'outro', papel_escrito: nome });
+        expect((await SD.processoPartes(id)).find(y => y.id === x.id)?.papel_escrito).toBe(nome);
+        expect(await naLista()).toContain(nome);
+        expect((await SD.processosDaPessoa(pessoa)).find(p => p.id === id)).toMatchObject({ partes: ['outro'], papel_escrito: nome });
+        // E com outro papel, o nome escrito é recusado
+        await expect(SD.processoParteIncluir(id, pessoa, 'perito', 'Herdeiro')).rejects.toThrow('Algum campo está em formato inválido');
+      });
+
+      it('dada a mudança do nome escrito, quando grava, então o histórico guarda os nomes como texto', async () => {
+        // Dado
+        const { id, cliente } = await comPapelEscrito('Curador');
+        // Quando
+        await SD.processoAtualizar(id, { papeis_escritos: { [cliente]: 'Inventariante' } });
+        // Então
+        const h = (await SD.processoHistorico(id)).find(x => 'papeis_escritos' in x.alteracoes);
+        expect(h?.alteracoes.papeis_escritos).toEqual({ de: 'Curador', para: 'Inventariante' });
+      });
+    });
+
     describe('Andamentos e prazos dos processos', () => {
       const novoProcesso = async () => {
         const { id: cliente } = await criar(marca());

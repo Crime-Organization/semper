@@ -1,7 +1,7 @@
 // Regras do processo (módulo Processos): os dois tipos (judicial e administrativo), as listas prontas, o cadastro por etapas, o que aparece no cartão, as
 // pessoas com papel e os recursos e incidentais (#316). Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
 import type {
-  CampoDeOpcao, DadosProcesso, GratuidadeProcesso, LigacaoDeProcesso, MeioProcesso, Membro, Modulo, PapeisDosClientes, PapelDaParte, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista,
+  CampoDeOpcao, DadosProcesso, GratuidadeProcesso, LigacaoDeProcesso, MeioProcesso, Membro, Modulo, PapeisDosClientes, PapeisEscritos, PapelDaParte, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista,
   ProcessoLigado, ProcessoRelacionado, RelacaoEntreProcessos, TipoProcesso
 } from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
@@ -88,6 +88,8 @@ export interface CamposProcesso extends CamposProtecao {
   clientes: string[];
   /** O papel de cada cliente (#426), pelo id da pessoa: obrigatório para cada cliente escolhido. */
   papeisClientes: PapeisDosClientes;
+  /** O nome escrito pela equipe no papel de cada cliente com o papel 'outro' (#443), pelo id da pessoa (regras/papelEscrito.ts). */
+  papeisEscritos: PapeisEscritos;
   sistema: string;
   meio: MeioProcesso | '';
   area: string;
@@ -114,7 +116,7 @@ export interface CamposProcesso extends CamposProtecao {
   ligacao: LigacaoDeProcesso | '';
 }
 export const processoVazio = (tipo: TipoProcesso): CamposProcesso => ({
-  tipo, numero: '', numeroAntigo: false, titulo: '', orgao: '', responsavelId: '', colaboradores: [], clientes: [''], papeisClientes: {}, sistema: '', meio: '', area: '',
+  tipo, numero: '', numeroAntigo: false, titulo: '', orgao: '', responsavelId: '', colaboradores: [], clientes: [''], papeisClientes: {}, papeisEscritos: {}, sistema: '', meio: '', area: '',
   natureza: '', gratuidade: '', comarca: '', vara: '', classe: '', assunto: '', juiz: '', distribuicao: '', valorCausa: '', instancia: '', segredo: false,
   advogadoContrario: '', observacoes: '', extras: {}, origemId: '', ligacao: '', ...PROTECAO_VAZIA
 });
@@ -232,7 +234,7 @@ export function dadosDoProcesso(c: CamposProcesso): DadosProcesso {
   return {
     numero: conferirCNJ(c) ? fmtCNJ(c.numero) : c.numero.trim(), titulo: textoOuNulo(c.titulo), orgao: textoOuNulo(c.orgao), responsavel_id: c.responsavelId,
     colaboradores: [...new Set(escolhidos(c.colaboradores))].filter(id => id !== c.responsavelId), clientes: [...new Set(escolhidos(c.clientes))],
-    papeis_clientes: papeisDosEscolhidos(c), sistema: textoOuNulo(c.sistema), meio: c.meio || null, area: textoOuNulo(c.area), observacoes: textoOuNulo(c.observacoes),
+    papeis_clientes: papeisDosEscolhidos(c), papeis_escritos: escritosDosEscolhidos(c), sistema: textoOuNulo(c.sistema), meio: c.meio || null, area: textoOuNulo(c.area), observacoes: textoOuNulo(c.observacoes),
     ...soDoJudicial(c), ...dadosDaProtecao(c)
   };
 }
@@ -255,7 +257,7 @@ export function semSairDoProcesso(d: DadosProcesso, eu: string, podeSair: boolea
 export const camposDoProcesso = (p: Processo): CamposProcesso => ({
   tipo: p.tipo, numero: p.numero, numeroAntigo: p.tipo === 'judicial' && !cnjValido(p.numero), titulo: p.titulo || '', orgao: p.orgao || '',
   responsavelId: p.responsavel_id, colaboradores: [...p.colaboradores], clientes: p.clientes.length ? p.clientes.map(x => x.id) : [''],
-  papeisClientes: { ...p.papeis_clientes },
+  papeisClientes: { ...p.papeis_clientes }, papeisEscritos: { ...p.papeis_escritos },
   sistema: p.sistema || '', meio: p.meio || '', area: p.area || '', natureza: p.natureza || '', gratuidade: p.gratuidade || '', comarca: p.comarca || '', vara: p.vara || '',
   classe: p.classe || '', assunto: p.assunto || '', juiz: p.juiz || '', distribuicao: fmtData(p.distribuicao), valorCausa: dinheiroNoCampo(p.valor_causa),
   instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || '', extras: {},
@@ -268,7 +270,7 @@ export interface DefinicaoEtapaProcesso { id: EtapaProcesso; titulo: string; tex
 /** As etapas do cadastro, na ordem. São obrigatórios o tipo, o número e o cliente, e sempre há um responsável (começa com quem cadastra). */
 export const ETAPAS_PROCESSO: DefinicaoEtapaProcesso[] = [
   { id: 'processo', titulo: 'O processo', texto: 'O tipo, o número e, se quiser, um nome para o cartão.', campos: ['ligacao', 'tipo', 'numero', 'numeroAntigo', 'titulo', 'orgao'] },
-  { id: 'pessoas', titulo: 'Pessoas', texto: 'De quais clientes é o processo, o papel de cada um nele e quem da equipe cuida dele.', campos: ['clientes', 'papeisClientes', 'responsavelId', 'colaboradores'] },
+  { id: 'pessoas', titulo: 'Pessoas', texto: 'De quais clientes é o processo, o papel de cada um nele e quem da equipe cuida dele.', campos: ['clientes', 'papeisClientes', 'papeisEscritos', 'responsavelId', 'colaboradores'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.',
     campos: ['sistema', 'meio', 'area', 'natureza', 'gratuidade', 'comarca', 'vara', 'classe', 'assunto', 'juiz', 'distribuicao', 'valorCausa', 'instancia', 'segredo', 'advogadoContrario',
       'protecao', ...CAMPOS_DA_PI, 'observacoes'] }
@@ -291,7 +293,7 @@ export const CAMPOS_DA_SECAO_DE_DADOS: readonly (keyof CamposProcesso)[] = [
   'numero', 'numeroAntigo', 'orgao', ...ETAPAS_PROCESSO.find(e => e.id === 'detalhes')!.campos
 ];
 /** O que a seção de dados grava não leva estes: o que está gravado neles continua como está (#428). */
-const FORA_DA_SECAO_DE_DADOS = ['titulo', 'clientes', 'papeis_clientes', 'responsavel_id', 'colaboradores'] as const;
+const FORA_DA_SECAO_DE_DADOS = ['titulo', 'clientes', 'papeis_clientes', 'papeis_escritos', 'responsavel_id', 'colaboradores'] as const;
 /** Erros só dos campos da seção de dados (o cliente que falta num processo antigo não impede de mudar o número, por exemplo). */
 export function errosDosDadosDoProcesso(c: CamposProcesso): Partial<Record<keyof CamposProcesso, string>> {
   return Object.fromEntries(Object.entries(validarProcesso(c)).filter(([campo]) => CAMPOS_DA_SECAO_DE_DADOS.includes(campo as keyof CamposProcesso)));
@@ -328,6 +330,8 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
   vara: 'Vara', classe: 'Classe', assunto: 'Assunto', juiz: 'Juiz ou relator', distribuicao: 'Distribuição', valor_causa: 'Valor da causa', instancia: 'Instância',
   segredo: 'Segredo de justiça', advogado_contrario: 'Advogado contrário', observacoes: 'Observações', etapa: 'Situação', arquivado_em: 'Arquivamento',
   partes: 'Pessoas do processo', origem_id: 'Processo de origem', ligacao: 'Ligação com o processo de origem', papeis_clientes: 'Papel do cliente',
+  // O nome escrito do papel (#443): o banco guarda os nomes como texto ("Inventariante").
+  papeis_escritos: 'Papel escrito do cliente',
   // Propriedade intelectual (#317).
   protecao: 'Tipo de proteção', deposito: 'Depósito', concessao: 'Concessão', publicacao: 'Publicação', criacao: 'Criação', apresentacao_marca: 'Apresentação da marca',
   natureza_marca: 'Natureza da marca', classes_nice: 'Classes de Nice', especificacao: 'Especificação', variacoes: 'Variações do desenho', linguagem: 'Linguagem de programação',
@@ -335,10 +339,10 @@ export const CAMPOS_PROCESSO: Record<string, string> = {
 };
 /** O que o campo vazio quer dizer no histórico, quando não é só um traço: a origem fica vazia quando é excluída (#316) ou desligada (#425). */
 const VAZIO_NO_HISTORICO: Record<string, string> = { origem_id: 'sem ligação' };
-/** A pessoa com papel como o histórico a guarda (#316): o nome e o papel. */
+/** A pessoa com papel como o histórico a guarda (#316): o nome e o papel (o escrito pela equipe, quando há, #443). */
 const parteNoHistorico = (v: unknown) => {
-  const x = v as { nome?: string; papel?: string };
-  return `${x.nome ?? 'pessoa excluída'} (${PAPEIS_DA_PARTE[x.papel as PapelDaParte] ?? x.papel})`;
+  const x = v as { nome?: string; papel?: string; papel_escrito?: string };
+  return `${x.nome ?? 'pessoa excluída'} (${x.papel_escrito || (PAPEIS_DA_PARTE[x.papel as PapelDaParte] ?? x.papel)})`;
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
@@ -392,6 +396,9 @@ export const PAPEL_DO_CLIENTE_OBRIGATORIO = 'O papel do cliente é obrigatório:
 export const PAPEIS_DO_CLIENTE: PapelDaParte[] = [...PAPEIS.filter(x => x !== 'outro'), 'outro'];
 /** Os clientes escolhidos que ainda estão sem papel. */
 export const clientesSemPapel = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes'>) => escolhidos(c.clientes).filter(id => !c.papeisClientes[id]);
+/** O que vai para o banco: o nome escrito de cada cliente escolhido com o papel 'outro' (#443; o de quem saiu ou trocou de papel fica de fora). */
+const escritosDosEscolhidos = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes' | 'papeisEscritos'>): PapeisEscritos =>
+  Object.fromEntries(escolhidos(c.clientes).flatMap(id => c.papeisClientes[id] === 'outro' && c.papeisEscritos[id]?.trim() ? [[id, c.papeisEscritos[id]!.trim()]] : []));
 /** O que vai para o banco: o papel de cada cliente escolhido (o de quem saiu da lista fica de fora). */
 const papeisDosEscolhidos = (c: Pick<CamposProcesso, 'clientes' | 'papeisClientes'>): PapeisDosClientes =>
   Object.fromEntries(escolhidos(c.clientes).flatMap(id => c.papeisClientes[id] ? [[id, c.papeisClientes[id]]] : []));
@@ -411,19 +418,30 @@ export const papeisAoTrocarCliente = (papeis: PapeisDosClientes, antes: string, 
  */
 export const papelSugeridoDoCliente = (papeis: PapeisDosClientes | undefined): PapelDaParte =>
   Object.values(papeis ?? {}).find(ehPapelDaParte) ?? PAPEIS_DO_CLIENTE[0];
+/** Ao trocar a pessoa de uma linha de cliente, o nome escrito do papel (#443) vai junto com o papel (veja papeisAoTrocarCliente). */
+export const escritosAoTrocarCliente = (papeis: PapeisDosClientes, escritos: PapeisEscritos, antes: string, depois: string): PapeisEscritos =>
+  !antes || !depois || !papeis[antes] || papeis[depois] || !escritos[antes] ? escritos : { ...escritos, [depois]: escritos[antes] };
+/** O nome do papel: o escrito pela equipe (#443), quando há; senão, o da lista. */
+export const nomeDoPapel = (papel: PapelDaParte, escrito?: string | null) => escrito || PAPEIS_DA_PARTE[papel];
 /** O papel escolhido para um cliente no cadastro; a opção vazia tira o papel. */
 export const comPapelDoCliente = (papeis: PapeisDosClientes, clienteId: string, valor: string): PapeisDosClientes =>
   ({ ...papeis, [clienteId]: ehPapelDaParte(valor) ? valor : undefined });
-/** Os papéis dos clientes por extenso (#426): cada papel uma vez, na ordem da lista ("Autor, Réu"). Nenhum papel: vazio. */
-export const papeisDosClientesPorExtenso = (papeis: PapeisDosClientes) => {
-  const usados = new Set(Object.values(papeis));
-  return PAPEIS_DO_CLIENTE.filter(x => usados.has(x)).map(x => PAPEIS_DA_PARTE[x]).join(', ');
+/**
+ * Os papéis dos clientes por extenso (#426): cada papel uma vez, na ordem da lista ("Autor, Réu"). O "Outro papel" com nome escrito
+ * (#443) dá lugar aos nomes, em ordem, depois dos da lista ("Autor, Inventariante"). Nenhum papel: vazio.
+ */
+export const papeisDosClientesPorExtenso = (papeis: PapeisDosClientes, escritos: PapeisEscritos = {}) => {
+  const usados = Object.entries(papeis).flatMap(([id, papel]) => papel ? [{ papel, escrito: papel === 'outro' ? escritos[id] : undefined }] : []);
+  const daLista = PAPEIS_DO_CLIENTE.filter(x => usados.some(u => u.papel === x && !u.escrito)).map(x => PAPEIS_DA_PARTE[x]);
+  const escritosUsados = [...new Set(usados.flatMap(u => u.escrito ? [u.escrito] : []))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...daLista, ...escritosUsados].join(', ');
 };
-/** O que o cartão do processo diz embaixo do nome de cada cliente: o papel dele, ou que ainda falta informá-lo. */
-export const clienteNoCartao = (papel: PapelDaParte | undefined) => papel ? `Cliente · ${PAPEIS_DA_PARTE[papel]}` : 'Cliente · papel a informar';
+/** O que o cartão do processo diz embaixo do nome de cada cliente: o papel dele (o escrito pela equipe, #443), ou que ainda falta informá-lo. */
+export const clienteNoCartao = (papel: PapelDaParte | undefined, escrito?: string | null) =>
+  papel ? `Cliente · ${nomeDoPapel(papel, papel === 'outro' ? escrito : null)}` : 'Cliente · papel a informar';
 /** Os selos da miniatura do processo (quadro e lista, #426), na ordem: o órgão, o sistema e o papel dos clientes. Os vazios saem. */
-export const selosDoProcesso = (p: Pick<ProcessoLista, 'orgao' | 'sistema' | 'papeis_clientes'>) =>
-  [p.orgao, p.sistema, papeisDosClientesPorExtenso(p.papeis_clientes ?? {})].filter((x): x is string => !!x);
+export const selosDoProcesso = (p: Pick<ProcessoLista, 'orgao' | 'sistema' | 'papeis_clientes' | 'papeis_escritos'>) =>
+  [p.orgao, p.sistema, papeisDosClientesPorExtenso(p.papeis_clientes ?? {}, p.papeis_escritos ?? {})].filter((x): x is string => !!x);
 /**
  * Os papéis que o formulário oferece no processo: os de qualquer processo e, nos de propriedade intelectual, os do tipo de
  * proteção (#317; ex.: inventor só em patente e modelo de utilidade). O "Outro papel" fica por último.
@@ -434,9 +452,9 @@ export function papeisParaEscolher(p: { area?: string | null; protecao?: Process
 }
 /** A recusa de pôr a pessoa com um papel que ela já tem no processo (a mesma no banco e no fictício). */
 export const PAPEL_REPETIDO = 'Esta pessoa já tem esse papel neste processo.';
-/** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316). */
-export const papeisPorExtenso = (p: { papeis: PapelNoProcesso[]; partes?: PapelDaParte[] }) =>
-  [...p.papeis.map(x => PAPEIS_NO_PROCESSO[x]), ...(p.partes ?? []).map(x => PAPEIS_DA_PARTE[x])].join(', ');
+/** O que o cartão da pessoa diz do papel dela em cada processo: cliente, equipe e os papéis com pessoa (#316), o "outro" com o nome escrito (#443). */
+export const papeisPorExtenso = (p: { papeis: PapelNoProcesso[]; partes?: PapelDaParte[]; papel_escrito?: string | null }) =>
+  [...p.papeis.map(x => PAPEIS_NO_PROCESSO[x]), ...(p.partes ?? []).map(x => nomeDoPapel(x, x === 'outro' ? p.papel_escrito : null))].join(', ');
 /** Os papéis que a pessoa ainda não tem no processo (o mesmo papel duas vezes, o banco recusa). */
 export const papeisQueFaltam = (partes: readonly { papel: PapelDaParte; pessoa: { id: string } }[], pessoaId: string) =>
   PAPEIS.filter(papel => !partes.some(x => x.pessoa.id === pessoaId && x.papel === papel));
@@ -524,16 +542,17 @@ export const ligacaoDoEndereco = (valor: string | null): LigacaoDeProcesso | '' 
 export const ligacaoDaOrigem = (ligacao: LigacaoDeProcesso | '', tipoDaOrigem: TipoProcesso): LigacaoDeProcesso | '' =>
   ligacao && ligacoesDaOrigem(tipoDaOrigem).includes(ligacao) ? ligacao : '';
 /**
- * O processo que nasce de outro (#316): do mesmo tipo, com os mesmos clientes e o papel de cada um (#426), a área, o sistema e o meio, e
+ * O processo que nasce de outro (#316): do mesmo tipo, com os mesmos clientes e o papel de cada um (#426; e o nome escrito, #443), a área, o sistema e o meio, e
  * a equipe ativa dele (quem cadastra fica de responsável se o de lá saiu da equipe). O número, o órgão, os andamentos e o resto são do
  * processo novo.
  */
-export const processoDoProcesso = (o: Pick<Processo, 'id' | 'tipo' | 'responsavel_id' | 'colaboradores' | 'papeis_clientes' | 'area' | 'sistema' | 'meio'> & { clientes: { id: string }[] },
+export const processoDoProcesso = (o: Pick<Processo, 'id' | 'tipo' | 'responsavel_id' | 'colaboradores' | 'papeis_clientes' | 'papeis_escritos' | 'area' | 'sistema' | 'meio'> & { clientes: { id: string }[] },
   ativos: readonly string[], eu: string): Partial<CamposProcesso> => {
   const responsavelId = ativos.includes(o.responsavel_id) ? o.responsavel_id : eu;
   return {
     origemId: o.id, tipo: o.tipo, responsavelId, colaboradores: o.colaboradores.filter(id => ativos.includes(id) && id !== responsavelId),
-    clientes: o.clientes.length ? o.clientes.map(x => x.id) : [''], papeisClientes: { ...o.papeis_clientes }, area: o.area ?? '', sistema: o.sistema ?? '', meio: o.meio ?? ''
+    clientes: o.clientes.length ? o.clientes.map(x => x.id) : [''], papeisClientes: { ...o.papeis_clientes },
+    papeisEscritos: { ...o.papeis_escritos }, area: o.area ?? '', sistema: o.sistema ?? '', meio: o.meio ?? ''
   };
 };
 interface PessoasDoProcesso { clientes: string[]; responsavel_id: string; colaboradores: string[] }
@@ -571,13 +590,15 @@ type ProcessoDaPessoa = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'ti
  * Os processos do cartão da pessoa: os em que ela é cliente ou da equipe (`daEquipe`) e os em que tem um papel (`partes`), cada
  * processo uma vez só, com tudo o que ela é nele, dos mais novos aos mais antigos.
  */
-export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes: readonly { papel: PapelDaParte; processo: ProcessoDaPessoa }[],
+export function processosComPartes(daEquipe: readonly ProcessoDaPessoa[], partes: readonly { papel: PapelDaParte; papel_escrito?: string | null; processo: ProcessoDaPessoa }[],
   pessoaId: string, perfilId: string | null): ProcessoLigado[] {
   const porId = new Map<string, ProcessoDaPessoa>();
   for (const p of [...daEquipe, ...partes.map(x => x.processo)]) porId.set(p.id, p);
   return [...porId.values()].map(({ clientes, responsavel_id, colaboradores, ...p }): ProcessoLigado => ({
     ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId),
-    partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel))
+    partes: PAPEIS.filter(papel => partes.some(x => x.processo.id === p.id && x.papel === papel)),
+    // O nome escrito do papel "outro" dela (#443): uma pessoa tem um "outro" só por processo.
+    papel_escrito: partes.find(x => x.processo.id === p.id && x.papel === 'outro')?.papel_escrito ?? null
   })).filter(p => p.papeis.length || p.partes?.length).toSorted((a, b) => b.criado_em.localeCompare(a.criado_em));
 }
 // ---------- processos relacionados de qualquer tipo (#440) ----------

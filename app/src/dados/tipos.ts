@@ -1006,6 +1006,13 @@ export type NaturezaMarca = 'produto' | 'servico' | 'coletiva' | 'certificacao';
 export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
 /** O papel de cada cliente no processo (#426), pelo id da pessoa. O cliente sem papel (processo antigo, sem polo) fica de fora. */
 export type PapeisDosClientes = Partial<Record<string, PapelDaParte>>;
+/**
+ * O nome escrito pela equipe no papel de cada cliente (#443), pelo id da pessoa: só do cliente com o papel 'outro' (o banco tira o
+ * resto). Sem nome escrito, o cliente com 'outro' aparece como "Outro papel".
+ */
+export type PapeisEscritos = Partial<Record<string, string>>;
+/** Um papel escrito da lista do escritório (#443): aparece nos próximos cadastros; o administrador o tira nas Configurações. */
+export interface PapelEscrito { id: string; nome: string }
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
 /** As listas que o administrador pode ampliar. */
@@ -1025,6 +1032,8 @@ export interface Processo {
   clientes: PessoaResumida[];
   /** O papel de cada cliente (#426). O banco só guarda o dos clientes do processo. */
   papeis_clientes: PapeisDosClientes;
+  /** O nome escrito do papel de cada cliente com o papel 'outro' (#443). Ausente: nenhum. */
+  papeis_escritos?: PapeisEscritos;
   /** Os valores dos campos que o escritório criou, por id do campo. */
   campos: Record<string, string>;
   /**
@@ -1044,7 +1053,11 @@ export interface Processo {
   especificacao?: string | null; variacoes?: number | null; linguagem?: string | null;
 }
 /** Uma pessoa com papel no processo (#316). A mesma pessoa pode ter mais de um papel. */
-export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
+export interface ParteDoProcesso {
+  id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida;
+  /** O nome escrito pela equipe (#443), só com o papel 'outro'. */
+  papel_escrito?: string | null;
+}
 /**
  * Como um processo ligado se relaciona com o aberto: é a origem dele (o administrativo, quando o aberto é o judicial que nasceu dele,
  * #425), nasceu dele como recurso, incidental ou judicial, ou foi ligado a ele depois, de qualquer tipo ("relacionado", #440).
@@ -1098,7 +1111,7 @@ export type MudancaNoPrazo = Partial<DadosPrazo & Pick<PrazoDeProcesso, 'conclui
 /** Campos que o cadastro de processo grava. */
 export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
 /** Linha das listagens de processos (tabela e quadro). */
-export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome' | 'orgao' | 'sistema' | 'papeis_clientes' | 'comarca' | 'vara'
+export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome' | 'orgao' | 'sistema' | 'papeis_clientes' | 'papeis_escritos' | 'comarca' | 'vara'
   | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroProcessos {
   /** O quadro de cada tipo é separado: o tipo vem sempre. */
@@ -1122,6 +1135,8 @@ export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' 
   papeis: PapelNoProcesso[];
   /** No cartão da pessoa: os papéis dela no processo, além de cliente e equipe (#316). */
   partes?: PapelDaParte[];
+  /** O nome escrito do papel 'outro' dela no processo (#443), quando há. */
+  papel_escrito?: string | null;
 }
 /** Opção acrescentada pelo administrador a uma das listas. */
 export interface OpcaoDeProcesso { id: string; campo: CampoDeOpcao; valor: string }
@@ -1156,7 +1171,8 @@ export interface DadosProcessos {
   /** As pessoas com papel no processo (#316), na ordem em que entraram. */
   processoPartes(processoId: string): Promise<ParteDoProcesso[]>;
   /** Põe a pessoa no processo com o papel (#316): quem altera o processo, com ele ativo. O mesmo papel de novo é recusado. */
-  processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte): Promise<ParteDoProcesso>;
+  /** Com o papel 'outro', `escrito` é o nome escrito pela equipe (#443), que entra na lista do escritório; com outro papel, é recusado. */
+  processoParteIncluir(processoId: string, pessoaId: string, papel: PapelDaParte, escrito?: string | null): Promise<ParteDoProcesso>;
   processoParteRetirar(id: string): Promise<void>;
   /**
    * Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê; e, desde
@@ -1183,6 +1199,15 @@ export interface DadosProcessos {
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
   /** Só administradores. Os processos que já usam a opção continuam com o valor. */
   processoOpcaoExcluir(id: string): Promise<void>;
+  /**
+   * Os papéis escritos pela equipe (#443; supabase/migrations/20261125144809_papel_escrito.sql), a lista do escritório, por nome. Ela
+   * cresce sozinha: o nome novo entra ao gravar o processo (ou a pessoa do processo).
+   */
+  processoPapeisEscritos(): Promise<PapelEscrito[]>;
+  /** Só administradores. Os processos que já usam o papel continuam com o nome. */
+  processoPapelEscritoTirar(id: string): Promise<void>;
+  /** Só administradores: devolve à lista o papel tirado (o Desfazer). O nome que já está na lista é recusado. */
+  processoPapelEscritoDevolver(nome: string): Promise<PapelEscrito>;
   processoSugestoes(tipo: TipoProcesso): Promise<SugestoesDeProcesso>;
   /** Os campos do escritório, inclusive os apagados (o histórico precisa do nome deles). */
   processoCampos(): Promise<CampoDeProcesso[]>;

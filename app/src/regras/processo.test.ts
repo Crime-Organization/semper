@@ -5,7 +5,7 @@ import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
   semSairDoProcesso, validarProcesso, CAMPOS_DA_SECAO_DE_DADOS, errosDosDadosDoProcesso, soOsDadosDaSecao, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso,
   clienteNoCartao, comPapelDoCliente, PAPEIS_DA_PARTE, PAPEIS_DO_CLIENTE, PAPEL_DO_CLIENTE_OBRIGATORIO, papeisAoGravar, papelSugeridoDoCliente, papeisAoTrocarCliente, papeisDosClientesPorExtenso,
-  selosDoProcesso
+  selosDoProcesso, escritosAoTrocarCliente, nomeDoPapel, papeisPorExtenso, processoDoProcesso, processosComPartes
 } from './processo';
 
 const NUMERO_VALIDO = '0001234-97.2026.8.13.0024';
@@ -445,5 +445,70 @@ describe('Papel de cada cliente no processo (#426)', () => {
     // Então
     expect(clienteNoCartao('reu')).toBe('Cliente · Réu');
     expect(clienteNoCartao(undefined)).toBe('Cliente · papel a informar');
+  });
+});
+
+describe('O papel escrito pela equipe (#443)', () => {
+  it('dado um cliente com o papel outro e um nome escrito, quando o cartão o mostra, então diz o nome; sem nome, Outro papel', () => {
+    // Então
+    expect(clienteNoCartao('outro', 'Inventariante')).toBe('Cliente · Inventariante');
+    expect(clienteNoCartao('outro')).toBe('Cliente · Outro papel');
+    // O nome escrito só vale com o papel outro.
+    expect(clienteNoCartao('autor', 'Inventariante')).toBe('Cliente · Autor');
+    expect(nomeDoPapel('outro', 'Herdeiro')).toBe('Herdeiro');
+  });
+
+  it('dados clientes com papéis fixos e escritos, quando mostra os papéis, então os fixos vêm primeiro, e depois os nomes, em ordem', () => {
+    // Então
+    expect(papeisDosClientesPorExtenso({ p1: 'outro', p2: 'autor', p3: 'outro', p4: 'outro' }, { p1: 'Inventariante', p3: 'Curador' })).toBe('Autor, Outro papel, Curador, Inventariante');
+    expect(selosDoProcesso({ orgao: 'TJMG', sistema: null, papeis_clientes: { p1: 'outro' }, papeis_escritos: { p1: 'Inventariante' } })).toEqual(['TJMG', 'Inventariante']);
+  });
+
+  it('dado o formulário com um nome escrito, quando grava, então vai só o do cliente escolhido com o papel outro', () => {
+    // Dado
+    const c = valido({ clientes: ['p1', 'p2', ''], papeisClientes: { p1: 'outro', p2: 'reu' }, papeisEscritos: { p1: ' Inventariante ', p2: 'Herdeiro', fora: 'Curador' } });
+    // Então
+    expect(dadosDoProcesso(c).papeis_escritos).toEqual({ p1: 'Inventariante' });
+    // E a seção de dados do cartão não o grava (ele muda na seção Clientes)
+    expect(soOsDadosDaSecao(dadosDoProcesso(c))).not.toHaveProperty('papeis_escritos');
+  });
+
+  it('dado um processo salvo com nome escrito, quando abre para editar, então o nome volta ao formulário', () => {
+    // Dado
+    const p = { ...dadosDoProcesso(valido()), id: 'x', codigo: 'P1', tipo: 'judicial', numero: NUMERO_VALIDO, clientes: [{ id: 'p1', nome: 'A', codigo: 'C1' }],
+      papeis_clientes: { p1: 'outro' }, papeis_escritos: { p1: 'Inventariante' }, campos: {} } as unknown as Processo;
+    // Então
+    expect(camposDoProcesso(p).papeisEscritos).toEqual({ p1: 'Inventariante' });
+  });
+
+  it('quando troca a pessoa de uma linha, então o nome escrito vai junto com o papel', () => {
+    // Então
+    expect(escritosAoTrocarCliente({ p1: 'outro' }, { p1: 'Inventariante' }, 'p1', 'p2')).toEqual({ p1: 'Inventariante', p2: 'Inventariante' });
+    expect(escritosAoTrocarCliente({ p1: 'outro', p2: 'reu' }, { p1: 'Inventariante' }, 'p1', 'p2')).toEqual({ p1: 'Inventariante' });
+  });
+
+  it('dado um processo de origem com nome escrito, quando nasce um recurso dele, então o recurso traz o nome', () => {
+    // Dado
+    const origem = { id: 'o1', tipo: 'judicial' as const, responsavel_id: 'eu', colaboradores: [], papeis_clientes: { p1: 'outro' as const },
+      papeis_escritos: { p1: 'Inventariante' }, area: null, sistema: null, meio: null, clientes: [{ id: 'p1' }] };
+    // Então
+    expect(processoDoProcesso(origem, ['eu'], 'eu').papeisEscritos).toEqual({ p1: 'Inventariante' });
+  });
+
+  it('quando o histórico mostra o nome escrito e a pessoa do processo com nome escrito, então aparecem os nomes', () => {
+    // Então
+    expect(valorLegivelProcesso('papeis_escritos', 'Curador, Inventariante')).toBe('Curador, Inventariante');
+    expect(valorLegivelProcesso('partes', { nome: 'Fulana', papel: 'outro', papel_escrito: 'Herdeira' })).toBe('Fulana (Herdeira)');
+    expect(valorLegivelProcesso('partes', { nome: 'Fulana', papel: 'outro' })).toBe('Fulana (Outro papel)');
+  });
+
+  it('dada uma pessoa com o papel outro escrito num processo, quando o cartão dela mostra os processos, então diz o nome escrito', () => {
+    // Dado
+    const proc = { id: 'b', codigo: 'P2', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: 'X', etapa_id: null, arquivado_em: null, criado_em: '2026-02-01',
+      responsavel_id: 'u1', colaboradores: [], clientes: ['p9'] };
+    // Quando
+    const [p] = processosComPartes([], [{ papel: 'outro', papel_escrito: 'Herdeira', processo: proc }, { papel: 'perito', processo: proc }], 'p1', null);
+    // Então
+    expect(papeisPorExtenso(p)).toBe('Perito, Herdeira');
   });
 });

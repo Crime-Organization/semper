@@ -89,7 +89,7 @@ describe('Recursos e incidentais', () => {
     // Quando
     const campos = processoDoProcesso(origem, ['u1', 'u2', 'eu'], 'eu');
     // Então
-    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor', p2: 'reu' }, area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
+    expect(campos).toEqual({ origemId: 'o1', tipo: 'judicial', responsavelId: 'eu', colaboradores: ['u1', 'u2'], clientes: ['p1', 'p2'], papeisClientes: { p1: 'autor', p2: 'reu' }, papeisEscritos: {}, area: 'Cível', sistema: 'PJe', meio: 'eletronico' });
     expect(campos).not.toHaveProperty('numero');
   });
 

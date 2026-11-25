@@ -602,9 +602,9 @@ const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pess
 const naoEsta = (linha: unknown) => { if (!linha) throw new Error('Não foi possível: atualize a página e confira.'); };
 
 // ---------- processos ----------
-const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, papeis_clientes, comarca, vara, etapa_id, etapa_ordem, '
+const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, papeis_clientes, papeis_escritos, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
-const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, papeis_clientes, area, meio, natureza, gratuidade, comarca, vara, '
+const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, papeis_clientes, papeis_escritos, area, meio, natureza, gratuidade, comarca, vara, '
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   // Propriedade intelectual (#317).
   + 'protecao, deposito, concessao, publicacao, criacao, apresentacao_marca, natureza_marca, classes_nice, especificacao, variacoes, linguagem, '
@@ -612,7 +612,7 @@ const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colab
   + 'deferimento, '
   + `origem_id, ligacao, criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** As pessoas com papel no processo (#316). */
-const CAMPOS_PARTE = `id, processo_id, papel, pessoa:pessoas(${PESSOA_RESUMIDA})`;
+const CAMPOS_PARTE = `id, processo_id, papel, papel_escrito, pessoa:pessoas(${PESSOA_RESUMIDA})`;
 /** O processo ligado a outro (#316), com o que diz como ele se liga. */
 const CAMPOS_PROCESSO_RELACIONADO = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, origem_id, ligacao';
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
@@ -2023,7 +2023,7 @@ export const SD: Dados = {
     // Os processos em que ela é cliente ou da equipe e, à parte, os em que tem um papel (#316): a regra de leitura do processo vale nos dois.
     const [{ data }, { data: partes }] = await Promise.all([
       rodar(sb.from('processos').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(PROCESSOS_LIGADOS)),
-      rodar(sb.from('processo_partes').select(`papel, processo:processos!inner(${campos})`).eq('pessoa_id', pessoaId).limit(PROCESSOS_LIGADOS))
+      rodar(sb.from('processo_partes').select(`papel, papel_escrito, processo:processos!inner(${campos})`).eq('pessoa_id', pessoaId).limit(PROCESSOS_LIGADOS))
     ]);
     return processosComPartes(data, partes, pessoaId, perfilId);
   },
@@ -2031,8 +2031,10 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('processo_partes').select(CAMPOS_PARTE).eq('processo_id', processoId).order('criado_em').order('id'));
     return data;
   },
-  async processoParteIncluir(processoId, pessoaId, papel) {
-    const { data } = await rodar(sb.from('processo_partes').insert({ processo_id: processoId, pessoa_id: pessoaId, papel, criado_por: uid() }).select(CAMPOS_PARTE).single());
+  async processoParteIncluir(processoId, pessoaId, papel, escrito = null) {
+    // O nome escrito (#443) só vai quando há: o gatilho preparar_papel_escrito o limpa e o põe na lista do escritório.
+    const { data } = await rodar(sb.from('processo_partes').insert({ processo_id: processoId, pessoa_id: pessoaId, papel, ...(escrito ? { papel_escrito: escrito } : {}),
+      criado_por: uid() }).select(CAMPOS_PARTE).single());
     return data;
   },
   async processoParteRetirar(id) {
@@ -2085,6 +2087,19 @@ export const SD: Dados = {
   },
   async processoOpcaoExcluir(id) {
     await rodar(sb.from('processo_opcoes').delete().eq('id', id));
+  },
+  // ---------- os papéis escritos pela equipe (supabase/migrations/20261125144809_papel_escrito.sql, #443) ----------
+  async processoPapeisEscritos() {
+    const { data } = await rodar(sb.from('processo_papeis').select('id, nome').order('nome'));
+    return data;
+  },
+  async processoPapelEscritoTirar(id) {
+    // A regra do banco não apaga o papel para quem não é administrador: nenhuma linha sai, e a tela precisa saber.
+    conferirQueMudou((await rodar(sb.from('processo_papeis').delete().eq('id', id).select('id').maybeSingle())).data);
+  },
+  async processoPapelEscritoDevolver(nome) {
+    const { data } = await rodar(sb.from('processo_papeis').insert({ nome: nome.trim() }).select('id, nome').single());
+    return data;
   },
   async processoCampos() {
     const { data } = await rodar(sb.from('processo_campos').select(CAMPOS_DO_CAMPO).order('criado_em'));

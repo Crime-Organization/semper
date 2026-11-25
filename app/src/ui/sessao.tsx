@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router';
 import { SD, type ContextoAtivo } from '../dados';
 import { iniciarEtiquetas } from './etiquetasDoEscritorio';
 import { iniciarFuncoes } from './funcoesNaTarefa';
+import { iniciarPapeisEscritos } from './papeisEscritos';
 import { iniciarPreferencias } from './preferencias';
 import { aplicarTema, type Tema } from './tema';
 import { Casca } from './Casca';
@@ -61,6 +62,7 @@ export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
     iniciarPreferencias(c.perfil.preferencias);
     iniciarEtiquetas(c.perfil.id);
     iniciarFuncoes(c.perfil.id);
+    iniciarPapeisEscritos(c.perfil.id);
     if (primeira) aplicarTema((c.perfil.preferencias?.tema as Tema) || 'auto');
     if (forcar || primeira) lidoEm.current = Date.now();
     setCtx({ ...c, perfil: { ...c.perfil } } as ContextoAtivo);
