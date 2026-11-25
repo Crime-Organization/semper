@@ -4,7 +4,8 @@ Como o SEMPER cria e mantém as agendas do escritório no Google Agenda (tarefa 
 testar com a conta de verdade. A **parte 1** são as agendas e os compartilhamentos; a **parte 2**, os eventos
 (compromissos, prazos de tarefas e demandas, dias sem expediente e parcelas a receber; veja [Os eventos](#os-eventos)).
 A **parte 3** é o Google Meet no compromisso (tarefa #437; veja [O Google Meet no compromisso](#o-google-meet-no-compromisso)).
-As despesas a pagar (#439) entram depois, na Administrativo.
+As despesas do escritório a pagar (#439) vão para a Administrativo, no dia útil anterior ao vencimento (veja
+[As despesas na Administrativo](#as-despesas-na-administrativo)).
 
 A estrutura é a mesma dos contatos (veja [contatos-google.md](contatos-google.md)): a ligação em `privado.ligacoes`, com o
 token no cofre (Vault), uma fila no banco processada pela rotina do `pg_cron` e por uma função do servidor, novas
@@ -103,6 +104,7 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
 | Demanda com prazo | do responsável e de cada colaborador | como a tarefa | é concluída, arquivada, excluída ou perde o prazo |
 | Dia sem expediente ou suspensão (Calendário, "Feriados e prazos" do escritório) | Geral | o dia inteiro | é apagado |
 | Parcela a receber | do advogado responsável pelo contrato (não a Administrativo) | o dia inteiro do vencimento | é recebida ou excluída |
+| Despesa do escritório a pagar (#439, Financeiro, aba Obrigações) | só a Administrativo | o dia inteiro do **dia útil anterior** ao vencimento | é paga ou excluída |
 
 - **Cada data de um compromisso que se repete é um compromisso**: vai como um evento próprio (não como evento repetido do
   Google).
@@ -147,10 +149,38 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
   agendas, ela é criada de novo e recebe os itens dela.
 - **Ainda não:** os feriados nacionais e o recesso forense prontos (os de `regras/prazos.ts`, que o Calendário mostra
   sem estarem no banco) não vão à Geral: só os dias que o escritório lançou. Quem entra num item só por um **grupo da
-  equipe** não ganha cópia: vão o responsável e os participantes escolhidos um a um. As despesas a pagar (#439) vão
-  depois, na Administrativo.
+  equipe** não ganha cópia: vão o responsável e os participantes escolhidos um a um.
 - **No banco fictício** (`npm run teste`) só as agendas e os compartilhamentos são simulados; os eventos não (o
   "Sincronizar agora" de lá conta zero eventos).
+
+## As despesas na Administrativo
+
+Tarefa #439 levada à #166, combinada com o dono em 25/11/2026. As despesas do escritório a pagar (DAS, funcionários,
+contas), cadastradas pelos administradores no Financeiro, aba Obrigações, seção "Despesas do escritório":
+
+1. **Só a Administrativo.** A despesa vai só para a agenda dos administradores; nunca para a agenda de uma pessoa, a Geral
+   ou a de uma sala. Se a Administrativo ainda não existe, a despesa espera: quando ela nasce, recebe as despesas a pagar
+   de hoje em diante.
+2. **No dia útil anterior ao vencimento.** O evento é do dia inteiro, no primeiro dia útil **antes** do vencimento, mesmo
+   que o vencimento seja útil (vence na segunda: fica na sexta; vence na quarta: fica na terça). Não são úteis: sábado,
+   domingo, os feriados nacionais de data fixa e os dias que o escritório lançou no Calendário como feriado ou suspensão
+   sem expediente **para todos os órgãos**. O dia lançado para um órgão só e a suspensão de prazos com expediente não
+   mudam nada. A conta é a função pura `diaUtilAnterior` (`_compartilhado/diaUtilAnterior.ts`, da #439, a mesma do site),
+   chamada por `diaDaDespesaNaAgenda` em `eventosGoogle.ts`; o banco manda junto com a despesa os dias lançados no ano
+   antes do vencimento (`privado.agenda_da_despesa`).
+3. **O que vai no evento.** O título é a descrição e o valor ("Conta de luz · R$ 250,00"); a descrição diz o vencimento e o
+   valor e traz o link que abre a despesa no Financeiro (`/financeiro/obrigacoes/?mes=aaaa-mm&despesa=…`, de
+   `_compartilhado/enderecoDaDespesa.ts`), com o mesmo endereço do site dos outros eventos. Nenhum campo novo na despesa.
+4. **Paga ou excluída: sai.** Como a parcela recebida: o evento é apagado da Administrativo. Desfazer o pagamento ou
+   restaurar a despesa a põe de volta.
+5. **A fila.** Gatilhos em `financeiro_despesas` põem a despesa na fila (assunto `despesa`) quando ela é criada (também as
+   datas da repetição que nascem sozinhas, inclusive pela rotina diária `estender-despesas`) e quando mudam a descrição, o
+   valor, o vencimento, o pagamento ou a exclusão. Um dia sem expediente para todos os órgãos lançado, mudado ou apagado
+   põe na fila as despesas a pagar que vencem depois dele, até o primeiro dia útil seguinte (inclusive): são as únicas
+   cujo dia útil anterior pode ter mudado. Ligar as agendas põe na fila as despesas a pagar de hoje em diante (e, ao
+   religar, as que já têm cópia no Google, para a paga ou excluída nesse meio-tempo sair).
+6. **Repasses e indicações a pagar** (o que o escritório deve ao responsável e ao sócio que indicou) **não vão**: eles não
+   têm data de vencimento no SEMPER (só o dia em que foram pagos), e o dono pediu "se tiverem data".
 
 ## O Google Meet no compromisso
 
@@ -257,6 +287,9 @@ agendas desligadas, ela fica como estava, como no Google).
 | A reunião do Google Meet (#437): a que deve existir, os convidados, o plano e a execução | `supabase/functions/_compartilhado/reunioesGoogle.ts` |
 | Banco: a opção no compromisso, as permissões do Meet, a reunião guardada, os convidados | `supabase/migrations/20261125143159_reunioes_google.sql` |
 | Banco: as correções da revisão do Meet (a gravação de novo, a troca de conta, os convidados em dia e o religar) | `supabase/migrations/20261125153836_reunioes_google_gravacao_de_novo.sql`, `20261125154843_reunioes_google_troca_de_conta.sql`, `20261125155832_reunioes_google_convidados_em_dia.sql` |
+| As despesas na Administrativo (#439): o dia útil anterior, o link da despesa | `supabase/functions/_compartilhado/diaUtilAnterior.ts`, `enderecoDaDespesa.ts` e o assunto `despesa` em `eventosGoogle.ts` |
+| Banco: as despesas na fila, os gatilhos, a despesa como o servidor a lê | `supabase/migrations/20261125162557_agendas_google_despesas.sql` (as despesas em si: `20261125102117_despesas_do_escritorio.sql`) |
+| Testes das despesas na agenda | `app/src/regras/eventosGoogle.test.ts` (a parte da #439), `diaUtilAnterior.test.ts`, `supabase/tests/agendas_google_despesas.test.sql` |
 | Tela do Meet: a opção, o cartão e Configurações | `app/src/paginas/NovoCompromisso.tsx`, `app/src/paginas/agenda/ReuniaoNoCartao.tsx`, `app/src/paginas/AgendasNoGoogle.tsx`; os textos em `app/src/regras/reuniaoGoogle.ts` |
 | Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `reunioes_google_correcoes.test.sql`, `app/e2e/google-meet.spec.ts` |
 | Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `agendas_google_correcoes.test.sql`, `app/e2e/agendas-google.spec.ts` |
@@ -282,16 +315,20 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
-4. **Banco.** Aplicar as nove migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
+4. **Banco.** Aplicar as onze migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code: a das despesas do
+   escritório (#439), `20261125102117_despesas_do_escritorio.sql`, que vem antes (as despesas na agenda dependem dela), e
    `20261125102621_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
    `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`,
    `20261125122303_email_do_google_so_administradores.sql` e, do Google Meet, `20261125143159_reunioes_google.sql` (a
    coluna `reuniao_google` com valor padrão, a tabela `agenda_google_reunioes`, a finalidade 'meet' do pedido de ligação
    e funções refeitas com a mesma assinatura) e as três das correções do Meet, `20261125153836_reunioes_google_gravacao_de_novo.sql`,
    `20261125154843_reunioes_google_troca_de_conta.sql` (a chave de `agenda_google_reunioes` passa a ter a conta) e
-   `20261125155832_reunioes_google_convidados_em_dia.sql`. Elas só acrescentam: a versão anterior do site continua
-   funcionando (as funções antigas da ligação ficam como eram; as seguintes alargam a regra do assunto da fila, criam a
-   tabela das recusas e refazem funções das anteriores com a mesma assinatura).
+   `20261125155832_reunioes_google_convidados_em_dia.sql` e, por último, a das despesas na Administrativo,
+   `20261125162557_agendas_google_despesas.sql` (o assunto `despesa` na fila e nas cópias, os gatilhos das despesas e dos
+   dias sem expediente, e `agendas_google_item` e `agendas_google_enfileirar_abertos` refeitas com a mesma assinatura).
+   Elas só acrescentam: a versão anterior do site continua funcionando (as funções antigas da ligação ficam como eram; as
+   seguintes alargam a regra do assunto da fila, criam a tabela das recusas e refazem funções das anteriores com a mesma
+   assinatura).
 5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas
    (`verify_jwt = false`, já em `supabase/config.toml`):
 
@@ -304,8 +341,9 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    ```
 
    O `deploy` leva junto os arquivos de `supabase/functions/_compartilhado/` que elas usam (`agendasGoogle.ts`,
-   `eventosGoogle.ts`, `reunioesGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts`...). O
-   Google Meet (#437) não tem função nova: as mesmas três levam o pedido das permissões do Meet e a reunião. O `emailsDePrazo.ts`
+   `eventosGoogle.ts`, `reunioesGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts` e, das
+   despesas (#439), `diaUtilAnterior.ts` e `enderecoDaDespesa.ts`...). As despesas não têm função nova: vão pela
+   `google-agendas`. O Google Meet (#437) não tem função nova: as mesmas três levam o pedido das permissões do Meet e a reunião. O `emailsDePrazo.ts`
    só passou a exportar o endereço do site (o valor é o mesmo): `prazos-enviar-emails` não precisa ser publicada de novo. Se publicar pelo painel, mande o `index.ts` de cada uma e
    os arquivos de `_compartilhado` que ele importa, e deixe **Verify JWT desligado**. Publique as funções **depois** da
    migração: as novas chamam funções do banco que só existem com ela.
@@ -351,6 +389,12 @@ receber e-mails de compartilhamento do Google.
    descrição e o link (ele abre o item no SEMPER).
 9. Mude a hora do compromisso e tire o participante; sincronize: o evento muda de hora e sai da agenda do participante.
    Conclua a tarefa e mova o compromisso para "Cancelado"; sincronize: os eventos saem. Apague o feriado de teste.
+   **As despesas:** no Financeiro, aba Obrigações, cadastre uma despesa de teste (descrição de teste, valor pequeno) que
+   vença na próxima segunda. Sincronize e confira, com a conta de um administrador, que ela aparece na **Administrativo**
+   (e em nenhuma outra agenda) no dia inteiro da sexta antes, com a descrição, o valor e o link (ele abre a despesa no
+   Financeiro). Lance no Calendário um feriado de teste nessa sexta, para todos os órgãos; sincronize: a despesa passa
+   para a quinta. Apague o feriado, marque a despesa como paga e sincronize: ela sai da Administrativo. Exclua a despesa
+   de teste.
 10. Se algo der errado, desmarque *Criar e manter no Google…*: a fila para na hora e nada mais muda no Google (os eventos
    já gravados ficam lá; dá para apagá-los à mão com a conta do escritório).
 11. **O Google Meet.** Em **Agendas no Google**, clique em **Autorizar o Google Meet**, entre com a conta do escritório e

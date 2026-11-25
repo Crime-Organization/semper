@@ -136,7 +136,7 @@ export function planejarAgendas(e: EstadoDasAgendas): AcaoNasAgendas[] {
 /**
  * O que a fila pede (o mesmo check de agendas_google_fila.assunto no banco). 'agendas': arrumar as agendas e os
  * compartilhamentos do escritório inteiro. Os outros (#166, parte 2): as cópias de um item (compromisso, tarefa, demanda,
- * dia sem expediente ou parcela) nas agendas, com o item_id dele.
+ * dia sem expediente, parcela ou despesa do escritório) nas agendas, com o item_id dele.
  */
 export type AssuntoDaFila = 'agendas' | AssuntoDoEvento;
 /** Um pedido da fila, como o banco entrega (public.agendas_google_pendentes), já reservado para esta execução. */
@@ -373,7 +373,7 @@ const ANTES_DAS_COPIAS: Partial<Record<AssuntoDoEvento, AntesDasCopias>> = {
 
 /** O que fazer com cada assunto da fila. Devolve se restou o que fazer. */
 const PROCESSAR: Record<AssuntoDaFila, (x: Execucao) => Promise<boolean>> = {
-  agendas: arrumarAgendas, compromisso: levarItem, tarefa: levarItem, demanda: levarItem, dia: levarItem, parcela: levarItem
+  agendas: arrumarAgendas, compromisso: levarItem, tarefa: levarItem, demanda: levarItem, dia: levarItem, parcela: levarItem, despesa: levarItem
 };
 
 /** Como cada erro do Google fica na fila ('sumiu' e 'repetido' que sobram das recuperações contam como recusa). */

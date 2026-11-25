@@ -2,8 +2,8 @@
 // agendas ligadas, cria as agendas que faltam (de cada pessoa ativa da equipe, a Geral, uma por sala ativa e a
 // Administrativo), compartilha só para ver com o e-mail do Google de cada um e retira o compartilhamento de quem saiu; e
 // leva às agendas os eventos de cada item que mudou (compromissos, prazos de tarefas e demandas, dias sem expediente e
-// parcelas a receber), um pedido por item; no compromisso com "Criar link do Google Meet" (#437), também a reunião, criada
-// pela conta do escritório, com os convites (_compartilhado/reunioesGoogle.ts).
+// parcelas a receber; e as despesas do escritório a pagar, na Administrativo, #439), um pedido por item; no compromisso com
+// "Criar link do Google Meet" (#437), também a reunião, criada pela conta do escritório, com os convites (_compartilhado/reunioesGoogle.ts).
 // As regras ficam em _compartilhado/agendasGoogle.ts e _compartilhado/eventosGoogle.ts; os pedidos ao Google, em
 // _compartilhado/apiDaAgenda.ts.
 // Quem chama:

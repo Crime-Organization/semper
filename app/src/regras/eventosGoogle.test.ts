@@ -4,8 +4,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { sincronizarAgendas, type PassosDasAgendas, type PedidoDaFila } from '../../../supabase/functions/_compartilhado/agendasGoogle';
 import {
-  AVISO_DO_EVENTO, copiasDoItem, corpoParaMudar, DURACAO_DO_PRAZO, DURACAO_SEM_FIM, FUSO_DOS_EVENTOS, idDoEvento, MARCA_DO_ESCRITORIO, MARCA_DO_ITEM, planejarEventos,
-  somarDiasNaData, somarMinutos, type AgendaDoEvento, type CompromissoNaAgenda, type DiaNaAgenda, type EventoGuardado, type ItemDaFila, type ParcelaNaAgenda,
+  ASSUNTOS_DOS_EVENTOS, AVISO_DO_EVENTO, copiasDoItem, corpoParaMudar, diaDaDespesaNaAgenda, DURACAO_DO_PRAZO, DURACAO_SEM_FIM, FUSO_DOS_EVENTOS, idDoEvento, MARCA_DO_ESCRITORIO, MARCA_DO_ITEM, planejarEventos,
+  somarDiasNaData, somarMinutos, type AgendaDoEvento, type CompromissoNaAgenda, type DespesaNaAgenda, type DiaNaAgenda, type EventoGuardado, type ItemDaFila, type ParcelaNaAgenda,
   type PrazoNaAgenda
 } from '../../../supabase/functions/_compartilhado/eventosGoogle';
 import { SITE } from '../../../supabase/functions/_compartilhado/emailsDePrazo';
@@ -178,10 +178,11 @@ describe('Como fica cada evento', () => {
 
   it('dados os ids de cada assunto, então só usam o que o Google aceita (a-v e 0-9, de 5 a 1024) e são sempre os mesmos', () => {
     // Quando
-    const ids = (['compromisso', 'tarefa', 'demanda', 'dia', 'parcela'] as const).map(a => idDoEvento(a, 'ABCDEF12-0000-0000-0000-000000000009'));
+    const ids = ASSUNTOS_DOS_EVENTOS.map(a => idDoEvento(a, 'ABCDEF12-0000-0000-0000-000000000009'));
     // Então
+    expect(ASSUNTOS_DOS_EVENTOS).toEqual(['compromisso', 'tarefa', 'demanda', 'dia', 'parcela', 'despesa']);
     ids.forEach(id => expect(id).toMatch(/^[a-v0-9]{5,1024}$/));
-    expect(new Set(ids).size).toBe(5);
+    expect(new Set(ids).size).toBe(6);
     expect(idDoEvento('tarefa', 'ABCDEF12-0000-0000-0000-000000000009')).toBe(ids[1]);
   });
 
@@ -440,5 +441,86 @@ describe('A execução dos eventos, com o Google simulado', () => {
     expect(r).toMatchObject({ restam: true, feitas: { gravar_evento: 1 } });
     expect(p.concluir).toHaveBeenCalledWith(pedidoDaFila(), true);
     expect(banco.eventos).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------
+// As despesas do escritório a pagar (#439), na Administrativo
+// ---------------------------------------------------------------------
+const DESPESA_ID = 'e9000000-0000-0000-0000-000000000001';
+/** 14/12/2026 é uma segunda-feira. */
+const despesa = (campos: Partial<DespesaNaAgenda> = {}): DespesaNaAgenda => ({
+  id: DESPESA_ID, descricao: 'Aluguel da sala', valor: 250000, vencimento: '2026-12-14', paga: false, excluida: false, dias_sem_expediente: [], ...campos
+});
+
+describe('A despesa do escritório a pagar na agenda Administrativo (#439)', () => {
+  it('dada uma despesa a pagar, então fica só na Administrativo (nem na Geral, nem na agenda de ninguém)', () => {
+    // Quando / Então
+    expect(agendasDas(copiasDoItem('despesa', despesa(), AGENDAS, ESCRITORIO))).toEqual(['ag-adm']);
+  });
+
+  it.each([
+    ['paga', { paga: true }], ['excluída', { excluida: true }]
+  ])('dada uma despesa %s, então ela sai da Administrativo', (_caso, campos) => {
+    // Quando / Então
+    expect(copiasDoItem('despesa', despesa(campos), AGENDAS, ESCRITORIO)).toEqual([]);
+  });
+
+  it('dado um escritório ainda sem a Administrativo, então a despesa espera a agenda nascer', () => {
+    // Quando / Então
+    expect(copiasDoItem('despesa', despesa(), AGENDAS.filter(a => a.tipo !== 'administrativo'), ESCRITORIO)).toEqual([]);
+  });
+
+  it('dada uma despesa que vence na segunda, então o evento é o dia inteiro da sexta antes, com a descrição, o valor e o link para a despesa no Financeiro', () => {
+    // Quando
+    const [{ evento }] = copiasDoItem('despesa', despesa(), AGENDAS, ESCRITORIO);
+    // Então
+    expect(evento).toMatchObject({ id: 'ee9000000000000000000000000000001', summary: 'Aluguel da sala · R$ 2.500,00', start: { date: '2026-12-11' }, end: { date: '2026-12-12' } });
+    expect(evento.description!.split('\n').slice(0, 2)).toEqual(['Despesa a pagar, vence em 14/12/2026', 'Valor: R$ 2.500,00']);
+    expect(evento.description).toContain(`Abrir no SEMPER: ${SITE}/financeiro/obrigacoes/?mes=2026-12&despesa=${DESPESA_ID}`);
+    expect(evento.extendedProperties!.private).toEqual({ [MARCA_DO_ITEM]: `despesa:${DESPESA_ID}`, [MARCA_DO_ESCRITORIO]: ESCRITORIO });
+  });
+
+  it.each([
+    ['vence numa quarta: fica na terça', '2026-12-16', [], '2026-12-15'],
+    ['a sexta antes é um feriado nacional (Natal): fica na quinta', '2026-12-28', [], '2026-12-24'],
+    ['a sexta antes foi lançada como feriado para todos os órgãos: fica na quinta', '2026-12-14', [{ data: '2026-12-11', tipo: 'feriado', orgao_id: null }], '2026-12-10'],
+    ['a sexta antes é uma suspensão sem expediente: fica na quinta', '2026-12-14', [{ data: '2026-12-11', tipo: 'suspensao', orgao_id: null }], '2026-12-10'],
+    ['a sexta antes foi lançada só para um órgão: continua na sexta', '2026-12-14', [{ data: '2026-12-11', tipo: 'feriado', orgao_id: 'o1' }], '2026-12-11'],
+    ['a sexta antes é suspensão de prazos com expediente: continua na sexta', '2026-12-14', [{ data: '2026-12-11', tipo: 'suspensao_com_expediente', orgao_id: null }], '2026-12-11']
+  ] as const)('dada uma despesa que %s', (_caso, vencimento, dias, esperado) => {
+    // Quando
+    const [{ evento }] = copiasDoItem('despesa', despesa({ vencimento, dias_sem_expediente: [...dias] }), AGENDAS, ESCRITORIO);
+    // Então
+    expect(evento.start).toEqual({ date: esperado });
+    expect(diaDaDespesaNaAgenda({ vencimento, dias_sem_expediente: [...dias] })).toBe(esperado);
+  });
+
+  it('dado um dia sem expediente lançado depois, quando o dia da despesa muda, então a assinatura muda (o evento vai de novo ao Google)', () => {
+    // Dado
+    const [antes] = copiasDoItem('despesa', despesa(), AGENDAS, ESCRITORIO);
+    // Quando
+    const [depois] = copiasDoItem('despesa', despesa({ dias_sem_expediente: [{ data: '2026-12-11', tipo: 'feriado', orgao_id: null }] }), AGENDAS, ESCRITORIO);
+    // Então
+    expect(depois.assinatura).not.toBe(antes.assinatura);
+  });
+
+  it('dada uma despesa nova na fila, quando a fila é feita, então a cópia é criada na Administrativo; paga depois, ela sai', async () => {
+    // Dado
+    const fila = [pedidoDaFila({ assunto: 'despesa', item_id: DESPESA_ID })];
+    const g = google();
+    const { passos: p, banco } = passos(despesa(), [], g.buscar, fila);
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(g.eventos()).toEqual(['POST ag-adm@google/events']);
+    expect(banco.eventos.map(e => `${e.agenda_id} ${e.evento_id}`)).toEqual(['ag-adm ee9000000000000000000000000000001']);
+    // Quando paga
+    const g2 = google();
+    const { passos: p2, banco: banco2 } = passos(despesa({ paga: true }), banco.eventos, g2.buscar, fila);
+    await sincronizarAgendas(p2, null);
+    // Então
+    expect(g2.eventos()).toEqual(['DELETE ag-adm@google/events/ee9000000000000000000000000000001']);
+    expect(banco2.eventos).toEqual([]);
   });
 });

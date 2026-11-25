@@ -8,16 +8,20 @@
 //   - tarefa e demanda com prazo: na data de entrega (com a hora, se houver; sem hora, o dia inteiro), na agenda do
 //     responsável e de cada participante (colaborador, na demanda). O início não estica o evento. Concluída ou arquivada: sai;
 //   - dia sem expediente e suspensão do "Feriados e prazos" do escritório: na Geral, o dia inteiro;
-//   - parcela a receber: na agenda do advogado responsável pelo contrato, no vencimento. Recebida ou excluída: sai.
+//   - parcela a receber: na agenda do advogado responsável pelo contrato, no vencimento. Recebida ou excluída: sai;
+//   - despesa do escritório a pagar (#439): só na Administrativo, no dia útil ANTERIOR ao vencimento (a regra de
+//     diaUtilAnterior.ts), com a descrição, o valor e o link para o Financeiro. Paga ou excluída: sai.
 // Quem sai do item (um participante tirado, um responsável trocado) perde a cópia na agenda dele.
 import type { AgendaGuardada } from './agendasGoogle.ts';
 import type { EventoDoGoogle } from './apiDaAgenda.ts';
 import type { ReuniaoGuardada } from './reunioesGoogle.ts';
+import { diaUtilAnterior, type DiaSemExpedienteLancado } from './diaUtilAnterior.ts';
 import { SITE } from './emailsDePrazo.ts';
+import { enderecoDaDespesa } from './enderecoDaDespesa.ts';
 
 /** Os itens que viram eventos (o mesmo check de agendas_google_fila.assunto no banco, além de 'agendas'). */
-export type AssuntoDoEvento = 'compromisso' | 'tarefa' | 'demanda' | 'dia' | 'parcela';
-export const ASSUNTOS_DOS_EVENTOS: AssuntoDoEvento[] = ['compromisso', 'tarefa', 'demanda', 'dia', 'parcela'];
+export type AssuntoDoEvento = 'compromisso' | 'tarefa' | 'demanda' | 'dia' | 'parcela' | 'despesa';
+export const ASSUNTOS_DOS_EVENTOS: AssuntoDoEvento[] = ['compromisso', 'tarefa', 'demanda', 'dia', 'parcela', 'despesa'];
 
 /** O fuso dos eventos com hora: o relógio de Brasília (o mesmo FUSO_DAS_AGENDAS de agendasGoogle.ts). */
 export const FUSO_DOS_EVENTOS = 'America/Sao_Paulo';
@@ -56,7 +60,16 @@ export interface ParcelaNaAgenda {
   id: string; contrato_id: string; contrato_codigo: string; numero: number; total: number | null; vencimento: string; valor: number;
   clientes: string | null; responsavel_id: string; recebida: boolean; excluida: boolean;
 }
-export interface ItensNaAgenda { compromisso: CompromissoNaAgenda; tarefa: PrazoNaAgenda; demanda: PrazoNaAgenda; dia: DiaNaAgenda; parcela: ParcelaNaAgenda }
+/**
+ * A despesa do escritório a pagar (#439). O valor, em centavos. dias_sem_expediente: os dias que o escritório lançou no
+ * Calendário antes do vencimento (até DIAS_PARA_TRAS), para achar o dia útil anterior.
+ */
+export interface DespesaNaAgenda {
+  id: string; descricao: string; valor: number; vencimento: string; paga: boolean; excluida: boolean; dias_sem_expediente: DiaSemExpedienteLancado[];
+}
+export interface ItensNaAgenda {
+  compromisso: CompromissoNaAgenda; tarefa: PrazoNaAgenda; demanda: PrazoNaAgenda; dia: DiaNaAgenda; parcela: ParcelaNaAgenda; despesa: DespesaNaAgenda;
+}
 
 /** A agenda, só com o que o plano dos eventos usa (criada_em: para um 404 numa agenda nova não contar como apagada). */
 export type AgendaDoEvento = Pick<AgendaGuardada, 'id' | 'tipo' | 'perfil_id' | 'sala_id' | 'google_id' | 'criada_em'>;
@@ -81,7 +94,7 @@ export interface CopiaDesejada { agenda: AgendaDoEvento; evento: EventoDoGoogle 
  * A letra de cada assunto no id do evento. O Google aceita no id só letras de "a" a "v" e números (base32hex), de 5 a 1024
  * caracteres; o resto é o uuid do item sem os hífens (só 0-9 e a-f). O id é o mesmo em todas as agendas (é único por agenda).
  */
-const LETRA_DO_ASSUNTO: Record<AssuntoDoEvento, string> = { compromisso: 'c', tarefa: 't', demanda: 'd', dia: 'f', parcela: 'p' };
+const LETRA_DO_ASSUNTO: Record<AssuntoDoEvento, string> = { compromisso: 'c', tarefa: 't', demanda: 'd', dia: 'f', parcela: 'p', despesa: 'e' };
 /** O id do evento, escolhido pelo SEMPER: o mesmo a cada tentativa, para nunca duplicar. */
 export const idDoEvento = (assunto: AssuntoDoEvento, itemId: string) => LETRA_DO_ASSUNTO[assunto] + itemId.toLowerCase().replace(/[^0-9a-f]/g, '');
 
@@ -134,7 +147,8 @@ const LINK_DO_ITEM: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => string } 
   tarefa: i => `${SITE}/tarefas/?id=${encodeURIComponent(i.id)}`,
   demanda: i => `${SITE}/demandas/?id=${encodeURIComponent(i.id)}`,
   dia: () => `${SITE}/calendario/`,
-  parcela: i => `${SITE}/contratos/?id=${encodeURIComponent(i.contrato_id)}`
+  parcela: i => `${SITE}/contratos/?id=${encodeURIComponent(i.contrato_id)}`,
+  despesa: i => `${SITE}${enderecoDaDespesa(i)}`
 };
 /** O link no fim da descrição. */
 export const LINHA_DO_LINK = (link: string) => `Abrir no SEMPER: ${link}`;
@@ -157,6 +171,9 @@ export const NOME_DO_TIPO_DO_DIA: Record<TipoDoDia, string> = {
 /** O nome da parcela, como no Início ("Parcela 2/10"), com o contrato. */
 export const nomeDaParcelaNaAgenda = (p: Pick<ParcelaNaAgenda, 'numero' | 'total' | 'contrato_codigo'>) =>
   `Parcela ${p.numero}${p.total ? '/' + p.total : ''} · ${p.contrato_codigo}`;
+
+/** O dia em que a despesa fica na agenda Administrativo: o dia útil anterior ao vencimento (#439). */
+export const diaDaDespesaNaAgenda = (d: Pick<DespesaNaAgenda, 'vencimento' | 'dias_sem_expediente'>) => diaUtilAnterior(d.vencimento, d.dias_sem_expediente);
 
 /** O evento de cada assunto, sem o id e a marca: título, quando, local e descrição. */
 const EVENTO_DO_ITEM: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => Omit<EventoDoGoogle, 'id' | 'extendedProperties' | 'status'> } = {
@@ -182,6 +199,11 @@ const EVENTO_DO_ITEM: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => Omit<Ev
     ...diaInteiro(p.vencimento),
     description: descricao([`Parcela a receber, vence em ${dataEmTexto(p.vencimento)}`, `Valor: ${dinheiro(p.valor)}`, `Contrato: ${p.contrato_codigo}`,
       limpo(p.clientes) && `Clientes: ${limpo(p.clientes)}`], LINK_DO_ITEM.parcela(p))
+  }),
+  despesa: d => ({
+    summary: `${limpo(d.descricao)} · ${dinheiro(d.valor)}`,
+    ...diaInteiro(diaDaDespesaNaAgenda(d)),
+    description: descricao([`Despesa a pagar, vence em ${dataEmTexto(d.vencimento)}`, `Valor: ${dinheiro(d.valor)}`], LINK_DO_ITEM.despesa(d))
   })
 };
 function prazoNaAgenda(i: PrazoNaAgenda, oQue: string, link: string) {
@@ -197,13 +219,13 @@ function prazoNaAgenda(i: PrazoNaAgenda, oQue: string, link: string) {
 // Em quais agendas
 // ---------------------------------------------------------------------
 
-/** Onde a cópia vai: a agenda de uma pessoa da equipe, a Geral ou a de uma sala. */
-type Destino = { tipo: 'pessoa'; perfil_id: string } | { tipo: 'geral' } | { tipo: 'sala'; sala_id: string };
+/** Onde a cópia vai: a agenda de uma pessoa da equipe, a Geral, a de uma sala ou a Administrativo (só dos administradores). */
+type Destino = { tipo: 'pessoa'; perfil_id: string } | { tipo: 'geral' } | { tipo: 'sala'; sala_id: string } | { tipo: 'administrativo' };
 const pessoas = (ids: (string | null | undefined)[]): Destino[] => ids.filter((id): id is string => !!id).map(perfil_id => ({ tipo: 'pessoa', perfil_id }));
 
 /**
  * As agendas de cada assunto, ou nenhuma quando o item não vai (ou não vai mais) para o Google: o compromisso arquivado ou
- * cancelado; a tarefa ou demanda sem prazo, concluída ou arquivada; a parcela recebida ou excluída.
+ * cancelado; a tarefa ou demanda sem prazo, concluída ou arquivada; a parcela recebida ou excluída; a despesa paga ou excluída.
  */
 const DESTINOS: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => Destino[] } = {
   compromisso: c => (c.arquivado || c.cancelado ? [] : [
@@ -214,12 +236,14 @@ const DESTINOS: { [A in AssuntoDoEvento]: (i: ItensNaAgenda[A]) => Destino[] } =
   tarefa: t => (!t.prazo || t.arquivado || t.concluido ? [] : pessoas([t.responsavel_id, ...t.participantes])),
   demanda: d => (!d.prazo || d.arquivado || d.concluido ? [] : pessoas([d.responsavel_id, ...d.participantes])),
   dia: () => [{ tipo: 'geral' }],
-  parcela: p => (p.recebida || p.excluida ? [] : pessoas([p.responsavel_id]))
+  parcela: p => (p.recebida || p.excluida ? [] : pessoas([p.responsavel_id])),
+  despesa: d => (d.paga || d.excluida ? [] : [{ tipo: 'administrativo' }])
 };
 const ACHAR_AGENDA: { [T in Destino['tipo']]: (d: Extract<Destino, { tipo: T }>, a: AgendaDoEvento) => boolean } = {
   pessoa: (d, a) => a.tipo === 'pessoa' && a.perfil_id === d.perfil_id,
   geral: (_d, a) => a.tipo === 'geral',
-  sala: (d, a) => a.tipo === 'sala' && a.sala_id === d.sala_id
+  sala: (d, a) => a.tipo === 'sala' && a.sala_id === d.sala_id,
+  administrativo: (_d, a) => a.tipo === 'administrativo'
 };
 const agendaDo = (d: Destino, agendas: AgendaDoEvento[]) =>
   agendas.find(a => (ACHAR_AGENDA[d.tipo] as (d: Destino, a: AgendaDoEvento) => boolean)(d, a));

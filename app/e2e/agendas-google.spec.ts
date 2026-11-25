@@ -39,6 +39,7 @@ test.describe('Agendas no Google, em Configurações', () => {
     // O que vai para as agendas está dito antes de ligar (#166, parte 2: os eventos).
     await expect(agendas).toContainText('os prazos das tarefas e das demandas');
     await expect(agendas).toContainText('as parcelas a receber');
+    await expect(agendas).toContainText('as despesas do escritório a pagar (na Administrativo, no dia útil anterior ao vencimento)');
     // Quando
     await agendas.getByRole('checkbox', { name: CHAVE }).check();
     await expect(page.getByText('Agendas ligadas:', { exact: false })).toBeVisible();

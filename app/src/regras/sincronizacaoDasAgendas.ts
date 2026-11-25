@@ -9,8 +9,8 @@ export const FALTA_AUTORIZAR_A_AGENDA = 'Falta autorizar a agenda: o Google aind
 export const AGENDAS_QUE_O_SEMPER_CRIA = 'O SEMPER cria nesta conta uma agenda para cada pessoa ativa da equipe ("Agenda – nome"), a Geral, uma para cada sala ativa e a Administrativo, '
   + 'e as compartilha só para ver: cada pessoa recebe pelo e-mail do Google dela a própria agenda, a Geral e as das salas; os administradores, também a Administrativo. '
   + 'Quem é desativado perde o acesso (a agenda fica com o escritório). Nelas vão os compromissos (do responsável e dos participantes; na Geral, os da Agenda geral; '
-  + 'na da sala, os que têm sala), os prazos das tarefas e das demandas, os feriados e as suspensões do escritório (na Geral) e as parcelas a receber '
-  + '(na agenda do responsável pelo contrato). Ao ligar, vai o que está em aberto de hoje em diante. Tudo se muda no SEMPER: no Google, é só para ver.';
+  + 'na da sala, os que têm sala), os prazos das tarefas e das demandas, os feriados e as suspensões do escritório (na Geral), as parcelas a receber '
+  + '(na agenda do responsável pelo contrato) e as despesas do escritório a pagar (na Administrativo, no dia útil anterior ao vencimento). Ao ligar, vai o que está em aberto de hoje em diante. Tudo se muda no SEMPER: no Google, é só para ver.';
 
 /** O problema, para o administrador: o que houve e o que fazer. */
 export const PROBLEMAS_DAS_AGENDAS: Record<ProblemaDasAgendas, { titulo: string; oQueFazer: string }> = {
