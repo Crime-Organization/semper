@@ -72,5 +72,9 @@ h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink
 .config-campos { display: flex; flex-direction: column; gap: 16px; margin-top: 18px }
 .config-campos-form { display: flex; flex-direction: column; gap: 16px }
 .config-campos-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+/* Na tabela de uma coluna só (os papéis escritos, #443), a ação fica no fim da linha, longe do nome. */
+.config-campos-acoes-fim { justify-content: flex-end }
+/* Uma coluna só cabe no celular: a tabela não precisa da largura mínima das outras (nem rolar para o lado para achar a lixeira). */
+.config-papeis-escritos .tabela table { min-width: 0 }
 .config-campos-apagados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
 .config-campos-apagados li { display: flex; align-items: center; justify-content: space-between; gap: 8px; overflow-wrap: anywhere }

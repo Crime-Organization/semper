@@ -240,10 +240,11 @@ export const ASSUNTOS: Assunto[] = [
       'advogado_entra_no_processo', 'andamentos_tipo_e_comentarios_de_processos', 'colunas_de_acompanhamento_dos_processos', 'ligar_processo_existente',
       'polo_criminal', 'processo_partes_recursos_e_tipos', 'investigacaoNoAdministrativo', 'investigacao_no_processo_administrativo', 'papel_do_cliente',
       'processoJudicialDoAdministrativo', 'processo_judicial_do_administrativo', 'processo-judicial-do-administrativo',
-      'processosRelacionados', 'processos_relacionados', 'processos-relacionados'
+      'processosRelacionados', 'processos_relacionados', 'processos-relacionados',
+      'papelEscrito', 'papel_escrito', 'papel-escrito', 'PapeisEscritos', 'papeisEscritos'
     ],
     tabelas: ['processos', 'processo_andamentos', 'processo_campos', 'processo_clientes', 'processo_demandas', 'processo_etiquetas', 'processo_historico',
-      'processo_opcoes', 'processo_partes', 'processo_prazos', 'processos_relacionados'],
+      'processo_opcoes', 'processo_papeis', 'processo_partes', 'processo_prazos', 'processos_relacionados'],
     dados: ['DadosProcessos', 'DadosAcompanhamento'],
     rotas: ['processos', 'processos/judicial', 'processos/administrativo', 'processos/novo'],
     armadilhas: [
@@ -251,7 +252,8 @@ export const ASSUNTOS: Assunto[] = [
       'Tipo de processo novo ou que sai: `TIPOS_PROCESSO` (`regras/processo.ts`), as rotas em `App.tsx`, os links em `ui/Casca.tsx`, os grupos em `regras/buscaGeral.ts`, `ui/BuscaGeral.tsx` (`ICONE_DO_GRUPO`) e `ui/fontesDaBuscaGeral.ts`, `ONDE_APARECE` em `regras/camposDeProcesso.ts`, `regras/graficosDeProcessos.ts`, `regras/ajuda.ts` e `regras/enderecosAntigos.ts` (veja [Rotas e endereços](#rotas)).',
       'Colunas novas num quadro que já existe: o escritório pode ter renomeado colunas e grupos ou deixado um grupo vazio (ou o quadro não ter grupos); ache pelo código fixo (`regras/quadro.ts`) e siga `regras/colunasPadrao.ts` (o precedente é `COLUNAS_NOVAS_DOS_PROCESSOS`, #315; veja [Quadros](#quadros)).',
       'Conversão que está na migração e numa regra que o `falso.ts` usa (como o grupo da fase e a coluna equivalente): mude as duas, com o mesmo caso no teste do banco e no `dados/contrato.test.ts`.',
-      'A contagem de prazos (dias úteis, feriados) está em [Calendário e prazos](#calendario); a propriedade intelectual, em [Propriedade intelectual](#propriedade-intelectual).'
+      'A contagem de prazos (dias úteis, feriados) está em [Calendário e prazos](#calendario); a propriedade intelectual, em [Propriedade intelectual](#propriedade-intelectual).',
+      'O papel escrito pela equipe (#443) é o papel `outro` mais o nome, em `papeis_escritos` (do cliente) ou `papel_escrito` (da pessoa do processo); a lista do escritório (`processo_papeis`) cresce pelo gatilho ao gravar. O gatilho da migração `papel_escrito`, o `falso.ts` (`escritosAoGravar`, `papelNaLista`, `nomesNovosDoProcesso`) e `regras/papelEscrito.ts` mudam juntos; a lista lida nas telas fica em `ui/papeisEscritos.ts`.'
     ],
     testes: ['buscaGeral', 'BuscaGeral', 'enderecosAntigos', 'busca-geral', 'menu-lateral', 'ajuda', 'colunas-padrao', 'propriedade-intelectual', 'colunasPadrao']
   },
@@ -439,7 +441,7 @@ export const ASSUNTOS: Assunto[] = [
     rotas: ['configuracoes'],
     armadilhas: [
       'O SEMPER é de vários escritórios: nada do primeiro escritório no código; nome e logomarca vêm das Configurações.',
-      'As partes das Configurações de outros assuntos estão nos assuntos deles: salas (Agenda), objetos (Objetos de contrato), funções dos participantes da tarefa (`FuncoesDosParticipantes`, Tarefas), conta Google (Conta Google e contatos) e fase de adaptação (Equipe). A função de cada pessoa da equipe (advogado, estagiário) é de Equipe.'
+      'As partes das Configurações de outros assuntos estão nos assuntos deles: salas (Agenda), objetos (Objetos de contrato), funções dos participantes da tarefa (`FuncoesDosParticipantes`, Tarefas), papéis escritos nos processos (`PapeisEscritos`, Processos), conta Google (Conta Google e contatos) e fase de adaptação (Equipe). A função de cada pessoa da equipe (advogado, estagiário) é de Equipe.'
     ]
   },
   {
