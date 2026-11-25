@@ -1,5 +1,5 @@
-// Minha conta: nome, @usuário, aparência e verificação em duas etapas (que ficavam no Início) e o perfil profissional,
-// a base da página de cada um no site do escritório.
+// Minha conta: nome, @usuário, o e-mail do Google (#166, o que recebe as agendas do escritório), aparência e verificação em
+// duas etapas (que ficavam no Início) e o perfil profissional, a base da página de cada um no site do escritório.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { SD, type CadastroDuasEtapas, type EmailDaConta, type FatorDuasEtapas } from '../dados';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
@@ -12,6 +12,8 @@ import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
 import { TituloComAjuda } from '../ui/BotaoDeAjuda';
+import { recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
+import { EmailDoGoogle } from './EmailDoGoogle';
 import { EmailsDePrazo } from './EmailsDePrazo';
 import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
@@ -53,6 +55,7 @@ function Teclado() {
 
 function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
   const { ctx } = useSessao();
+  const recusaDoGoogle = recusaDoEmailDoGoogle(ctx.perfil, ctx.perfil);
   const tema = useTema();
   const [nome, setNome] = useState(ctx.perfil.nome);
   const [usuario, setUsuario] = useState(ctx.perfil.usuario);
@@ -85,6 +88,8 @@ function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
     <TituloSecao id="tConta">Acesso</TituloSecao>
     <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <EmailDeAcesso aoTrocar={aoSalvar} />
+      {/* Só os administradores mudam o e-mail do Google; para os outros, o campo é só leitura (muda em Equipe e acessos). */}
+      <EmailDoGoogle perfilId={ctx.perfil.id} pode={!recusaDoGoogle} porQueNao={recusaDoGoogle} />
       <form className="grade-campos" style={{ alignItems: 'end' }} onSubmit={salvar}>
         <label>Nome<input value={nome} onChange={e => setNome(e.target.value)} required /></label>
         <label>Usuário para menções <small>(@nome nas conversas)</small><input value={usuario} onChange={e => setUsuario(e.target.value)} required /></label>

@@ -36,7 +36,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
 import { ligarParte, PartesDoProcesso } from './PartesDoProcesso';
-import { ligarJudicialNaSecao, novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
+import { ligarProcessoNaSecao, novoDerivado, ProcessosRelacionados } from './ProcessosRelacionados';
 import { quantosPreenchidos } from '../regras/secoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
@@ -319,10 +319,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     {/* O processo de origem e os recursos e incidentais que nasceram deste (#316), cada um com o próprio número e andamentos; o
-        administrativo e o judicial que nasceu dele, ligados um ao outro (#425). O "+" do título abre o menu das ligações (#427). */}
+        administrativo e o judicial que nasceu dele, ligados um ao outro (#425); e os ligados depois, de qualquer tipo (#440). O "+" do
+        título abre o menu das ligações (#427), e a corrente liga um processo que já existe. */}
     <Recolhivel titulo="Processos relacionados" icone="processos" preferencia="processos.cartao.relacionados" contador={relacionados?.length}
-      novo={podeLigar ? novoDerivado(p.id, p.tipo) : undefined} ligar={podeLigar ? ligarJudicialNaSecao(p.tipo) : undefined}>
-      <ProcessosRelacionados lista={relacionados} processoId={p.id} tipo={p.tipo} aoMudar={depoisDeLigar} />
+      novo={podeLigar ? novoDerivado(p.id, p.tipo) : undefined} ligar={podeLigar ? ligarProcessoNaSecao() : undefined}>
+      <ProcessosRelacionados lista={relacionados} processoId={p.id} aoMudar={depoisDeLigar} />
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}

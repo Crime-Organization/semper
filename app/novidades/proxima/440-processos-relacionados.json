@@ -1,0 +1,5 @@
+{
+  "titulo": "Processo ligado a qualquer outro processo",
+  "texto": "Qualquer processo pode ser ligado a outro que já existe: judicial com judicial, administrativo com administrativo, ou um judicial com um administrativo. A ligação aparece nos dois cartões, como \"Relacionado\", e se desfaz pelo \"x\".",
+  "ondeAchar": "No cartão do processo, na seção \"Processos relacionados\": \"Ligar processo existente\"."
+}

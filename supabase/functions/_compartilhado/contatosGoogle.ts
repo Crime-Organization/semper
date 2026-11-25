@@ -137,8 +137,8 @@ async function pedir<T>(buscar: typeof fetch, url: string, init: RequestInit): P
   return respostaDoGoogle<T>(r);
 }
 
-/** Um token de acesso novo, com o token de renovação. Recusa do Google (4xx) é autorização vencida ou retirada. */
-async function tokenDeAcesso(passos: Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'>, escritorio: string) {
+/** Um token de acesso novo, com o token de renovação (também para as agendas, #166). Recusa do Google (4xx) é autorização vencida ou retirada. */
+export async function tokenDeAcesso(passos: Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'>, escritorio: string) {
   const renovacao = await passos.tokenDeRenovacao(escritorio);
   if (!renovacao) throw new FalhaDoGoogle('autorizacao', 'sem token de renovação');
   try {

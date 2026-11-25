@@ -16,7 +16,9 @@ import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_DO_COMPROMISSO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { MESMA_DEMANDA } from '../regras/demandasRelacionadas';
-import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES } from '../regras/repeticao';
+import { DEMANDA_NA_SERIE_DE_OUTROS, SEGUINTES_DE_OUTROS, SO_ESTES_CAMPOS_NAS_SEGUINTES, somarMeses } from '../regras/repeticao';
+import { DESPESA_JA_PAGA, DESPESA_NAO_ENCONTRADA, FIM_ANTES_DO_VENCIMENTO, SO_ADMINISTRADOR_NAS_DESPESAS } from '../regras/despesas';
+import { REPETICAO } from './limites';
 import { SALA_REPETIDA } from '../regras/sala';
 import { avisoDoObjetoEmUso, JUNTAR_SO_UM, OBJETO_A_DEFINIR_FIXO, OBJETO_REPETIDO, OBJETO_RESERVADO, SEM_OBJETO_DA_DEMANDA, SEPARAR_POUCOS, SEPARAR_REPETIDOS } from '../regras/objetos';
 import { SEM_MOTIVO_DA_DILIGENCIA } from '../regras/tarefa';
@@ -2887,6 +2889,88 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Processos relacionados de qualquer tipo (#440)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const novoProcesso = async (tipo: 'judicial' | 'administrativo') => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo, numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const idsRelacionados = async (id: string) => (await SD.processosRelacionados(id)).filter(p => p.relacao === 'relacionado').map(p => p.id);
+
+      it.each([
+        ['judicial', 'judicial'], ['administrativo', 'administrativo'], ['judicial', 'administrativo'], ['administrativo', 'judicial']
+      ] as const)('dado um %s e um %s, quando a pessoa liga um ao outro, então cada cartão mostra o outro como "Relacionado"', async (tipoA, tipoB) => {
+        // Dado
+        const [a, b] = [await novoProcesso(tipoA), await novoProcesso(tipoB)];
+        // Quando
+        const ligou = await SD.processoRelacionar(a.id, b.id);
+        // Então
+        expect(ligou).toBe(true);
+        expect(await idsRelacionados(a.id)).toEqual([b.id]);
+        expect(await idsRelacionados(b.id)).toEqual([a.id]);
+      });
+
+      it('dado um par já ligado, quando liga de novo, em qualquer sentido, então nada se repete', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('administrativo')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        const deNovo = await SD.processoRelacionar(b.id, a.id);
+        // Então
+        expect(deNovo).toBe(false);
+        expect(await idsRelacionados(a.id)).toEqual([b.id]);
+      });
+
+      it('quando desfaz num cartão, então a ligação some dos dois; desfazer o que não está ligado é recusado', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('judicial')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        await SD.processoDesrelacionar(b.id, a.id);
+        // Então
+        expect(await idsRelacionados(a.id)).toEqual([]);
+        expect(await idsRelacionados(b.id)).toEqual([]);
+        await expect(SD.processoDesrelacionar(a.id, b.id)).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando liga o processo a ele mesmo, a um arquivado, ou quem tenta não está nos dois, então é recusado', async () => {
+        // Dado
+        const [a, b, arquivado] = [await novoProcesso('judicial'), await novoProcesso('administrativo'), await novoProcesso('judicial')];
+        await SD.processosArquivar([arquivado.id], true);
+        // Quando
+        const consigo = SD.processoRelacionar(a.id, a.id);
+        const comArquivado = SD.processoRelacionar(a.id, arquivado.id);
+        entrarComo('u-bruno');
+        const deFora = SD.processoRelacionar(a.id, b.id);
+        // Então
+        await expect(consigo).rejects.toThrow('Um processo não se relaciona com ele mesmo.');
+        await expect(comArquivado).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(deFora).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('dado um processo que é origem do outro, quando também é ligado depois, então aparece uma vez só, pela origem', async () => {
+        // Dado
+        const administrativo = await novoProcesso('administrativo'), judicial = await novoProcesso('judicial');
+        await SD.processoJudicialLigar(administrativo.id, judicial.id);
+        // Quando
+        await SD.processoRelacionar(administrativo.id, judicial.id);
+        // Então
+        expect(await SD.processosRelacionados(administrativo.id)).toEqual([expect.objectContaining({ id: judicial.id, relacao: 'judicial' })]);
+      });
+
+      it('quando um dos processos é excluído, então a ligação sai do outro', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso('judicial'), await novoProcesso('administrativo')];
+        await SD.processoRelacionar(a.id, b.id);
+        // Quando
+        await SD.processosArquivar([b.id], true);
+        await SD.processosExcluir([b.id]);
+        // Então
+        expect(await idsRelacionados(a.id)).toEqual([]);
+      });
+    });
+
     describe('Processos', () => {
       // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const NUMERO = '0005678-13.2026.8.13.0433';
@@ -4988,6 +5072,166 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Despesas do escritório a pagar (#439)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const daqui = (dias: number) => somarDias(hojeISO(), dias);
+      const TUDO = { de: '2000-01-01', ate: '2100-12-31' };
+      const daSerie = async (descricao: string) => (await SD.financeiroDespesas(TUDO.de, TUDO.ate)).filter(d => d.descricao === descricao);
+
+      it('quando cadastra uma despesa sem repetição, então ela aparece no período do vencimento, a pagar', async () => {
+        // Dado
+        const descricao = 'LUZ ' + marca();
+        // Quando
+        const { id, ids } = await SD.financeiroDespesaCriar({ descricao: `  ${descricao} `, valor: 25000, vencimento: daqui(3) }, null);
+        // Então
+        expect(ids).toEqual([]);
+        const [lida] = await daSerie(descricao);
+        expect(lida).toEqual({ id, descricao, valor: 25000, vencimento: daqui(3), paga_em: null, repeticao: null });
+        expect((await SD.financeiroDespesas(daqui(3), daqui(3))).map(d => d.id)).toContain(id);
+      });
+
+      it('quando cadastra uma despesa de todo mês, três vezes, então as próximas datas nascem sozinhas, com a repetição', async () => {
+        // Dado
+        const descricao = 'SALÁRIO ' + marca();
+        // Quando
+        const { ids } = await SD.financeiroDespesaCriar({ descricao, valor: 300000, vencimento: daqui(5) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 3 });
+        // Então
+        expect(ids).toHaveLength(2);
+        const serie = await daSerie(descricao);
+        expect(serie.map(d => d.vencimento)).toEqual([daqui(5), somarMeses(daqui(5), 1), somarMeses(daqui(5), 2)]);
+        expect(serie.every(d => d.valor === 300000 && d.repeticao?.frequencia === 'mes' && d.repeticao.vezes === 3)).toBe(true);
+      });
+
+      it('quando cadastra uma de todo mês sem fim, então nascem as datas dos próximos 12 meses, e a rotina não repete nenhuma', async () => {
+        // Dado
+        const descricao = 'DAS ' + marca();
+        // Quando
+        await SD.financeiroDespesaCriar({ descricao, valor: 90000, vencimento: daqui(5) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: null });
+        const rotina = (hoje?: string) => (window as unknown as { SEMPER_FALSO: { estenderDespesas(hoje?: string): string[] } }).SEMPER_FALSO.estenderDespesas(hoje);
+        const criadasPelaRotina = rotina();
+        // Então
+        expect(criadasPelaRotina).toEqual([]);
+        expect(await daSerie(descricao)).toHaveLength(REPETICAO.horizonteMeses);
+        // E quando a rotina roda um mês depois, então nasce a data seguinte, uma só
+        expect(rotina(somarMeses(hojeISO(), 1))).toHaveLength(1);
+        expect((await daSerie(descricao)).map(d => d.vencimento).at(-1)).toBe(somarMeses(daqui(5), REPETICAO.horizonteMeses));
+      });
+
+      it('quando cadastra uma com repetição e depois a muda sem mudar nada, então o registro de ações só tem a inclusão (como o banco)', async () => {
+        // Dado
+        const descricao = 'INTERNET ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 12000, vencimento: daqui(2) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 2 });
+        // Quando
+        await SD.financeiroDespesaMudar(id, { descricao, valor: 12000, vencimento: daqui(2) }, false);
+        // Então
+        const acoes = (await SD.auditoriaListar()).filter(l => l.tabela === 'financeiro_despesas' && l.registro_id === id).map(l => l.acao);
+        expect(acoes).toEqual(['inclusao']);
+      });
+
+      it('quando marca como paga sem o dia do pagamento, então é recusado e ela continua a pagar (como o banco)', async () => {
+        // Dado
+        const descricao = 'TELEFONE ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 8000, vencimento: daqui(2) }, null);
+        // Quando
+        const semDia = SD.financeiroDespesaPagar(id, null as unknown as string);
+        // Então
+        await expect(semDia).rejects.toThrow('Algum campo está em formato inválido.');
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([null]);
+      });
+
+      it('quando a data final vem antes do vencimento, ou o valor está zerado, então é recusado', async () => {
+        // Quando / Então
+        await expect(SD.financeiroDespesaCriar({ descricao: 'ÁGUA', valor: 100, vencimento: daqui(3) }, { frequencia: 'mes', intervalo: 1, ate: daqui(2), vezes: null }))
+          .rejects.toThrow(FIM_ANTES_DO_VENCIMENTO);
+        await expect(SD.financeiroDespesaCriar({ descricao: 'ÁGUA', valor: 0, vencimento: daqui(3) }, null)).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando marca a primeira como paga, então ela fica paga, a próxima continua a pagar, e desfazer volta como estava', async () => {
+        // Dado
+        const descricao = 'CONTADOR ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 50000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 2 });
+        // Quando
+        await SD.financeiroDespesaPagar(id, daqui(0));
+        // Então
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([daqui(0), null]);
+        await expect(SD.financeiroDespesaPagar(id, daqui(0))).rejects.toThrow(DESPESA_JA_PAGA);
+        expect((await SD.financeiroDespesaHistorico(id))[0].alteracoes).toEqual({ paga_em: { de: null, para: daqui(0) } });
+        await SD.financeiroDespesaDesfazerPagamento(id);
+        expect((await daSerie(descricao)).map(d => d.paga_em)).toEqual([null, null]);
+      });
+
+      it('dada uma paga, quando o período é depois dela, então ela não aparece; a pagar de antes, sim', async () => {
+        // Dado
+        const descricao = 'ALUGUEL ' + marca();
+        const paga = await SD.financeiroDespesaCriar({ descricao, valor: 100000, vencimento: daqui(1) }, null);
+        const aPagar = await SD.financeiroDespesaCriar({ descricao, valor: 100000, vencimento: daqui(2) }, null);
+        await SD.financeiroDespesaPagar(paga.id, daqui(1));
+        // Quando
+        const depois = await SD.financeiroDespesas(daqui(30), daqui(60));
+        // Então
+        expect(depois.map(d => d.id)).toContain(aPagar.id);
+        expect(depois.map(d => d.id)).not.toContain(paga.id);
+      });
+
+      it('quando muda o valor "nesta e nas seguintes", então a paga fica como estava e só as seguintes a pagar mudam', async () => {
+        // Dado
+        const descricao = 'FUNCIONÁRIO ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 200000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 3 });
+        const [, segunda] = await daSerie(descricao);
+        await SD.financeiroDespesaPagar(id, daqui(0));
+        // Quando
+        const mudadas = await SD.financeiroDespesaMudar(segunda.id, { descricao, valor: 210000, vencimento: segunda.vencimento }, true);
+        // Então
+        expect(mudadas).toBe(2);
+        expect((await daSerie(descricao)).map(d => d.valor)).toEqual([200000, 210000, 210000]);
+        expect(await SD.financeiroDespesaMudar(id, { descricao, valor: 205000, vencimento: daqui(1) }, false)).toBe(1);
+        expect((await daSerie(descricao)).map(d => d.valor)).toEqual([205000, 210000, 210000]);
+      });
+
+      it('quando exclui "esta e as seguintes", então elas saem e a repetição para; restaurar devolve tudo', async () => {
+        // Dado
+        const descricao = 'INTERNET ' + marca();
+        await SD.financeiroDespesaCriar({ descricao, valor: 15000, vencimento: daqui(1) }, { frequencia: 'mes', intervalo: 1, ate: null, vezes: 4 });
+        const [primeira, segunda] = await daSerie(descricao);
+        // Quando
+        const excluidas = await SD.financeiroDespesaExcluir(segunda.id, true);
+        // Então
+        expect(excluidas).toHaveLength(3);
+        const restou = await daSerie(descricao);
+        expect(restou.map(d => d.id)).toEqual([primeira.id]);
+        expect(restou[0].repeticao).toMatchObject({ ate: somarDias(segunda.vencimento, -1), vezes: null });
+        await expect(SD.financeiroDespesaPagar(segunda.id, daqui(0))).rejects.toThrow(DESPESA_NAO_ENCONTRADA);
+        await SD.financeiroDespesaRestaurar(excluidas);
+        const devolvidas = await daSerie(descricao);
+        expect(devolvidas).toHaveLength(4);
+        expect(devolvidas[0].repeticao).toMatchObject({ ate: null, vezes: 4 });
+      });
+
+      it('quando exclui só uma da repetição, então as outras ficam', async () => {
+        // Dado
+        const descricao = 'TELEFONE ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, { frequencia: 'semana', intervalo: 1, ate: null, vezes: 3 });
+        // Quando
+        expect(await SD.financeiroDespesaExcluir(id, false)).toEqual([id]);
+        // Então
+        expect(await daSerie(descricao)).toHaveLength(2);
+      });
+
+      it('dado alguém que não é administrador, quando abre, então não vê as despesas e não cadastra nem paga', async () => {
+        // Dado
+        const descricao = 'SEGURO ' + marca();
+        const { id } = await SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, null);
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        expect(await SD.financeiroDespesas(TUDO.de, TUDO.ate)).toEqual([]);
+        expect(await SD.financeiroDespesaHistorico(id)).toEqual([]);
+        await expect(SD.financeiroDespesaCriar({ descricao, valor: 9000, vencimento: daqui(1) }, null)).rejects.toThrow(SO_ADMINISTRADOR_NAS_DESPESAS);
+        await expect(SD.financeiroDespesaPagar(id, daqui(0))).rejects.toThrow(SO_ADMINISTRADOR_NAS_DESPESAS);
+      });
+    });
+
     describe('Painel de processos', () => {
       const HOJE = hojeISO();
       const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);
@@ -7019,6 +7263,233 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.sincronizacaoGoogle()).toMatchObject({ ativa: false, pendentes: 0 });
         await SD.ligacaoGoogleDesligar();
         expect(await SD.sincronizacaoGoogle()).toBeNull();
+      });
+    });
+
+    describe('Agendas do escritório no Google (#166)', () => {
+      // No banco de verdade, a volta do Google traz o código; aqui, o pedido criado por "iniciar" é concluído direto.
+      const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+      async function ligarConta() {
+        expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/')), 'codigo')).toBe('ligado');
+      }
+      async function autorizarAgenda() {
+        expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')), 'codigo')).toBe('agenda-ligada');
+      }
+      async function agendasLigadas() {
+        await ligarConta();
+        await autorizarAgenda();
+        await SD.agendasGoogleLigar(true);
+      }
+
+      it('quando não há conta ligada, então não há agendas, e autorizar a agenda, ligá-las ou sincronizar é recusado', async () => {
+        // Quando / Então
+        expect(await SD.agendasGoogle()).toBeNull();
+        await expect(SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')).rejects.toThrow('Ligue a conta Google do escritório antes de autorizar a agenda');
+        await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Ligue a conta Google do escritório antes de ligar as agendas');
+        expect((await SD.sincronizarAgendasAgora()).resultado).toBe('desligada');
+      });
+
+      it('dada a conta ligada só com os contatos, então as agendas começam desligadas, sem a agenda autorizada, e ligá-las é recusado', async () => {
+        // Dado
+        await ligarConta();
+        // Quando / Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, autorizada: false, pendentes: 0, agendas: 0 });
+        await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Autorize a agenda na conta Google do escritório antes de ligar as agendas');
+      });
+
+      it('quando o administrador autoriza a agenda, então ela fica autorizada e os contatos continuam na mesma conta', async () => {
+        // Dado
+        await ligarConta();
+        // Quando
+        await autorizarAgenda();
+        // Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, autorizada: true });
+        const ligacao = await SD.ligacaoGoogle();
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/contacts');
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.acls');
+      });
+
+      it('dadas as agendas ligadas, quando o administrador pede "Sincronizar agora", então as agendas são criadas e compartilhadas; de novo, nada muda', async () => {
+        // Dado
+        await agendasLigadas();
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: true, pendentes: 1 });
+        // Quando
+        const r = await SD.sincronizarAgendasAgora();
+        // Então
+        expect(r).toMatchObject({ resultado: 'ok', falhas: 0, restam: false });
+        expect(r.feitas.criar).toBeGreaterThanOrEqual(3);
+        expect(r.feitas.compartilhar).toBeGreaterThanOrEqual(r.feitas.criar);
+        const s = await SD.agendasGoogle();
+        expect(s).toMatchObject({ pendentes: 0, agendas: r.feitas.criar, compartilhamentos: r.feitas.compartilhar });
+        expect(s?.sincronizado_em).toBeTruthy();
+        expect((await SD.sincronizarAgendasAgora()).feitas).toEqual({ criar: 0, renomear: 0, compartilhar: 0, retirar: 0, gravar_evento: 0, apagar_evento: 0, reuniao: 0 });
+      });
+
+      it('dadas as agendas criadas, quando alguém da equipe é desativado e reativado, então o escritório volta à fila e o compartilhamento sai e volta', async () => {
+        // Dado
+        await agendasLigadas();
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.equipeDefinirAtivo(outro.id, false);
+        // Então
+        expect((await SD.agendasGoogle())?.pendentes).toBe(1);
+        expect((await SD.sincronizarAgendasAgora()).feitas.retirar).toBeGreaterThanOrEqual(2);
+        await SD.equipeDefinirAtivo(outro.id, true);
+        expect((await SD.sincronizarAgendasAgora()).feitas.compartilhar).toBeGreaterThanOrEqual(2);
+      });
+
+      it('dadas as agendas criadas, quando alguém muda de nome, então a agenda dele muda de nome no Google', async () => {
+        // Dado
+        await agendasLigadas();
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.equipeDefinirNome(outro.id, 'Nome Novo ' + marca());
+        // Então
+        expect((await SD.sincronizarAgendasAgora()).feitas).toMatchObject({ renomear: 1, criar: 0 });
+      });
+
+      it('quando as agendas são desligadas, então a fila esvazia e as agendas já criadas continuam (nada é apagado no Google)', async () => {
+        // Dado
+        await agendasLigadas();
+        const { feitas } = await SD.sincronizarAgendasAgora();
+        await SD.equipeDefinirNome((await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!.id, 'Outro Nome ' + marca());
+        // Quando
+        await SD.agendasGoogleLigar(false);
+        // Então
+        expect(await SD.agendasGoogle()).toMatchObject({ ativa: false, pendentes: 0, agendas: feitas.criar });
+        expect((await SD.sincronizarAgendasAgora()).resultado).toBe('desligada');
+      });
+    });
+
+    describe('Google Meet no compromisso (#437)', () => {
+      // Como nas agendas: a volta do Google é concluída direto, e a reunião é criada pela conta simulada.
+      const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+      const VOLTA = 'http://localhost:8091/configuracoes/';
+      const concluir = async (iniciar: (v: string) => Promise<string>) => SD.ligacaoGoogleConcluir(estadoDe(await iniciar(VOLTA)), 'codigo');
+      async function meetDisponivel() {
+        expect(await concluir(v => SD.ligacaoGoogleIniciar(v))).toBe('ligado');
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarAgendas(v))).toBe('agenda-ligada');
+        await SD.agendasGoogleLigar(true);
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarMeet(v))).toBe('meet-ligado');
+      }
+      const reuniao = (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) =>
+        SD.compromissoCriar({ tipo: 'reuniao', titulo: marca(), data: '2031-03-10', hora: '14:30', responsavel_id: 'u-ana', ...extra });
+
+      it('quando não há conta ligada, então não há Meet, e autorizá-lo é recusado', async () => {
+        // Quando / Então
+        expect(await SD.reunioesGoogle()).toBeNull();
+        await expect(SD.ligacaoGoogleAutorizarMeet(VOLTA)).rejects.toThrow('Ligue a conta Google do escritório antes de autorizar o Google Meet');
+      });
+
+      it('dada a agenda autorizada e as agendas ligadas, quando o administrador autoriza o Meet, então ele fica autorizado e disponível, sem tirar a agenda', async () => {
+        // Dado
+        expect(await concluir(v => SD.ligacaoGoogleIniciar(v))).toBe('ligado');
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarAgendas(v))).toBe('agenda-ligada');
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: false, disponivel: false });
+        // Quando
+        expect(await concluir(v => SD.ligacaoGoogleAutorizarMeet(v))).toBe('meet-ligado');
+        // Então
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: true, disponivel: false });
+        await SD.agendasGoogleLigar(true);
+        expect(await SD.reunioesGoogle()).toEqual({ autorizado: true, disponivel: true });
+        const ligacao = await SD.ligacaoGoogle();
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.events.owned');
+        expect(ligacao?.escopos).toContain('https://www.googleapis.com/auth/calendar.acls');
+      });
+
+      it('dado o Meet disponível, quando um compromisso é cadastrado com a opção, então ele ganha a reunião com o link; sem a opção, não', async () => {
+        // Dado
+        await meetDisponivel();
+        // Quando
+        const com = await reuniao({ reuniao_google: true }), sem = await reuniao();
+        // Então
+        const lido = await SD.compromissoObter(com.id);
+        expect(lido?.reuniao_google).toBe(true);
+        expect(lido?.reuniao?.link).toMatch(/^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}$/);
+        expect(await SD.compromissoObter(sem.id)).toMatchObject({ reuniao_google: false, reuniao: null });
+      });
+
+      it('dado o compromisso com a reunião, quando muda de hora, então o link continua o mesmo; arquivado ou com a opção desmarcada, a reunião sai', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true });
+        const link = (await SD.compromissoObter(id))?.reuniao?.link;
+        // Quando
+        await SD.compromissoAtualizar(id, { hora: '16:00' });
+        // Então
+        expect((await SD.compromissoObter(id))?.reuniao?.link).toBe(link);
+        await SD.compromissosArquivar([id]);
+        expect((await SD.compromissoObter(id))?.reuniao).toBeNull();
+        await SD.compromissosArquivar([id], false);
+        await SD.compromissoAtualizar(id, { reuniao_google: false });
+        expect(await SD.compromissoObter(id)).toMatchObject({ reuniao_google: false, reuniao: null });
+        expect((await SD.compromissoHistorico(id))[0].alteracoes).toHaveProperty('reuniao_google');
+      });
+
+      it('dada a reunião criada, quando as agendas são desligadas e o compromisso é arquivado, então a reunião continua no Google até as agendas voltarem', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true });
+        const link = (await SD.compromissoObter(id))?.reuniao?.link;
+        // Quando
+        await SD.agendasGoogleLigar(false);
+        await SD.compromissosArquivar([id]);
+        // Então
+        expect((await SD.compromissoObter(id))?.reuniao?.link).toBe(link);
+        await SD.agendasGoogleLigar(true);
+        expect((await SD.compromissoObter(id))?.reuniao).toBeNull();
+      });
+
+      it('dado um compromisso com o Meet que se repete, quando as datas seguintes nascem, então elas vêm sem a opção (cada data marca a sua)', async () => {
+        // Dado
+        await meetDisponivel();
+        const { id } = await reuniao({ reuniao_google: true, data: somarDias(hojeISO(), 1) });
+        // Quando
+        const { ids } = await SD.compromissoRepetir(id, { frequencia: 'semana', intervalo: 1, ate: null, vezes: 3 });
+        // Então
+        expect(ids.length).toBeGreaterThan(0);
+        for (const outra of ids) expect(await SD.compromissoObter(outra)).toMatchObject({ reuniao_google: false, reuniao: null });
+        expect(await SD.compromissoObter(id)).toMatchObject({ reuniao_google: true });
+      });
+    });
+
+    describe('E-mail do Google da equipe (#166)', () => {
+      it('dado alguém sem e-mail do Google informado, então vale o de entrada; informado, vale o novo, e vazio volta ao de entrada', async () => {
+        // Dado
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        expect(await SD.emailDoGoogle(outro.id)).toEqual({ email: null, padrao: outro.email.toLowerCase() });
+        // Quando
+        await SD.emailDoGoogleSalvar(outro.id, '  Pessoal.Teste@Exemplo.com ');
+        // Então
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBe('pessoal.teste@exemplo.com');
+        await SD.emailDoGoogleSalvar(outro.id, '');
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBeNull();
+        await SD.emailDoGoogleSalvar(outro.id, outro.email.toUpperCase());
+        expect((await SD.emailDoGoogle(outro.id))?.email).toBeNull();
+      });
+
+      it('quando o e-mail do Google não é um e-mail, então é recusado', async () => {
+        // Dado
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando / Então
+        await expect(SD.emailDoGoogleSalvar(outro.id, 'sem-arroba')).rejects.toThrow('Informe um e-mail válido.');
+        await expect(SD.emailDoGoogleSalvar('00000000-0000-0000-0000-000000000000', 'x@exemplo.com')).rejects.toThrow('Usuário não encontrado');
+      });
+
+      it('dadas as agendas ligadas, quando um e-mail do Google muda, então o escritório volta à fila', async () => {
+        // Dado
+        expect(await SD.ligacaoGoogleConcluir(/estado=([0-9a-f]{64})/.exec(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/'))![1], 'c')).toBe('ligado');
+        expect(await SD.ligacaoGoogleConcluir(/estado=([0-9a-f]{64})/.exec(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/'))![1], 'c')).toBe('agenda-ligada');
+        await SD.agendasGoogleLigar(true);
+        await SD.sincronizarAgendasAgora();
+        const outro = (await SD.equipeListar()).find(u => u.ativo && u.papel === 'usuario')!;
+        // Quando
+        await SD.emailDoGoogleSalvar(outro.id, 'novo.' + marca().toLowerCase().replace(/\s/g, '') + '@exemplo.com');
+        // Então
+        expect((await SD.agendasGoogle())?.pendentes).toBe(1);
+        expect((await SD.sincronizarAgendasAgora()).feitas).toMatchObject({ retirar: 2, compartilhar: 2 });
       });
     });
 
@@ -9326,6 +9797,80 @@ describe('O nome de alguém da equipe (banco fictício)', () => {
   it('dado o master, quando dá um nome de uma letra, então é recusado', async () => {
     // Então
     await expect(SD.equipeDefinirNome('u-ana', 'A')).rejects.toThrow('Informe um nome de 2 a 200 letras.');
+  });
+});
+
+// A regra do banco de verdade está provada em supabase/tests/agendas_google.test.sql; aqui, que o fictício faz igual.
+describe('O e-mail do Google de alguém da equipe (banco fictício, #166)', () => {
+  let SD: Dados;
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+
+  it('dado um usuário comum, quando tenta mudar o próprio e-mail do Google, então é recusado (só os administradores mudam); ele vê o dele; o de outra pessoa, nem lê nem muda', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.emailDoGoogleSalvar('u-bruno', 'bruno.pessoal@exemplo.com')).rejects.toThrow('Só os administradores mudam o e-mail do Google, em Equipe e acessos.');
+    expect(await SD.emailDoGoogle('u-bruno')).toEqual({ email: null, padrao: expect.stringContaining('@') });
+    expect(await SD.emailDoGoogle('u-ana')).toBeNull();
+    await expect(SD.emailDoGoogleSalvar('u-ana', 'x@exemplo.com')).rejects.toThrow('Apenas administradores mudam o e-mail do Google de alguém da equipe');
+  });
+
+  it('dada uma administradora, quando muda o e-mail do Google do master, então é recusado; o de um usuário, muda', async () => {
+    // Dado
+    entrarComo('u-ana');
+    // Quando / Então
+    await expect(SD.emailDoGoogleSalvar('u-master', 'x@exemplo.com')).rejects.toThrow('Só o próprio master muda o e-mail do Google dele.');
+    await SD.emailDoGoogleSalvar('u-bruno', 'bruno.escritorio@exemplo.com');
+    expect((await SD.emailDoGoogle('u-bruno'))?.email).toBe('bruno.escritorio@exemplo.com');
+  });
+
+  it('dado o master, quando muda o de uma administradora, então muda', async () => {
+    // Quando
+    await SD.emailDoGoogleSalvar('u-ana', 'ana.pessoal@exemplo.com');
+    // Então
+    expect((await SD.emailDoGoogle('u-ana'))?.email).toBe('ana.pessoal@exemplo.com');
+  });
+
+  it('dado um usuário comum, quando tenta autorizar a agenda ou ligar as agendas, então é recusado, e ele não vê a situação', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')).rejects.toThrow('Apenas administradores autorizam a agenda na conta Google do escritório');
+    await expect(SD.agendasGoogleLigar(true)).rejects.toThrow('Apenas administradores ligam e desligam as agendas no Google');
+    expect(await SD.agendasGoogle()).toBeNull();
+  });
+
+  it('dado o Google que recusa compartilhar com um e-mail, quando as agendas são arrumadas, então só ele fica de fora, o administrador vê a recusa e o "Sincronizar agora" tenta de novo', async () => {
+    // Dado
+    const estadoDe = (endereco: string) => /estado=([0-9a-f]{64})/.exec(endereco)![1];
+    expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/')), 'c')).toBe('ligado');
+    expect(await SD.ligacaoGoogleConcluir(estadoDe(await SD.ligacaoGoogleAutorizarAgendas('http://localhost:8091/configuracoes/')), 'c')).toBe('agenda-ligada');
+    await SD.agendasGoogleLigar(true);
+    await SD.emailDoGoogleSalvar('u-bruno', 'fora@gmail.test');
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { agendasGoogle: Record<string, unknown> };
+    bd.agendasGoogle.recusar = ['fora@gmail.test'];
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    // Quando
+    const r = await SD.sincronizarAgendasAgora();
+    // Então
+    expect(r).toMatchObject({ resultado: 'ok', falhas: 0, restam: false });
+    const recusas = await SD.agendasGoogleRecusas();
+    expect(recusas.map(x => x.agenda)).toEqual(expect.arrayContaining(['Agenda – Bruno Exemplo Souza', 'Geral']));
+    expect(recusas.every(x => x.email === 'fora@gmail.test' && x.detalhe === '403 forbidden')).toBe(true);
+    expect((await SD.agendasGoogle())?.compartilhamentos).toBe(r.feitas.compartilhar);
+    entrarComo('u-bruno');
+    expect(await SD.agendasGoogleRecusas()).toEqual([]);
+    entrarComo('u-master');
+    expect((await SD.sincronizarAgendasAgora()).feitas.compartilhar).toBe(0);
+    expect(await SD.agendasGoogleRecusas()).toHaveLength(recusas.length);
   });
 });
 

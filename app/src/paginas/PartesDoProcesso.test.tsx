@@ -100,7 +100,7 @@ describe('Processos relacionados no cartão do processo (recursos e incidentais)
   const ORIGEM: ProcessoRelacionado = { id: 'o1', codigo: 'O1', tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', titulo: 'Ação de origem', cliente_nome: '', etapa_id: null,
     arquivado_em: null, criado_em: '2026-01-01', relacao: 'origem' };
   const secao = (lista: ProcessoRelacionado[]) =>
-    <Recolhivel titulo="Processos relacionados" icone="processos" novo={novoDerivado('r1', 'judicial')}><ProcessosRelacionados lista={lista} processoId="r1" tipo="judicial" aoMudar={() => {}} /></Recolhivel>;
+    <Recolhivel titulo="Processos relacionados" icone="processos" novo={novoDerivado('r1', 'judicial')}><ProcessosRelacionados lista={lista} processoId="r1" aoMudar={() => {}} /></Recolhivel>;
 
   it('dado um recurso, quando a seção abre, então o processo de origem aparece com a relação, sem botões de criar embaixo', async () => {
     // Quando

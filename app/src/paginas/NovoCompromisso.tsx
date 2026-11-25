@@ -9,10 +9,14 @@
 // "Acompanhar na agenda" do processo de propriedade intelectual (?processo=…&acompanhar=protecao, #317), ele já vem com os prazos do
 // INPI: o título, a primeira data, a repetição e a demanda de cada data. No lápis do cartão (#417), o compromisso que ainda não se repete
 // ganha a repetição (nascem as datas seguintes, como aqui); no que já se repete, a demanda de cada data se liga, muda ou desliga, e mudar o
-// título, o local, a equipe ou as pessoas pergunta "só esta" ou "esta e as seguintes".
+// título, o local, a equipe ou as pessoas pergunta "só esta" ou "esta e as seguintes". A opção "Criar link do Google Meet" (#437), na
+// etapa "Onde" e no lápis, aparece com o Meet ligado no escritório (ou já marcada, para poder desmarcar).
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
+import {
+  SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type SituacaoDasReunioes, type TipoCompromisso
+} from '../dados';
+import { dicaDoMeet, mostraOpcaoDoMeet, OPCAO_DO_MEET } from '../regras/reuniaoGoogle';
 import { CLIENTES_MAXIMOS, DEMANDA_DO_COMPROMISSO, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { avisoDasDemandasNascidas, demandaAGravar, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
 import {
@@ -112,6 +116,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [buscaProcesso, setBuscaProcesso] = useState('');
   const buscaAtrasada = useAtrasado(buscaProcesso);
   const [rotuloProcesso, setRotuloProcesso] = useState('');
+  // O Google Meet no escritório (#437): com ele ligado, a opção "Criar link do Google Meet" aparece.
+  const [reunioes, setReunioes] = useState<SituacaoDasReunioes | null>(null);
+  useEffect(() => {
+    let vale = true;
+    SD.reunioesGoogle().then(r => { if (vale) setReunioes(r); }).catch(() => {});
+    return () => { vale = false; };
+  }, []);
   useTitulo(edicao ? null : alvo ? 'Atualizar compromisso' : 'Novo compromisso');
   // Com o lápis aberto, o título ainda muda no próprio lugar do cartão: o formulário acompanha o que ficou gravado, para decidir
   // se pede um título (tituloNoLapis), validar e desfazer com o título de agora, e não com o de quando o lápis abriu.
@@ -485,6 +496,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       <Campo rotulo="Local" para="local" erro={erros.local} dica="O endereço, a sala ou o link da sala virtual.">
         <input type="text" {...propsDoCampo('local', { dica: true, erro: erros.local })} maxLength={TAMANHO_COMPROMISSO.local} value={c.local} onChange={e => mudar({ local: e.target.value })} />
       </Campo>
+      {mostraOpcaoDoMeet(reunioes, c.reuniaoGoogle) && <Escolhas rotulo="Google Meet" dica={dicaDoMeet(reunioes)}>
+        <label><input type="checkbox" checked={c.reuniaoGoogle} onChange={e => mudar({ reuniaoGoogle: e.target.checked })} />{OPCAO_DO_MEET}</label>
+      </Escolhas>}
     </>,
     pessoas: () => <>
       <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>

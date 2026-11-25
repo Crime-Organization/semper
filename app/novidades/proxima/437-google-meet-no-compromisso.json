@@ -1,0 +1,5 @@
+{
+  "titulo": "Google Meet no compromisso",
+  "texto": "No compromisso, marque \"Criar link do Google Meet\": a conta Google do escritório cria a reunião e manda o convite por e-mail à equipe do compromisso e às pessoas ligadas que têm e-mail. O link aparece no cartão e nas agendas; mudar a data mantém o link, e arquivar ou cancelar o compromisso cancela a reunião.",
+  "ondeAchar": "Agenda, \"Novo compromisso\" (etapa \"Onde\") ou o lápis do cartão. O administrador autoriza em Configurações, Conta Google, \"Autorizar o Google Meet\"."
+}

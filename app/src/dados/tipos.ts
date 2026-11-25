@@ -552,6 +552,8 @@ export interface Usuario {
   id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; reservada?: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
 }
+/** O e-mail do Google de alguém da equipe: o informado (null: usa o de entrada) e o de entrada (null na conta reservada). */
+export interface EmailDoGoogle { email: string | null; padrao: string | null }
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
 /** Convite recém-criado: traz o código do link (o banco guarda só o resumo, então ele só aparece agora). */
 export type ConviteCriado = Convite & { codigo?: string };
@@ -1047,9 +1049,9 @@ export interface Processo {
 export interface ParteDoProcesso { id: string; processo_id: string; papel: PapelDaParte; pessoa: PessoaResumida }
 /**
  * Como um processo ligado se relaciona com o aberto: é a origem dele (o administrativo, quando o aberto é o judicial que nasceu dele,
- * #425), ou nasceu dele como recurso, incidental ou judicial.
+ * #425), nasceu dele como recurso, incidental ou judicial, ou foi ligado a ele depois, de qualquer tipo ("relacionado", #440).
  */
-export type RelacaoEntreProcessos = 'origem' | 'administrativo' | LigacaoDeProcesso;
+export type RelacaoEntreProcessos = 'origem' | 'administrativo' | LigacaoDeProcesso | 'relacionado';
 /** Processo ligado a outro (#316), como aparece no cartão. */
 export interface ProcessoRelacionado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   relacao: RelacaoEntreProcessos;
@@ -1160,7 +1162,8 @@ export interface DadosProcessos {
   processoParteRetirar(id: string): Promise<void>;
   /**
    * Os processos ligados a este (#316): a origem dele e os recursos e incidentais que nasceram dele, que quem está logado vê; e, desde
-   * a #425, o administrativo de que o judicial nasceu e os judiciais que nasceram do administrativo.
+   * a #425, o administrativo de que o judicial nasceu e os judiciais que nasceram do administrativo; e, desde a #440, os ligados
+   * depois, de qualquer tipo ("relacionado"). O processo que tem as duas ligações com o aberto aparece uma vez só, pela origem.
    */
   processosRelacionados(processoId: string): Promise<ProcessoRelacionado[]>;
   /**
@@ -1170,6 +1173,13 @@ export interface DadosProcessos {
   processoJudicialLigar(administrativoId: string, judicialId: string): Promise<void>;
   /** Desfaz a ligação do judicial ao administrativo (#425; o recurso e o incidental não se desligam): quem altera um dos dois. */
   processoJudicialDesligar(judicialId: string): Promise<void>;
+  /**
+   * Liga um processo a outro que já existe, de qualquer tipo (#440; supabase/migrations/20261125104145_processos_relacionados.sql):
+   * quem altera os dois, ativos. O mesmo par, em qualquer sentido, é a mesma ligação: ligar de novo devolve false e nada muda.
+   */
+  processoRelacionar(processoId: string, outroId: string): Promise<boolean>;
+  /** Desfaz a ligação entre os dois (#440), nos dois cartões: quem altera um deles, mesmo arquivado. */
+  processoDesrelacionar(processoId: string, outroId: string): Promise<void>;
   processoOpcoes(): Promise<OpcaoDeProcesso[]>;
   /** Só administradores. */
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
@@ -1302,7 +1312,12 @@ export interface DadosFotos {
 /** A conta Google ligada ao escritório (supabase/migrations/20261031120000_ligacao_google.sql). Nunca traz a autorização. */
 export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_em: string; ligado_por: string | null }
 /** Como terminou a tentativa de ligar a conta Google (a página de Configurações mostra um aviso para cada um). */
-export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
+/**
+ * Como terminou a tentativa de ligar a conta Google, ou de somar a ela a permissão da agenda (#166): 'agenda-ligada',
+ * 'sem-permissao-agenda' (faltou marcar a agenda no Google) e 'outra-conta' (entrou-se no Google com outra conta).
+ */
+export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro' | 'agenda-ligada' | 'sem-permissao-agenda' | 'outra-conta'
+  | 'meet-ligado' | 'sem-permissao-meet';
 
 /**
  * O que impede a sincronização dos contatos (public.sincronizacao_google e public.primeira_sincronizacao_google): autorização
@@ -1366,6 +1381,43 @@ export interface ContatoParaConferir {
 /** O que o administrador decide: o contato é desta pessoa; é de outra pessoa (o SEMPER cria um contato novo); ou deixa como está. */
 export type DecisaoDoContato = { acao: 'ligar'; pessoa_id: string } | { acao: 'outra' } | { acao: 'ignorar' };
 
+/** O que impede as agendas no Google (public.agendas_google_situacao): autorização vencida, Google fora ou dados recusados. */
+export type ProblemaDasAgendas = 'autorizacao' | 'google-fora' | 'recusado';
+/** Como estão as agendas do escritório no Google Agenda (#166; supabase/migrations/20261125105000_agendas_google.sql). */
+export interface AgendasGoogle {
+  /** O administrador ligou as agendas (começam desligadas). */
+  ativa: boolean;
+  /** A conta Google do escritório deu a permissão da agenda (pedida à parte, depois dos contatos). */
+  autorizada: boolean;
+  /** Pedidos esperando para ir ao Google; com_falha: os que já falharam 3 vezes ou mais. */
+  pendentes: number;
+  com_falha: number;
+  problema: ProblemaDasAgendas | null;
+  problema_em: string | null;
+  /** A última vez que as agendas foram arrumadas no Google. */
+  sincronizado_em: string | null;
+  /** Quantas agendas o SEMPER já criou na conta e quantos compartilhamentos fez. */
+  agendas: number;
+  compartilhamentos: number;
+}
+/** O que o "Sincronizar agora" das agendas fez no Google (supabase/functions/_compartilhado/agendasGoogle.ts). */
+export interface ResultadoDasAgendas {
+  resultado: 'ok' | 'desligada' | 'erro';
+  /** As ações nas agendas e, nos eventos (#166, parte 2), as cópias gravadas (novas ou mudadas) e as tiradas. */
+  feitas: { criar: number; renomear: number; compartilhar: number; retirar: number; gravar_evento: number; apagar_evento: number; reuniao: number };
+  falhas: number;
+  /** Faltou tempo: o resto vai sozinho na próxima vez. */
+  restam: boolean;
+}
+
+/**
+ * O Google Meet no escritório (#437; public.reunioes_google_situacao): a conta Google do escritório deu as permissões do Meet
+ * (autorizado) e, além disso, as agendas no Google estão ligadas (disponivel: a reunião vai pela fila delas).
+ */
+export interface SituacaoDasReunioes { autorizado: boolean; disponivel: boolean }
+/** Um compartilhamento que o Google recusou (public.agendas_google_recusas): o e-mail, a agenda, o que o Google respondeu e quando. */
+export interface RecusaDasAgendas { email: string; agenda: string; detalhe: string | null; recusada_em: string }
+
 /** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
 export interface DadosLigacoes {
   /** A conta Google ligada ao escritório, ou null. */
@@ -1389,6 +1441,23 @@ export interface DadosLigacoes {
   contatosParaConferir(): Promise<ContatoParaConferir[]>;
   /** Decide um contato para conferir; ele sai da lista e não volta (só administradores). */
   contatoParaConferirDecidir(id: string, decisao: DecisaoDoContato): Promise<void>;
+  /** Começa o pedido da permissão da agenda (#166) na conta já ligada: devolve o endereço para onde o navegador vai. Só administradores. */
+  ligacaoGoogleAutorizarAgendas(voltarPara: string): Promise<string>;
+  /** Como estão as agendas no Google, ou null sem conta ligada (ou para quem não é administrador). */
+  agendasGoogle(): Promise<AgendasGoogle | null>;
+  /** Liga ou desliga as agendas no Google (só administradores; ligar pede a agenda autorizada). Desligar esvazia a fila e não apaga nada no Google. */
+  agendasGoogleLigar(ligar: boolean): Promise<void>;
+  /** Arruma agora as agendas do escritório no Google, sem esperar a rotina (só administradores). */
+  sincronizarAgendasAgora(): Promise<ResultadoDasAgendas>;
+  /**
+   * Os compartilhamentos que o Google recusou (o Workspace que não deixa compartilhar com contas de fora, por exemplo): o
+   * resto continua indo, e o "Sincronizar agora" tenta cada um de novo. Só administradores; os outros recebem a lista vazia.
+   */
+  agendasGoogleRecusas(): Promise<RecusaDasAgendas[]>;
+  /** Começa o pedido das permissões do Google Meet (#437) na conta já ligada: devolve o endereço para onde o navegador vai. Só administradores. */
+  ligacaoGoogleAutorizarMeet(voltarPara: string): Promise<string>;
+  /** O Google Meet no escritório, para qualquer um da equipe (o cadastro do compromisso mostra a opção), ou null sem conta ligada. */
+  reunioesGoogle(): Promise<SituacaoDasReunioes | null>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */
@@ -1490,6 +1559,16 @@ export interface DadosEquipe {
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;
+  /**
+   * O e-mail do Google de alguém da equipe (#166), o que recebe as agendas do escritório: o informado (null: usa o de entrada)
+   * e o de entrada. Só a própria pessoa e os administradores; para os outros, null.
+   */
+  emailDoGoogle(perfilId: string): Promise<EmailDoGoogle | null>;
+  /**
+   * Muda o e-mail do Google: a própria pessoa, ou um administrador (o de um administrador, só o master; o de um master, só ele).
+   * Vazio (ou o de entrada) volta ao de entrada. Fica no registro de ações.
+   */
+  emailDoGoogleSalvar(perfilId: string, email: string): Promise<void>;
   /** Registra uma exportação no registro de ações (LGPD). Vem antes de entregar o arquivo; só administradores. */
   exportacaoRegistrar(tabela: 'pessoas', descricao: string, quantidade: number): Promise<void>;
 
@@ -1688,7 +1767,16 @@ export interface Compromisso {
   repeticao?: RepeticaoCompromisso | null;
   /** A demanda que nasceu desta data (#307, parte B); ausente ou null: nenhuma (ou foi excluída). */
   demanda_gerada_id?: string | null;
+  /** Marcaram "Criar link do Google Meet" (#437): a conta Google do escritório cria a reunião e convida a equipe e as pessoas ligadas. Ausente: não. */
+  reuniao_google?: boolean;
+  /** A reunião já criada no Google (o link e a gravação), ou null: ainda não (ou sem a opção). */
+  reuniao?: ReuniaoDoCompromisso | null;
 }
+/**
+ * A reunião do Google Meet do compromisso (#437; public.agenda_google_reunioes): o link (null enquanto o Google o cria) e a
+ * gravação e a transcrição automáticas: ligadas, recusadas pelo Google (quem grava é a conta do escritório) ou ainda não vistas.
+ */
+export interface ReuniaoDoCompromisso { link: string | null; gravacao: 'ligada' | 'recusada' | null }
 /** Como o compromisso se repete (#307): por semana, mês ou ano. */
 export type FrequenciaRepeticao = 'semana' | 'mes' | 'ano';
 /**
@@ -1707,7 +1795,7 @@ export interface RepeticaoCompromisso extends RegraDeRepeticao {
 export interface RepeticaoCriada { ids: string[]; semSala: string[] }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
-  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'sala_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por' | 'reuniao_google'>>;
 /**
  * Os campos que o lápis muda "nesta e nas seguintes" do compromisso que se repete (#417): o título, o local, a equipe e as pessoas.
  * Ausente: não muda. A lista fica em CAMPOS_DAS_SEGUINTES (regras/repeticao.ts), a mesma que o banco aceita.
@@ -2301,6 +2389,43 @@ export interface DadosFinanceiro {
   financeiroExcluidos(): Promise<RecebimentoExcluido[]>;
 }
 
+/** Uma despesa do escritório a pagar (#439): uma data de vencimento, com a repetição de que faz parte (null: não se repete). */
+export interface DespesaDoEscritorio {
+  id: string;
+  descricao: string;
+  /** Em centavos. */
+  valor: number;
+  /** aaaa-mm-dd. */
+  vencimento: string;
+  /** O dia em que foi paga (aaaa-mm-dd); null: a pagar. */
+  paga_em: string | null;
+  /** A regra da repetição (a que parou termina na véspera do ponto em que parou); null: não se repete. */
+  repeticao: RegraDeRepeticao | null;
+}
+/** O que o cadastro da despesa grava. */
+export interface DadosDespesa { descricao: string; valor: number; vencimento: string }
+
+/**
+ * As despesas do escritório a pagar (supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439): só os administradores veem
+ * e mexem; quem não é administrador recebe a lista vazia e tem as mudanças recusadas.
+ */
+export interface DadosDespesas {
+  /** As que vencem no período (pagas ou não) e as ainda a pagar que venceram antes dele, sem as excluídas, por vencimento. */
+  financeiroDespesas(de: string, ate: string): Promise<DespesaDoEscritorio[]>;
+  /** Cadastra a despesa e, com a repetição, as datas seguintes até 12 meses adiante (e sempre a próxima). Devolve o id e os das datas que nasceram. */
+  financeiroDespesaCriar(dados: DadosDespesa, repeticao: RegraDeRepeticao | null): Promise<{ id: string; ids: string[] }>;
+  /** Muda esta data; com `seguintes`, a descrição e o valor vão também às seguintes ainda a pagar. Devolve quantas mudaram. */
+  financeiroDespesaMudar(id: string, dados: DadosDespesa, seguintes: boolean): Promise<number>;
+  /** Só registra que foi paga, no dia informado (não cria lançamento no caixa). */
+  financeiroDespesaPagar(id: string, data: string): Promise<void>;
+  financeiroDespesaDesfazerPagamento(id: string): Promise<void>;
+  /** Excluir só esconde; com `seguintes`, também as seguintes a pagar, e a repetição para. Devolve os ids excluídos, para restaurar. */
+  financeiroDespesaExcluir(id: string, seguintes: boolean): Promise<string[]>;
+  /** Devolve as excluídas; a repetição que parou nelas volta a andar. */
+  financeiroDespesaRestaurar(ids: string[]): Promise<void>;
+  financeiroDespesaHistorico(id: string): Promise<Historico[]>;
+}
+
 /** As parcelas, os recebimentos e os repasses (supabase/migrations/20261102192042_financeiro_parcelas.sql). */
 export interface DadosParcelas {
   /** Sem as excluídas, na ordem do número. */
@@ -2476,4 +2601,4 @@ export interface DadosGrupos {
   itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
-export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosDespesas, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosSalas, DadosFuncoesNaTarefa, DadosAnotacoes, DadosPastas, DadosParaLigar {}

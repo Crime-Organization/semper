@@ -7,6 +7,8 @@ import { MARCA } from '../marca';
 import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
+import { lerResultadoDasAgendas } from '../regras/sincronizacaoDasAgendas';
+import type { AgendasGoogle, EmailDoGoogle, RecusaDasAgendas, ReuniaoDoCompromisso, SituacaoDasReunioes } from './tipos';
 import { BASE_DO_CONSENTIMENTO, cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -15,10 +17,10 @@ import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { meusGrupos, pedidoDoFiltroDeGrupo } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
-import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContaParaEscolher, DespesaDoEscritorio, FrequenciaRepeticao, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, RecebimentoExcluido, Repasse, Socio, ValorAPassar } from './tipos';
 import { IDS_POR_LEITURA, PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
-import type { FiltroParaLigar, LigacaoDeUmSo, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, ProcessoRelacionado, LigadoNaTarefa, DemandaDoObjeto, ObjetoDoEscritorio, OcupacaoDaSala, TarefaLista, TarefaParaEscolher, TrocaDeObjetos } from './tipos';
 import type { AvisoDaTarefaDaMensagem, DemandaDoCompromissoDaMensagem, InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
@@ -36,7 +38,7 @@ import type { PreviaExclusaoContrato } from './tipos';
 import { RECUSA_DA_EXCLUSAO } from '../regras/exclusaoDoContrato';
 import { DEMANDAS_RELACIONADAS } from './limites';
 import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
-import { processosComPartes, relacionadosDoProcesso } from '../regras/processo';
+import { comOsRelacionados, processosComPartes, relacionadosDoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { contratosDaTarefa, demandasDaTarefa, papeisNaTarefa } from '../regras/tarefa';
 import { periodoDosGraficos } from '../regras/graficosDeProcessos';
@@ -100,6 +102,9 @@ async function emPartes<T>(montar: () => Livre): Promise<T[]> {
     if (data.length < LINHAS_POR_CONSULTA) return todas;
   }
 }
+
+/** Uma linha de public.financeiro_despesas_do_periodo (#439): a despesa com a regra da repetição ao lado (null: não se repete). */
+type LinhaDaDespesa = Omit<DespesaDoEscritorio, 'repeticao'> & { repeticao_id: string | null; frequencia: FrequenciaRepeticao | null; intervalo: number | null; ate: string | null; vezes: number | null };
 
 // ---------- pessoas ----------
 const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
@@ -439,6 +444,8 @@ const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, moda
   + 'repeticao_id, repeticao_data, repeticao:compromisso_repeticoes(id, frequencia, intervalo, inicio, ate, vezes, demanda_dias_antes), '
   // A demanda que nasceu desta data (#307, parte B; supabase/migrations/20261123000750_demandas_dos_compromissos.sql).
   + 'demanda_gerada_id, '
+  // "Criar link do Google Meet" (#437; supabase/migrations/20261125143159_reunioes_google.sql).
+  + 'reuniao_google, '
   + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_SALA = 'id, nome, capacidade, ativa, criado_em';
 const CAMPOS_FUNCAO_NA_TAREFA = 'id, nome, executa, ordem';
@@ -1284,7 +1291,15 @@ export const SD: Dados = {
   },
   async compromissoObter(id) {
     const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO).eq('id', id).maybeSingle());
-    return data ? compromissoComPessoas(data) : null;
+    if (!data) return null;
+    // A reunião do Google Meet (#437) vem à parte: ela é guardada sem chave para o compromisso (a do excluído fica até ser
+    // cancelada no Google), e quem vê o compromisso a vê. Ela é guardada por conta: logo depois de trocar a conta do escritório,
+    // pode haver a da conta antiga (até ser cancelada) e a da nova; vale a mais recente.
+    const reuniao = data.reuniao_google
+      ? (await rodar(sb.from('agenda_google_reunioes').select('link, gravacao').eq('compromisso_id', id)
+        .order('atualizada_em', { ascending: false }).limit(1).maybeSingle())).data as ReuniaoDoCompromisso | null
+      : null;
+    return { ...compromissoComPessoas(data), reuniao };
   },
   async compromissoCriar(dados) {
     const { data } = await rodar(sb.from('compromissos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
@@ -1783,6 +1798,27 @@ export const SD: Dados = {
   async financeiroDasSalvar(mes, aliquota) {
     await rodar(sb.from('financeiro_das').upsert({ mes, aliquota, atualizado_por: uid() }, { onConflict: 'escritorio_id,mes' }));
   },
+  // ---------- despesas do escritório (#439) ----------
+  async financeiroDespesas(de, ate) {
+    const linhas = await emPartes<LinhaDaDespesa>(() => sb.rpc('financeiro_despesas_do_periodo', { p_de: de, p_ate: ate }));
+    return linhas.map(({ repeticao_id, frequencia, intervalo, ate: ateQuando, vezes, ...d }) =>
+      ({ ...d, valor: Number(d.valor), repeticao: repeticao_id && frequencia ? { frequencia, intervalo: intervalo ?? 1, ate: ateQuando, vezes } : null }));
+  },
+  async financeiroDespesaCriar({ descricao, valor, vencimento }, r) {
+    const feito = await rpc('financeiro_despesa_criar', { p_descricao: descricao, p_valor: valor, p_vencimento: vencimento, p_frequencia: r?.frequencia ?? null,
+      p_intervalo: r?.intervalo ?? 1, p_ate: r?.ate ?? null, p_vezes: r?.vezes ?? null }) as { id: string; ids: string[] };
+    return { id: feito.id, ids: feito.ids };
+  },
+  financeiroDespesaMudar: async (id, { descricao, valor, vencimento }, seguintes) =>
+    await rpc('financeiro_despesa_mudar', { p_id: id, p_descricao: descricao, p_valor: valor, p_vencimento: vencimento, p_seguintes: seguintes }) as number,
+  financeiroDespesaPagar: async (id, data) => { await rpc('financeiro_despesa_pagar', { p_id: id, p_data: data }); },
+  financeiroDespesaDesfazerPagamento: async id => { await rpc('financeiro_despesa_desfazer_pagamento', { p_id: id }); },
+  financeiroDespesaExcluir: async (id, seguintes) => await rpc('financeiro_despesa_excluir', { p_id: id, p_seguintes: seguintes }) as string[],
+  financeiroDespesaRestaurar: async ids => { await rpc('financeiro_despesa_restaurar', { p_ids: ids }); },
+  async financeiroDespesaHistorico(id) {
+    const { data } = await rodar(sb.from('financeiro_despesas_historico').select('id, alteracoes, feito_por, em').eq('despesa_id', id).order('em', { ascending: false }).order('id', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
+  },
   // ---------- parcelas, recebimentos e repasses ----------
   async parcelasDoContrato(contratoId) {
     const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA).eq('contrato_id', contratoId).is('excluido_em', null).order('numero'));
@@ -2042,8 +2078,31 @@ export const SD: Dados = {
     const { data: aberto } = await rodar(sb.from('processos').select('id, origem_id, ligacao').eq('id', processoId).maybeSingle());
     if (!aberto) return [];
     const filtros = [`origem_id.eq.${processoId}`, ...(aberto.origem_id ? [`id.eq.${aberto.origem_id}`] : [])];
-    const { data } = await rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS));
-    return relacionadosDoProcesso(data, aberto);
+    // Os ligados depois, de qualquer tipo (#440): cada ponta vem pela regra de leitura dos processos, e a que quem lê não vê chega null.
+    const campos = 'id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em';
+    const [{ data }, { data: ligacoes }] = await Promise.all([
+      rodar(sb.from('processos').select(CAMPOS_PROCESSO_RELACIONADO).or(filtros.join(',')).limit(PROCESSOS_LIGADOS)),
+      rodar(sb.from('processos_relacionados').select(`processo_a, a:processos!processos_relacionados_a(${campos}), b:processos!processos_relacionados_b(${campos})`)
+        .or(`processo_a.eq.${processoId},processo_b.eq.${processoId}`).order('criado_em').limit(PROCESSOS_LIGADOS))
+    ]);
+    type Ponta = Omit<ProcessoRelacionado, 'relacao'> | null;
+    const outros = (ligacoes as { processo_a: string; a: Ponta; b: Ponta }[]).flatMap(l => {
+      const outro = l.processo_a === processoId ? l.b : l.a;
+      return outro ? [outro] : [];
+    });
+    return comOsRelacionados(relacionadosDoProcesso(data, aberto), outros);
+  },
+  async processoRelacionar(processoId, outroId) {
+    // O mesmo par, em qualquer sentido, é a mesma linha: a repetida o banco descarta, e ela não volta na resposta.
+    const [processo_a, processo_b] = parDaRelacao(processoId, outroId);
+    const { data } = await rodar(sb.from('processos_relacionados').upsert({ processo_a, processo_b, criado_por: uid() },
+      { onConflict: 'processo_a,processo_b', ignoreDuplicates: true }).select('processo_a'));
+    return data.length > 0;
+  },
+  async processoDesrelacionar(processoId, outroId) {
+    // A regra do banco não apaga o que a pessoa não pode desfazer: nenhuma linha sai, e a tela precisa saber.
+    const [a, b] = parDaRelacao(processoId, outroId);
+    conferirQueMudou((await rodar(sb.from('processos_relacionados').delete().eq('processo_a', a).eq('processo_b', b).select('processo_a').maybeSingle())).data);
   },
   // A ligação do judicial ao administrativo (#425), pelas funções da migração processo_judicial_do_administrativo.
   async processoJudicialLigar(administrativoId, judicialId) {
@@ -2559,6 +2618,34 @@ export const SD: Dados = {
     await rpc('contatos_google_conferir_decidir', { p_id: id, p_acao: decisao.acao, p_pessoa: decisao.acao === 'ligar' ? decisao.pessoa_id : null });
   },
 
+  // ---------- agendas do escritório no Google (#166) ----------
+  // Como ligacaoGoogleIniciar: o banco cria o pedido da permissão da agenda e o navegador vai à função do servidor.
+  async ligacaoGoogleAutorizarAgendas(voltarPara) {
+    const estado = await rpc('ligacao_google_iniciar_agendas', { p_voltar_para: voltarPara }) as string;
+    return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  async agendasGoogle() {
+    const linhas = await rpc('agendas_google_situacao') as AgendasGoogle[];
+    return linhas[0] ?? null;
+  },
+  async agendasGoogleLigar(ligar) { await rpc('agendas_google_ligar', { p_ligar: ligar }); },
+  async agendasGoogleRecusas() { return (await rpc('agendas_google_recusas') as RecusaDasAgendas[] | null) ?? []; },
+  // ---------- Google Meet no compromisso (#437) ----------
+  // Como ligacaoGoogleAutorizarAgendas: o banco cria o pedido das permissões do Meet e o navegador vai à função do servidor.
+  async ligacaoGoogleAutorizarMeet(voltarPara) {
+    const estado = await rpc('ligacao_google_iniciar_meet', { p_voltar_para: voltarPara }) as string;
+    return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  async reunioesGoogle() {
+    const linhas = await rpc('reunioes_google_situacao') as SituacaoDasReunioes[];
+    return linhas[0] ?? null;
+  },
+  // A função do servidor confere se é administrador e arruma as agendas do escritório na hora.
+  async sincronizarAgendasAgora() {
+    const r = await comSessao(`${URL_BASE}/functions/v1/google-agendas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    return lerResultadoDasAgendas(await r.json().catch(() => ({})));
+  },
+
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.
   async equipeListar() {
@@ -2588,6 +2675,11 @@ export const SD: Dados = {
   equipeDefinirAtivo: (perfilId, ativo) => rpc('equipe_definir_ativo', { p_perfil: perfilId, p_ativo: ativo }),
   equipeDefinirFuncao: (perfilId, funcao) => rpc('equipe_definir_funcao', { p_perfil: perfilId, p_funcao: funcao }),
   equipeDefinirNome: (perfilId, nome) => rpc('equipe_definir_nome', { p_perfil: perfilId, p_nome: nome }),
+  async emailDoGoogle(perfilId) {
+    const linhas = await rpc('email_do_google', { p_perfil: perfilId }) as EmailDoGoogle[];
+    return linhas[0] ?? null;
+  },
+  async emailDoGoogleSalvar(perfilId, email) { await rpc('email_do_google_salvar', { p_perfil: perfilId, p_email: email }); },
   // A função do servidor confere quem está logado (a sessão vai junto pelo comSessao), e o banco decide se a troca pode acontecer.
   async equipeTrocarEmail(perfilId, email) {
     const r = await comSessao(`${URL_BASE}/functions/v1/equipe-trocar-email`, {
