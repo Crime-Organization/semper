@@ -15,6 +15,9 @@ import { FUSO_DO_ESCRITORIO } from './fuso';
 /** O fuso da agenda: a data e a hora dos compromissos são as do relógio do escritório (regras/fuso.ts). */
 export const FUSO_DA_AGENDA = FUSO_DO_ESCRITORIO;
 
+/** O endereço do cadastro de compromisso (o botão Novo compromisso, o "+" do menu lateral, o horário livre da visão das salas). */
+export const CADASTRO_DE_COMPROMISSO = '/agenda/novo/';
+
 /** Rótulo dos compromissos fora das colunas do quadro. */
 export const SEM_SITUACAO_COMPROMISSO = 'Sem situação';
 
@@ -57,11 +60,13 @@ export interface CamposCompromisso extends CamposRepeticao {
   /** Uma por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
   pessoas: string[];
   geral: boolean;
+  /** "Criar link do Google Meet" (#437): a conta Google do escritório cria a reunião e manda os convites. */
+  reuniaoGoogle: boolean;
   resultado: string;
   observacoes: string;
 }
 export const compromissoVazio = (tipo: TipoCompromisso = 'reuniao'): CamposCompromisso => ({
-  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', salaId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, resultado: '', observacoes: '',
+  tipo, titulo: '', data: '', hora: '', horaFim: '', modalidade: '', local: '', processoId: '', salaId: '', responsavelId: '', participantes: [], pessoas: [''], geral: false, reuniaoGoogle: false, resultado: '', observacoes: '',
   ...REPETICAO_VAZIA
 });
 
@@ -123,7 +128,7 @@ export function dadosDoCompromisso(c: CamposCompromisso): DadosCompromisso & Pic
     tipo: c.tipo, titulo: textoOuNulo(c.titulo), data: lerData(c.data)!, hora: c.hora || null, hora_fim: c.horaFim || null, modalidade: c.modalidade || null,
     local: textoOuNulo(c.local), resultado: doTipo(c).doProcesso ? textoOuNulo(c.resultado) : null, observacoes: textoOuNulo(c.observacoes), geral: c.geral,
     responsavel_id: c.responsavelId, participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
-    pessoas: [...new Set(escolhidos(c.pessoas))], processo_id: c.processoId || null, sala_id: c.salaId || null
+    pessoas: [...new Set(escolhidos(c.pessoas))], processo_id: c.processoId || null, sala_id: c.salaId || null, reuniao_google: c.reuniaoGoogle
   };
 }
 
@@ -134,7 +139,7 @@ export const fmtHora = (hora: string | null | undefined) => hora ? hora.slice(0,
 export const camposDoCompromisso = (c: Compromisso): CamposCompromisso => ({
   tipo: c.tipo, titulo: c.titulo || '', data: fmtData(c.data), hora: fmtHora(c.hora), horaFim: fmtHora(c.hora_fim), modalidade: c.modalidade || '', local: c.local || '',
   processoId: c.processo_id || '', salaId: c.sala_id || '', responsavelId: c.responsavel_id, participantes: [...c.participantes], pessoas: c.pessoas.length ? c.pessoas.map(p => p.id) : [''],
-  geral: c.geral, resultado: c.resultado || '', observacoes: c.observacoes || '', ...REPETICAO_VAZIA,
+  geral: c.geral, reuniaoGoogle: !!c.reuniao_google, resultado: c.resultado || '', observacoes: c.observacoes || '', ...REPETICAO_VAZIA,
   // O que se repete (#417): o lápis não escolhe a repetição de novo, mas liga, muda ou desliga a demanda de cada data.
   seRepete: !!c.repeticao_id, demandaDiasAntes: c.repeticao?.demanda_dias_antes ? String(c.repeticao.demanda_dias_antes) : ''
 });
@@ -164,7 +169,7 @@ export interface DefinicaoEtapaCompromisso { id: EtapaCompromisso; titulo: strin
 /** As etapas do cadastro, na ordem, como nos cadastros de pessoa, de demanda e de processo. */
 export const ETAPAS_COMPROMISSO: DefinicaoEtapaCompromisso[] = [
   { id: 'compromisso', titulo: 'O compromisso', texto: 'O tipo, a data e a hora, no horário de Brasília.', campos: ['tipo', 'titulo', 'data', 'hora', 'horaFim', 'repetir', 'aCada', 'termina', 'repetirAte', 'repetirVezes', 'demandaDiasAntes'] },
-  { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade. A sala do escritório, se houver, fica livre só para ele no horário.', campos: ['processoId', 'salaId', 'modalidade', 'local'] },
+  { id: 'onde', titulo: 'Onde e de qual processo', texto: 'Audiência e perícia precisam de um processo e da modalidade. A sala do escritório, se houver, fica livre só para ele no horário.', campos: ['processoId', 'salaId', 'modalidade', 'local', 'reuniaoGoogle'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem da equipe vai, quem ajuda e, se houver, as pessoas do cadastro ligadas ao compromisso.', campos: ['pessoas', 'responsavelId', 'participantes', 'geral'] },
   { id: 'detalhes', titulo: 'Detalhes', texto: 'Nada aqui é obrigatório: dá para preencher depois.', campos: ['resultado', 'observacoes'] }
 ];
@@ -200,14 +205,15 @@ export const quandoDoCompromisso = (c: Pick<Compromisso, 'data' | 'hora' | 'hora
 export const CAMPOS_COMPROMISSO: Record<string, string> = {
   tipo: 'Tipo', titulo: 'Título', data: 'Data', hora: 'Hora', hora_fim: 'Fim', modalidade: 'Modalidade', local: 'Local', resultado: 'Resultado', observacoes: 'Observações', geral: 'Agenda geral',
   responsavel_id: 'Responsável', participantes: 'Participantes', pessoas: 'Pessoas', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
-  ligacao: 'Ligado a', sala: 'Sala'
+  ligacao: 'Ligado a', sala: 'Sala', reuniao_google: 'Google Meet'
 };
 const naLista = (lista: Record<string, string>) => (v: unknown) => lista[String(v)] ?? String(v);
 const FORMATOS: Record<string, (v: unknown) => string> = {
   tipo: v => TIPOS_COMPROMISSO[v as TipoCompromisso]?.nome ?? String(v), modalidade: naLista(MODALIDADES), data: v => fmtData(String(v)),
   // O arquivamento é um instante, não uma data: o dia é o de Brasília, não o de Greenwich.
   arquivado_em: v => new Date(String(v)).toLocaleDateString('pt-BR', { timeZone: FUSO_DA_AGENDA }),
-  hora: v => fmtHora(String(v)), hora_fim: v => fmtHora(String(v)), geral: v => v ? 'Sim' : 'Não'
+  hora: v => fmtHora(String(v)), hora_fim: v => fmtHora(String(v)), geral: v => v ? 'Sim' : 'Não',
+  reuniao_google: v => v ? 'Sim' : 'Não'
 };
 /** Como cada campo aparece no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelCompromisso = (campo: string, v: unknown) =>

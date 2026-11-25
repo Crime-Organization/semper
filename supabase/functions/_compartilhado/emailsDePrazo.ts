@@ -28,8 +28,8 @@ export interface PassosDosEmails {
   marcarResumo(id: string): Promise<void>;
 }
 
-/** O endereço do sistema nos links dos e-mails: é o mesmo para todos os escritórios. */
-const SITE = 'https://semper.app.br';
+/** O endereço do sistema nos links dos e-mails (e dos eventos das agendas no Google, eventosGoogle.ts): é o mesmo para todos os escritórios. */
+export const SITE = 'https://semper.app.br';
 /** Quantas pessoas cada chamada atende. A rotina chama de 5 em 5 minutos, e cada chamada precisa caber no tempo máximo da função. */
 export const PESSOAS_POR_CHAMADA = 20;
 /** Quantos itens o resumo lista em cada seção; os outros entram só na conta. */

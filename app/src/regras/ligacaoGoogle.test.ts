@@ -2,7 +2,8 @@
 // As partes puras das funções do servidor que ligam a conta Google (#164), em supabase/functions/_compartilhado/.
 import { describe, expect, it } from 'vitest';
 import {
-  cabecalhosCors, comCodigo, comResultado, ESCOPO_OBRIGATORIO, ESCOPOS_CONTATOS, escoposDados, lerSitesPermitidos, nivelDaSessao, sitePermitido, urlDeAutorizacao
+  agendaAutorizada, cabecalhosCors, comCodigo, comResultado, contaServe, ESCOPO_OBRIGATORIO, ESCOPOS_CONTATOS, ESCOPOS_DA_AGENDA, ESCOPOS_DO_MEET, ESCOPOS_DO_PEDIDO, escoposDados,
+  FALTA_NA_AUTORIZACAO, lerSitesPermitidos, meetAutorizado, nivelDaSessao, RESULTADO_DO_PEDIDO, sitePermitido, urlDeAutorizacao
 } from '../../../supabase/functions/_compartilhado/ligacao';
 
 const ESTADO = 'a'.repeat(64);
@@ -80,6 +81,66 @@ describe('Ligação com a conta Google', () => {
     expect(doSemper['Access-Control-Allow-Headers']).toContain('authorization');
     expect(cabecalhosCors('https://golpe.com', SITES)).toEqual({});
     expect(cabecalhosCors(null, SITES)).toEqual({});
+  });
+
+  it('dado o pedido da agenda (#166), quando o endereço é montado, então pede só a agenda, somada ao que já foi dado, e já abre na conta do escritório', () => {
+    // Quando
+    const u = new URL(urlDeAutorizacao('cliente-123', VOLTA_DO_GOOGLE, ESTADO, 'desafio', ESCOPOS_DO_PEDIDO.agendas, 'contato@exemplo.com'));
+    // Então
+    expect(u.searchParams.get('scope')).toBe(['openid', 'email', ...ESCOPOS_DA_AGENDA].join(' '));
+    expect(u.searchParams.get('include_granted_scopes')).toBe('true');
+    expect(u.searchParams.get('login_hint')).toBe('contato@exemplo.com');
+    expect(ESCOPOS_DA_AGENDA).toEqual(['https://www.googleapis.com/auth/calendar.app.created', 'https://www.googleapis.com/auth/calendar.acls']);
+    expect(ESCOPOS_DO_PEDIDO.contatos).toBe(ESCOPOS_CONTATOS);
+  });
+
+  it.each([
+    ['contatos', [ESCOPO_OBRIGATORIO], null],
+    ['contatos', ['openid', 'email'], 'sem-permissao'],
+    ['agendas', [ESCOPO_OBRIGATORIO, ...ESCOPOS_DA_AGENDA], null],
+    ['agendas', [ESCOPO_OBRIGATORIO, ESCOPOS_DA_AGENDA[0]], 'sem-permissao-agenda'],
+    ['agendas', [ESCOPO_OBRIGATORIO], 'sem-permissao-agenda'],
+    ['meet', [ESCOPO_OBRIGATORIO, ...ESCOPOS_DA_AGENDA, ...ESCOPOS_DO_MEET], null],
+    ['meet', [ESCOPO_OBRIGATORIO, ...ESCOPOS_DA_AGENDA, ESCOPOS_DO_MEET[0]], 'sem-permissao-meet'],
+    ['meet', [ESCOPO_OBRIGATORIO, ...ESCOPOS_DA_AGENDA], 'sem-permissao-meet']
+  ] as const)('dado o pedido de %s, quando o Google devolve %o, então o que falta é %s', (finalidade, escopos, falta) => {
+    // Quando / Então
+    expect(FALTA_NA_AUTORIZACAO[finalidade]([...escopos])).toBe(falta);
+  });
+
+  it('quando a conta que autorizou é conferida, então ligar a conta aceita qualquer uma; somar a agenda, só a que já está ligada', () => {
+    // Quando / Então
+    expect(contaServe('contatos', 'outra@exemplo.com', 'contato@exemplo.com')).toBe(true);
+    expect(contaServe('agendas', 'Contato@Exemplo.com', 'contato@exemplo.com')).toBe(true);
+    expect(contaServe('agendas', 'outra@exemplo.com', 'contato@exemplo.com')).toBe(false);
+    expect(contaServe('agendas', 'outra@exemplo.com', null)).toBe(false);
+    expect(contaServe('meet', 'outra@exemplo.com', 'contato@exemplo.com')).toBe(false);
+    expect(contaServe('meet', 'Contato@Exemplo.com', 'contato@exemplo.com')).toBe(true);
+    expect(RESULTADO_DO_PEDIDO).toEqual({ contatos: 'ligado', agendas: 'agenda-ligada', meet: 'meet-ligado' });
+  });
+
+  it('dado o pedido do Google Meet (#437), quando o endereço é montado, então pede só as permissões do Meet, somadas ao que já foi dado, e já abre na conta do escritório', () => {
+    // Quando
+    const u = new URL(urlDeAutorizacao('cliente-123', VOLTA_DO_GOOGLE, ESTADO, 'desafio', ESCOPOS_DO_PEDIDO.meet, 'contato@exemplo.com'));
+    // Então
+    expect(u.searchParams.get('scope')).toBe(['openid', 'email', ...ESCOPOS_DO_MEET].join(' '));
+    expect(u.searchParams.get('include_granted_scopes')).toBe('true');
+    expect(u.searchParams.get('login_hint')).toBe('contato@exemplo.com');
+    expect(ESCOPOS_DO_MEET).toEqual(['https://www.googleapis.com/auth/calendar.events.owned', 'https://www.googleapis.com/auth/meetings.space.settings']);
+  });
+
+  it('dadas as permissões da conta, quando o Meet é conferido, então só vale com as duas permissões do Meet', () => {
+    // Quando / Então
+    expect(meetAutorizado([...ESCOPOS_DA_AGENDA, ...ESCOPOS_DO_MEET])).toBe(true);
+    expect(meetAutorizado([ESCOPOS_DO_MEET[1]])).toBe(false);
+    expect(meetAutorizado(null)).toBe(false);
+  });
+
+  it('quando as permissões da conta são lidas, então a agenda só conta como autorizada com as duas', () => {
+    // Quando / Então
+    expect(agendaAutorizada([ESCOPO_OBRIGATORIO, ...ESCOPOS_DA_AGENDA])).toBe(true);
+    expect(agendaAutorizada([ESCOPOS_DA_AGENDA[0]])).toBe(false);
+    expect(agendaAutorizada(null)).toBe(false);
   });
 
   it('quando o Google responde as permissões dadas, então elas viram uma lista', () => {

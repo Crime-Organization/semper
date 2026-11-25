@@ -9,10 +9,14 @@
 // "Acompanhar na agenda" do processo de propriedade intelectual (?processo=…&acompanhar=protecao, #317), ele já vem com os prazos do
 // INPI: o título, a primeira data, a repetição e a demanda de cada data. No lápis do cartão (#417), o compromisso que ainda não se repete
 // ganha a repetição (nascem as datas seguintes, como aqui); no que já se repete, a demanda de cada data se liga, muda ou desliga, e mudar o
-// título, o local, a equipe ou as pessoas pergunta "só esta" ou "esta e as seguintes".
+// título, o local, a equipe ou as pessoas pergunta "só esta" ou "esta e as seguintes". A opção "Criar link do Google Meet" (#437), na
+// etapa "Onde" e no lápis, aparece com o Meet ligado no escritório (ou já marcada, para poder desmarcar).
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
+import {
+  SD, type CamposDasSeguintes, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type SituacaoDasReunioes, type TipoCompromisso
+} from '../dados';
+import { dicaDoMeet, mostraOpcaoDoMeet, OPCAO_DO_MEET } from '../regras/reuniaoGoogle';
 import { CLIENTES_MAXIMOS, DEMANDA_DO_COMPROMISSO, REPETICAO, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { avisoDasDemandasNascidas, demandaAGravar, diasAntesDosCampos } from '../regras/demandaDoCompromisso';
 import {
@@ -21,7 +25,7 @@ import {
 } from '../regras/repeticao';
 import { perguntarNosCampos } from './agenda/soEstaOuSeguintes';
 import {
-  camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
+  CADASTRO_DE_COMPROMISSO as CADASTRO, camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, repeticaoDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
@@ -51,6 +55,7 @@ import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, u
 import { depoisDeCriarNoItem, useOrigemDoCompromisso } from './agenda/origemDoCompromisso';
 import { useSalas } from './agenda/useSalas';
 import { avisoDoConflito, conflitoNaSala, nomeDaSala, salasParaEscolher } from '../regras/sala';
+import { horarioDoEndereco, PARAMETROS_DO_HORARIO, salaDoEndereco } from '../regras/salasDoDia';
 import { lerData } from '../regras/pessoa';
 import { origemDoCompromissoNoEndereco } from '../regras/nascerLigado';
 import './Contratos.css';
@@ -60,8 +65,6 @@ type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 const ENDERECO = '/agenda/';
-/** O endereço deste cadastro (o do "+" do menu lateral). */
-const CADASTRO = '/agenda/novo/';
 /** Como o processo aparece na busca e no campo: número, nome e clientes. */
 const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'cliente_nome'>) =>
   [p.numero, p.titulo, p.cliente_nome && clientesPorExtenso(p.cliente_nome)].filter(Boolean).join(' · ');
@@ -88,8 +91,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   // A tarefa, a demanda ou o contrato de onde o compromisso nasce (#306): ele fica ligado ao compromisso novo.
   const doItem = useOrigemDoCompromisso(origemDoCompromissoNoEndereco(params, !!idAtualizar));
 
-  // Quem cadastra já vem como responsável.
-  const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
+  // Quem cadastra já vem como responsável. Aberto num horário livre da visão das salas (#438), começa com a data e a hora dele.
+  const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id, ...(idAtualizar ? {} : horarioDoEndereco(params)) }));
   const [alvo, setAlvo] = useState<Compromisso | null>(null);   // compromisso sendo atualizado
   const [pronto, setPronto] = useState(!idAtualizar);
   const [passo, setPasso] = useState(0);
@@ -101,6 +104,14 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [erroSala, setErroSala] = useState('');
   // Enquanto confere a sala, o Próxima espera (dois cliques não pulam a etapa).
   const [conferindo, setConferindo] = useState(false);
+  // E a sala do horário livre (#438), assim que as salas do escritório chegam (só se ela é uma das ativas), uma vez só.
+  const salaPedida = useRef(idAtualizar ? null : params.get(PARAMETROS_DO_HORARIO.sala));
+  useEffect(() => {
+    if (!salaPedida.current || !salas.length) return;
+    const salaId = salaDoEndereco(params, salas);
+    salaPedida.current = null;
+    if (salaId) setC(atual => ({ ...atual, salaId }));
+  }, [salas, params]);
   // A pessoa escolhida em cada linha (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
@@ -112,6 +123,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [buscaProcesso, setBuscaProcesso] = useState('');
   const buscaAtrasada = useAtrasado(buscaProcesso);
   const [rotuloProcesso, setRotuloProcesso] = useState('');
+  // O Google Meet no escritório (#437): com ele ligado, a opção "Criar link do Google Meet" aparece.
+  const [reunioes, setReunioes] = useState<SituacaoDasReunioes | null>(null);
+  useEffect(() => {
+    let vale = true;
+    SD.reunioesGoogle().then(r => { if (vale) setReunioes(r); }).catch(() => {});
+    return () => { vale = false; };
+  }, []);
   useTitulo(edicao ? null : alvo ? 'Atualizar compromisso' : 'Novo compromisso');
   // Com o lápis aberto, o título ainda muda no próprio lugar do cartão: o formulário acompanha o que ficou gravado, para decidir
   // se pede um título (tituloNoLapis), validar e desfazer com o título de agora, e não com o de quando o lápis abriu.
@@ -485,6 +503,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       <Campo rotulo="Local" para="local" erro={erros.local} dica="O endereço, a sala ou o link da sala virtual.">
         <input type="text" {...propsDoCampo('local', { dica: true, erro: erros.local })} maxLength={TAMANHO_COMPROMISSO.local} value={c.local} onChange={e => mudar({ local: e.target.value })} />
       </Campo>
+      {mostraOpcaoDoMeet(reunioes, c.reuniaoGoogle) && <Escolhas rotulo="Google Meet" dica={dicaDoMeet(reunioes)}>
+        <label><input type="checkbox" checked={c.reuniaoGoogle} onChange={e => mudar({ reuniaoGoogle: e.target.checked })} />{OPCAO_DO_MEET}</label>
+      </Escolhas>}
     </>,
     pessoas: () => <>
       <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
