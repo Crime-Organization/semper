@@ -91,7 +91,26 @@ export function codigoDoMeet(link: string | null | undefined) {
   return m ? m[1] : null;
 }
 
-export type AcaoNaReuniao = 'cancelar' | 'criar' | 'conferir' | 'mudar' | 'gravar';
+/**
+ * O dia ou a hora como o Google os devolve, comparável ao que o SEMPER manda: o Google devolve a hora com o fuso no fim
+ * ("2026-12-10T14:00:00-03:00", no fuso do evento); fica só a data e a hora local, junto com o nome do fuso.
+ */
+const TAMANHO_DA_HORA_LOCAL = 'aaaa-mm-ddThh:mm:ss'.length;
+const quandoComparavel = (q: { date?: string; dateTime?: string; timeZone?: string } | undefined) =>
+  q?.date ?? `${q?.dateTime?.slice(0, TAMANHO_DA_HORA_LOCAL) ?? ''} ${q?.timeZone ?? ''}`;
+/**
+ * A reunião lida no Google já está como o SEMPER quer (título, local, descrição, horário e convidados)? Na dúvida (um campo
+ * que o Google devolve de outro jeito), não: o convite é atualizado, como antes.
+ */
+export function mesmoConvite(r: RespostaDaReuniao, d: ReuniaoDesejada, contaDoEscritorio: string) {
+  const e = d.evento;
+  const convidados = (lista: readonly { email?: string }[] | undefined) => convidadosDaReuniao((lista ?? []).map(a => a.email), contaDoEscritorio).join(',');
+  return r.status !== 'cancelled' && limpo(r.summary) === limpo(e.summary) && limpo(r.location) === limpo(e.location)
+    && limpo(r.description) === limpo(e.description) && quandoComparavel(r.start) === quandoComparavel(e.start)
+    && quandoComparavel(r.end) === quandoComparavel(e.end) && convidados(r.attendees) === convidados(e.attendees);
+}
+
+export type AcaoNaReuniao ='cancelar' | 'criar' | 'conferir' | 'mudar' | 'gravar';
 /**
  * O próximo passo para a reunião ficar como deve, ou null: nada a fazer. Sem as permissões do Meet na conta, nada (a reunião
  * nem se cria, nem se cancela). Primeiro cancela a que não deve mais existir; cria a que falta; confere o link que ainda
@@ -137,6 +156,11 @@ export function falhaDaReuniao(e: unknown) {
 /** A falha do Google ao criar o link: o pedido fica na fila como recusado (o administrador vê em Configurações). */
 const SEM_LINK = 'o Google não criou o link do Meet';
 const sumiu = (e: unknown) => e instanceof FalhaDaAgenda && e.tipo === 'sumiu';
+/** Os motivos do Google para a API desativada no projeto do Google Cloud: o administrador ativa, e a gravação vem depois. */
+const API_DESATIVADA = ['SERVICE_DISABLED', 'accessNotConfigured'];
+/** A recusa da gravação que fica guardada (sem nova tentativa até o "Sincronizar agora"): a do Google, sem ser a API desativada. */
+export const gravacaoRecusada = (e: unknown): e is FalhaDaAgenda =>
+  e instanceof FalhaDaAgenda && e.tipo === 'recusado' && !API_DESATIVADA.includes(e.motivo ?? '');
 
 type Estado = { guardada: ReuniaoGuardada | null; restam: boolean; feita: boolean };
 type Fazer = (x: ExecucaoDaReuniao, d: ReuniaoDesejada | null, g: ReuniaoGuardada | null) => Promise<Estado>;
@@ -162,15 +186,16 @@ const FAZER: Record<AcaoNaReuniao, Fazer> = {
     return { guardada: null, restam: false, feita: true };
   },
   // O id é do SEMPER: numa nova tentativa, a reunião criada antes (a resposta que se perdeu) já existe, e é aproveitada; a
-  // cancelada antes (a opção desmarcada e marcada de novo) volta, com um link novo. A aproveitada fica sem assinatura: o
-  // convite é atualizado logo depois, para ficar como o compromisso está agora.
+  // cancelada antes (a opção desmarcada e marcada de novo) volta, com um link novo. A aproveitada que já está como o
+  // compromisso fica com a assinatura (nenhum convidado recebe um "convite atualizado" à toa); a diferente fica sem ela, e
+  // o convite é atualizado logo depois.
   async criar(x, d) {
     try { return await comOLink(x, novaGuardada(d!, d!.assinatura), await x.api.criarReuniao({ ...d!.evento, conferenceData: pedidoDoLink(x.novoPedido()) }), true); } catch (err) {
       if (!(err instanceof FalhaDaAgenda && err.tipo === 'repetido')) throw err;
     }
     const existente = await x.api.lerReuniao(d!.evento.id);
     if (existente.status === 'cancelled') return comOLink(x, novaGuardada(d!, d!.assinatura), await pedirOLinkDeNovo(x, d!), true);
-    return comOLink(x, novaGuardada(d!, null), existente, true);
+    return comOLink(x, novaGuardada(d!, mesmoConvite(existente, d!, x.pedido.conta_email) ? d!.assinatura : null), existente, true);
   },
   // O link que ainda estava sendo criado: lido de novo; se o Google não conseguiu, pede outra vez. A reunião apagada no
   // Google (só a conta do escritório consegue) é esquecida e criada de novo.
@@ -195,8 +220,9 @@ const FAZER: Record<AcaoNaReuniao, Fazer> = {
     await x.passos.reuniaoGravada(x.pedido, guardada);
     return { guardada, restam: false, feita: true };
   },
-  // A gravação e a transcrição automáticas: o que não for falha temporária (a edição que não grava, a permissão negada pelo
-  // administrador do Workspace) fica guardado como recusado, e a reunião segue sem elas.
+  // A gravação e a transcrição automáticas: só a recusa do Google (o 403 da edição que não grava ou da permissão negada pelo
+  // administrador do Workspace) fica guardada como recusada, e a reunião segue sem elas. O resto (a autorização, o espaço que
+  // ainda não aparece, a Meet REST API ainda não ativada no Google Cloud, o Google fora) segue para a fila e é tentado de novo.
   async gravar(x, _d, g) {
     const codigo = codigoDoMeet(g!.link);
     let guardada: ReuniaoGuardada;
@@ -206,7 +232,7 @@ const FAZER: Record<AcaoNaReuniao, Fazer> = {
       await x.api.ligarGravacao(espaco);
       guardada = { ...g!, espaco, gravacao: 'ligada', gravacao_detalhe: null };
     } catch (err) {
-      if (!(err instanceof FalhaDaAgenda) || err.tipo === 'temporario') throw err;
+      if (!gravacaoRecusada(err)) throw err;
       guardada = { ...g!, gravacao: 'recusada', gravacao_detalhe: err.detalhe.slice(0, TAMANHO_DO_DETALHE) };
     }
     await x.passos.reuniaoGravada(x.pedido, guardada);

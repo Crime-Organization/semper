@@ -271,6 +271,66 @@ describe('A execução da reunião, com o Google simulado', () => {
     expect(banco.reuniao).toMatchObject({ link: LINK, gravacao: 'recusada', gravacao_detalhe: '403 PERMISSION_DENIED' });
   });
 
+  it.each([
+    ['a Meet REST API ainda não ativada (403 SERVICE_DISABLED)', resposta(403, { error: { code: 403, status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } }), 'recusado'],
+    ['a autorização (401)', resposta(401, { error: { code: 401, status: 'UNAUTHENTICATED' } }), 'recusado'],
+    ['o espaço que ainda não aparece (404)', resposta(404, { error: { code: 404, status: 'NOT_FOUND' } }), 'recusado'],
+    ['o Google fora (503)', resposta(503, { error: { code: 503 } }), 'temporario']
+  ])('dado o Google recusando a gravação por %s, quando a fila é feita, então ela não fica recusada de vez: o pedido volta à fila e a gravação é tentada de novo depois', async (_caso, recusa, falha) => {
+    // Dado
+    const g = google(x => (x.url.startsWith('https://meet.googleapis.com') && x.metodo === 'PATCH' ? recusa.clone() : null));
+    const { passos: p, banco } = passos(compromisso(), null, g.buscar);
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(banco.reuniao).toMatchObject({ link: LINK, gravacao: null });
+    expect(p.falhou).toHaveBeenCalledWith(pedidoDaFila(), falha, expect.any(String), expect.any(Number));
+    expect(g.copias()).toHaveLength(1);
+    // E, na próxima vez, com o Google deixando, a gravação é ligada.
+    const outra = google();
+    const depois = passos(compromisso(), banco.reuniao, outra.buscar);
+    await sincronizarAgendas(depois.passos, null);
+    expect(outra.reuniao()).toEqual(['GET meet/spaces/abc-mnop-xyz', `PATCH meet/spaces/espaco1?updateMask=${encodeURIComponent(MASCARA_DA_GRAVACAO)}`]);
+    expect(depois.banco.reuniao).toMatchObject({ gravacao: 'ligada' });
+  });
+
+  it('dada a nova tentativa que acha a reunião já criada e igual ao compromisso (409), quando a fila é feita, então ela é aproveitada sem mandar um convite atualizado à toa', async () => {
+    // Dado: o Google devolve a hora com o fuso no fim, e os convidados com mais campos.
+    const g = google(x => {
+      if (x.metodo === 'POST' && x.url.startsWith(PRINCIPAL)) return resposta(409, { error: { code: 409, errors: [{ reason: 'duplicate' }] } });
+      if (x.metodo === 'GET' && x.url.startsWith(PRINCIPAL)) {
+        return resposta(200, { ...comLink(), summary: 'Reunião com o cliente', description: DESCRICAO_DA_REUNIAO,
+          start: { dateTime: '2026-12-10T14:00:00-03:00', timeZone: 'America/Sao_Paulo' }, end: { dateTime: '2026-12-10T15:30:00-03:00', timeZone: 'America/Sao_Paulo' },
+          attendees: [{ email: 'cliente@exemplo.com', responseStatus: 'needsAction' }, { email: 'ana@exemplo.com', responseStatus: 'accepted' }] });
+      }
+      return null;
+    });
+    const { passos: p, banco } = passos(compromisso(), null, g.buscar);
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(g.reuniao().filter(r => r.startsWith('PATCH principal'))).toEqual([]);
+    expect(banco.reuniao).toMatchObject({ link: LINK, assinatura: reuniaoDesejada(compromisso(), ESCRITORIO, CONTA)!.assinatura });
+  });
+
+  it('dada a nova tentativa que acha a reunião já criada mas com outra hora (409), quando a fila é feita, então o convite é atualizado', async () => {
+    // Dado
+    const g = google(x => {
+      if (x.metodo === 'POST' && x.url.startsWith(PRINCIPAL)) return resposta(409, { error: { code: 409, errors: [{ reason: 'duplicate' }] } });
+      if (x.metodo === 'GET' && x.url.startsWith(PRINCIPAL)) {
+        return resposta(200, { ...comLink(), summary: 'Reunião com o cliente', description: DESCRICAO_DA_REUNIAO,
+          start: { dateTime: '2026-12-10T09:00:00-03:00', timeZone: 'America/Sao_Paulo' }, end: { dateTime: '2026-12-10T15:30:00-03:00', timeZone: 'America/Sao_Paulo' },
+          attendees: [{ email: 'cliente@exemplo.com' }, { email: 'ana@exemplo.com' }] });
+      }
+      return null;
+    });
+    const { passos: p } = passos(compromisso(), null, g.buscar);
+    // Quando
+    await sincronizarAgendas(p, null);
+    // Então
+    expect(g.reuniao().filter(r => r.startsWith('PATCH principal'))).toEqual([`PATCH principal/${ID}?conferenceDataVersion=1&sendUpdates=all`]);
+  });
+
   it('dada a reunião criada antes, cancelada e marcada de novo (o id já existe no Google), quando a fila é feita, então ela volta com um link novo', async () => {
     // Dado
     const novo = 'https://meet.google.com/xyz-abcd-efg';

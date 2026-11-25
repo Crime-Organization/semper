@@ -175,7 +175,8 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
    - **criar**: `events.insert` na agenda `primary` da conta do escritório, com `conferenceDataVersion=1`,
      `sendUpdates=all` e `conferenceData.createRequest` (`hangoutsMeet`, um `requestId` novo a cada pedido). O id do evento
      é do SEMPER (`r` e o uuid do compromisso): uma nova tentativa nunca cria outra reunião (o 409 do id repetido faz o SEMPER
-     ler a que já existe; se ela foi cancelada antes, volta com um link novo);
+     ler a que já existe; se ela foi cancelada antes, volta com um link novo; se já está como o compromisso, nenhum
+     convidado recebe um "convite atualizado" à toa);
    - **os convidados** (`attendees`): a equipe do compromisso (o responsável e os participantes ativos, pelo e-mail do Google
      de cada um; a conta reservada não) e as pessoas ligadas que têm e-mail (o primeiro e-mail de cada uma). A própria conta
      do escritório não vai como convidada (é a organizadora). O e-mail torto (sem arroba ou sem domínio, de uma pessoa
@@ -203,8 +204,12 @@ Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Googl
    (`GET https://meet.googleapis.com/v2/spaces/{código}`) e o muda (`PATCH .../v2/spaces/{id}?updateMask=…`). A gravação
    começa sozinha quando entra alguém que pode gravar, e os arquivos ficam no Google Drive da conta do escritório.
    **Depende da edição do Workspace** (Business Plus, Enterprise e outras; veja a ajuda do administrador do Google) e de o
-   administrador do Workspace não ter desligado a gravação. Se o Google recusar, a reunião fica sem ela, o cartão diz
-   "quem grava é a conta do escritório, na própria reunião", e nada falha. A máscara exata do `updateMask` não aparece em
+   administrador do Workspace não ter desligado a gravação. Se o Google recusar de vez (o 403 da edição ou da permissão
+   negada), a reunião fica sem ela, o cartão diz "quem grava é a conta do escritório, na própria reunião", e nada falha; o
+   **Sincronizar agora** tenta de novo a gravação das reuniões de hoje em diante (para quando o administrador mudar a
+   edição ou a permissão). Os outros erros (a Meet REST API ainda não ativada no Google Cloud, `SERVICE_DISABLED`; a
+   autorização; o espaço que ainda não aparece; o Google fora) não ficam guardados como recusa: o pedido falha e volta à
+   fila, e o administrador vê o erro em Configurações a partir da 3ª falha. A máscara exata do `updateMask` não aparece em
    exemplo na documentação (é a dos nomes dos campos): **confira no teste com a conta de verdade** (passo 12 abaixo).
    Alternativa sem a API: no console do administrador do Workspace, em Meet, deixar "gravar por padrão" e "transcrever por
    padrão" ligados (vale para todas as reuniões novas).
