@@ -162,7 +162,8 @@ Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
 | A função do servidor | `supabase/functions/google-agendas/index.ts` (e `google-conectar`, `google-concluir`, alteradas) |
 | Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125102621_agendas_google.sql` |
 | Banco: as cópias gravadas, os gatilhos dos itens, o item como o servidor o lê | `supabase/migrations/20261125110831_agendas_google_eventos.sql` |
-| Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `app/e2e/agendas-google.spec.ts` |
+| Banco: as correções da revisão (compartilhamentos recusados, a fila ao religar e ao excluir, as colunas do quadro, o e-mail do Google só pelos administradores) | `supabase/migrations/20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`, `20261125122303_email_do_google_so_administradores.sql` |
+| Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `agendas_google_correcoes.test.sql`, `app/e2e/agendas-google.spec.ts` |
 | Tela | `app/src/paginas/AgendasNoGoogle.tsx` (Configurações) e `EmailDoGoogle.tsx` (Equipe e Minha conta) |
 
 ## O que configurar na produção
@@ -182,10 +183,12 @@ Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta o
    organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
    deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
    de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
-4. **Banco.** Aplicar as migrações `20261125102621_agendas_google.sql` e `20261125110831_agendas_google_eventos.sql`, nesta
-   ordem, pelo roteiro `/aplicar-banco` do Claude Code. Elas só acrescentam: a versão anterior do site continua
-   funcionando (as funções antigas da ligação ficam como eram; a segunda alarga a regra do assunto da fila e refaz três
-   funções da primeira com a mesma assinatura).
+4. **Banco.** Aplicar as cinco migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code:
+   `20261125102621_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
+   `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql` e
+   `20261125122303_email_do_google_so_administradores.sql`. Elas só acrescentam: a versão anterior do site continua
+   funcionando (as funções antigas da ligação ficam como eram; as seguintes alargam a regra do assunto da fila, criam a
+   tabela das recusas e refazem funções das anteriores com a mesma assinatura).
 5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas
    (`verify_jwt = false`, já em `supabase/config.toml`):
 
