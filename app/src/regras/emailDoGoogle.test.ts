@@ -8,8 +8,9 @@ const pessoa = (id: string, papel: Papel) => ({ id, papel });
 
 describe('E-mail do Google', () => {
   it.each([
-    ['a própria pessoa (usuário)', pessoa('beto', 'usuario'), pessoa('beto', 'usuario'), null],
+    ['a própria pessoa (usuário: só os administradores mudam)', pessoa('beto', 'usuario'), pessoa('beto', 'usuario'), RECUSA_DO_EMAIL_DO_GOOGLE.proprio],
     ['o próprio master', pessoa('ana', 'master'), pessoa('ana', 'master'), null],
+    ['o próprio administrador', pessoa('caio', 'admin'), pessoa('caio', 'admin'), null],
     ['um usuário, pelo administrador', pessoa('beto', 'usuario'), pessoa('caio', 'admin'), null],
     ['um administrador, pelo master', pessoa('caio', 'admin'), pessoa('ana', 'master'), null],
     ['um usuário, por outro usuário', pessoa('beto', 'usuario'), pessoa('dani', 'usuario'), RECUSA_DO_EMAIL_DO_GOOGLE.naoAdmin],

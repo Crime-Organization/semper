@@ -1,9 +1,9 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // As agendas do escritório no Google (#166, parte 1): autorizar a agenda e ligar as agendas em Configurações, e o e-mail do
-// Google de cada um em Equipe e acessos e em Minha conta. No banco fictício não há Google: a volta do Google já vem como
+// Google de cada um em Equipe e acessos e em Minha conta (só os administradores mudam), e as recusas do Google. No banco fictício não há Google: a volta do Google já vem como
 // autorizada, e a conta Google é simulada.
 import { expect, test, type Page } from '@playwright/test';
-import { abrirUsuario } from './ajudantes';
+import { abrirUsuario, entrarComo } from './ajudantes';
 
 const CHAVE = 'Criar e manter no Google as agendas do escritório';
 
@@ -49,6 +49,27 @@ test.describe('Agendas no Google, em Configurações', () => {
     await expect(agendas).toContainText(/Tudo em dia: \d+ agendas criadas, \d+ compartilhamentos\./);
     await expect(agendas).toContainText('Última sincronização:');
     await expect(page.getByRole('group', { name: 'Contatos no Google' }).getByRole('checkbox')).not.toBeChecked();
+  });
+
+  test('dado o Google que recusa compartilhar com um e-mail, quando o administrador sincroniza, então vê qual e-mail foi recusado e os outros recebem as agendas', async ({ page }) => {
+    // Dado
+    const { agendas } = await contaLigada(page);
+    await agendas.getByRole('button', { name: 'Autorizar a agenda' }).click();
+    await agendas.getByRole('checkbox', { name: CHAVE }).check();
+    await expect(page.getByText('Agendas ligadas:', { exact: false })).toBeVisible();
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { agendasGoogle: Record<string, unknown> };
+      bd.agendasGoogle.recusar = ['bruno@exemplo.com'];
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    await page.reload();
+    // Quando
+    await agendas.getByRole('button', { name: 'Sincronizar agora' }).click();
+    // Então
+    await expect(page.getByText(/\d+ agendas criadas, \d+ compartilhamentos feitos\./)).toBeVisible();
+    const aviso = agendas.getByRole('alert').filter({ hasText: 'O Google recusou compartilhar estas agendas:' });
+    await expect(aviso.getByRole('listitem').filter({ hasText: 'bruno@exemplo.com, na agenda "Geral" (403 forbidden)' })).toBeVisible();
+    await expect(aviso).toContainText('Sincronizar agora');
   });
 
   test('dadas as agendas ligadas, quando o administrador as desliga, então o aviso diz que nada foi apagado no Google', async ({ page }) => {
@@ -107,5 +128,16 @@ test.describe('E-mail do Google da equipe', () => {
     await expect(page.getByText('E-mail do Google salvo: pessoal@exemplo.com.')).toBeVisible();
     await page.reload();
     await expect(page.getByLabel('E-mail do Google')).toHaveValue('pessoal@exemplo.com');
+  });
+
+  test('dado um usuário comum, quando abre Minha conta, então vê o e-mail do Google só para ler: quem muda é o administrador', async ({ page }) => {
+    // Dado
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await page.goto('/minha-conta/');
+    // Então
+    await expect(page.getByLabel('E-mail do Google')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Salvar e-mail do Google' })).toHaveCount(0);
+    await expect(page.getByText('Só os administradores mudam o e-mail do Google, em Equipe e acessos.')).toBeVisible();
   });
 });

@@ -1,7 +1,8 @@
 // O "e-mail do Google" de cada pessoa da equipe (#166): o que recebe, por compartilhamento, as agendas do escritório no
-// Google Agenda. Por padrão, o de entrada no SEMPER; a própria pessoa e o administrador podem informar outro (por exemplo,
-// o Gmail pessoal de quem entra no SEMPER com o e-mail do escritório). Puro: as mesmas regras de public.email_do_google_salvar
-// (supabase/migrations/20261125102621_agendas_google.sql), que o banco fictício também segue.
+// Google Agenda. Por padrão, o de entrada no SEMPER; só os administradores informam outro, em Equipe e acessos (decisão do
+// dono: as agendas levam dados de clientes, e quem não é administrador não as manda para um e-mail de fora), por exemplo o
+// Gmail pessoal de quem entra no SEMPER com o e-mail do escritório. Puro: as mesmas regras de public.email_do_google_salvar
+// (supabase/migrations/20261125122303_email_do_google_so_administradores.sql), que o banco fictício também segue.
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
 import type { Papel } from '../dados/tipos';
 import { normalizarEmail } from './conta';
@@ -9,6 +10,7 @@ import { normalizarEmail } from './conta';
 /** As recusas, com as mesmas palavras do banco. */
 export const RECUSA_DO_EMAIL_DO_GOOGLE = {
   naoAdmin: 'Apenas administradores mudam o e-mail do Google de alguém da equipe',
+  proprio: 'Só os administradores mudam o e-mail do Google, em Equipe e acessos.',
   master: 'Só o próprio master muda o e-mail do Google dele.',
   admin: 'Só o master muda o e-mail do Google de um administrador.',
   invalido: 'Informe um e-mail válido.',
@@ -32,10 +34,13 @@ const SO_QUEM_PODE: Record<Papel, (eu: Papel) => string | null> = {
   master: () => RECUSA_DO_EMAIL_DO_GOOGLE.master
 };
 
-/** Por que quem está logado não pode mudar o e-mail do Google de alguém, ou null se pode (o próprio, sempre). */
+/**
+ * Por que quem está logado não pode mudar o e-mail do Google de alguém, ou null se pode: só administradores (o próprio,
+ * sempre; o dos outros, pela regra do nome).
+ */
 export function recusaDoEmailDoGoogle(alvo: { id: string; papel: Papel }, eu: { id: string; papel: Papel }): string | null {
-  if (alvo.id === eu.id) return null;
-  return eu.papel === 'usuario' ? RECUSA_DO_EMAIL_DO_GOOGLE.naoAdmin : SO_QUEM_PODE[alvo.papel](eu.papel);
+  if (eu.papel === 'usuario') return alvo.id === eu.id ? RECUSA_DO_EMAIL_DO_GOOGLE.proprio : RECUSA_DO_EMAIL_DO_GOOGLE.naoAdmin;
+  return alvo.id === eu.id ? null : SO_QUEM_PODE[alvo.papel](eu.papel);
 }
 
 /** O que gravar: o e-mail em minúsculas, ou nada (volta ao de entrada) quando vazio ou igual ao de entrada. */

@@ -127,16 +127,28 @@ select is(pg_temp.versao(2), null, 'dado o outro escritório com as agendas desl
 select pg_temp.entrar(2); set local role authenticated;
 select is((select coalesce(email, '-') || '|' || padrao from public.email_do_google(pg_temp.id(2))), '-|beto.novo@exemplo.test',
   'dado Beto sem e-mail do Google informado, então o dele é o de entrada');
-select lives_ok($$select public.email_do_google_salvar(pg_temp.id(2), '  Beto.Pessoal@Exemplo.test ')$$, 'quando Beto informa o próprio e-mail do Google, então o banco aceita');
-select is((select email from public.email_do_google(pg_temp.id(2))), 'beto.pessoal@exemplo.test', 'e o e-mail fica guardado em minúsculas');
+-- Só os administradores mudam o e-mail do Google (decisão do dono: "pode ser trocado em Equipe"; migração
+-- 20261125122303_email_do_google_so_administradores.sql). Antes, a própria pessoa também mudava, em Minha conta.
+select throws_ok($$select public.email_do_google_salvar(pg_temp.id(2), '  Beto.Pessoal@Exemplo.test ')$$, 'P0001',
+  'Só os administradores mudam o e-mail do Google, em Equipe e acessos.', 'quando Beto (não administrador) tenta informar o próprio e-mail do Google, então o banco recusa');
 select is((select count(*)::int from public.email_do_google(pg_temp.id(1))), 0, 'quando Beto pede o e-mail do Google de Ana, então vem vazio');
 select throws_ok($$select public.email_do_google_salvar(pg_temp.id(1), 'x@exemplo.test')$$, 'P0001', 'Apenas administradores mudam o e-mail do Google de alguém da equipe',
   'e quando ele tenta mudar o de Ana, o banco recusa');
+reset role;
+select pg_temp.entrar(4); set local role authenticated;
 select throws_ok($$select public.email_do_google_salvar(pg_temp.id(2), 'sem-arroba')$$, 'P0001', 'Informe um e-mail válido.',
-  'quando Beto informa um e-mail inválido, então o banco recusa');
+  'quando Caio (administrador) informa um e-mail inválido para Beto, então o banco recusa');
+select lives_ok($$select public.email_do_google_salvar(pg_temp.id(2), '  Beto.Pessoal@Exemplo.test ')$$, 'quando Caio informa o e-mail do Google de Beto, então o banco aceita');
+reset role;
+select pg_temp.entrar(2); set local role authenticated;
+select is((select email from public.email_do_google(pg_temp.id(2))), 'beto.pessoal@exemplo.test', 'e o e-mail fica guardado em minúsculas, e Beto o vê');
 select is((select count(*)::int from public.emails_do_google), 1, 'e Beto lê só o próprio e-mail do Google');
 reset role;
 select is(pg_temp.versao(1), (select v from v0) + 6, 'e o e-mail do Google novo põe o escritório na fila');
+select pg_temp.entrar(4); set local role authenticated;
+select lives_ok($$select public.email_do_google_salvar(pg_temp.id(4), 'caio.proprio@exemplo.test')$$, 'quando Caio (administrador) muda o próprio, então o banco aceita');
+select lives_ok($$select public.email_do_google_salvar(pg_temp.id(4), '')$$, 'e vazio volta ao de entrada');
+reset role;
 
 select pg_temp.entrar(4); set local role authenticated;
 select lives_ok($$select public.email_do_google_salvar(pg_temp.id(2), 'beto.escritorio@exemplo.test')$$, 'dado Caio (administrador), quando muda o e-mail do Google de Beto (usuário), então o banco aceita');

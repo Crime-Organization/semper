@@ -9475,13 +9475,12 @@ describe('O e-mail do Google de alguém da equipe (banco fictício, #166)', () =
     SD = (await import('./falso')).SD;
   });
 
-  it('dado um usuário comum, quando muda o próprio e-mail do Google, então muda; o de outra pessoa, nem lê nem muda', async () => {
+  it('dado um usuário comum, quando tenta mudar o próprio e-mail do Google, então é recusado (só os administradores mudam); ele vê o dele; o de outra pessoa, nem lê nem muda', async () => {
     // Dado
     entrarComo('u-bruno');
-    // Quando
-    await SD.emailDoGoogleSalvar('u-bruno', 'bruno.pessoal@exemplo.com');
-    // Então
-    expect((await SD.emailDoGoogle('u-bruno'))?.email).toBe('bruno.pessoal@exemplo.com');
+    // Quando / Então
+    await expect(SD.emailDoGoogleSalvar('u-bruno', 'bruno.pessoal@exemplo.com')).rejects.toThrow('Só os administradores mudam o e-mail do Google, em Equipe e acessos.');
+    expect(await SD.emailDoGoogle('u-bruno')).toEqual({ email: null, padrao: expect.stringContaining('@') });
     expect(await SD.emailDoGoogle('u-ana')).toBeNull();
     await expect(SD.emailDoGoogleSalvar('u-ana', 'x@exemplo.com')).rejects.toThrow('Apenas administradores mudam o e-mail do Google de alguém da equipe');
   });

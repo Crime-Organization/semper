@@ -33,9 +33,11 @@ tentativas com espera e o aviso ao administrador a partir da 3ª falha.
 5. **Os compartilhamentos.** Sempre por e-mail, só para ver (papel `reader`), nunca por link público. O Google manda o
    convite por e-mail. Cada pessoa recebe a própria agenda, a Geral e as das salas; os administradores, também a
    Administrativo. A conta do escritório vê todas (é a dona).
-6. **O e-mail do Google.** É o e-mail que recebe os compartilhamentos. Por padrão, o de entrada no SEMPER; a própria
-   pessoa troca em **Minha conta**, e o administrador em **Equipe e acessos**, na janela da pessoa (com a regra do nome:
-   o de um administrador, só o master; o de um master, só ele). Apagar o campo volta ao de entrada.
+6. **O e-mail do Google.** É o e-mail que recebe os compartilhamentos. Por padrão, o de entrada no SEMPER; só os
+   administradores trocam (decisão do dono: "pode ser trocado em Equipe"), em **Equipe e acessos**, na janela da pessoa,
+   com a regra do nome (o de um administrador, só o master; o de um master, só ele), e o próprio também em **Minha
+   conta**. Quem não é administrador vê o dele em Minha conta, só para ler: assim ninguém manda sozinho as agendas do
+   escritório (com nomes de clientes) para um e-mail de fora. Apagar o campo volta ao de entrada.
 7. **Dia a dia.** Quando alguém entra na equipe, sai (desativado ou excluído), muda de nome ou de papel, quando uma sala
    é criada, renomeada, desativada ou reativada, ou quando um e-mail do Google (ou o de entrada) muda, um gatilho do
    banco põe o escritório na fila (`agendas_google_fila`, assunto `agendas`). A rotina do banco chama a função

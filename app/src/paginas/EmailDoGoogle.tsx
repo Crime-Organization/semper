@@ -1,6 +1,7 @@
 // O e-mail do Google de alguém da equipe (#166): o que recebe, por compartilhamento, as agendas do escritório no Google
-// Agenda (só para ver). Por padrão, o de entrada no SEMPER; muda em Equipe e acessos (o administrador, com a regra do nome)
-// e em Minha conta (a própria pessoa). As regras ficam em regras/emailDoGoogle.ts e no banco (email_do_google_salvar).
+// Agenda (só para ver). Por padrão, o de entrada no SEMPER; só os administradores mudam: em Equipe e acessos (com a regra do
+// nome) e o próprio, em Minha conta, onde os outros só o veem. As regras ficam em regras/emailDoGoogle.ts e no banco
+// (email_do_google_salvar).
 import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
 import { SD, type EmailDoGoogle as Dados } from '../dados';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
@@ -11,7 +12,7 @@ import { Campo, Carregando, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 
 interface Props {
   perfilId: string;
-  /** Quem está logado pode mudar (a própria pessoa, ou o administrador com a regra do nome). */
+  /** Quem está logado pode mudar (só administradores: o próprio, ou o de outro com a regra do nome). */
   pode: boolean;
   /** Por que não pode, quando não pode (a regra do papel). */
   porQueNao?: string | null;
