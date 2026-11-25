@@ -58,7 +58,7 @@ h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink
 .config-google-ligada { display: flex; flex-direction: column; gap: 10px }
 .config-google-conta { margin: 0; color: var(--text) }
 /* Contatos no Google (#164): abaixo da conta ligada, separado por uma linha. */
-.config-google-contatos { display: flex; flex-direction: column; gap: var(--recuo-da-pasta); padding-top: var(--recuo-dos-campos); border-top: 1px solid var(--line) }
+.config-google-contatos, .config-google-agendas { display: flex; flex-direction: column; gap: var(--recuo-da-pasta); padding-top: var(--recuo-dos-campos); border-top: 1px solid var(--line) }
 .config-google-situacao { margin: 0; color: var(--text) }
 /* Para conferir (#164, etapa 2): um cartão por contato do Google, com as pessoas possíveis e as decisões. */
 .config-conferir { display: flex; flex-direction: column; gap: var(--recuo-da-pasta) }

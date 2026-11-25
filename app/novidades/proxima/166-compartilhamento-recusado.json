@@ -1,0 +1,5 @@
+{
+  "titulo": "Agendas no Google: o e-mail recusado não trava os outros",
+  "texto": "Se o Google recusar compartilhar uma agenda com algum e-mail (por exemplo, quando o Workspace do escritório não deixa compartilhar com contas de fora), o resto da equipe continua recebendo as agendas, e o administrador vê qual e-mail foi recusado.",
+  "ondeAchar": "Configurações, cartão Conta Google, \"Agendas no Google\". Depois de corrigir, clique em \"Sincronizar agora\" para tentar de novo."
+}

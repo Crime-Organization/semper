@@ -1,0 +1,5 @@
+{
+  "titulo": "Todas as salas lado a lado na Agenda",
+  "texto": "A Agenda ganhou a visão \"Salas\": todas as salas do escritório lado a lado, num dia, de meia em meia hora, para ver de uma vez qual está livre. Clique num horário livre e o novo compromisso já abre com a sala, a data e a hora. O horário ocupado não se marca; o compromisso de que você não participa aparece só como \"Ocupado\".",
+  "ondeAchar": "Agenda, botão \"Salas\" ao lado de Dia, Semana e Mês (aparece quando o escritório tem salas cadastradas nas Configurações). Use Anterior, Hoje e Próximo para trocar de dia."
+}

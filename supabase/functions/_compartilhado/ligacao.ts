@@ -8,10 +8,47 @@ export const ESCOPO_OBRIGATORIO = 'https://www.googleapis.com/auth/contacts';
 /** O estado do pedido de ligação: 32 bytes aleatórios em hexadecimal. */
 export const FORMATO_ESTADO = /^[0-9a-f]{64}$/;
 
-/** Para onde o navegador vai pedir a autorização no Google (com o desafio do PKCE: o Google só aceita o código com o verificador). */
-export function urlDeAutorizacao(clienteId: string, voltaDoGoogle: string, estado: string, desafio: string, escopos = ESCOPOS_CONTATOS) {
+/**
+ * As permissões da agenda (#166), as mais estreitas que bastam: criar as agendas do SEMPER e escrever nelas
+ * (calendar.app.created) e compartilhá-las (calendar.acls: sem ela o Google recusa o compartilhamento). São as mesmas que
+ * privado.agenda_autorizada confere no banco (supabase/migrations/20261125105000_agendas_google.sql): mudou aqui, muda lá.
+ */
+export const ESCOPOS_DA_AGENDA = ['https://www.googleapis.com/auth/calendar.app.created', 'https://www.googleapis.com/auth/calendar.acls'];
+/** A conta Google deu as duas permissões da agenda. */
+export const agendaAutorizada = (escopos: readonly string[] | null | undefined) => ESCOPOS_DA_AGENDA.every(e => (escopos ?? []).includes(e));
+
+/**
+ * As permissões do Google Meet (#437), pedidas à parte, depois da agenda: criar a reunião na agenda principal da conta do
+ * escritório, que fica sendo a organizadora e manda os convites pelo e-mail dela (calendar.events.owned: só os eventos das
+ * agendas da própria conta; calendar.app.created não chega à principal), e ligar a gravação e a transcrição automáticas da
+ * reunião (meetings.space.settings, da Meet REST API). São as mesmas que privado.meet_autorizado confere no banco
+ * (supabase/migrations/20261125143159_reunioes_google.sql): mudou aqui, muda lá.
+ */
+export const ESCOPOS_DO_MEET = ['https://www.googleapis.com/auth/calendar.events.owned', 'https://www.googleapis.com/auth/meetings.space.settings'];
+/** A conta Google deu as duas permissões do Google Meet. */
+export const meetAutorizado = (escopos: readonly string[] | null | undefined) => ESCOPOS_DO_MEET.every(e => (escopos ?? []).includes(e));
+
+/**
+ * Para que serve o pedido de ligação: ligar a conta (com os contatos), ou somar a agenda (#166) ou o Google Meet (#437) à
+ * conta já ligada (autorização aos poucos: com include_granted_scopes, o token novo cobre tudo o que já foi dado, e nada se
+ * desliga).
+ */
+export type FinalidadeDoPedido = 'contatos' | 'agendas' | 'meet';
+/** O que cada pedido pede ao Google (o e-mail vai junto, para conferir de que conta é a autorização). */
+export const ESCOPOS_DO_PEDIDO: Record<FinalidadeDoPedido, string[]> = {
+  contatos: ESCOPOS_CONTATOS,
+  agendas: ['openid', 'email', ...ESCOPOS_DA_AGENDA],
+  meet: ['openid', 'email', ...ESCOPOS_DO_MEET]
+};
+
+/**
+ * Para onde o navegador vai pedir a autorização no Google (com o desafio do PKCE: o Google só aceita o código com o verificador).
+ * Com a conta (ao somar a agenda), o Google já abre nela; a pessoa ainda pode escolher outra, e a conclusão recusa.
+ */
+export function urlDeAutorizacao(clienteId: string, voltaDoGoogle: string, estado: string, desafio: string, escopos = ESCOPOS_CONTATOS, conta?: string | null) {
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.search = new URLSearchParams({
+    ...(conta ? { login_hint: conta } : {}),
     client_id: clienteId,
     redirect_uri: voltaDoGoogle,
     response_type: 'code',
@@ -39,8 +76,28 @@ export function sitePermitido(voltarPara: string | null | undefined, permitidos:
   try { return permitidos.includes(new URL(voltarPara).origin); } catch { return false; }
 }
 
-/** Resultado da ligação, que a página de Configurações mostra num aviso. */
-export type ResultadoLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
+/**
+ * Resultado da ligação, que a página de Configurações mostra num aviso. Os da agenda: 'agenda-ligada' (a permissão da agenda
+ * somou-se à conta), 'sem-permissao-agenda' (faltou marcar a agenda na tela do Google) e 'outra-conta' (a pessoa entrou no
+ * Google com outra conta; a conta do escritório não muda). Os do Google Meet (#437): 'meet-ligado' (as permissões do Meet
+ * somaram-se à conta) e 'sem-permissao-meet' (faltou marcar alguma delas na tela do Google).
+ */
+export type ResultadoLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro' | 'agenda-ligada' | 'sem-permissao-agenda' | 'outra-conta'
+  | 'meet-ligado' | 'sem-permissao-meet';
+
+/** O que falta nas permissões que voltaram do Google, para cada finalidade do pedido; null: não falta nada. */
+export const FALTA_NA_AUTORIZACAO: Record<FinalidadeDoPedido, (escopos: string[]) => ResultadoLigacao | null> = {
+  contatos: escopos => (escopos.includes(ESCOPO_OBRIGATORIO) ? null : 'sem-permissao'),
+  agendas: escopos => (agendaAutorizada(escopos) ? null : 'sem-permissao-agenda'),
+  meet: escopos => (meetAutorizado(escopos) ? null : 'sem-permissao-meet')
+};
+/** Ligar a conta pode trocar a conta do escritório; somar a agenda ou o Meet, não (vale só para a conta já ligada). */
+const TROCA_A_CONTA: Record<FinalidadeDoPedido, boolean> = { contatos: true, agendas: false, meet: false };
+/** A conta que autorizou serve para o pedido: qualquer uma ao ligar; ao somar a agenda ou o Meet, só a que já está ligada. */
+export const contaServe = (finalidade: FinalidadeDoPedido, email: string, contaLigada: string | null | undefined) =>
+  TROCA_A_CONTA[finalidade] || email.trim().toLowerCase() === String(contaLigada ?? '').trim().toLowerCase();
+/** O resultado de cada pedido quando dá certo. */
+export const RESULTADO_DO_PEDIDO: Record<FinalidadeDoPedido, ResultadoLigacao> = { contatos: 'ligado', agendas: 'agenda-ligada', meet: 'meet-ligado' };
 
 /** A página de volta com o resultado no endereço (?google=recusado). */
 export function comResultado(voltarPara: string, resultado: ResultadoLigacao) {

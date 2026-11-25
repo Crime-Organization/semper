@@ -434,6 +434,11 @@ verify_jwt = false
 [functions.google-sincronizar]
 verify_jwt = false
 
+# Agendas do escritório no Google Agenda (#166): como a sincronização dos contatos, quem chama é a rotina do banco (com a
+# senha da rotina) ou o administrador logado ("Sincronizar agora"); as duas coisas são conferidas na função.
+[functions.google-agendas]
+verify_jwt = false
+
 # Troca de e-mail pelo administrador (#222): também confere o login dentro da função, pelo mesmo motivo.
 [functions.equipe-trocar-email]
 verify_jwt = false

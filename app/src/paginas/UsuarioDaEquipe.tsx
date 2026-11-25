@@ -1,9 +1,11 @@
 // A janela de um usuário em Equipe e acessos (abre ao clicar na linha dele): o nome, o acesso, a função, o papel, a
-// sociedade (com as datas à vista) e os atalhos para o perfil profissional e o cadastro. O nome de um usuário o
-// administrador muda; o de um administrador, só o master; o de um master, só ele mesmo.
+// sociedade (com as datas à vista), o e-mail do Google (#166, o que recebe as agendas do escritório) e os atalhos para o
+// perfil profissional e o cadastro. O nome e o e-mail do Google de um usuário o administrador muda; os de um administrador,
+// só o master; os de um master, só ele mesmo.
 import { useId, useState, type FormEvent } from 'react';
 import { SD, type Funcao, type Papel, type Socio, type Usuario } from '../dados';
 import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
+import { recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
 import { erroDoNomeDaEquipe, FUNCOES, podeExcluir } from '../regras/equipe';
 import { avisar, falha } from '../ui/avisos';
 import { Avatar } from '../ui/Avatar';
@@ -11,6 +13,7 @@ import { BotaoLink, Campo, estiloBotao, Nota, propsDoCampo, SecaoDoFormulario, S
 import { BotaoDuplo } from '../ui/Botoes';
 import { useCtx } from '../ui/sessao';
 import { dataHora, PAPEIS } from '../ui/util';
+import { EmailDoGoogle } from './EmailDoGoogle';
 import { SocioNaEquipe } from './financeiro/SocioNaEquipe';
 import './Financeiro.css';
 
@@ -41,6 +44,7 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
   const [nome, setNome] = useState(u.nome);
   const [ocupado, setOcupado] = useState(false);
   const mudouNome = nome.trim() !== u.nome;
+  const recusaDoGoogle = recusaDoEmailDoGoogle(u, ctx.perfil);
 
   async function salvarNome(ev: FormEvent) {
     ev.preventDefault();
@@ -95,6 +99,7 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
 
       {!u.reservada && <SecaoDoFormulario titulo="Acesso" nivel={3}>
         <p className="usuario-acesso">E-mail de acesso: <b>{u.email}</b> · {u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</p>
+        <EmailDoGoogle perfilId={u.id} pode={!recusaDoGoogle} porQueNao={recusaDoGoogle} />
         {gerir && <div className="financeiro-acoes">
           <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={aoTrocarEmail}>Trocar e-mail</button>
           {u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => aoDefinirAtivo(false)}>Desativar</BotaoDuplo>

@@ -1,0 +1,420 @@
+# Agendas no Google
+
+Como o SEMPER cria e mantém as agendas do escritório no Google Agenda (tarefa #166), o que configurar na produção e como
+testar com a conta de verdade. A **parte 1** são as agendas e os compartilhamentos; a **parte 2**, os eventos
+(compromissos, prazos de tarefas e demandas, dias sem expediente e parcelas a receber; veja [Os eventos](#os-eventos)).
+A **parte 3** é o Google Meet no compromisso (tarefa #437; veja [O Google Meet no compromisso](#o-google-meet-no-compromisso)).
+As despesas do escritório a pagar (#439) vão para a Administrativo, no dia útil anterior ao vencimento (veja
+[As despesas na Administrativo](#as-despesas-na-administrativo)).
+
+A estrutura é a mesma dos contatos (veja [contatos-google.md](contatos-google.md)): a ligação em `privado.ligacoes`, com o
+token no cofre (Vault), uma fila no banco processada pela rotina do `pg_cron` e por uma função do servidor, novas
+tentativas com espera e o aviso ao administrador a partir da 3ª falha.
+
+## Como funciona
+
+1. **A conta do escritório é a dona.** A conta Google ligada em Configurações (a mesma dos contatos) é dona de todas as
+   agendas. Ninguém da equipe precisa da senha dela.
+2. **Autorizar a agenda.** A permissão da agenda é pedida à parte, depois dos contatos (autorização aos poucos, com
+   `include_granted_scopes`): em Configurações, cartão **Conta Google**, em **Agendas no Google**, o administrador clica
+   em **Autorizar a agenda**. O Google abre já na conta do escritório e pede só a agenda; o token novo cobre os contatos e
+   a agenda juntos (os contatos não se desligam). As permissões pedidas são as mais estreitas que bastam:
+   - `https://www.googleapis.com/auth/calendar.app.created`: criar as agendas do SEMPER e escrever nelas (não dá acesso às
+     outras agendas da conta);
+   - `https://www.googleapis.com/auth/calendar.acls`: compartilhar e retirar o compartilhamento (sem ela o Google recusa).
+
+   Se a pessoa desmarcar a agenda na tela do Google, nada muda e o aviso pede para tentar de novo. Se entrar no Google com
+   **outra** conta, a conta do escritório não muda e a autorização da outra conta é revogada.
+3. **Ligar as agendas.** Depois de autorizar, aparece *Criar e manter no Google as agendas do escritório*. Começa
+   desligada em cada escritório; só administradores ligam. Desligar esvazia a fila e **não apaga nada no Google**.
+   **Os compartilhamentos já feitos também ficam**: desligar as agendas, desligar a conta Google ou ligar outra conta
+   não os retira (com a conta desligada ou trocada, o SEMPER não tem mais como; com as agendas desligadas, ele não
+   mexe). Quem os recebeu continua vendo as agendas antigas e os eventos delas, inclusive quem for desativado nesse
+   meio-tempo. Para tirar, entre no Google Agenda com a conta do escritório e, em **Configurações e compartilhamento**
+   de cada agenda, retire o compartilhamento (ou apague a agenda). Configurações diz isso, logo abaixo das agendas,
+   enquanto há compartilhamentos.
+4. **As agendas.** Na conta do escritório, como agendas secundárias, no fuso de Brasília:
+   - **Agenda – Nome** para cada pessoa ativa da equipe (advogado, administrativo, estagiário: todos);
+   - **Geral**;
+   - uma por **sala** ativa (com o nome da sala);
+   - **Administrativo**.
+5. **Os compartilhamentos.** Sempre por e-mail, só para ver (papel `reader`), nunca por link público. O Google manda o
+   convite por e-mail. Cada pessoa recebe a própria agenda, a Geral e as das salas; os administradores, também a
+   Administrativo. A conta do escritório vê todas (é a dona).
+6. **O e-mail do Google.** É o e-mail que recebe os compartilhamentos. Por padrão, o de entrada no SEMPER; só os
+   administradores trocam (decisão do dono: "pode ser trocado em Equipe"), em **Equipe e acessos**, na janela da pessoa,
+   com a regra do nome (o de um administrador, só o master; o de um master, só ele), e o próprio também em **Minha
+   conta**. Quem não é administrador vê o dele em Minha conta, só para ler: assim ninguém manda sozinho as agendas do
+   escritório (com nomes de clientes) para um e-mail de fora. Apagar o campo volta ao de entrada.
+7. **Dia a dia.** Quando alguém entra na equipe, sai (desativado ou excluído), muda de nome ou de papel, quando uma sala
+   é criada, renomeada, desativada ou reativada, ou quando um e-mail do Google (ou o de entrada) muda, um gatilho do
+   banco põe o escritório na fila (`agendas_google_fila`, assunto `agendas`). A rotina do banco chama a função
+   `google-agendas` a cada 2 minutos, só quando há algo na fila; o **Sincronizar agora** faz o mesmo na hora, só para o
+   escritório. A função lê o estado (`agendas_google_estado`), monta o plano e o executa, uma ação de cada vez:
+   1. **retirar** o compartilhamento de quem não deve mais ver (desativado, deixou de ser administrador, trocou de
+      e-mail, sala desativada) — primeiro, para o acesso sair antes de tudo;
+   2. **criar** as agendas que faltam;
+   3. **renomear** as que mudaram de nome (no SEMPER, ou à mão no Google: o nome do SEMPER volta);
+   4. **compartilhar** com quem ainda não recebeu.
+
+   Cada execução faz no máximo 40 ações (`ACOES_POR_EXECUCAO`); o resto fica para a próxima, sem contar como falha.
+8. **Quem sai e quem volta.** Pessoa desativada perde os compartilhamentos; a agenda dela fica com o escritório.
+   Reativar devolve. Sala desativada: o mesmo.
+9. **Falhas.** Se o Google falha, o pedido fica na fila e a tentativa se repete sozinha, com esperas de 1 minuto a
+   1 dia. O que já foi feito antes da falha fica guardado. A partir da 3ª falha, Configurações mostra o problema e o que
+   fazer. Autorização vencida ou retirada para a fila do escritório até a agenda ser autorizada de novo (o botão
+   **Autorizar a agenda** volta a aparecer) ou o administrador pedir **Sincronizar agora**. Só contam como autorização o
+   401 e o 403 com o motivo `insufficientPermissions` ou `authError`; o 403 de cota (`rateLimitExceeded`,
+   `userRateLimitExceeded`, `quotaExceeded`, `dailyLimitExceeded`) é temporário, e o resto do 403 é recusa daquele pedido.
+10. **Compartilhamento recusado.** Se o Google recusa compartilhar uma agenda com um e-mail (o Workspace que não deixa
+   compartilhar com contas de fora, por exemplo), a recusa fica guardada (`agenda_google_recusas`), aquele e-mail fica de
+   fora só naquela agenda e o resto do plano segue: os outros da equipe recebem as agendas normalmente. Configurações
+   mostra ao administrador cada e-mail recusado, a agenda e o que o Google respondeu. O **Sincronizar agora** (e ligar as
+   agendas de novo) apaga as recusas e tenta cada uma outra vez.
+11. **Agenda apagada no Google** (só a conta do escritório consegue apagar). O 404 do Google não diz o que sumiu (o
+   evento, a regra ou a agenda), e logo depois de criar uma agenda o Google ainda pode responder 404 enquanto a espalha.
+   Por isso o SEMPER só esquece uma agenda (com os compartilhamentos e as cópias guardadas) e a cria de novo quando:
+   ela foi criada há mais de 10 minutos (`AGENDA_NOVA_MS`) **e**, conferida no Google (`calendars.get`), também responde
+   404. Antes disso, ou se a conferência não responder com clareza, a falha é temporária e a tentativa se repete. Um 404
+   do evento com a agenda existindo é falha do evento (temporária), e um 404 do compartilhamento com a agenda existindo é
+   recusa daquele e-mail.
+12. **Agendas sobrando.** Criar uma agenda no Google (`calendars.insert`) não tem como ser repetido sem criar outra. Se
+   o Google cria e o banco não guarda, o SEMPER apaga a recém-criada no Google (`calendars.delete`, que a permissão
+   `calendar.app.created` cobre) antes de tentar de novo; se nem isso der, a falha guardada na fila diz o id da agenda
+   que ficou lá. O caso que sobra: o Google cria, mas a resposta se perde no caminho (tempo esgotado). Aí o SEMPER não
+   sabe o id e a próxima tentativa cria outra com o mesmo nome. Procurar a perdida antes de criar exigiria ler a lista
+   de agendas da conta (`calendarList`), que pede uma permissão mais larga (`calendar.calendarlist.readonly`, que vê
+   todas as agendas da conta), e por isso não é feito. **Como limpar à mão:** no Google Agenda da conta do escritório,
+   em **Minhas agendas**, uma agenda repetida (mesmo nome, com a descrição "Agenda criada e mantida pelo SEMPER…" e sem ninguém
+   no compartilhamento) é a que sobrou: em **Configurações e compartilhamento** dela, **Remover agenda**. A que o
+   SEMPER guarda é a compartilhada com a equipe.
+
+O que **não** acontece (ainda): conferir no Google se alguém mexeu à mão nos compartilhamentos (o SEMPER guarda o que ele
+mesmo fez; um compartilhamento retirado ou acrescentado à mão no Google não é desfeito); apagar agendas no Google (só a recém-criada
+que o banco não guardou, veja o item 12).
+
+## Os eventos
+
+Só no sentido SEMPER → Google. Combinado com o dono em 25/11/2026:
+
+| Item do SEMPER | Em quais agendas | Quando | Sai do Google quando |
+|---|---|---|---|
+| Compromisso | do responsável e de cada participante; também na Geral, se "Agenda geral" está marcada; na da sala, se tem sala | a data e a hora (sem hora de fim: 1 hora, como a sala conta); sem hora, o dia inteiro | é arquivado, vai para a coluna "Cancelado" ou é excluído |
+| Tarefa com prazo | do responsável e de cada participante | a data de entrega, com a hora do prazo (o evento tem 30 minutos); sem hora, o dia inteiro. O início não estica o evento | é concluída, arquivada, excluída ou perde o prazo |
+| Demanda com prazo | do responsável e de cada colaborador | como a tarefa | é concluída, arquivada, excluída ou perde o prazo |
+| Dia sem expediente ou suspensão (Calendário, "Feriados e prazos" do escritório) | Geral | o dia inteiro | é apagado |
+| Parcela a receber | do advogado responsável pelo contrato (não a Administrativo) | o dia inteiro do vencimento | é recebida ou excluída |
+| Despesa do escritório a pagar (#439, Financeiro, aba Obrigações) | só a Administrativo | o dia inteiro do **dia útil anterior** ao vencimento | é paga ou excluída |
+
+- **Cada data de um compromisso que se repete é um compromisso**: vai como um evento próprio (não como evento repetido do
+  Google).
+- **Concluída, recebida, arquivada: sai.** Foi o mais simples (o dono deixou escolher): o evento é apagado das agendas,
+  em vez de ficar marcado. Se o item voltar (reaberto, estorno do recebimento), o evento entra de novo.
+- **Quem sai do item** (um participante tirado, o responsável trocado) perde a cópia na agenda dele; quem entra ganha.
+- **O evento** leva o título, o horário, o local (ou a sala), os nomes dos clientes, o número do processo e, na descrição,
+  o link direto para o item no SEMPER (o mesmo endereço dos e-mails de prazo, `SITE` em `_compartilhado/emailsDePrazo.ts`):
+  o compromisso, a tarefa e a demanda abrem no cartão; a parcela, no cartão do contrato; o dia, no Calendário. A parcela
+  mostra o número, o contrato e o valor; o dia, o tipo e o órgão.
+- **Id estável.** O id de cada evento é escolhido pelo SEMPER (uma letra do assunto e o id do item, só com o que o Google
+  aceita: `a`–`v` e `0`–`9`) e é o mesmo em todas as agendas. Uma nova tentativa nunca duplica: se o Google diz que o id
+  já existe (a tentativa anterior chegou lá, ou o evento foi apagado antes e o Google o guarda como cancelado), o SEMPER
+  muda o evento no lugar, com `status: confirmed`.
+- **A marca de origem** fica em `extendedProperties.private` (`semper_item`: "assunto:id do item"; `semper_escritorio`).
+- **Fuso** `America/Sao_Paulo` nos eventos com hora; os do dia inteiro têm o fim no dia seguinte (o Google conta o fim
+  como exclusivo).
+- **Só o que muda vai.** Gatilhos do banco põem o item na fila (`agendas_google_fila`, com o assunto e o item) só quando
+  muda um campo que vai ao Google (título, datas, horas, local, equipe, clientes, sala, coluna, arquivo, recebimento…),
+  não a cada mudança qualquer (observações, início da tarefa…). Também entram: o contrato que muda de responsável, de
+  código ou de clientes (as parcelas dele), a sala renomeada (os compromissos nela), o número do processo mudado (as
+  tarefas dele), a sigla do órgão (os dias dele) e a coluna do quadro renomeada (para "Cancelado", por exemplo) ou com o
+  marco mudado (para "concluído"): os compromissos, tarefas e demandas dela que ainda vão ou já foram ao Google. O item
+  que muda várias vezes antes de a fila rodar é um pedido só e vai com o estado final. O item excluído entra na fila se
+  tem cópia no Google **ou** se já tem um pedido na fila (a função pode estar gravando a primeira cópia naquela hora: a
+  versão do pedido sobe, e a próxima passada tira a cópia).
+- **A cópia em dia não vai de novo.** Cada cópia gravada fica em `agenda_google_eventos`, com uma assinatura do conteúdo;
+  se nada mudou, nada vai ao Google. Por isso, o que alguém mudar à mão no Google (só a conta do escritório consegue) é
+  desfeito na próxima vez que o item mudar no SEMPER. Um evento apagado à mão no Google é criado de novo nessa hora.
+- **Ligar as agendas** (e cada agenda nova, como a de quem entra na equipe ou a de uma sala nova) põe na fila os itens em
+  aberto **de hoje em diante**, no relógio de Brasília: compromissos não arquivados nem cancelados de hoje para a frente;
+  tarefas e demandas não concluídas nem arquivadas com prazo de hoje para a frente; dias sem expediente de hoje para a
+  frente; parcelas não recebidas nem excluídas que vencem de hoje para a frente. **O passado não vai** (nem as parcelas
+  vencidas e não recebidas, nem os prazos atrasados). Um item do passado que mude depois vai, como qualquer mudança.
+  Enquanto as agendas estão desligadas, nada entra na fila. Ao ligar de novo, vale o mesmo recorte **e** entra cada item
+  que já tem cópia no Google, qualquer que seja a data ou o estado dele: o que foi excluído, arquivado, cancelado,
+  concluído ou recebido nesse meio-tempo sai do Google na próxima passada.
+- **Execução.** A mesma função `google-agendas`, a mesma rotina e o mesmo "Sincronizar agora": cada execução pega até 40
+  pedidos (`PEDIDOS_POR_EXECUCAO`) e faz até 40 ações no Google (`ACOES_POR_EXECUCAO`); a cópia em dia não gasta ação.
+  Para cada item: primeiro tira as cópias que não devem mais existir, depois grava as novas e as mudadas. A falha fica na
+  fila com as mesmas esperas das agendas. Agenda apagada no Google: o SEMPER a esquece, o escritório volta à fila das
+  agendas, ela é criada de novo e recebe os itens dela.
+- **Ainda não:** os feriados nacionais e o recesso forense prontos (os de `regras/prazos.ts`, que o Calendário mostra
+  sem estarem no banco) não vão à Geral: só os dias que o escritório lançou. Quem entra num item só por um **grupo da
+  equipe** não ganha cópia: vão o responsável e os participantes escolhidos um a um.
+- **No banco fictício** (`npm run teste`) só as agendas e os compartilhamentos são simulados; os eventos não (o
+  "Sincronizar agora" de lá conta zero eventos).
+
+## As despesas na Administrativo
+
+Tarefa #439 levada à #166, combinada com o dono em 25/11/2026. As despesas do escritório a pagar (DAS, funcionários,
+contas), cadastradas pelos administradores no Financeiro, aba Obrigações, seção "Despesas do escritório":
+
+1. **Só a Administrativo.** A despesa vai só para a agenda dos administradores; nunca para a agenda de uma pessoa, a Geral
+   ou a de uma sala. Se a Administrativo ainda não existe, a despesa espera: quando ela nasce, recebe as despesas a pagar
+   de hoje em diante.
+2. **No dia útil anterior ao vencimento.** O evento é do dia inteiro, no primeiro dia útil **antes** do vencimento, mesmo
+   que o vencimento seja útil (vence na segunda: fica na sexta; vence na quarta: fica na terça). Não são úteis: sábado,
+   domingo, os feriados nacionais de data fixa e os dias que o escritório lançou no Calendário como feriado ou suspensão
+   sem expediente **para todos os órgãos**. O dia lançado para um órgão só e a suspensão de prazos com expediente não
+   mudam nada. A conta é a função pura `diaUtilAnterior` (`_compartilhado/diaUtilAnterior.ts`, da #439, a mesma do site),
+   chamada por `diaDaDespesaNaAgenda` em `eventosGoogle.ts`; o banco manda junto com a despesa os dias lançados no ano
+   antes do vencimento (`privado.agenda_da_despesa`).
+3. **O que vai no evento.** O título é a descrição e o valor ("Conta de luz · R$ 250,00"); a descrição diz o vencimento e o
+   valor e traz o link que abre a despesa no Financeiro (`/financeiro/obrigacoes/?mes=aaaa-mm&despesa=…`, de
+   `_compartilhado/enderecoDaDespesa.ts`), com o mesmo endereço do site dos outros eventos. Nenhum campo novo na despesa.
+4. **Paga ou excluída: sai.** Como a parcela recebida: o evento é apagado da Administrativo. Desfazer o pagamento ou
+   restaurar a despesa a põe de volta.
+5. **A fila.** Gatilhos em `financeiro_despesas` põem a despesa na fila (assunto `despesa`) quando ela é criada (também as
+   datas da repetição que nascem sozinhas, inclusive pela rotina diária `estender-despesas`) e quando mudam a descrição, o
+   valor, o vencimento, o pagamento ou a exclusão. Um dia sem expediente para todos os órgãos lançado, mudado ou apagado
+   põe na fila as despesas a pagar que vencem depois dele, até o primeiro dia útil seguinte (inclusive): são as únicas
+   cujo dia útil anterior pode ter mudado. Como ao ligar, o passado não vai: só entram as que vencem de hoje em diante ou
+   as que já têm cópia no Google (um feriado lançado num dia que passou não leva ao Google a despesa vencida que nunca
+   esteve lá). Ligar as agendas põe na fila as despesas a pagar de hoje em diante (e, ao
+   religar, as que já têm cópia no Google, para a paga ou excluída nesse meio-tempo sair).
+6. **Repasses e indicações a pagar** (o que o escritório deve ao responsável e ao sócio que indicou) **não vão**: eles não
+   têm data de vencimento no SEMPER (só o dia em que foram pagos), e o dono pediu "se tiverem data".
+
+## O Google Meet no compromisso
+
+Tarefa #437, combinada com o dono em 25/11/2026. Só no sentido SEMPER → Google, pela mesma fila dos eventos.
+
+1. **A opção.** No cadastro do compromisso (etapa "Onde e de qual processo") e no lápis do cartão, a caixa **Criar link do
+   Google Meet**. Não é automática: só quem marca ganha a reunião. A opção aparece quando o Meet está **disponível** no
+   escritório (autorizado e com as agendas no Google ligadas); com ela já marcada, aparece sempre, para poder desmarcar.
+2. **Autorizar o Meet.** Aos poucos, como a agenda: em Configurações, cartão **Conta Google**, em **Agendas no Google**, o
+   administrador clica em **Autorizar o Google Meet** (aparece depois de a agenda ser autorizada). O Google abre na conta do
+   escritório e pede só:
+   - `https://www.googleapis.com/auth/calendar.events.owned`: criar a reunião na **agenda principal** da conta do
+     escritório (a `calendar.app.created` da agenda só chega às agendas que o SEMPER criou, e a reunião precisa estar na
+     principal para a conta ser a organizadora e o convite sair pelo e-mail dela);
+   - `https://www.googleapis.com/auth/meetings.space.settings` (Meet REST API, "não sensível"): ligar a gravação e a
+     transcrição automáticas da reunião.
+
+   Os contatos e a agenda continuam (o token novo cobre tudo, com `include_granted_scopes`). Ao autorizar, os
+   compromissos de hoje em diante com a opção marcada voltam à fila e ganham a reunião.
+3. **A reunião.** A função `google-agendas`, ao levar o compromisso às agendas, primeiro cuida da reunião
+   (`_compartilhado/reunioesGoogle.ts`), depois das cópias:
+   - **criar**: `events.insert` na agenda `primary` da conta do escritório, com `conferenceDataVersion=1`,
+     `sendUpdates=all` e `conferenceData.createRequest` (`hangoutsMeet`, um `requestId` novo a cada pedido). O id do evento
+     é do SEMPER (`r` e o uuid do compromisso): uma nova tentativa nunca cria outra reunião (o 409 do id repetido faz o SEMPER
+     ler a que já existe; se ela foi cancelada antes, volta com um link novo; se já está como o compromisso, nenhum
+     convidado recebe um "convite atualizado" à toa);
+   - **os convidados** (`attendees`): a equipe do compromisso (o responsável e os participantes ativos, pelo e-mail do Google
+     de cada um; a conta reservada não) e as pessoas ligadas que têm e-mail (o primeiro e-mail de cada uma). A própria conta
+     do escritório não vai como convidada (é a organizadora). O e-mail torto (sem arroba ou sem domínio, de uma pessoa
+     importada, por exemplo) fica de fora, para o Google não recusar a reunião inteira. Cada um recebe o convite pelo e-mail
+     do escritório e entra com a conta que quiser;
+   - **a reunião que falha não segura as cópias**: se o Google recusar a reunião (um convidado, o link, a agenda principal
+     ou o Meet), as cópias nas agendas vão do mesmo jeito (com o link que já estava guardado) e só depois o pedido falha e
+     volta à fila com espera. A falha de autorização da reunião conta como recusa daquele pedido, nunca como problema de
+     autorização do escritório inteiro (que pararia a fila de todos);
+   - **a descrição do convite** não traz nada da ficha (nem os nomes dos clientes, nem o processo, nem o link do SEMPER, que
+     só a equipe abre): só "Reunião marcada pelo escritório…". O título, o horário e o local são os do compromisso;
+   - **o link**: `conferenceData.entryPoints[video].uri` (ou `hangoutLink`). Se o Google responde que ainda está criando
+     (`pending`), a reunião fica guardada sem link e o pedido volta à fila (as cópias vão já, e ganham o link na próxima
+     vez); se o Google não conseguir (`failure`), o pedido falha como recusado e o SEMPER pede o link de novo na próxima vez;
+   - **mudou** a data, a hora, o título, o local ou os convidados: `events.patch` **sem** `conferenceData` e com
+     `sendUpdates=all`: o link fica o mesmo e cada convidado recebe o convite atualizado;
+   - **arquivado, cancelado (coluna "Cancelado"), excluído ou com a opção desmarcada**: `events.delete` com
+     `sendUpdates=all` (cada convidado recebe o cancelamento), e a reunião é esquecida. Marcar de novo cria outra, com outro
+     link;
+   - **o link nas agendas**: a descrição de cada cópia do compromisso ganha a linha "Google Meet: <link>".
+4. **Gravação e transcrição automáticas.** A documentação do Google diz que dá (Meet REST API v2, GA em 29/04/2025:
+   `Space.config.artifactConfig.recordingConfig.autoRecordingGeneration` e
+   `transcriptionConfig.autoTranscriptionGeneration` = `ON`), para reuniões criadas pela Agenda, desde que quem pede seja o
+   **organizador** (a conta do escritório, com `meetings.space.settings`). O SEMPER tira o código do link, acha o espaço
+   (`GET https://meet.googleapis.com/v2/spaces/{código}`) e o muda (`PATCH .../v2/spaces/{id}?updateMask=…`). A gravação
+   começa sozinha quando entra alguém que pode gravar, e os arquivos ficam no Google Drive da conta do escritório.
+   **Depende da edição do Workspace** (Business Plus, Enterprise e outras; veja a ajuda do administrador do Google) e de o
+   administrador do Workspace não ter desligado a gravação. Se o Google recusar de vez (o 403 da edição ou da permissão
+   negada), a reunião fica sem ela, o cartão diz "quem grava é a conta do escritório, na própria reunião", e nada falha; o
+   **Sincronizar agora** tenta de novo a gravação das reuniões de hoje em diante (para quando o administrador mudar a
+   edição ou a permissão). Os outros erros (a Meet REST API ainda não ativada no Google Cloud, `SERVICE_DISABLED`; a
+   autorização; o espaço que ainda não aparece; o Google fora) não ficam guardados como recusa: o pedido falha e volta à
+   fila, e o administrador vê o erro em Configurações a partir da 3ª falha. A máscara exata do `updateMask` não aparece em
+   exemplo na documentação (é a dos nomes dos campos): **confira no teste com a conta de verdade** (passo 12 abaixo).
+   Alternativa sem a API: no console do administrador do Workspace, em Meet, deixar "gravar por padrão" e "transcrever por
+   padrão" ligados (vale para todas as reuniões novas).
+5. **No cartão.** Em "Dados do compromisso", a linha **Google Meet**: o link (abre o Meet numa aba nova) e a gravação; ou "O
+   link está sendo criado…"; ou, arquivado ou cancelado, que a reunião é cancelada. Quem vê o compromisso vê o link
+   (`agenda_google_reunioes`, com a regra de leitura dos compromissos).
+6. **Escritórios separados.** A reunião é guardada com o escritório e a conta que a criou (a chave é o compromisso e a
+   conta); cada escritório só usa a própria conta ligada.
+7. **Trocar a conta.** Quando o administrador liga **outra** conta Google, a função `google-concluir`, antes de revogar o
+   token da conta antiga, cancela no Google (com `sendUpdates=all`: cada convidado recebe o cancelamento) as reuniões dela
+   que ainda vão acontecer (de hoje em diante, e as de compromissos já excluídos) e as esquece. A conta nova cria as dela
+   pela fila, com link novo (os convidados recebem o convite novo), depois de o Meet ser autorizado nela. Se o Google não
+   deixar cancelar alguma (fora do ar, ou o token antigo já recusado), ela continua valendo no Google: o erro fica no
+   registro da função (`google-concluir: reuniões da conta antiga não canceladas`), a linha continua em
+   `agenda_google_reunioes` com a conta antiga, e é preciso cancelá-la no Google Agenda da conta antiga. Desligar a conta
+   (sem ligar outra) não cancela as reuniões: elas continuam no Google até alguém cancelá-las lá.
+
+8. **Os convidados em dia.** Quem sai da equipe (desativado ou excluído) deixa de ser convidado: os compromissos com o
+   Meet de hoje em diante em que a pessoa está vão para a fila, e o convite atualizado sai sem ela (o Google manda o
+   cancelamento para ela); reativar a devolve. O mesmo quando muda o e-mail do Google de alguém da equipe (ou o de
+   entrada, para quem não informou outro) e quando muda o primeiro e-mail de uma pessoa ligada no cadastro dela.
+9. **Desligar.** Desligar as agendas não cancela as reuniões já criadas: os convites continuam valendo, e o que mudar no
+   SEMPER enquanto isso só chega aos convidados quando as agendas forem ligadas de novo (religar põe na fila também os
+   compromissos que já têm reunião, mesmo sem cópia nas agendas). Configurações avisa isso, com o Meet autorizado. A
+   reunião que não deve mais existir é cancelada mesmo se a conta perdeu as permissões do Meet (o cancelamento só pede a
+   agenda principal; se nem isso der, o pedido falha como recusado e o administrador vê o erro).
+
+**Ainda não:** a opção não passa às datas seguintes de um compromisso que se repete (cada data marca a sua); quem está
+no compromisso só por um **grupo da equipe** não é convidado (como nas cópias: o responsável e os participantes postos um a
+um); o banco fictício (`npm run teste`) faz a reunião na hora, com um link de exemplo e a gravação sempre ligada (com as
+agendas desligadas, ela fica como estava, como no Google).
+
+## Onde está cada parte
+
+| O quê | Onde |
+|---|---|
+| Plano puro (o que criar, compartilhar, renomear, retirar) e a execução da fila | `supabase/functions/_compartilhado/agendasGoogle.ts` |
+| O que vai para qual agenda, como fica cada evento e o plano dos eventos (puros) | `supabase/functions/_compartilhado/eventosGoogle.ts` |
+| Adaptador fino da API do Google Agenda (agendas, compartilhamentos e, para a parte 2, eventos) | `supabase/functions/_compartilhado/apiDaAgenda.ts` |
+| As permissões e a finalidade do pedido de ligação | `supabase/functions/_compartilhado/ligacao.ts` |
+| A função do servidor | `supabase/functions/google-agendas/index.ts` (e `google-conectar`, `google-concluir`, alteradas) |
+| Banco: tabelas, fila, gatilhos, rotina | `supabase/migrations/20261125105000_agendas_google.sql` |
+| Banco: as cópias gravadas, os gatilhos dos itens, o item como o servidor o lê | `supabase/migrations/20261125110831_agendas_google_eventos.sql` |
+| Banco: as correções da revisão (compartilhamentos recusados, a fila ao religar e ao excluir, as colunas do quadro, o e-mail do Google só pelos administradores) | `supabase/migrations/20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`, `20261125122303_email_do_google_so_administradores.sql` |
+| A reunião do Google Meet (#437): a que deve existir, os convidados, o plano e a execução | `supabase/functions/_compartilhado/reunioesGoogle.ts` |
+| Banco: a opção no compromisso, as permissões do Meet, a reunião guardada, os convidados | `supabase/migrations/20261125143159_reunioes_google.sql` |
+| Banco: as correções da revisão do Meet (a gravação de novo, a troca de conta, os convidados em dia e o religar) | `supabase/migrations/20261125153836_reunioes_google_gravacao_de_novo.sql`, `20261125154843_reunioes_google_troca_de_conta.sql`, `20261125155832_reunioes_google_convidados_em_dia.sql` |
+| As despesas na Administrativo (#439): o dia útil anterior, o link da despesa | `supabase/functions/_compartilhado/diaUtilAnterior.ts`, `enderecoDaDespesa.ts` e o assunto `despesa` em `eventosGoogle.ts` |
+| Banco: as despesas na fila, os gatilhos, a despesa como o servidor a lê | `supabase/migrations/20261125162557_agendas_google_despesas.sql` (as despesas em si: `20261125104500_despesas_do_escritorio.sql`) |
+| Testes das despesas na agenda | `app/src/regras/eventosGoogle.test.ts` (a parte da #439), `diaUtilAnterior.test.ts`, `supabase/tests/agendas_google_despesas.test.sql` |
+| Tela do Meet: a opção, o cartão e Configurações | `app/src/paginas/NovoCompromisso.tsx`, `app/src/paginas/agenda/ReuniaoNoCartao.tsx`, `app/src/paginas/AgendasNoGoogle.tsx`; os textos em `app/src/regras/reuniaoGoogle.ts` |
+| Testes do Meet | `app/src/regras/reunioesGoogle.test.ts`, `reuniaoGoogle.test.ts`, `app/src/paginas/agenda/ReuniaoNoCartao.test.tsx`, `supabase/tests/reunioes_google.test.sql`, `reunioes_google_correcoes.test.sql`, `app/e2e/google-meet.spec.ts` |
+| Testes | `app/src/regras/agendasGoogle.test.ts`, `eventosGoogle.test.ts`, `ligacaoGoogle.test.ts`, `emailDoGoogle.test.ts`, `sincronizacaoDasAgendas.test.ts`, `supabase/tests/agendas_google.test.sql`, `agendas_google_eventos.test.sql`, `agendas_google_correcoes.test.sql`, `app/e2e/agendas-google.spec.ts` |
+| Tela | `app/src/paginas/AgendasNoGoogle.tsx` (Configurações) e `EmailDoGoogle.tsx` (Equipe e Minha conta) |
+
+## O que configurar na produção
+
+Tudo isto é feito por uma pessoa (o agente nunca mexe na produção), **nesta ordem**, antes de publicar o site:
+
+1. **Google Cloud: ativar as APIs.** No projeto do Google Cloud do SEMPER (o mesmo do `GOOGLE_CLIENT_ID`), em
+   https://console.cloud.google.com/apis/library, procure **Google Calendar API** e clique em **Ativar**; para o Google Meet
+   (#437), procure também **Google Meet REST API** e clique em **Ativar**.
+2. **Google Cloud: as permissões na tela de consentimento.** Em https://console.cloud.google.com/auth/scopes (Google Auth
+   Platform > Data Access), clique em **Add or Remove Scopes**, acrescente
+   `https://www.googleapis.com/auth/calendar.app.created` e `https://www.googleapis.com/auth/calendar.acls` e, para o
+   Google Meet (#437), `https://www.googleapis.com/auth/calendar.events.owned` e
+   `https://www.googleapis.com/auth/meetings.space.settings`, e salve. Se o
+   app for **Internal** (só contas do Workspace do escritório), não há revisão do Google; se for **External**, pode ser
+   preciso verificar o app antes de outros escritórios usarem.
+3. **Workspace: compartilhar com contas de fora.** Quem tem Gmail pessoal só vê os detalhes dos eventos se o
+   administrador do Workspace permitir. No console do administrador (https://admin.google.com), em **Apps > Google
+   Workspace > Agenda > Geral**, na opção de compartilhamento externo das **agendas secundárias** (não muda por unidade
+   organizacional), escolha "Share all information, but outsiders cannot change calendars" (compartilhar tudo, sem
+   deixar quem é de fora mudar). Com "Só livre/ocupado", o Gmail
+   de fora vê só ocupado. Baixar esse nível depois tira o acesso de quem já tinha.
+4. **Banco.** Aplicar as onze migrações, nesta ordem, pelo roteiro `/aplicar-banco` do Claude Code: a das despesas do
+   escritório (#439), `20261125104500_despesas_do_escritorio.sql`, que vem antes (as despesas na agenda dependem dela), e
+   `20261125105000_agendas_google.sql`, `20261125110831_agendas_google_eventos.sql`,
+   `20261125115138_agendas_google_recusas.sql`, `20261125120805_agendas_google_fila_completa.sql`,
+   `20261125122303_email_do_google_so_administradores.sql` e, do Google Meet, `20261125143159_reunioes_google.sql` (a
+   coluna `reuniao_google` com valor padrão, a tabela `agenda_google_reunioes`, a finalidade 'meet' do pedido de ligação
+   e funções refeitas com a mesma assinatura) e as três das correções do Meet, `20261125153836_reunioes_google_gravacao_de_novo.sql`,
+   `20261125154843_reunioes_google_troca_de_conta.sql` (a chave de `agenda_google_reunioes` passa a ter a conta) e
+   `20261125155832_reunioes_google_convidados_em_dia.sql` e, por último, a das despesas na Administrativo,
+   `20261125162557_agendas_google_despesas.sql` (o assunto `despesa` na fila e nas cópias, os gatilhos das despesas e dos
+   dias sem expediente, e `agendas_google_item` e `agendas_google_enfileirar_abertos` refeitas com a mesma assinatura).
+   Todas têm horário depois da `20261125104145_processos_relacionados.sql` (#440, que veio antes pelo main), então o
+   `db push` as aceita sem `--include-all`, aplicada ela antes ou junto.
+   Elas só acrescentam: a versão anterior do site continua funcionando (as funções antigas da ligação ficam como eram; as
+   seguintes alargam a regra do assunto da fila, criam a tabela das recusas e refazem funções das anteriores com a mesma
+   assinatura).
+5. **Funções do servidor.** Publicar a função nova e as duas alteradas, com o login conferido dentro delas
+   (`verify_jwt = false`, já em `supabase/config.toml`):
+
+   No terminal, na pasta do SEMPER, com o projeto ligado (`supabase link --project-ref uzafzwqjpxxiovfunxfm`):
+
+   ```bash
+   supabase functions deploy google-agendas
+   supabase functions deploy google-conectar
+   supabase functions deploy google-concluir
+   ```
+
+   O `deploy` leva junto os arquivos de `supabase/functions/_compartilhado/` que elas usam (`agendasGoogle.ts`,
+   `eventosGoogle.ts`, `reunioesGoogle.ts`, `apiDaAgenda.ts`, `emailsDePrazo.ts`, `ligacao.ts`, `contatosGoogle.ts` e, das
+   despesas (#439), `diaUtilAnterior.ts` e `enderecoDaDespesa.ts`...). As despesas não têm função nova: vão pela
+   `google-agendas`. O Google Meet (#437) não tem função nova: as mesmas três levam o pedido das permissões do Meet e a reunião. O `emailsDePrazo.ts`
+   só passou a exportar o endereço do site (o valor é o mesmo): `prazos-enviar-emails` não precisa ser publicada de novo. Se publicar pelo painel, mande o `index.ts` de cada uma e
+   os arquivos de `_compartilhado` que ele importa, e deixe **Verify JWT desligado**. Publique as funções **depois** da
+   migração: as novas chamam funções do banco que só existem com ela.
+6. **Segredos.** Nenhum novo: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SITES_PERMITIDOS` e `SENHA_DA_ROTINA` nas
+   Edge Functions, e `semper_url_do_projeto` e `semper_senha_da_rotina` no Vault (os mesmos dos contatos).
+7. **Agendamento.** A migração cria a rotina `sincronizar-agendas-google` (a cada 2 minutos). Para conferir, no SQL Editor
+   do Supabase (https://supabase.com/dashboard/project/uzafzwqjpxxiovfunxfm/sql/new):
+
+   ```sql
+   select jobname, schedule, active from cron.job where jobname = 'sincronizar-agendas-google';
+   ```
+
+   As respostas das chamadas ficam em `net._http_response` (200 é sucesso).
+8. **Publicar o site** pela rotina "Publicar o SEMPER".
+
+## Como testar com a conta de verdade
+
+Faça num horário calmo, com um administrador e a conta Google do escritório. Antes, avise a equipe: cada pessoa vai
+receber e-mails de compartilhamento do Google.
+
+1. Em Configurações > Conta Google, confira que a conta está ligada. Em **Agendas no Google** deve aparecer "Falta
+   autorizar a agenda".
+2. Clique em **Autorizar a agenda**. O Google abre na conta do escritório e pede só a agenda; deixe marcada e aceite. De
+   volta, o aviso diz "Agenda autorizada". Confira em **Contatos no Google** que a sincronização dos contatos continua
+   como estava.
+3. Marque *Criar e manter no Google as agendas do escritório* e clique em **Sincronizar agora**. O aviso diz quantas
+   agendas foram criadas e quantos compartilhamentos feitos (sem o clique, a rotina faz isso em até 2 minutos; com mais
+   de 40 ações, o resto vai nas próximas).
+4. Abra o Google Agenda (https://calendar.google.com) com a conta do escritório e confira, em **Minhas agendas**: uma
+   "Agenda – Nome" por pessoa ativa, a Geral, uma por sala ativa e a Administrativo. Em **Configurações e
+   compartilhamento** de cada uma, confira com quem está compartilhada (só ver).
+5. Com a conta de uma pessoa da equipe (o e-mail do Google dela), abra o e-mail do Google e aceite o compartilhamento:
+   ela deve ver a própria agenda, a Geral e as das salas; um administrador, também a Administrativo.
+6. Troque o e-mail do Google de alguém em Equipe e acessos, sincronize e confira que o compartilhamento passou do e-mail
+   antigo para o novo.
+7. Desative uma pessoa de teste, sincronize e confira que os compartilhamentos com ela saíram (a agenda dela continua).
+   Reative e confira que voltaram.
+8. **Os eventos.** Crie no SEMPER, com nomes de teste (sem cliente de verdade), um compromisso para amanhã, com você de
+   responsável, um participante de teste e uma sala; uma tarefa com prazo daqui a dois dias, com hora; e lance um feriado
+   de teste no Calendário. Clique em **Sincronizar agora** (o aviso diz quantos eventos foram levados às agendas) e confira
+   no Google Agenda da conta do escritório: o compromisso na sua agenda, na do participante e na da sala; a tarefa na sua
+   agenda, no dia e na hora do prazo; o feriado na Geral. Abra um evento e confira o título, o horário, o local, a
+   descrição e o link (ele abre o item no SEMPER).
+9. Mude a hora do compromisso e tire o participante; sincronize: o evento muda de hora e sai da agenda do participante.
+   Conclua a tarefa e mova o compromisso para "Cancelado"; sincronize: os eventos saem. Apague o feriado de teste.
+   **As despesas:** no Financeiro, aba Obrigações, cadastre uma despesa de teste (descrição de teste, valor pequeno) que
+   vença na próxima segunda. Sincronize e confira, com a conta de um administrador, que ela aparece na **Administrativo**
+   (e em nenhuma outra agenda) no dia inteiro da sexta antes, com a descrição, o valor e o link (ele abre a despesa no
+   Financeiro). Lance no Calendário um feriado de teste nessa sexta, para todos os órgãos; sincronize: a despesa passa
+   para a quinta. Apague o feriado, marque a despesa como paga e sincronize: ela sai da Administrativo. Exclua a despesa
+   de teste.
+10. Se algo der errado, desmarque *Criar e manter no Google…*: a fila para na hora e nada mais muda no Google (os eventos
+   já gravados ficam lá; dá para apagá-los à mão com a conta do escritório).
+11. **O Google Meet.** Em **Agendas no Google**, clique em **Autorizar o Google Meet**, entre com a conta do escritório e
+   deixe as duas permissões marcadas; de volta, o aviso diz "Google Meet autorizado". Crie um compromisso de teste para
+   amanhã, com você de responsável, um participante de teste e uma pessoa de teste com um e-mail seu (nada de cliente de
+   verdade), e marque **Criar link do Google Meet**. Clique em **Sincronizar agora** e confira: a reunião na agenda
+   **principal** da conta do escritório (organizadora: a conta do escritório); o convite chegou, **pelo e-mail do
+   escritório**, ao seu e-mail do Google, ao do participante e ao da pessoa de teste; o link aparece no cartão do
+   compromisso e na descrição das cópias (a sua agenda e a do participante). Anote de que endereço saiu o convite (a
+   documentação do Google não diz com todas as letras).
+12. **A gravação.** No cartão, a linha do Google Meet diz se a gravação automática foi ligada. Entre na reunião com a conta do
+   escritório e confira que a gravação e a transcrição começam sozinhas (e, depois, que os arquivos estão no Drive dela). Se
+   o cartão disser que o Google não deixou, confira a edição do Workspace e, no console do administrador
+   (https://admin.google.com), em **Apps > Google Workspace > Google Meet > Configurações de vídeo do Meet**, se a
+   gravação e a transcrição estão permitidas; o `gravacao_detalhe` da reunião (em `agenda_google_reunioes`) diz o que o
+   Google respondeu.
+13. Mude a hora do compromisso e sincronize: o link no cartão é o mesmo e cada convidado recebe o convite atualizado. Mova o
+   compromisso para "Cancelado" (ou arquive) e sincronize: cada convidado recebe o cancelamento e a reunião sai da agenda
+   principal da conta do escritório.

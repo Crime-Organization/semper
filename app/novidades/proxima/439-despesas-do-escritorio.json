@@ -1,0 +1,5 @@
+{
+  "titulo": "Despesas do escritório a pagar",
+  "texto": "Os administradores cadastram as despesas do escritório (DAS, funcionários, contas) com descrição, valor e vencimento. Se a despesa se repete (todo mês, por exemplo), as próximas datas nascem sozinhas. Marcar como paga registra o dia do pagamento, e a próxima continua a pagar.",
+  "ondeAchar": "Financeiro, aba Obrigações, seção \"Despesas do escritório\", botão \"Nova despesa\"."
+}

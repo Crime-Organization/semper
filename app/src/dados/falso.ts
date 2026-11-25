@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, ContatoParaConferir, MotivoParaConferir, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, Sala, OcupacaoDaSala, DadosSala, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, ModuloDoCompromisso, Sala, OcupacaoDaSala, OcupacaoNaSala, DadosSala, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, PapeisEscritos, PapelEscrito, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -19,6 +19,13 @@ import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/e
 import { LINK_VENCIDO } from './erros';
 // A primeira sincronização com o Google Contatos usa as mesmas regras de correspondência da função do servidor.
 import { corresponder, type ContatoDaConta } from '../../../supabase/functions/_compartilhado/correspondenciaDeContatos';
+import {
+  ACOES_POR_EXECUCAO, CONTAGEM_ZERADA, planejarAgendas, type AcaoNasAgendas, type AgendaGuardada, type CompartilhamentoFeito, type CompartilhamentoRecusado, type Contagem,
+  type EstadoDasAgendas, type TipoDaAcao
+} from '../../../supabase/functions/_compartilhado/agendasGoogle';
+import { agendaAutorizada, ESCOPOS_DA_AGENDA, ESCOPOS_DO_MEET, meetAutorizado, RESULTADO_DO_PEDIDO } from '../../../supabase/functions/_compartilhado/ligacao';
+import { emailDoGoogleParaGravar, erroDoEmailDoGoogle, RECUSA_DO_EMAIL_DO_GOOGLE, recusaDoEmailDoGoogle } from '../regras/emailDoGoogle';
+import type { AgendasGoogle, ProblemaDasAgendas } from './tipos';
 import { CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { resumoDaConferencia } from '../regras/conferencia';
@@ -44,6 +51,8 @@ import {
 import { diaDaDemanda, tituloDaDemanda } from '../regras/demandaDoCompromisso';
 import { DEMANDA_DO_COMPROMISSO } from './limites';
 import type { AvisoDaDemandaDoCompromisso, AvisoDaTarefa, DemandaDoCompromissoDaMensagem, RepeticaoCompromisso, RepeticaoCriada } from './tipos';
+import type { DespesaDoEscritorio, RegraDeRepeticao } from './tipos';
+import { DESPESA_JA_PAGA, DESPESA_NAO_ENCONTRADA, despesaNoLimite, despesaNoPeriodo, FIM_ANTES_DO_VENCIMENTO, porVencimento, SO_ADMINISTRADOR_NAS_DESPESAS } from '../regras/despesas';
 import { aprovacaoMudouDeDono, avisoDesfeito, avisoDoSolicitante, chegouAAprovacao, quemExecuta, saiuDaAprovacao, type SequenciaDoSolicitante } from '../regras/avisosDaTarefa';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
@@ -261,6 +270,10 @@ interface Banco {
   contasFinanceiras?: ContaFinanceira[];
   lancamentos?: LancamentoGuardado[];
   historicoLancamentos?: (Historico & { lancamento_id: string })[];
+  /** As despesas do escritório a pagar (#439), as repetições delas e o histórico de cada uma. */
+  despesas?: DespesaGuardada[];
+  repeticoesDeDespesa?: RepeticaoDaDespesa[];
+  historicoDespesas?: (Historico & { despesa_id: string })[];
   dasDoEscritorio?: AliquotaDoDas[];
   ajustesFinanceiros?: Historico[];
   parcelas?: ParcelaGuardada[];
@@ -301,8 +314,28 @@ interface Banco {
   perfisProfissionais?: PerfilProfissional[];
   /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
   ligacaoGoogle?: LigacaoGoogle | null;
-  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
-  pedidosGoogle?: { estado: string; pedido_em: number }[];
+  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco); a finalidade: ligar a conta ou somar a agenda (#166). */
+  pedidosGoogle?: { estado: string; pedido_em: number; finalidade?: 'contatos' | 'agendas' | 'meet' }[];
+  /** O e-mail do Google informado de cada um da equipe (emails_do_google no banco); sem ele, vale o de entrada. */
+  emailsDoGoogle?: Record<string, string>;
+  /**
+   * As reuniões do Google Meet (#437) que a conta simulada já criou, por compromisso (agenda_google_reunioes no banco): a
+   * fila só mexe nelas com o Meet disponível (com as agendas desligadas, ficam como estavam, como no Google).
+   */
+  reunioesGoogle?: Record<string, NonNullable<Compromisso['reuniao']>>;
+  /**
+   * As agendas do escritório no Google (#166): a chave e o problema (em privado.ligacoes), se o escritório está na fila
+   * (agendas_google_fila), as agendas criadas na conta simulada e os compartilhamentos (agendas_google e
+   * agenda_google_compartilhamentos no banco).
+   */
+  agendasGoogle?: {
+    ativas: boolean; pendente: boolean; com_falha: number; problema: ProblemaDasAgendas | null; problema_em: string | null; sincronizado_em: string | null;
+    agendas: AgendaGuardada[]; compartilhamentos: CompartilhamentoFeito[];
+    /** Os compartilhamentos que a conta simulada recusou (agenda_google_recusas no banco). */
+    recusas?: (CompartilhamentoRecusado & { detalhe: string; recusada_em: string })[];
+    /** A conta Google simulada recusa compartilhar com estes e-mails (os testes põem aqui). */
+    recusar?: string[];
+  };
   /** A sincronização dos contatos (a chave e o problema em privado.ligacoes, a fila em contatos_google_fila no banco). */
   contatosGoogle?: {
     ativos: boolean; fila: string[]; com_falha: number; problema: ProblemaDaSincronizacao | null; problema_em: string | null; sincronizado_em: string | null;
@@ -623,6 +656,9 @@ bd.camposDeProcesso ??= [];
 bd.contasFinanceiras ??= [];
 bd.lancamentos ??= [];
 bd.historicoLancamentos ??= [];
+bd.despesas ??= [];
+bd.repeticoesDeDespesa ??= [];
+bd.historicoDespesas ??= [];
 bd.dasDoEscritorio ??= [];
 bd.ajustesFinanceiros ??= [];
 bd.parcelas ??= [];
@@ -826,6 +862,8 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
     const criados = bd.repeticoes!.filter(r => r.ate === null || r.gerada_ate < r.ate).flatMap(r => gerarRepeticoesNoFalso(r, hoje).ids);
     gravar(); return criados;
   },
+  /** A rotina diária das despesas que se repetem (como privado.estender_despesas, #439) num dia (aaaa-mm-dd); sem ele, hoje. Devolve as despesas criadas. */
+  estenderDespesas: (hoje?: string) => { const criadas = bd.repeticoesDeDespesa!.flatMap(r => gerarDespesasNoFalso(r, hoje)); gravar(); return criadas; },
   /** A rotina dos lembretes num instante (ISO, ex.: '2030-11-15T13:05:00-03:00'); sem ele, agora. */
   gerarLembretes: (quando?: string) => gerarLembretes(quando ? new Date(quando) : undefined),
   equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
@@ -995,6 +1033,76 @@ function enfileirarNoGoogle(p: Pessoa) {
   const c = bd.contatosGoogle;
   if (!bd.ligacaoGoogle || !c?.ativos || p.arquivado_em || c.fila.includes(p.id)) return;
   c.fila.push(p.id);
+}
+/** Como os gatilhos agendas_google: com as agendas ligadas, mudar a equipe, as salas ou os e-mails do Google põe o escritório na fila. */
+function enfileirarAgendas() {
+  const a = bd.agendasGoogle;
+  if (bd.ligacaoGoogle && a?.ativas) a.pendente = true;
+}
+/** Como public.agendas_google_estado: a equipe (com o e-mail do Google de cada um), as salas, as agendas e os compartilhamentos. */
+const estadoDasAgendasNoFalso = (a: NonNullable<Banco['agendasGoogle']>): EstadoDasAgendas => ({
+  conta_email: bd.ligacaoGoogle!.conta_email,
+  equipe: EQUIPE.map(m => ({ perfil_id: m.id, nome: m.nome, email: bd.emailsDoGoogle?.[m.id] ?? (m.reservada ? null : m.id === eu ? meuEmail() : m.email),
+    ativo: m.ativo && !m.excluido, admin: m.papel !== 'usuario' })),
+  salas: (bd.salas ?? []).map(s => ({ sala_id: s.id, nome: s.nome, ativa: s.ativa })),
+  agendas: a.agendas, compartilhamentos: a.compartilhamentos, recusas: (a.recusas ?? []).map(r => ({ agenda_id: r.agenda_id, email: r.email }))
+});
+/** O que a conta simulada responde ao compartilhamento recusado (um 403 do Google). */
+const RECUSA_DO_FALSO = '403 forbidden';
+/** O que cada ação faz na conta Google simulada (o mesmo plano da função google-agendas, com ids de mentira). */
+const FAZER_NO_FALSO: { [K in TipoDaAcao]: (e: EstadoDasAgendas, a: Extract<AcaoNasAgendas, { acao: K }>) => EstadoDasAgendas } = {
+  retirar: (e, { compartilhamento: c }) => ({ ...e, compartilhamentos: e.compartilhamentos.filter(o => !(o.agenda_id === c.agenda_id && o.email === c.email)) }),
+  criar: (e, { agenda: d }) => {
+    const id = novoId();
+    return { ...e, agendas: [...e.agendas, { id, tipo: d.tipo, perfil_id: d.perfil_id, sala_id: d.sala_id, google_id: `agenda-${id}@falso`, nome: d.nome }] };
+  },
+  renomear: (e, { agenda, nome }) => ({ ...e, agendas: e.agendas.map(x => (x.id === agenda.id ? { ...x, nome } : x)) }),
+  // Como FAZER.compartilhar: o e-mail recusado fica de fora só naquela agenda, e o resto do plano segue.
+  compartilhar: (e, { agenda, leitor }) => (bd.agendasGoogle?.recusar?.includes(leitor.email)
+    ? { ...e, recusas: [...(e.recusas ?? []), { agenda_id: agenda.id, email: leitor.email }] }
+    : { ...e, compartilhamentos: [...e.compartilhamentos, { agenda_id: agenda.id, email: leitor.email, regra: `user:${leitor.email}` }] })
+};
+/** As permissões que cada pedido soma à conta já ligada (ESCOPOS_DO_PEDIDO, sem o e-mail). */
+const ESCOPOS_SOMADOS: Record<'agendas' | 'meet', string[]> = { agendas: ESCOPOS_DA_AGENDA, meet: ESCOPOS_DO_MEET };
+/** Como public.reunioes_google_situacao: o Meet autorizado na conta e, com as agendas ligadas, disponível. */
+const situacaoDasReunioesNoFalso = () => bd.ligacaoGoogle
+  ? { autorizado: meetAutorizado(bd.ligacaoGoogle.escopos), disponivel: meetAutorizado(bd.ligacaoGoogle.escopos) && !!bd.agendasGoogle?.ativas }
+  : null;
+/** Um link do Meet de exemplo, sempre o mesmo para o compromisso ("abc-defg-hij", com letras tiradas do id). */
+function linkDoMeetNoFalso(id: string) {
+  const letras = id.replace(/[^0-9a-f]/gi, '').toLowerCase().slice(0, 10).split('').map(x => String.fromCharCode('a'.charCodeAt(0) + parseInt(x, 16))).join('');
+  return `https://meet.google.com/${letras.slice(0, 3)}-${letras.slice(3, 7)}-${letras.slice(7)}`;
+}
+/**
+ * A reunião do Google Meet (#437), como a função google-agendas a deixaria, já feita (o fictício não tem fila): com o Meet
+ * disponível, o compromisso ativo, não cancelado e com a opção ganha a reunião (com o link e a gravação ligada), e o
+ * arquivado, cancelado ou sem a opção a perde. Sem o Meet disponível (as agendas desligadas), a reunião fica como estava, e
+ * é cancelada só quando o Meet volta. Como em supabase.ts, o compromisso só a mostra com a opção marcada.
+ */
+function reuniaoNoFalso(c: CompromissoGuardado): Compromisso['reuniao'] {
+  const reunioes = bd.reunioesGoogle ??= {};
+  if (situacaoDasReunioesNoFalso()?.disponivel) {
+    if (c.reuniao_google && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id))) reunioes[c.id] ??= { link: linkDoMeetNoFalso(c.id), gravacao: 'ligada' };
+    else delete reunioes[c.id];
+  }
+  return c.reuniao_google ? reunioes[c.id] ?? null : null;
+}
+/** Como uma execução da função google-agendas: no máximo ACOES_POR_EXECUCAO ações; devolve o que fez e se restou o que fazer. */
+function arrumarAgendasNoFalso(a: NonNullable<Banco['agendasGoogle']>): { feitas: Contagem; restam: boolean } {
+  const feitas = { ...CONTAGEM_ZERADA };
+  let estado = estadoDasAgendasNoFalso(a);
+  for (let i = 0; i < ACOES_POR_EXECUCAO; i++) {
+    const [acao] = planejarAgendas(estado);
+    if (!acao) break;
+    const recusasAntes = estado.recusas?.length ?? 0;
+    estado = (FAZER_NO_FALSO[acao.acao] as (e: EstadoDasAgendas, x: AcaoNasAgendas) => EstadoDasAgendas)(estado, acao);
+    if ((estado.recusas?.length ?? 0) === recusasAntes) feitas[acao.acao]++;
+  }
+  const guardadas = a.recusas ?? [];
+  const novas = (estado.recusas ?? []).filter(r => !guardadas.some(g => g.agenda_id === r.agenda_id && g.email === r.email))
+    .map(r => ({ ...r, detalhe: RECUSA_DO_FALSO, recusada_em: agora() }));
+  Object.assign(a, { agendas: estado.agendas, compartilhamentos: estado.compartilhamentos, recusas: [...guardadas, ...novas] });
+  return { feitas, restam: planejarAgendas(estado).length > 0 };
 }
 /** Uma dúvida da primeira sincronização, como contatos_google_conferir no banco. */
 interface DuvidaGuardada {
@@ -1858,6 +1966,7 @@ const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
   const serie = serieDoFalso(c.repeticao_id);
   return { ...c, sala_id: c.sala_id ?? null, repeticao_id: c.repeticao_id ?? null, repeticao_data: c.repeticao_data ?? null,
+    reuniao_google: c.reuniao_google ?? false, reuniao: reuniaoNoFalso(c),
     repeticao: serie && { id: serie.id, frequencia: serie.frequencia, intervalo: serie.intervalo, inicio: serie.inicio, ate: serie.ate, vezes: serie.vezes,
       demanda_dias_antes: serie.demanda_dias_antes ?? null }, demanda_gerada_id: c.demanda_gerada_id ?? null, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
     processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
@@ -1947,6 +2056,9 @@ function prepararCompromisso(dados: DadosCompromisso, atual?: CompromissoGuardad
 const ocupacoesNoFalso = (salaId: string, data: string, fora: string | null | undefined) => bd.compromissos!
   .filter(c => c.sala_id === salaId && c.data === data && c.id !== fora && !c.arquivado_em && !colunaCancelada(nomeDaColuna(c.etapa_id)))
   .sort((a, b) => (a.hora ?? '').localeCompare(b.hora ?? '') || a.codigo.localeCompare(b.codigo));
+/** Como public.ocupacao_da_sala: o código e o horário de todos; o título, só dos que quem pergunta vê. */
+const ocupacaoNoFalso = (salaId: string, data: string, fora: string | null | undefined) => ocupacoesNoFalso(salaId, data, fora)
+  .map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim, titulo: vejoNoModulo('compromissos', c.id) ? c.titulo : null }));
 /** Como o gatilho conferir_sala: a sala existe, a escolhida agora está ativa, e está livre no horário (o arquivado e o cancelado não ocupam). */
 function conferirSalaNoFalso(fica: Pick<CompromissoGuardado, 'sala_id' | 'data' | 'hora' | 'hora_fim' | 'etapa_id' | 'arquivado_em'> & { id?: string }, atual?: Pick<CompromissoGuardado, 'id' | 'sala_id'>) {
   if (!fica.sala_id) return;
@@ -1988,6 +2100,8 @@ function prepararFuncaoNaTarefa(dados: Partial<DadosFuncaoNaTarefa>, id?: string
   return d;
 }
 
+/** O valor padrão das colunas que os compromissos antigos do banco fictício não têm (como o default da coluna no banco). */
+const PADRAO_DO_COMPROMISSO: Record<string, unknown> = { reuniao_google: false };
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico. */
 function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unknown>) {
   const atual = c as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
@@ -1999,7 +2113,8 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
     participantes: ['participantes', v => (v as string[]).map(nomeNaEquipe).join(', ')], grupos: ['grupos', nomesDosGrupos], pessoas: ['pessoas', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
   Object.entries(dados).forEach(([campo, v]) => {
-    if (['etapa_ordem', 'arquivado_por', 'processo_codigo', 'processo_numero'].includes(campo) || JSON.stringify(atual[campo] ?? null) === JSON.stringify(v ?? null)) return;
+    if (['etapa_ordem', 'arquivado_por', 'processo_codigo', 'processo_numero'].includes(campo)
+      || JSON.stringify(atual[campo] ?? PADRAO_DO_COMPROMISSO[campo] ?? null) === JSON.stringify(v ?? null)) return;
     const [chave, conv] = CONVERTE[campo] ?? [campo, (x: unknown) => x];
     alt[chave] = { de: conv(atual[campo] ?? null), para: conv(v ?? null) };
   });
@@ -2087,7 +2202,9 @@ function gerarRepeticoesNoFalso(serie: RepeticaoGuardada, hoje = hojeNaAgenda())
     }
     const c: CompromissoGuardado = { ...modelo, id: novoId(), codigo: codigo(), data, sala_id: sala, resultado: null, etapa_id: inicio, etapa_ordem: Date.now() / 1000,
       participantes: modelo.participantes.filter(id => EQUIPE.some(m => m.id === id)), arquivado_em: null, arquivado_por: null,
-      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data };
+      criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora(), atualizado_por: serie.criado_por, atualizado_em: agora(), repeticao_id: serie.id, repeticao_data: data,
+      // Como no banco: a opção do Google Meet (#437) não passa às datas novas (cada data marca a sua).
+      reuniao_google: false };
     bd.compromissos!.push(c);
     // A ligação com a demanda que nasceu de outra data não vem junto (cada data tem a sua, #307 parte B).
     ligacoesDoCompromisso(modelo.id).filter(l => !(l.modulo === 'demandas' && demandaGeradaPorAlgum(l.item_id)))
@@ -2615,6 +2732,60 @@ const NAO_DEU = 'Não foi possível concluir agora. Tente de novo.';
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
 const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos', 'correcao_recebimento'];
 /** Como as regras check e o gatilho do banco. */
+// ---------- despesas do escritório (como supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439) ----------
+/** A repetição da despesa como fica guardada: a regra, o primeiro vencimento, o ponto em que parou e o último que já virou despesa. */
+interface RepeticaoDaDespesa extends RegraDeRepeticao { id: string; inicio: string; parada_em: string | null; gerada_ate: string; criado_por: string | null }
+/** A despesa como fica guardada: a da lista, a data que a regra deu, a exclusão e quem a criou. */
+interface DespesaGuardada extends Omit<DespesaDoEscritorio, 'repeticao'> {
+  repeticao_id: string | null; repeticao_data: string | null; excluida_em: string | null; criado_por: string | null; criado_em: string;
+}
+const serieDaDespesa = (id: string | null) => bd.repeticoesDeDespesa!.find(r => r.id === id) ?? null;
+/** O fim da repetição como a lista mostra: a que parou termina na véspera do ponto em que parou (e aí não conta as vezes). */
+const ateDaSerie = (s: RepeticaoDaDespesa) => s.parada_em ? [s.ate, somarDias(s.parada_em, -1)].filter(d => d !== null).toSorted()[0] : s.ate;
+const despesaNaLista = (d: DespesaGuardada): DespesaDoEscritorio => {
+  const s = serieDaDespesa(d.repeticao_id);
+  return { id: d.id, descricao: d.descricao, valor: d.valor, vencimento: d.vencimento, paga_em: d.paga_em,
+    repeticao: s ? { frequencia: s.frequencia, intervalo: s.intervalo, ate: ateDaSerie(s), vezes: s.parada_em ? null : s.vezes } : null };
+};
+/** Como o gatilho historico (privado.historico_despesa): o que mudou, campo a campo; e o registro de ações. */
+function mudarDespesa(d: DespesaGuardada, novo: Partial<DespesaGuardada>) {
+  const alteracoes: Historico['alteracoes'] = {};
+  for (const k of ['descricao', 'valor', 'vencimento', 'paga_em', 'excluida_em'] as const) {
+    if (k in novo && novo[k] !== d[k]) alteracoes[k] = { de: d[k], para: novo[k] ?? null };
+  }
+  if (!Object.keys(alteracoes).length) return;
+  bd.historicoDespesas!.unshift({ id: Date.now() + Math.random(), despesa_id: d.id, alteracoes, feito_por: eu, em: agora() });
+  Object.assign(d, novo);
+  auditar('financeiro_despesas', 'alteracao', d);
+}
+/** Como privado.despesa_para_mudar: só o administrador, e só a despesa que não foi excluída. */
+function despesaParaMudar(id: string) {
+  if (!souAdmin()) throw new Error(SO_ADMINISTRADOR_NAS_DESPESAS);
+  const d = bd.despesas!.find(x => x.id === id && !x.excluida_em);
+  if (!d) throw new Error(DESPESA_NAO_ENCONTRADA);
+  return d;
+}
+/** As seguintes da repetição ainda a pagar (nem pagas, nem excluídas). */
+const seguintesAPagar = (d: DespesaGuardada) => bd.despesas!.filter(x => x.repeticao_id === d.repeticao_id && x.repeticao_data! > d.repeticao_data! && !x.paga_em && !x.excluida_em);
+/**
+ * Como privado.gerar_despesas: cada data nova copia a descrição e o valor da última da repetição que não foi excluída (sem nenhuma, a
+ * repetição não cresce), sem passar do ponto em que ela parou.
+ */
+function gerarDespesasNoFalso(serie: RepeticaoDaDespesa, hoje = hojeNaAgenda()): string[] {
+  const modelo = bd.despesas!.filter(d => d.repeticao_id === serie.id && !d.excluida_em).toSorted((a, b) => b.repeticao_data!.localeCompare(a.repeticao_data!))[0];
+  if (!modelo) return [];
+  const ids: string[] = [];
+  for (const { data } of vezesParaGerar({ ...serie, ate: ateDaSerie(serie) }, serie.gerada_ate, hoje)) {
+    const d: DespesaGuardada = { id: novoId(), descricao: modelo.descricao, valor: modelo.valor, vencimento: data, paga_em: null, repeticao_id: serie.id, repeticao_data: data,
+      excluida_em: null, criado_por: serie.criado_por ?? modelo.criado_por, criado_em: agora() };
+    bd.despesas!.push(d);
+    auditar('financeiro_despesas', 'inclusao', d);
+    ids.push(d.id);
+    serie.gerada_ate = data;
+  }
+  return ids;
+}
+
 function conferirLancamento(l: LancamentoGuardado) {
   l.descricao = l.descricao.trim();
   const conta = bd.contasFinanceiras!.find(c => c.id === l.conta_id);
@@ -3568,7 +3739,7 @@ export const SD: Dados = {
     };
     return espera(c);
   },
-  async salvarPerfil(campos) { Object.assign(bd.perfil, campos); gravar(); },
+  async salvarPerfil(campos) { Object.assign(bd.perfil, campos); enfileirarAgendas(); gravar(); },
 
   duasEtapasFatores: () => espera(bd.duasEtapas ?? []),
   async duasEtapasIniciar() {
@@ -4488,7 +4659,7 @@ export const SD: Dados = {
   compromissoObter: id => { const c = bd.compromissos!.find(x => x.id === id && vejoNoModulo('compromissos', x.id)); return espera(c ? compromissoCompleto(c) : null); },
   async compromissoCriar(dados) {
     const pronto = prepararCompromisso({ participantes: [], pessoas: [], processo_id: null, ...dados });
-    const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
+    const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, reuniao_google: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
       arquivado_em: null, arquivado_por: null, grupos: [], ...pronto, id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as CompromissoGuardado;
     bd.compromissos!.push(c); avisarInclusao('compromissos', c.id, null); auditar('compromissos', 'inclusao', { id: c.id, codigo: c.codigo }); gravar();
     return espera({ id: c.id, codigo: c.codigo });
@@ -4561,18 +4732,18 @@ export const SD: Dados = {
     if (!souAdmin()) return erro(SEM_PERMISSAO);
     const d = prepararSala(dados) as DadosSala;
     const s: Sala = { ...d, id: novoId(), ativa: true, criado_em: agora() };
-    bd.salas!.push(s); gravar();
+    bd.salas!.push(s); enfileirarAgendas(); gravar();
     return espera({ ...s });
   },
   async salaAtualizar(id, dados) {
     const s = bd.salas!.find(x => x.id === id);
     if (!s || !souAdmin()) return erro(SEM_PERMISSAO);
-    Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); gravar();
+    Object.assign(s, prepararSala(dados, id), dados.ativa === undefined ? {} : { ativa: dados.ativa }); enfileirarAgendas(); gravar();
   },
-  salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId)
-    ? ocupacoesNoFalso(salaId, data, fora).map((c): OcupacaoDaSala => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, hora: c.hora, hora_fim: c.hora_fim,
-      titulo: vejoNoModulo('compromissos', c.id) ? c.titulo : null }))
-    : []),
+  salaOcupacao: (salaId, data, fora = null) => espera(bd.salas!.some(s => s.id === salaId) ? ocupacaoNoFalso(salaId, data, fora) : []),
+  // Como public.ocupacao_das_salas (#438): a mesma ocupação, de todas as salas do escritório, por sala e pela hora.
+  salasOcupacao: data => espera([...bd.salas!].sort((a, b) => a.id.localeCompare(b.id))
+    .flatMap(s => ocupacaoNoFalso(s.id, data, null).map((o): OcupacaoNaSala => ({ ...o, sala_id: s.id })))),
   compromissosDoItem: (modulo, itemId) => espera(bd.compromissoLigacoes!.filter(l => l.modulo === modulo && l.item_id === itemId)
     .flatMap(l => { const c = bd.compromissos!.find(x => x.id === l.compromisso_id && vejoNoModulo('compromissos', x.id)); return c ? [compromissoLigado(c, [])] : []; })
     .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`)).slice(0, COMPROMISSOS_LIGADOS)),
@@ -5133,6 +5304,73 @@ export const SD: Dados = {
     return espera(undefined);
   },
   financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
+  // ---------- despesas do escritório (como supabase/migrations/20261125104500_despesas_do_escritorio.sql, #439) ----------
+  // Como a regra RLS: quem não é administrador recebe a lista vazia, sem erro.
+  financeiroDespesas: (de, ate) => espera(souAdmin() ? bd.despesas!.filter(d => !d.excluida_em && despesaNoPeriodo(d, de, ate))
+    .toSorted((a, b) => porVencimento(a, b) || a.criado_em.localeCompare(b.criado_em) || a.id.localeCompare(b.id)).map(despesaNaLista) : []),
+  async financeiroDespesaCriar(dados, regra) {
+    if (!souAdmin()) return erro(SO_ADMINISTRADOR_NAS_DESPESAS);
+    if (regra?.ate && regra.ate <= dados.vencimento) return erro(FIM_ANTES_DO_VENCIMENTO);
+    const novo = { ...dados, descricao: dados.descricao.trim() };
+    if (!despesaNoLimite(novo) || (regra && !regraNoLimite(regra))) return erro(FORMATO_INVALIDO);
+    const d: DespesaGuardada = { id: novoId(), ...novo, paga_em: null, repeticao_id: null, repeticao_data: null, excluida_em: null, criado_por: eu, criado_em: agora() };
+    bd.despesas!.push(d);
+    auditar('financeiro_despesas', 'inclusao', d);
+    let ids: string[] = [];
+    if (regra) {
+      const serie: RepeticaoDaDespesa = { ...regra, id: novoId(), inicio: d.vencimento, parada_em: null, gerada_ate: d.vencimento, criado_por: eu };
+      bd.repeticoesDeDespesa!.push(serie);
+      Object.assign(d, { repeticao_id: serie.id, repeticao_data: d.vencimento });
+      ids = gerarDespesasNoFalso(serie);
+    }
+    gravar();
+    return espera({ id: d.id, ids });
+  },
+  async financeiroDespesaMudar(id, dados, seguintes) {
+    const d = despesaParaMudar(id);
+    const novo = { ...dados, descricao: dados.descricao.trim() };
+    if (!despesaNoLimite(novo)) return erro(FORMATO_INVALIDO);
+    const outras = seguintes && d.repeticao_id ? seguintesAPagar(d) : [];
+    mudarDespesa(d, novo);
+    outras.forEach(x => mudarDespesa(x, { descricao: novo.descricao, valor: novo.valor }));
+    gravar();
+    return espera(1 + outras.length);
+  },
+  async financeiroDespesaPagar(id, data) {
+    const d = despesaParaMudar(id);
+    if (d.paga_em) return erro(DESPESA_JA_PAGA);
+    if (!dataExiste(data) || !anoAceito(data)) return erro(FORMATO_INVALIDO);
+    mudarDespesa(d, { paga_em: data });
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroDespesaDesfazerPagamento(id) {
+    mudarDespesa(despesaParaMudar(id), { paga_em: null });
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroDespesaExcluir(id, seguintes) {
+    const d = despesaParaMudar(id);
+    const outras = seguintes && d.repeticao_id ? seguintesAPagar(d) : [];
+    [d, ...outras].forEach(x => mudarDespesa(x, { excluida_em: agora() }));
+    const serie = seguintes ? serieDaDespesa(d.repeticao_id) : null;
+    if (serie && (!serie.parada_em || serie.parada_em > d.repeticao_data!)) serie.parada_em = d.repeticao_data;
+    gravar();
+    return espera([d.id, ...outras.map(x => x.id)]);
+  },
+  async financeiroDespesaRestaurar(ids) {
+    if (!souAdmin()) return erro(SO_ADMINISTRADOR_NAS_DESPESAS);
+    const linhas = bd.despesas!.filter(d => ids.includes(d.id));
+    linhas.filter(d => d.excluida_em).forEach(d => mudarDespesa(d, { excluida_em: null }));
+    for (const serie of new Set(linhas.map(d => serieDaDespesa(d.repeticao_id)).filter(s => s !== null))) {
+      const primeira = linhas.filter(d => d.repeticao_id === serie.id).map(d => d.repeticao_data!).toSorted()[0];
+      if (serie.parada_em === primeira) serie.parada_em = null;
+      gerarDespesasNoFalso(serie);
+    }
+    gravar();
+    return espera(undefined);
+  },
+  financeiroDespesaHistorico: id => espera(souAdmin() ? bd.historicoDespesas!.filter(h => h.despesa_id === id).map(({ despesa_id: _d, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO) : []),
   // Como a regra RLS da cópia escondida: quem não é administrador recebe a lista vazia, sem erro. A cópia das linhas não vem.
   financeiroExcluidos: () => espera(souAdmin() ? bd.financeiroExcluidos!
     .map(({ contrato_id: _k, conta_id: _c, cliente_nome: _n, copia: _x, conta_nome, ...r }, i): RecebimentoExcluido => ({ ...r, id: i + 1, conta_nome: conta_nome ?? null }))
@@ -6061,11 +6299,13 @@ export const SD: Dados = {
     const m = EQUIPE.find(x => x.id === id);
     if (m?.excluido) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
     if (m) m.papel = papel;
+    enfileirarAgendas(); gravar();
   },
   async equipeDefinirAtivo(id, ativo) {
     const m = EQUIPE.find(x => x.id === id);
     if (m?.excluido && ativo) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
     if (m) m.ativo = ativo;
+    enfileirarAgendas(); gravar();
   },
   // Na mesma ordem da função do banco (public.equipe_excluir). A foto sai junto; o nome fica, marcado, para os registros antigos.
   async equipeExcluir(id) {
@@ -6089,6 +6329,26 @@ export const SD: Dados = {
     bd.mensagensDeCompromisso = bd.mensagensDeCompromisso!.filter(x => x.perfil_id !== id);
     bd.mensagensDaTarefa = bd.mensagensDaTarefa!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
+    enfileirarAgendas();
+    gravar();
+  },
+  // Como public.email_do_google: só a própria pessoa e os administradores.
+  emailDoGoogle(id) {
+    const m = EQUIPE.find(x => x.id === id && !x.excluido);
+    if (!m || (id !== eu && !souAdmin())) return espera(null);
+    return espera({ email: bd.emailsDoGoogle?.[id] ?? null, padrao: m.reservada ? null : normalizarEmail(id === eu ? meuEmail() : m.email) });
+  },
+  // Na mesma ordem da função do banco (public.email_do_google_salvar).
+  async emailDoGoogleSalvar(id, email) {
+    const m = EQUIPE.find(x => x.id === id && !x.excluido);
+    if (!m) return erro(RECUSA_DO_EMAIL_DO_GOOGLE.naoEncontrado);
+    const recusa = recusaDoEmailDoGoogle(m, membroLogado()); if (recusa) return erro(recusa);
+    const gravado = emailDoGoogleParaGravar(email, m.reservada ? null : id === eu ? meuEmail() : m.email);
+    if (gravado && erroDoEmailDoGoogle(gravado)) return erro(RECUSA_DO_EMAIL_DO_GOOGLE.invalido);
+    const emails = bd.emailsDoGoogle ??= {};
+    if (gravado) emails[id] = gravado; else delete emails[id];
+    auditar('perfis', 'alteracao', { id, nome: m.nome });
+    enfileirarAgendas();
     gravar();
   },
   async equipeDefinirNome(id, nome) {
@@ -6100,7 +6360,7 @@ export const SD: Dados = {
     const quem = EQUIPE.find(x => x.id === eu);
     if (id !== quem?.id && m.papel === 'master') return erro('Só o próprio master muda o nome dele.');
     if (id !== quem?.id && m.papel === 'admin' && quem?.papel !== 'master') return erro('Só o master muda o nome de um administrador.');
-    m.nome = limpo; auditar('perfis', 'alteracao', { id, nome: limpo }); gravar();
+    m.nome = limpo; auditar('perfis', 'alteracao', { id, nome: limpo }); enfileirarAgendas(); gravar();
   },
   async equipeDefinirFuncao(id, funcao) {
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
@@ -6119,6 +6379,7 @@ export const SD: Dados = {
     if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
+    enfileirarAgendas();
     gravar();
   },
   // Como public.equipe_reserva_preparar e equipe_reserva_concluir. Quem está logado no banco fictício é o master.
@@ -6151,6 +6412,17 @@ export const SD: Dados = {
     const pedido = (bd.pedidosGoogle ?? []).find(p => p.estado === estado);
     bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
     if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
+    // Somar a agenda (#166) ou o Google Meet (#437), como ligacao_pedido_consumir e google-concluir: só com a conta ainda ligada;
+    // o token novo cobre tudo o que já foi dado, e a autorização nova tira o problema (como privado.ligacao_renovada_agendas).
+    const somar = pedido.finalidade && pedido.finalidade !== 'contatos' ? pedido.finalidade : null;
+    if (somar) {
+      if (!bd.ligacaoGoogle) { gravar(); return espera('expirado' as const); }
+      bd.ligacaoGoogle = { ...bd.ligacaoGoogle, escopos: [...new Set([...bd.ligacaoGoogle.escopos, ...ESCOPOS_SOMADOS[somar]])], ligado_em: agora() };
+      if (bd.agendasGoogle) Object.assign(bd.agendasGoogle, { problema: null, problema_em: null });
+      enfileirarAgendas();
+      auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+      gravar(); return espera(RESULTADO_DO_PEDIDO[somar]);
+    }
     bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
     // Autorização nova: o problema de autorização some (como o gatilho privado.ligacao_renovada).
     if (bd.contatosGoogle?.problema === 'autorizacao') bd.contatosGoogle = { ...bd.contatosGoogle, problema: null, problema_em: null };
@@ -6160,6 +6432,8 @@ export const SD: Dados = {
   async ligacaoGoogleDesligar() {
     if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     bd.ligacaoGoogle = null;
+    // Como privado.agendas_google_sem_ligacao: a fila das agendas esvazia; as agendas e os compartilhamentos ficam (são da conta).
+    if (bd.agendasGoogle) Object.assign(bd.agendasGoogle, { ativas: false, pendente: false, com_falha: 0, problema: null, problema_em: null });
     // Como ligacao_google_desligar_servidor: a ligação (com a chave, o problema, a primeira sincronização e as dúvidas abertas)
     // sai, e a fila do escritório é esvaziada. As ligações pessoa ↔ contato e as dúvidas decididas ficam (são da conta:
     // religar a mesma reaproveita, e o que já foi decidido não volta).
@@ -6225,6 +6499,73 @@ export const SD: Dados = {
     auditar('contatos_google_conferir', 'alteracao', { id: k.id, nome: k.decisao });
     gravar(); return espera(undefined);
   },
+
+  // ---------- agendas do escritório no Google (#166; sem Google: a conta é simulada) ----------
+  // Como public.ligacao_google_iniciar_agendas: só administradores, com a conta ligada.
+  async ligacaoGoogleAutorizarAgendas(voltarPara) {
+    if (!souAdmin()) return erro('Apenas administradores autorizam a agenda na conta Google do escritório');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de autorizar a agenda');
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now(), finalidade: 'agendas' }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  agendasGoogle() {
+    if (!bd.ligacaoGoogle || !souAdmin()) return espera(null);
+    const a = bd.agendasGoogle;
+    return espera<AgendasGoogle>({ ativa: a?.ativas ?? false, autorizada: agendaAutorizada(bd.ligacaoGoogle.escopos), pendentes: a?.pendente ? 1 : 0,
+      com_falha: a?.com_falha ?? 0, problema: a?.problema ?? null, problema_em: a?.problema_em ?? null, sincronizado_em: a?.sincronizado_em ?? null,
+      agendas: a?.agendas.length ?? 0, compartilhamentos: a?.compartilhamentos.length ?? 0 });
+  },
+  // Como public.agendas_google_ligar: ligar pede a agenda autorizada e põe o escritório na fila; desligar esvazia a fila.
+  async agendasGoogleLigar(ligar) {
+    if (!souAdmin()) return erro('Apenas administradores ligam e desligam as agendas no Google');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de ligar as agendas');
+    if (ligar && !agendaAutorizada(bd.ligacaoGoogle.escopos)) return erro('Autorize a agenda na conta Google do escritório antes de ligar as agendas');
+    const a = bd.agendasGoogle ??= { ativas: false, pendente: false, com_falha: 0, problema: null, problema_em: null, sincronizado_em: null, agendas: [], compartilhamentos: [] };
+    // Ligar de novo tenta outra vez os compartilhamentos recusados.
+    Object.assign(a, { ativas: ligar, pendente: ligar }, ligar ? { recusas: [] } : { com_falha: 0 });
+    auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    gravar(); return espera(undefined);
+  },
+  // Como a função google-agendas, pedida pelo administrador: o mesmo plano, na conta simulada.
+  async sincronizarAgendasAgora() {
+    const a = bd.agendasGoogle;
+    if (!souAdmin() || !bd.ligacaoGoogle || !a?.ativas || !agendaAutorizada(bd.ligacaoGoogle.escopos)) {
+      return espera({ resultado: 'desligada' as const, feitas: { ...CONTAGEM_ZERADA }, falhas: 0, restam: false });
+    }
+    // Como public.agendas_google_agora: as recusas saem, e cada compartilhamento recusado é tentado de novo.
+    a.recusas = [];
+    const { feitas, restam } = arrumarAgendasNoFalso(a);
+    Object.assign(a, { pendente: restam, com_falha: 0, problema: null, problema_em: null, sincronizado_em: agora() });
+    gravar(); return espera({ resultado: 'ok' as const, feitas, falhas: 0, restam });
+  },
+  // Como public.agendas_google_recusas: só administradores, com a conta ligada.
+  agendasGoogleRecusas() {
+    const a = bd.agendasGoogle;
+    if (!souAdmin() || !bd.ligacaoGoogle || !a) return espera([]);
+    return espera((a.recusas ?? []).map(r => ({ email: r.email, agenda: a.agendas.find(x => x.id === r.agenda_id)?.nome ?? '', detalhe: r.detalhe, recusada_em: r.recusada_em }))
+      .toSorted((x, y) => x.email.localeCompare(y.email) || x.agenda.localeCompare(y.agenda)));
+  },
+
+  // ---------- Google Meet no compromisso (#437; sem Google: a reunião é simulada) ----------
+  // Como public.ligacao_google_iniciar_meet: só administradores, com a conta ligada.
+  async ligacaoGoogleAutorizarMeet(voltarPara) {
+    if (!souAdmin()) return erro('Apenas administradores autorizam o Google Meet na conta Google do escritório');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de autorizar o Google Meet');
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now(), finalidade: 'meet' }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  // Como public.reunioes_google_situacao: para qualquer um da equipe.
+  reunioesGoogle: () => espera(situacaoDasReunioesNoFalso()),
 
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;

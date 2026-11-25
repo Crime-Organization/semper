@@ -279,19 +279,21 @@ export const ASSUNTOS: Assunto[] = [
   {
     id: 'agenda',
     titulo: 'Agenda e compromissos',
-    resumo: 'Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.',
+    resumo: 'Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório (com a visão de todas lado a lado).',
     arquivos: [
       'Compromissos', 'NovoCompromisso', 'CartaoCompromisso', 'CompromissosDoItem', 'CompromissosLigados', 'ItensDoCompromisso', 'QuandoDoCompromisso',
       'SalasDoEscritorio', pasta('app/src/paginas/agenda'),
-      'agenda', 'compromisso', 'repeticao', 'sala', 'demandaDoCompromisso',
-      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'menu-lateral',
-      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'modelo_das_datas_novas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio'
+      'agenda', 'compromisso', 'repeticao', 'sala', 'salasDoDia', 'demandaDoCompromisso',
+      'compromissos', 'compromissos-ligados', 'compromissos-que-se-repetem', 'repeticao-no-cartao', 'demanda-do-compromisso', 'salas', 'visao-das-salas', 'menu-lateral',
+      'compromissos_que_se_repetem', 'repeticao_so_quem_muda_as_datas', 'campos_das_seguintes', 'modelo_das_datas_novas', 'demandas_dos_compromissos', 'ligacoes_dos_compromissos', 'salas_do_escritorio',
+      'ocupacao_das_salas'
     ],
     tabelas: ['compromissos', 'compromisso_etiquetas', 'compromisso_historico', 'compromisso_ligacoes', 'compromisso_pessoas', 'compromisso_repeticoes', 'salas'],
     dados: ['DadosCompromissos', 'DadosSalas'],
     rotas: ['agenda', 'agenda/novo'],
     armadilhas: [
       'O conflito de horário das salas é conferido no banco e em `regras/sala.ts` (o fictício): mude os dois.',
+      'A visão das salas (#438, `paginas/agenda/VisaoDasSalas.tsx`) lê `ocupacao_das_salas`, a mesma ocupação de `ocupacao_da_sala` para todas as salas de uma vez (o título só de quem a pessoa vê); a grade e o horário livre (o endereço `/agenda/novo/?sala=…&data=…&hora=…`, lido pelo cadastro) ficam em `regras/salasDoDia.ts`.',
       'Cada data de um compromisso que se repete é um cartão; só quem pode mudar as datas mexe na repetição (teste do banco `repeticao_so_quem_muda_as_datas`).',
       'O `falso.ts` reescreve à mão as regras da série (repetir, mudar "esta e as seguintes" a data e o horário ou o título, o local, a equipe e as pessoas, arquivar as seguintes, só a próxima data no quadro): cada caso do teste do banco precisa do caso igual em `dados/contrato.test.ts`.',
       'A demanda que nasce de cada data avisa o responsável: o aviso aparece em `paginas/Mensagens.tsx` (`ItemDaDemandaDoCompromisso`; veja [Mensagens e avisos](#mensagens)).',
@@ -303,12 +305,13 @@ export const ASSUNTOS: Assunto[] = [
     id: 'calendario',
     titulo: 'Calendário e prazos',
     resumo: 'O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.',
-    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos'],
+    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos', 'diaUtilAnterior'],
     tabelas: ['dias_sem_expediente', 'orgaos'],
     dados: ['DadosCalendario'],
     rotas: ['calendario'],
     armadilhas: [
       'Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.',
+      'O dia útil do escritório e o dia útil anterior a uma data (a despesa na agenda Administrativo, #439) ficam no servidor (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), para a função de borda usar; `regras/demandaDoCompromisso.ts` usa a mesma conta, e o teste fica em `regras/diaUtilAnterior.test.ts`.',
       '`regras/prazos.ts` não depende de nenhum módulo (Agenda e Propriedade intelectual importam dele `somarDias`, `diasEntre` e `DIAS_NA_SEMANA`): não importe um módulo dali, para não criar importação circular.'
     ],
     testes: ['agenda', 'repeticao', 'propriedadeIntelectualNaAgenda']
@@ -344,12 +347,15 @@ export const ASSUNTOS: Assunto[] = [
     resumo: 'O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.\n'
       + 'Só administradores. Direitos e obrigações (parcelas) estão em Parcelas e recebimentos.',
     arquivos: ['Financeiro', pasta('app/src/paginas/financeiro'), 'MenuFinanceiro', 'caixa', 'graficosFinanceiros', 'numerosDoFinanceiro', 'painelFinanceiro',
-      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos'],
-    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos'],
-    dados: ['DadosFinanceiro'],
+      'financeiro', 'financeiro_caixa', 'ajuste_de_saldo', 'lancamento_da_planilha', 'recebimentosExcluidos', 'recebimentos-excluidos', 'recebimentos_excluidos',
+      'despesas', 'despesas_do_escritorio', 'despesas-do-escritorio', 'enderecoDaDespesa'],
+    tabelas: ['financeiro_contas', 'financeiro_das', 'financeiro_lancamentos', 'financeiro_socios', 'financeiro_ajustes', 'financeiro_historico', 'financeiro_excluidos',
+      'financeiro_despesas', 'financeiro_despesa_repeticoes', 'financeiro_despesas_historico'],
+    dados: ['DadosFinanceiro', 'DadosDespesas'],
     rotas: ['financeiro', 'financeiro/saidas', 'financeiro/contas'],
     armadilhas: [
       'Valores em centavos (número inteiro) e datas "aaaa-mm-dd" em todas as regras do financeiro.',
+      'As despesas do escritório a pagar (#439, aba Obrigações, só administradores) se repetem como os compromissos (`regras/repeticao.ts`, a mesma conta de `privado.data_da_vez`): cada data é uma linha, e a rotina `estender-despesas` acrescenta as seguintes. Marcar como paga não cria lançamento no caixa. Na agenda Administrativo do Google (#166), a despesa vai no dia útil anterior ao vencimento (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), com o link que a abre (`supabase/functions/_compartilhado/enderecoDaDespesa.ts`: a aba Obrigações no mês do vencimento, `?mes=…&despesa=…`; o Hub lê uma vez e tira do endereço).',
       'O Hub e as abas (`paginas/financeiro/Hub.tsx`, `paginas/financeiro/AbasDoFinanceiro.tsx` e `TELAS_DO_FINANCEIRO` de `e2e/ajudantes.ts`) abrem Parcelas, Lucros, Meus valores e Conferência: mexeu no Hub ou nos endereços, rode os testes dessas telas (já no comando abaixo) e veja [Rotas e endereços](#rotas).'
     ],
     testes: ['parcelas', 'lucros', 'meus-valores', 'conferencia', 'contrato-exclui-em-cascata', 'topo-do-cartao', 'mais-no-titulo-das-secoes']
@@ -409,7 +415,7 @@ export const ASSUNTOS: Assunto[] = [
       'equipe-no-cartao', 'equipe-ve-tudo', 'grupos-da-equipe', 'convidar-pelo-cartao',
       'convite_seguro', 'funcao_na_equipe', 'trocar_email_pelo_administrador', 'aviso_da_troca_de_email', 'reforco_do_aviso_da_troca', 'correcoes_do_aviso_da_troca',
       'desativar_encerra_as_sessoes', 'desativar_encerra_sessoes', 'reativar_tira_a_senha_de_uso', 'reativar_tira_a_senha', 'conta_reservada', 'equipe_nome',
-      'equipe_ve_tudo', 'fase_de_adaptacao', 'excluir_usuario', 'grupos_da_equipe'
+      'equipe_ve_tudo', 'fase_de_adaptacao', 'excluir_usuario', 'grupos_da_equipe', 'EmailDoGoogle', 'emailDoGoogle'
     ],
     tabelas: ['perfis', 'convites', 'grupos_da_equipe', 'grupo_integrantes', 'privado.mudancas_na_equipe'],
     dados: ['DadosEquipe', 'DadosGrupos'],
@@ -581,13 +587,28 @@ export const ASSUNTOS: Assunto[] = [
   },
   {
     id: 'google',
-    titulo: 'Conta Google e contatos',
-    resumo: 'A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".',
+    titulo: 'Conta Google, contatos e agendas',
+    resumo: 'A ligação da conta Google do escritório (em Configurações), a sincronização das pessoas com o Google Contatos, com a lista "Para conferir",\n'
+      + 'e as agendas do escritório no Google Agenda (#166: a permissão da agenda, as agendas de cada pessoa, Geral, salas e Administrativo, os compartilhamentos e os eventos: compromissos, prazos, dias sem expediente, parcelas e as despesas a pagar da #439 na Administrativo)\n'
+      + 'e o Google Meet no compromisso (#437: a reunião criada pela conta do escritório, com os convites, o link no cartão e a gravação). Veja docs/plataforma/agendas-google.md.',
     arquivos: ['LigacaoGoogle', 'SincronizacaoDosContatos', 'ContatosParaConferir', 'contatosGoogle', 'correspondenciaDeContatos', 'ligacaoGoogle',
-      'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira'],
-    tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos'],
+      'sincronizacaoDeContatos', 'sincronizacaoGoogle', 'ligacao', /^supabase\/functions\/google-/, 'ligacao_google', 'contatos_google', 'contatos_google_primeira',
+      'AgendasNoGoogle', 'EmailDoGoogle', 'emailDoGoogle', 'sincronizacaoDasAgendas', 'agendasGoogle', 'apiDaAgenda', 'eventosGoogle', 'agendas_google', 'agendas_google_eventos', 'agendas_google_recusas', 'agendas_google_correcoes', 'agendas_google_fila_completa', 'email_do_google_so_administradores', 'agendas-google',
+      'reunioesGoogle', 'reuniaoGoogle', 'reunioes_google', 'google-meet', 'reunioes_google_gravacao_de_novo', 'reunioes_google_correcoes', 'reunioes_google_troca_de_conta', 'reunioes_google_convidados_em_dia', 'agendas_google_despesas'],
+    tabelas: ['contatos_google', 'contatos_google_conferir', 'contatos_google_fila', 'privado.ligacoes', 'privado.ligacao_pedidos',
+      'agendas_google', 'agenda_google_compartilhamentos', 'agendas_google_fila', 'emails_do_google', 'agenda_google_eventos', 'agenda_google_recusas', 'agenda_google_reunioes'],
     dados: ['DadosLigacoes'],
-    armadilhas: ['As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.']
+    armadilhas: [
+      'As regras de quem é cada contato ficam no servidor (`supabase/functions/_compartilhado/correspondenciaDeContatos.ts`); os testes, em `app/src/regras/`.',
+      'O que criar, compartilhar ou retirar nas agendas é decidido pelo plano puro de `supabase/functions/_compartilhado/agendasGoogle.ts` (testado em `app/src/regras/agendasGoogle.test.ts`), que o `falso.ts` também usa; os pedidos ao Google ficam só no adaptador `apiDaAgenda.ts`.',
+      'Um 404 do Google não diz se sumiu o evento, a regra ou a agenda: a agenda só é esquecida (com os compartilhamentos e as cópias) depois de conferida no Google (`conferirAgenda`), e nunca nos primeiros `AGENDA_NOVA_MS` depois de criada. Um 403 só é de autorização com `insufficientPermissions` ou `authError`; o resto é recusa daquele pedido, e o compartilhamento recusado vai para `agenda_google_recusas` sem travar a fila.',
+      'As permissões da agenda estão em `ESCOPOS_DA_AGENDA` (`_compartilhado/ligacao.ts`) e em `privado.agenda_autorizada` no banco: mude os dois juntos. Somar a agenda é um pedido de ligação com a finalidade \'agendas\', que só vale para a conta já ligada.',
+      'O e-mail do Google (`emails_do_google`) só é editado por administradores (em Equipe e, o próprio, em Minha conta; os outros só o veem) com a regra do nome (`regras/emailDoGoogle.ts`, `email_do_google_salvar`). Mudar a equipe, as salas ou esses e-mails põe o escritório na fila das agendas (gatilhos `agendas_google`).',
+      'O que vai para qual agenda, e como fica cada evento, é decidido pelas funções puras de `supabase/functions/_compartilhado/eventosGoogle.ts` (testadas em `app/src/regras/eventosGoogle.test.ts`); o banco só entrega o item (`privado.agenda_do_compromisso` e afins, na migração `agendas_google_eventos`). Campo novo de compromisso, tarefa, demanda, dia sem expediente ou parcela que deve ir ao Google: ponha no item dessas funções e na lista do gatilho `agendas_google_mudou` da tabela (só os campos da lista põem o item na fila).',
+      'A despesa do escritório a pagar (#439) vai só para a Administrativo, no dia útil anterior ao vencimento: o dia é contado pela regra pura `_compartilhado/diaUtilAnterior.ts` (a mesma do site), com os dias sem expediente que o banco manda junto (`privado.agenda_da_despesa`). Lançar, mudar ou apagar um dia sem expediente para todos os órgãos põe na fila as despesas que vencem logo depois dele (`privado.agendas_google_despesas_perto_do_dia`, migração `agendas_google_despesas`).',
+      'O banco fictício (`falso.ts`) simula as agendas e os compartilhamentos, mas não os eventos: as cópias dos itens só existem no servidor, e o "Sincronizar agora" do fictício conta zero eventos.',
+      'O Google Meet (#437): a reunião é decidida por `supabase/functions/_compartilhado/reunioesGoogle.ts` (testado em `app/src/regras/reunioesGoogle.test.ts`) e vai na mesma fila do compromisso, antes das cópias. As permissões do Meet estão em `ESCOPOS_DO_MEET` (`_compartilhado/ligacao.ts`) e em `privado.meet_autorizado` no banco: mude os dois juntos. O fictício faz a reunião na hora (`reuniaoNoFalso`), com um link de exemplo.'
+    ]
   },
   {
     id: 'novidades',
@@ -611,7 +632,7 @@ export const ASSUNTOS: Assunto[] = [
     id: 'rotinas',
     titulo: 'Rotinas automáticas',
     resumo: 'O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,\n'
-      + 'contatos do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.',
+      + 'contatos e agendas do Google e o reenvio do aviso da troca de e-mail. Toda migração com `cron.schedule` entra aqui sozinha.',
     arquivos: [],
     conteudo: /cron\.schedule/,
     armadilhas: [

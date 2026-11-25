@@ -1,0 +1,5 @@
+{
+  "titulo": "Despesas a pagar na agenda Administrativo do Google",
+  "texto": "Com as agendas no Google ligadas, cada despesa do escritório a pagar aparece na agenda Administrativo, no dia útil anterior ao vencimento, com a descrição, o valor e o link para a despesa no Financeiro. Paga ou excluída, ela sai do Google.",
+  "ondeAchar": "No Google Agenda dos administradores, agenda Administrativo. As agendas se ligam em Configurações, cartão Conta Google, \"Agendas no Google\"."
+}
