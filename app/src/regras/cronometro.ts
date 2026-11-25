@@ -170,3 +170,23 @@ export const parteDeCadaUmAparece = (partes: ParteDoTempo[], eu: string) => !(pa
  * tempo da tarefa, quem só lê vê o total só quando ele chega, maior que zero.
  */
 export const totalAparece = (podeAlterar: boolean, total: number) => podeAlterar || total > 0;
+
+/**
+ * A situação do relógio de quem está com o cartão da tarefa (#442): zerado (nunca contou), contando, parado (já contou e parou) ou,
+ * na tarefa concluída, encerrado. Diz a linha "Seu tempo, contando" e o botão (Iniciar, Parar, Continuar ou nenhum).
+ */
+export type SituacaoDoRelogio = 'zerado' | 'contando' | 'parado' | 'encerrado';
+export const situacaoDoRelogio = (concluida: boolean, contando: boolean, meusSegundos: number): SituacaoDoRelogio =>
+  concluida ? 'encerrado' : contando ? 'contando' : segundosCompletos(meusSegundos) > 0 ? 'parado' : 'zerado';
+
+/**
+ * A duração do relógio em pedaços (#442), para o número e a unidade terem tamanhos diferentes na tela ("1 h 05 min": o 1 e o 05
+ * grandes, o h e o min menores). É a mesma conta de fmtDuracao: juntos com espaço, os pedaços dão exatamente o mesmo texto.
+ */
+export function partesDaDuracao(segundos: number) {
+  const pedacos = fmtDuracao(segundos).split(' ');
+  return Array.from({ length: pedacos.length / 2 }, (_, i) => ({ numero: pedacos[2 * i], unidade: pedacos[2 * i + 1] }));
+}
+
+/** Se alguém além de quem está vendo tem tempo na tarefa: só aí o cartão mostra a linha "Total da equipe" (#442). */
+export const outrosTemTempo = (partes: ParteDoTempo[], eu: string) => partes.some(p => p.perfil_id !== eu && p.segundos > 0);

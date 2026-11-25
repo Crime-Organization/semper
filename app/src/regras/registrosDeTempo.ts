@@ -2,10 +2,12 @@
 // registro que o cronômetro ainda está contando, e a correção (a duração e/ou o dia, sempre com o motivo).
 // Decisões do dono (21/11/2026): cada pessoa apaga e corrige os próprios registros; os administradores, os de qualquer um do
 // escritório; quem não é administrador nunca vê as durações dos outros (o banco nem as devolve). O registro que o cronômetro está
-// contando só se mexe depois de pausar.
+// contando só se mexe depois de parar (#442: o lápis e a lixeira dele ficam desligados).
 import { PERIODO_MAXIMO, TAMANHO_MOTIVO } from '../dados/limites';
-import { fmtDuracao, lerAjuste } from './cronometro';
-import { lerData } from './pessoa';
+import { fmtDuracao, lerAjuste, tempoPorPessoa, type ParteDoTempo } from './cronometro';
+import { horaNoEscritorio, isoNoEscritorio } from './fuso';
+import { somarDias } from './prazos';
+import { fmtData, lerData } from './pessoa';
 
 interface Registro { id: number; perfil_id: string | null; inicio: string; segundos: number; ajuste: boolean }
 
@@ -119,3 +121,38 @@ export const NO_HISTORICO = {
   corrigido: (registro: string, diaNovo: string | null, motivo: string) =>
     `Corrigido ${registro}${diaNovo ? `, que passou para ${diaNovo}` : ''}. Motivo: ${motivo.trim()}`
 } as const;
+
+/** Por que o lápis e a lixeira do registro que está contando ficam desligados (#442): ele só se muda ou se apaga depois de parar. */
+export const PARE_ANTES = 'Pare o relógio antes de mudar ou apagar o registro que está contando.';
+
+/** Os registros de uma pessoa, no cartão da tarefa (#442): quem, o total dela e a % (quando as partes aparecem) e os registros. */
+export interface GrupoDeRegistros<R> { perfil_id: string | null; segundos: number; percentual: number | null; registros: R[] }
+
+/**
+ * Os registros agrupados por pessoa (#442), na ordem da parte de cada um (a maior primeiro; quem tem registros mas soma zero ou
+ * menos vem no fim). O total de cada um vem das partes (o meu, ao vivo, com o relógio: partesAoVivo); sem parte, da soma dos
+ * registros. Com as partes à vista (a tarefa concluída ou o administrador), entram também os outros que têm tempo, ainda que os
+ * registros deles não venham (quem não é administrador só recebe os próprios, e vê a % dos outros); sem elas, só quem tem registros
+ * visíveis. Eu, sem registro gravado ainda (o relógio acabou de começar), não ganho um grupo vazio.
+ */
+export function gruposDosRegistros<R extends Registro>(registros: readonly R[], partes: readonly ParteDoTempo[], eu: string, comPartes: boolean): GrupoDeRegistros<R>[] {
+  const emOrdem = registrosEmOrdem(registros), somas = tempoPorPessoa(emOrdem);
+  const comRegistro = (id: string | null) => emOrdem.some(r => r.perfil_id === id);
+  const dasPartes = partes.map(p => p.perfil_id).filter(id => comRegistro(id) || (comPartes && id !== eu));
+  const quem = [...new Set([...dasPartes, ...emOrdem.map(r => r.perfil_id)])];
+  return quem.map(id => {
+    const parte = partes.find(p => p.perfil_id === id);
+    return { perfil_id: id, segundos: parte?.segundos ?? somas.get(id) ?? 0, percentual: comPartes && parte ? parte.percentual : null,
+      registros: emOrdem.filter(r => r.perfil_id === id) };
+  });
+}
+
+/**
+ * Quando foi o registro, na lista do cartão (#442), no relógio do escritório: "Hoje", "Ontem, 24/11", "24/11" (de outro ano,
+ * "24/11/2025"); o que está contando diz desde quando: "Hoje, desde 14:10".
+ */
+export function quandoDoRegistro(inicio: string, hoje: string, contando: boolean) {
+  const dia = isoNoEscritorio(inicio), curto = fmtData(dia).slice(0, dia.slice(0, 4) === hoje.slice(0, 4) ? 5 : undefined);
+  const quando = dia === hoje ? 'Hoje' : dia === somarDias(hoje, -1) ? `Ontem, ${curto}` : curto;
+  return contando ? `${quando}, desde ${horaNoEscritorio(inicio)}` : quando;
+}

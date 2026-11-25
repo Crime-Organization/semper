@@ -97,3 +97,9 @@ export const horaELembreteDoCartao = (c: { prazo: string | null; prazo_hora?: st
 /** O que vai para o banco: sem prazo, a hora e o lembrete ficam vazios. */
 export const horaELembreteAoGravar = (prazo: string | null, c: Pick<CamposDoLembrete, 'hora' | 'lembrete'>) =>
   ({ prazo_hora: prazo ? c.hora || null : null, lembrete: prazo ? c.lembrete : null });
+
+/**
+ * O lembrete curto, na linha da hora do prazo no cartão da tarefa (#442): "Às 18:00 · lembrete 1 h antes". Só para essa linha: as
+ * escolhas, o histórico e as Mensagens continuam com LEMBRETES. Como é Record, o TypeScript obriga a pôr aqui todo lembrete novo.
+ */
+export const CURTO_DO_LEMBRETE: Record<Lembrete, string> = { 0: 'na hora', 30: '30 min antes', 60: '1 h antes', 1440: '1 dia antes' };
