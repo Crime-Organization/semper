@@ -6,10 +6,11 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAMPOS_DO_PRAZO, errosDosCampos, type InicioEPrazoGravados } from '../../regras/datasNoCartao';
+import { CAMPOS_DO_PRAZO, errosDosCampos, type CamposDoPrazo, type InicioEPrazoGravados } from '../../regras/datasNoCartao';
 import { TAREFA_VAZIA, validarTarefa } from '../../regras/tarefa';
 import { Avisos } from '../avisos';
-import { InicioEPrazo } from './InicioEPrazo';
+import { InicioEPrazo, janelaDoInicioEPrazo } from './InicioEPrazo';
+import { DatasDoCartao } from './JanelaDasDatas';
 
 const COM_PRAZO: InicioEPrazoGravados = { data_inicio: '2026-11-18', prazo: '2026-11-30', prazo_hora: '14:00:00', lembrete: 60 };
 const SEM_PRAZO: InicioEPrazoGravados = { data_inicio: '2026-11-18', prazo: null, prazo_hora: null, lembrete: null };
@@ -265,5 +266,50 @@ describe('As datas do cartão numa janela própria (#422)', () => {
     // Então
     expect(screen.getByText('18/11/2026')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Datas/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Os abridores próprios da janela das datas (#442)', () => {
+  const conferir = (c: CamposDoPrazo) => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO);
+  /** As datas com dois abridores: um segundo botão (como a folhinha) e o link principal, com o ref. */
+  function ComAbridores({ podeMudar = true }: { podeMudar?: boolean }) {
+    const janelaDasDatas = janelaDoInicioEPrazo({ nomeDoPrazo: 'Prazo', valor: COM_PRAZO, conferirPrazo: conferir, aoSalvar: podeMudar ? vi.fn() : undefined });
+    return <>
+      <Avisos />
+      <DatasDoCartao {...janelaDasDatas} lido={<span>Lido</span>} abridores={a => <div>
+        <button type="button" onClick={a.alternar}>Pela folhinha</button>
+        <button type="button" ref={a.ref} aria-expanded={a.aberta} onClick={a.alternar}>Mudar prazo</button>
+      </div>} />
+    </>;
+  }
+
+  it('dado os abridores, quando a pessoa clica em cada um, então a janela "Mudar as datas" abre presa a ele, o link diz se está aberta, e fechar devolve o foco a quem abriu', async () => {
+    // Dado
+    render(<ComAbridores />);
+    expect(screen.queryByRole('button', { name: /^Datas: / })).not.toBeInTheDocument();
+    // Quando: pelo link
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar prazo' }));
+    // Então
+    expect(inicio()).toHaveValue('18/11/2026');
+    expect(screen.getByRole('button', { name: 'Mudar prazo' })).toHaveAttribute('aria-expanded', 'true');
+    // Quando: Esc
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    // Então
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mudar prazo' })).toHaveAttribute('aria-expanded', 'false');
+    // Quando: pelo segundo abridor
+    await userEvent.click(screen.getByRole('button', { name: 'Pela folhinha' }));
+    // Então
+    expect(janela()).toBeInTheDocument();
+    await userEvent.click(dentro().getByRole('button', { name: 'Fechar' }));
+    expect(screen.getByRole('button', { name: 'Pela folhinha' })).toHaveFocus();
+  });
+
+  it('dado os abridores e quem só lê, quando olha as datas, então vê o "lido", sem abridor', () => {
+    // Quando
+    render(<ComAbridores podeMudar={false} />);
+    // Então
+    expect(screen.getByText('Lido')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

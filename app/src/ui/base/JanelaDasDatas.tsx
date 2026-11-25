@@ -10,7 +10,7 @@
 // aberta e diz o que falta. O X, o Esc ou um clique fora fecham sem mudar nada; durante a gravação, a janela não fecha. Remover
 // tira as datas que podem ficar sem data e grava. O rascunho, o que cada clique faz nele e a lista de horários ficam em
 // regras/janelaDasDatas.ts.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject, type SelectHTMLAttributes } from 'react';
 import { hojeNaAgenda } from '../../regras/agenda';
 import { isoDoTexto, textoDaDataDigitada } from '../../regras/campoData';
 import { temErro, type ErrosDosCampos } from '../../regras/datasNoCartao';
@@ -77,6 +77,19 @@ interface Props {
   aoSalvar?: (c: CamposDasDatas) => unknown;
   /** A linha que as datas oferecem ao menu "Acrescentar ao cartão" (#399): o "ver" leva até elas; o "+" abre a janela. */
   atalho?: TipoDeAtalho;
+  /**
+   * Quem abre a janela, no lugar do botão do resumo (#442: no cartão da tarefa, a folhinha do prazo e o link "Mudar prazo"). Recebe o
+   * ref do abridor principal (o atalho do cartão rola até ele e abre a janela presa a ele), se a janela está aberta e o alternar, que
+   * abre a janela presa a quem foi clicado (ou a fecha). Desenha o bloco todo; quem só lê vê o "lido". Sem isto, o botão do resumo.
+   */
+  abridores?: (a: AbridoresDasDatas) => ReactNode;
+}
+
+/** O que os abridores próprios da janela recebem (#442). */
+export interface AbridoresDasDatas {
+  ref: RefObject<HTMLButtonElement | null>;
+  aberta: boolean;
+  alternar: (e: MouseEvent<HTMLElement>) => void;
 }
 
 /**
@@ -96,9 +109,9 @@ const partesDe = (inicio?: DataDaJanela, entrega?: DataDaJanela): PartesDasDatas
 });
 
 /** O resumo das datas no cartão e, para quem pode alterar, a janela que abre ao clicar nele. */
-export function DatasDoCartao({ nome, titulo, resumo, lido, atalho, aoSalvar, ...janela }: Props) {
+export function DatasDoCartao({ nome, titulo, resumo, lido, atalho, aoSalvar, abridores, ...janela }: Props) {
   const [aberta, setAberta] = useState<HTMLElement | null>(null);
-  const valor = useRef<HTMLButtonElement>(null), soLido = useRef<HTMLSpanElement>(null);
+  const valor = useRef<HTMLButtonElement>(null), soLido = useRef<HTMLSpanElement>(null), blocoLido = useRef<HTMLDivElement>(null);
   const podeMudar = !!aoSalvar;
   // Se a edição deixa de ser permitida com a janela aberta (o lápis abriu, o item foi arquivado), a janela fecha sem gravar.
   useEffect(() => { if (!podeMudar) setAberta(null); }, [podeMudar]);
@@ -110,17 +123,20 @@ export function DatasDoCartao({ nome, titulo, resumo, lido, atalho, aoSalvar, ..
     setAberta(botao);
   }
   useAtalhoDoCartao(atalho, {
-    ver: () => irAte(valor.current ?? soLido.current, valor.current, 'center'),
+    ver: () => irAte(valor.current ?? soLido.current ?? blocoLido.current, valor.current, 'center'),
     acrescentar: podeMudar ? { nome: titulo, abrir } : null
   });
 
-  if (!aoSalvar) return <span className="dado-editavel" ref={soLido}>{lido}</span>;
+  // Com abridores próprios (#442), quem só lê vê o bloco como ele é (o "lido"), sem nada que abra a janela.
+  if (!aoSalvar) return abridores ? <div ref={blocoLido}>{lido}</div> : <span className="dado-editavel" ref={soLido}>{lido}</span>;
+  const daJanela = aberta && <JanelaDasDatas {...janela} nome={nome} titulo={titulo} botao={aberta} aoSalvar={aoSalvar} aoFechar={() => setAberta(null)} />;
+  if (abridores) return <>{abridores({ ref: valor, aberta: !!aberta, alternar: e => setAberta(aberta ? null : e.currentTarget) })}{daJanela}</>;
   return <>
     <button ref={valor} type="button" className="data-editavel-botao dado-editavel-botao datas-do-cartao-botao" aria-label={`${nome}: ${resumo}. Clique para mudar`}
       title="Clique para mudar" aria-haspopup="dialog" aria-expanded={!!aberta} onClick={e => setAberta(aberta ? null : e.currentTarget)}>
       {lido}
     </button>
-    {aberta && <JanelaDasDatas {...janela} nome={nome} titulo={titulo} botao={aberta} aoSalvar={aoSalvar} aoFechar={() => setAberta(null)} />}
+    {daJanela}
   </>;
 }
 

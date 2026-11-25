@@ -1,0 +1,45 @@
+/* O prazo do cartão numa folhinha de calendário (#442; ui/base/PrazoNaFolhinha.tsx): a folhinha à esquerda e, ao lado, quanto
+   falta, a hora e o lembrete e o link "Mudar prazo", alinhados pelo topo. As medidas, com nome, num lugar só. */
+:root {
+  /* A folhinha: a largura, a altura, a faixa do mês em cima e o arredondado */
+  --folhinha-largura: 56px;
+  --folhinha-altura: 64px;
+  --folhinha-faixa: 18px;
+  --raio-da-folhinha: 10px;
+  /* O mês e o dia da semana, miúdos; o dia, grande ({typography.title-1} e um degrau acima) */
+  --texto-da-folhinha: 11px;
+  --dia-da-folhinha: 22px;
+  /* O dia, um pouco abaixo da faixa do mês, e o dia da semana logo embaixo dele */
+  --vao-do-dia-da-folhinha: 5px;
+  --vao-da-semana-da-folhinha: 2px;
+  /* A faixa do mês: cinza claro no claro; no escuro, a linha mais clara, para não sumir no fundo do cartão */
+  --folhinha-cabeca: var(--soft2);
+  /* "Faltam 2 dias", "Sem prazo", "Concluída": a frase do prazo, um degrau abaixo do título da tarefa */
+  --texto-do-prazo: 18px;
+  /* O vão entre a folhinha e o texto ({spacing.md}), entre a frase e a hora, e entre a hora e o link ({spacing.xs}) */
+  --vao-da-folhinha: 16px;
+  --vao-do-detalhe-do-prazo: 2px;
+  --vao-do-link-do-prazo: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) { --folhinha-cabeca: var(--line2) } }
+:root[data-tema="escuro"] { --folhinha-cabeca: var(--line2) }
+
+.prazo-folhinha { display: flex; align-items: flex-start; gap: var(--vao-da-folhinha); min-width: 0 }
+.folhinha { flex: 0 0 auto; display: flex; flex-direction: column; box-sizing: border-box; width: var(--folhinha-largura); height: var(--folhinha-altura);
+  padding: 0; border: 1px solid var(--line2); border-radius: var(--raio-da-folhinha); overflow: hidden; background: var(--superficie); color: var(--ink);
+  font: inherit; text-align: center; font-variant-numeric: tabular-nums }
+button.folhinha { cursor: pointer }
+@media (hover: hover) { button.folhinha:hover { border-color: var(--gray) } }
+.folhinha-mes { height: var(--folhinha-faixa); line-height: var(--folhinha-faixa); background: var(--folhinha-cabeca); font-size: var(--texto-da-folhinha); font-weight: 900; color: var(--text2) }
+.folhinha-dia { margin-top: var(--vao-do-dia-da-folhinha); font-size: var(--dia-da-folhinha); font-weight: 900; line-height: 1; color: var(--ink) }
+.folhinha-semana { margin-top: var(--vao-da-semana-da-folhinha); font-size: var(--texto-da-folhinha); font-weight: 700; color: var(--muted) }
+
+.prazo-folhinha-texto { display: flex; flex-direction: column; align-items: flex-start; min-width: 0 }
+.prazo-folhinha-principal { margin: 0; font-size: var(--texto-do-prazo); font-weight: 900; line-height: 1.25; letter-spacing: -.01em; color: var(--ink); text-wrap: balance }
+.prazo-folhinha-principal.calmo { font-weight: 700; color: var(--text2) }
+.prazo-folhinha-principal.vencido { color: var(--erro) }
+.prazo-folhinha-detalhe { margin: var(--vao-do-detalhe-do-prazo) 0 0; font-size: var(--texto-apoio); line-height: 1.4; color: var(--text2) }
+/* O link: alvo de toque de --alvo-de-toque pelo ::before, sem aumentar a linha. */
+.prazo-folhinha-mudar { position: relative; margin-top: var(--vao-do-link-do-prazo); white-space: nowrap }
+.prazo-folhinha-mudar::before { content: ''; position: absolute; inset: calc((1lh - var(--alvo-de-toque)) / 2) calc(-1 * var(--vao-do-link-do-prazo)) }
+.prazo-folhinha-mudar[aria-expanded="true"] { border-bottom-width: 2px }
