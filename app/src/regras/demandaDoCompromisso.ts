@@ -8,33 +8,18 @@
 import type { AvisoDaDemandaDoCompromisso, DemandaDoCompromissoDaMensagem, DiaLancado } from '../dados/tipos';
 import { DEMANDA_DO_COMPROMISSO, TAMANHO_DEMANDA } from '../dados/limites';
 import { fmtData } from './pessoa';
-import { feriadosNacionais, somarDias, TIPOS_SEM_EXPEDIENTE } from './prazos';
-
-/** Até quantos dias para trás se procura um dia útil (um ano, como a contagem dos prazos). Sem nenhum, fica o dia contado. */
-const DIAS_PARA_TRAS = 366;
-/** Os dias da semana sem expediente (0 = domingo, 6 = sábado). */
-const FIM_DE_SEMANA = new Set([0, 6]);
-const diaDaSemana = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+import { somarDias } from './prazos';
+import { diaUtil, diaUtilAteODia } from '../../../supabase/functions/_compartilhado/diaUtilAnterior';
 
 /**
  * O dia útil do escritório: nem fim de semana, nem feriado nacional, nem um dia sem expediente lançado para todos os órgãos (o
- * lançado para um órgão só vale nos prazos dos processos dele; a suspensão só de prazos tem expediente).
+ * lançado para um órgão só vale nos prazos dos processos dele; a suspensão só de prazos tem expediente). A conta fica em
+ * supabase/functions/_compartilhado/diaUtilAnterior.ts, a mesma da agenda do Google (#439).
  */
-export function diaUtilDoEscritorio(iso: string, lancados: readonly DiaLancado[]) {
-  if (FIM_DE_SEMANA.has(diaDaSemana(iso))) return false;
-  if (feriadosNacionais(Number(iso.slice(0, 4))).some(f => f.data === iso)) return false;
-  return !lancados.some(d => d.data === iso && d.orgao_id === null && !TIPOS_SEM_EXPEDIENTE[d.tipo].expediente);
-}
+export const diaUtilDoEscritorio = (iso: string, lancados: readonly DiaLancado[]) => diaUtil(iso, lancados);
 
-/** O dia em que a demanda nasce: `dias` corridos antes de `data`, recuando ao dia útil anterior. */
-export function diaDaDemanda(data: string, dias: number, lancados: readonly DiaLancado[] = []) {
-  const contado = somarDias(data, -dias);
-  for (let i = 0; i <= DIAS_PARA_TRAS; i++) {
-    const dia = somarDias(contado, -i);
-    if (diaUtilDoEscritorio(dia, lancados)) return dia;
-  }
-  return contado;
-}
+/** O dia em que a demanda nasce: `dias` corridos antes de `data`, recuando ao dia útil anterior (ou ficando nele, se for útil). */
+export const diaDaDemanda = (data: string, dias: number, lancados: readonly DiaLancado[] = []) => diaUtilAteODia(somarDias(data, -dias), lancados);
 
 /** O título da demanda: o do compromisso com a data, cortado para caber no da demanda. "Reunião mensal (10/12/2026)". */
 export function tituloDaDemanda(titulo: string | null, data: string) {

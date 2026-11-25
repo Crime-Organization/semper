@@ -300,12 +300,13 @@ export const ASSUNTOS: Assunto[] = [
     id: 'calendario',
     titulo: 'Calendário e prazos',
     resumo: 'O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.',
-    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos'],
+    arquivos: ['Calendario', pasta('app/src/paginas/calendario'), 'calendario', 'prazos', 'calendario_de_prazos', 'diaUtilAnterior'],
     tabelas: ['dias_sem_expediente', 'orgaos'],
     dados: ['DadosCalendario'],
     rotas: ['calendario'],
     armadilhas: [
       'Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.',
+      'O dia útil do escritório e o dia útil anterior a uma data (a despesa na agenda Administrativo, #439) ficam no servidor (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), para a função de borda usar; `regras/demandaDoCompromisso.ts` usa a mesma conta, e o teste fica em `regras/diaUtilAnterior.test.ts`.',
       '`regras/prazos.ts` não depende de nenhum módulo (Agenda e Propriedade intelectual importam dele `somarDias`, `diasEntre` e `DIAS_NA_SEMANA`): não importe um módulo dali, para não criar importação circular.'
     ],
     testes: ['agenda', 'repeticao', 'propriedadeIntelectualNaAgenda']

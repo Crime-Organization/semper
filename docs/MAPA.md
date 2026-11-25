@@ -24,35 +24,35 @@ escritos à mão na tabela `app/ferramentas/mapa/assuntos.ts`. Arquivo, tabela o
 - [Processos](#processos), linhas 293–325: Os processos de cada tipo (`TIPOS_PROCESSO`, em `regras/processo.ts`): o cadastro, o cartão, as partes e recursos, os andamentos e prazos, os campos do escritório e o painel de Processos.
 - [Propriedade intelectual](#propriedade-intelectual), linhas 326–347: O processo administrativo (no INPI) da área de propriedade intelectual (marca, patente, desenho, direito autoral): os campos da proteção,
 - [Agenda e compromissos](#agenda), linhas 348–375: Os compromissos (reuniões, audiências, prazos na agenda): o cadastro, o cartão, a visão por data, os que se repetem (e a demanda que nasce de cada data) e as salas do escritório.
-- [Calendário e prazos](#calendario), linhas 376–395: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
-- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 396–413: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
-- [Documentos e anotações](#documentos), linhas 414–441: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
-- [Financeiro](#financeiro), linhas 442–468: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
-- [Parcelas e recebimentos](#parcelas), linhas 469–491: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
-- [Lucro dos sócios](#lucros), linhas 492–507: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
-- [Meus valores](#meus-valores), linhas 508–520: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
-- [Conferência dos lançamentos](#conferencia), linhas 521–535: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
-- [Equipe, grupos e permissões](#equipe), linhas 536–566: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
-- [Perfil profissional e foto](#perfil), linhas 567–586: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
-- [Configurações e escritório](#configuracoes), linhas 587–603: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
-- [Registro de ações e LGPD](#registro), linhas 604–622: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
-- [Mensagens e avisos](#mensagens), linhas 623–648: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
-- [Comentários e menções](#comentarios), linhas 649–666: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
-- [Etiquetas](#etiquetas), linhas 667–683: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
-- [Ligações entre itens](#ligacoes), linhas 684–707: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.
-- [Quadros (kanban) e situação](#quadros), linhas 708–734: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
-- [Cartão dos itens](#cartao), linhas 735–760: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
-- [Busca geral](#busca-geral), linhas 761–773: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
-- [Painel inicial](#painel-inicial), linhas 774–788: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
-- [Entrada e minha conta](#conta), linhas 789–809: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
-- [Página pública](#portal), linhas 810–823: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
-- [Importação](#importacao), linhas 824–843: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
-- [Conta Google e contatos](#google), linhas 844–862: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
-- [Novidades e versão](#novidades), linhas 863–876: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
-- [Ajuda e atalhos](#ajuda), linhas 877–892: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
-- [Rotinas automáticas](#rotinas), linhas 893–904: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
-- [Rotas e endereços](#rotas), linhas 905–1009: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
-- [Sem assunto](#sem-assunto), linhas 1010–1013: nada.
+- [Calendário e prazos](#calendario), linhas 376–397: O calendário do escritório (feriados, suspensões, órgãos) e a contagem de prazos em dias corridos ou úteis.
+- [Prazos, lembretes e e-mails de prazo](#lembretes), linhas 398–415: A hora e o lembrete do prazo de tarefas e demandas, os avisos de prazo na caixa de mensagens e o e-mail diário de prazos.
+- [Documentos e anotações](#documentos), linhas 416–443: O módulo Documentos: as anotações em Markdown (editor ao vivo, salva sozinho), as pastas, o explorador e as anotações no cartão de cada item.
+- [Financeiro](#financeiro), linhas 444–470: O caixa do escritório: entradas e saídas, as contas, o DAS, os sócios, os ajustes de saldo, o painel com os números e gráficos.
+- [Parcelas e recebimentos](#parcelas), linhas 471–493: As parcelas dos contratos (Direitos e Obrigações do Financeiro), o recebimento completo, a divisão entre escritório, responsável e indicação, e os repasses.
+- [Lucro dos sócios](#lucros), linhas 494–509: Quanto cada sócio acumulou, retirou e tem em aberto. As funções de dados ficam em `DadosFinanceiro` e `DadosParcelas`.
+- [Meus valores](#meus-valores), linhas 510–522: A parte de cada pessoa em cada recebimento e os totais por papel (responsável, indicação). As funções de dados ficam em `DadosParcelas`.
+- [Conferência dos lançamentos](#conferencia), linhas 523–537: A conferência dos lançamentos do caixa com a planilha antiga: situações, filtros, totais e a correção de cada linha. As funções de dados ficam em `DadosFinanceiro`.
+- [Equipe, grupos e permissões](#equipe), linhas 538–568: Os usuários do escritório: convites, papel (administrador), função (advogado, administrativo, estagiário), desativar, grupos da equipe, a fase de adaptação (equipe vê tudo)
+- [Perfil profissional e foto](#perfil), linhas 569–588: O perfil profissional de cada pessoa da equipe (a base das páginas da equipe no site do escritório) e a foto redonda do perfil.
+- [Configurações e escritório](#configuracoes), linhas 589–605: As Configurações do escritório: os dados e a marca (nome, logomarca, CNPJ), os módulos ligados, o escritório novo e os donos da plataforma.
+- [Registro de ações e LGPD](#registro), linhas 606–624: O registro de ações (auditoria: quem criou, mudou ou apagou o quê), na tela Equipe, e o que a LGPD pede: registrar quem exportou dados e, ao excluir uma pessoa, apagar o nome dela do registro.
+- [Mensagens e avisos](#mensagens), linhas 625–650: A caixa de mensagens de cada pessoa: avisos ao ser incluído num item, ao ser mencionado, os pedidos para participar de um item e os avisos da tarefa ao solicitante e a quem executa.
+- [Comentários e menções](#comentarios), linhas 651–668: Os comentários dos cartões, com menções de pessoas (@) e de itens (!).
+- [Etiquetas](#etiquetas), linhas 669–685: As etiquetas coloridas do escritório, as mesmas em todos os módulos, com o filtro das páginas de módulo.
+- [Ligações entre itens](#ligacoes), linhas 686–709: Ligar um item a outro que já existe, criar no cartão um item já ligado (o "+ Novo…" das seções), tirar pelo "x" o que está ligado e como as ligações aparecem no quadro.
+- [Quadros (kanban) e situação](#quadros), linhas 710–736: O quadro kanban comum a todos os módulos: colunas, grupos de colunas, colunas-marco e padrão, arquivados, a Situação do cartão e o concluir pelo círculo.
+- [Cartão dos itens](#cartao), linhas 737–762: O cartão (painel) de cada item: o topo, a cabeça, as seções que recolhem, o "Acrescentar ao cartão", as datas e a edição no lugar, o histórico e sair do cartão.
+- [Busca geral](#busca-geral), linhas 763–775: A janela que busca em todos os módulos de uma vez (Ctrl+K ou o botão "Buscar" do menu).
+- [Painel inicial](#painel-inicial), linhas 776–790: O Início: os números do dia, os gráficos e as listas (prazos, agenda, tarefas, demandas, processos, anotações, parcelas, pessoas).
+- [Entrada e minha conta](#conta), linhas 791–811: A tela de entrada (login, primeiro acesso por convite, nova senha), a verificação em duas etapas, a troca do e-mail de acesso, sair e a sessão encerrada em outro lugar.
+- [Página pública](#portal), linhas 812–825: A página pública do SEMPER (rota "/"): a apresentação a outros escritórios e o pedido de demonstração.
+- [Importação](#importacao), linhas 826–845: Importar pessoas de um arquivo CSV (Pessoas > ⋯ > Importar pessoas) e a ferramenta que converte a planilha antiga do site para o SEMPER.
+- [Conta Google e contatos](#google), linhas 846–864: A ligação da conta Google do escritório (em Configurações) e a sincronização das pessoas com o Google Contatos, com a lista "Para conferir".
+- [Novidades e versão](#novidades), linhas 865–878: As novidades de cada versão (o botão do menu lateral) e o aviso de versão nova para a aba aberta antes de uma publicação.
+- [Ajuda e atalhos](#ajuda), linhas 879–894: A ajuda de cada tela (o botão "?" ao lado do título, nas páginas de módulo e nas outras) e os atalhos de teclado ("/" busca, "N" novo, "?" ajuda).
+- [Rotinas automáticas](#rotinas), linhas 895–906: O que o banco faz sozinho, de tempos em tempos (pg_cron): avisos e lembretes de prazo, e-mails de prazo, datas e demandas dos compromissos que se repetem,
+- [Rotas e endereços](#rotas), linhas 907–1011: cada endereço, a tela que abre, o assunto e quem escreve o endereço.
+- [Sem assunto](#sem-assunto), linhas 1012–1015: nada.
 
 <a id="comum"></a>
 ## Comum a todos
@@ -387,10 +387,12 @@ O calendário do escritório (feriados, suspensões, órgãos) e a contagem de p
   - `prazos.ts`: Contagem de prazos: em dias corridos ou em dias úteis, pulando feriados e suspensões.
 - **Telas:** (app/src/paginas/) Calendario.css, Calendario.tsx, calendario/CalcularPrazo.tsx, calendario/DiasDoAno.tsx, calendario/OrgaosDoEscritorio.tsx, calendario/useContagem.ts
 - **Rotas:** `/calendario/`
-- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/calendario/Calendario.test.tsx src/regras/agenda.test.ts src/regras/calendario.test.ts src/regras/prazos.test.ts src/regras/propriedadeIntelectualNaAgenda.test.ts src/regras/repeticao.test.ts`
+- **Servidor (funções do Supabase):** (supabase/functions/) _compartilhado/diaUtilAnterior.ts
+- **Testes unitários:** na pasta app, `npx vitest run src/dados/contrato.test.ts src/paginas/calendario/Calendario.test.tsx src/regras/agenda.test.ts src/regras/calendario.test.ts src/regras/diaUtilAnterior.test.ts src/regras/prazos.test.ts src/regras/propriedadeIntelectualNaAgenda.test.ts src/regras/repeticao.test.ts`
 - **Testes de tela:** na pasta app, `npx playwright test e2e/calendario.spec.ts`
 - **Armadilhas:**
   - Os feriados fixos e móveis já vêm prontos em `regras/prazos.ts`; o banco guarda só o que o escritório lançou.
+  - O dia útil do escritório e o dia útil anterior a uma data (a despesa na agenda Administrativo, #439) ficam no servidor (`supabase/functions/_compartilhado/diaUtilAnterior.ts`), para a função de borda usar; `regras/demandaDoCompromisso.ts` usa a mesma conta, e o teste fica em `regras/diaUtilAnterior.test.ts`.
   - `regras/prazos.ts` não depende de nenhum módulo (Agenda e Propriedade intelectual importam dele `somarDias`, `diasEntre` e `DIAS_NA_SEMANA`): não importe um módulo dali, para não criar importação circular.
 
 <a id="lembretes"></a>
